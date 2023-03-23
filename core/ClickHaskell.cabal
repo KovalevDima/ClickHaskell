@@ -1,0 +1,51 @@
+cabal-version: 3.4
+
+
+name:           ClickHaskell
+version:        0.0.1
+
+author:         Kovalev Dmitry
+maintainer:     Kovalev Dmitry
+
+description:    wide functionality library for solving most of the problems related to clickhouse integration 
+homepage:       https://github.com/KovalevDima/ClickHaskell#readme
+bug-reports:    https://github.com/KovalevDima/ClickHaskell/issues
+License:        BSD-3-Clause
+License-File:   ./LICENSE
+copyright:      2023 Kovalev Dmitry
+build-type:     Simple
+
+
+source-repository head
+  type: git
+  location: https://github.com/KovalevDima/ClickHaskell
+  subdir: ClickHaskell
+
+
+library
+  exposed-modules:
+      ClickHaskell,
+      ClickHaskell.ChTypes,
+      ClickHaskell.TableDsl,
+      ToDelete
+  other-modules:
+      Paths_ClickHaskell
+  hs-source-dirs:
+      src
+  ghc-options: -Wall -fno-warn-type-defaults -O2
+  build-depends:
+      base >=4.7 && <5
+    , bytestring
+    , deepseq
+    , singletons
+    , singletons-base
+    , stm
+    , text
+    , time
+    , conduit
+    , http-conduit
+    , http-client
+    , http-types
+    , uuid
+    , wide-word
+  default-language: GHC2021

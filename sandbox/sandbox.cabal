@@ -1,0 +1,57 @@
+cabal-version: 3.4
+
+
+name:               sandbox
+version:            0.0.1
+author:             Kovalev Dmitry
+maintainer:         https://github.com/KovalevDima
+
+description:        development sandbox 
+homepage:           https://github.com/KovalevDima/ClickHaskell/sanbox#readme
+bug-reports:        https://github.com/KovalevDima/ClickHaskell/issues
+License:            BSD-3-Clause
+License-File:       ./LICENSE
+copyright:          2023 Kovalev Dmitry
+build-type:         Simple
+extra-source-files: README.md
+
+source-repository head
+  type: git
+  location: https://github.com/KovalevDima/ClickHaskell
+  subdir: ClickHaskell/sandbox
+
+
+library
+  exposed-modules:
+      Sandbox
+  other-modules:
+      Paths_sandbox
+  hs-source-dirs:
+      src
+  ghc-options: -Wall -fno-warn-type-defaults -O2
+  build-depends:
+      base >=4.7 && <5
+    , async
+    , bytestring
+    , ClickHaskell
+    , conduit
+    , flush-queue
+    , http-conduit
+    , http-client
+    , http-types
+    , stm
+    , text
+    , time
+    , uuid
+    , vector
+    , wide-word
+  default-language: Haskell2010
+
+executable executable
+  main-is: Main.hs
+  hs-source-dirs:
+    executable
+  ghc-options: -O2 -threaded
+  build-depends:
+    base,
+    sandbox
