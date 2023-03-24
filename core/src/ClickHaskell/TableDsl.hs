@@ -24,9 +24,8 @@ import Data.Data               (Proxy(Proxy))
 import Data.Kind               (Type)
 import Data.Text               as T (Text, pack, unpack, intercalate)
 import Data.Singletons         (demote, SingI)
-import GHC.Exts                (Symbol)
 import GHC.Generics            (Generic(Rep, from), Selector(selName), (:*:)(..), D1, C1, S1, M1(..), K1 (unK1))
-import GHC.TypeLits            (symbolVal, KnownSymbol, TypeError, ErrorMessage (..))
+import GHC.TypeLits            (symbolVal, KnownSymbol, TypeError, ErrorMessage(..), Symbol)
 import GHC.TypeLits.Singletons ()
 
 -- Internal packages
