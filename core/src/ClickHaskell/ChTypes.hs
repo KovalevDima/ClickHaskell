@@ -12,11 +12,12 @@
   , OverloadedStrings
   , PolyKinds
   , TypeApplications
+  , TypeFamilies
   , TypeOperators
   , ScopedTypeVariables
+  , UndecidableInstances
   #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE UndecidableInstances #-}
+
 module ClickHaskell.ChTypes where
 
 import Data.ByteString       as BS (ByteString)
@@ -70,13 +71,17 @@ renderNullable :: IsChType chType => Maybe chType -> ByteString
 renderNullable Nothing           = "\\N"
 renderNullable (Just val)        = render val
 
-
+instance (KnownSymbol (NullableTypeName chType), IsChType chType, ToChType chType inputType)
+  =>     ToChType (Maybe chType) (Maybe inputType) where
+    toChType Nothing  = Nothing
+    toChType (Just a) = Just (toChType @chType a)
 
 
 -- | ClickHouse UUID column type
 newtype                    ChUUID = ChUUID      UUID   deriving newtype (Show)
 type instance ToChTypeName ChUUID = "UUID"
-instance      IsChType     ChUUID where render (ChUUID uuid)   = UUID.toASCIIBytes uuid
+instance      IsChType     ChUUID      where render (ChUUID uuid)   = UUID.toASCIIBytes uuid
+instance      ToChType     ChUUID UUID where toChType = ChUUID
 
 
 
@@ -90,13 +95,11 @@ instance      ToChType     ChString Text   where toChType = ChString
 instance      ToChType     ChString Int    where toChType = ChString . Text.pack . show
 
 
-
 -- | ClickHouse Int32 column type
 newtype                    ChInt32 = ChInt32    Int32  deriving newtype (Show)
 type instance ToChTypeName ChInt32 = "Int32"
 instance      IsChType     ChInt32       where render (ChInt32 val)   = BS8.pack $ show val
 instance      ToChType     ChInt32 Int32 where toChType = ChInt32
-
 
 
 -- | ClickHouse Int64 column type
@@ -107,8 +110,6 @@ instance Integral a
   =>          ToChType     ChInt64 a where toChType = ChInt64 . fromIntegral
 
 
-
-
 -- | ClickHouse Int128 column type
 newtype ChInt128                    = ChInt128   Int128 deriving newtype (Show)
 type instance ToChTypeName ChInt128 = "Int128"
@@ -117,18 +118,8 @@ instance Integral a
   =>          ToChType     ChInt128 a where toChType = ChInt128 . fromIntegral
 
 
-
 -- | ClickHouse DateTime column type
 newtype                    ChDateTime =  ChDateTime Int32  deriving newtype (Show)
 type instance ToChTypeName ChDateTime = "DateTime"
-instance      IsChType     ChDateTime where render (ChDateTime int32) = BS8.pack $ show int32
-
-
-
-
-instance ToChType ChDateTime UTCTime   where toChType = ChDateTime . floor . utcTimeToPOSIXSeconds
-instance ToChType ChUUID     UUID      where toChType = ChUUID
-instance (KnownSymbol (NullableTypeName chType), IsChType chType, ToChType chType inputType)
-  =>     ToChType (Maybe chType) (Maybe inputType) where
-    toChType Nothing  = Nothing
-    toChType (Just a) = Just (toChType @chType a)
+instance      IsChType     ChDateTime         where render (ChDateTime int32) = BS8.pack $ show int32
+instance      ToChType     ChDateTime UTCTime where toChType = ChDateTime . floor . utcTimeToPOSIXSeconds

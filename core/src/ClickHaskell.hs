@@ -1,5 +1,6 @@
 {-# LANGUAGE
-    DefaultSignatures
+    DataKinds
+  , DefaultSignatures
   , DeriveAnyClass
   , DeriveGeneric
   , DerivingStrategies
@@ -11,21 +12,22 @@
   , OverloadedStrings
   , PolyKinds
   , TypeApplications
+  , TypeFamilies
   , TypeOperators
   , ScopedTypeVariables
+  , UndecidableInstances
   #-}
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE UndecidableInstances #-}
 
+{-# OPTIONS_GHC
+  -Wno-unrecognised-pragmas
+#-}
 module ClickHaskell
   (
   -- * Insert DSL 
   httpStreamChInsert, Database(..), Table(..)
 
   -- * Buffered writing abstractions
-  , writeToBuffer, createBuffer, readFromBuffer, forkBufferFlusher, BufferSize(..), TBQueue
+  , writeToBuffer, createSizedBuffer, readFromBuffer, forkBufferFlusher, BufferSize(..), TBQueue
 
   -- * Client abstraction
   , ChClient(initClient), HttpChClient, ChCredential(ChCredential, chLogin, chPass, chUrl)
@@ -56,17 +58,6 @@ import Network.HTTP.Types          (statusCode)
 
 -- Internal packages
 import ClickHaskell.TableDsl (HasChSchema (getSchema), toBs, ChSchema (..))
-
-
-
-
-
-
-
-
-
-
-
 
 
 newtype Database = Database Text deriving newtype (Show, IsString)
@@ -116,16 +107,16 @@ newtype BufferSize = BufferSize Natural deriving newtype Num
 
 class IsBuffer buffer schemaData
   where
-  writeToBuffer  :: buffer schemaData -> schemaData -> IO ()
-  createBuffer   :: BufferSize -> IO (buffer schemaData)
-  readFromBuffer :: buffer schemaData  -> IO [schemaData]
+  writeToBuffer     :: buffer schemaData -> schemaData -> IO ()
+  createSizedBuffer :: BufferSize -> IO (buffer schemaData)
+  readFromBuffer    :: buffer schemaData  -> IO [schemaData]
 
 instance HasChSchema schemaData
   => IsBuffer TBQueue schemaData
   where
-  createBuffer   (BufferSize size) = newTBQueueIO size
-  writeToBuffer  buffer d          = atomically $ writeTBQueue buffer d
-  readFromBuffer buffer            = atomically $ flushTBQueue buffer
+  createSizedBuffer (BufferSize size) = newTBQueueIO size
+  writeToBuffer     buffer d          = atomically $ writeTBQueue buffer d
+  readFromBuffer    buffer            = atomically $ flushTBQueue buffer
 
 
 

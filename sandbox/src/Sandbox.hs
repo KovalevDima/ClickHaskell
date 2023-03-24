@@ -1,17 +1,20 @@
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE NumericUnderscores #-}
-{-# LANGUAGE DerivingStrategies #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE
+    DeriveAnyClass
+  , DeriveGeneric
+  , DerivingStrategies
+  , GeneralizedNewtypeDeriving
+  , NumericUnderscores
+  , OverloadedStrings
+  , TypeApplications
+  , ScopedTypeVariables
+#-}
+
 module Sandbox
   ( writeExample
   , WriteExampleSettings(..)
   ) where
 
-import ClickHaskell           (HttpChClient, initClient, ChCredential (..), createBuffer,
+import ClickHaskell           (HttpChClient, initClient, ChCredential (..), createSizedBuffer,
                               writeToBuffer, httpStreamChInsert, BufferSize, forkBufferFlusher)
 import ClickHaskell.ChTypes   (ChString, ChInt64, ChUUID, ChDateTime, ToChType(toChType))
 import ClickHaskell.TableDsl  (HasChSchema)
@@ -70,7 +73,7 @@ writeExample (
     (ChCredential "default" "" "http://localhost:8123")
 
   -- 3. Create buffer 
-  (buffer :: TBQueue Example) <- createBuffer bufferSize
+  (buffer :: TBQueue Example) <- createSizedBuffer bufferSize
 
   -- 4. Start buffer flusher
   _ <- forkBufferFlusher
@@ -101,15 +104,3 @@ writeExample (
         )
 
   threadDelay 60_000_000
-
-
-{-
->>> getSchema $ Proxy @Example
-[("channel_name","String"),("clientId","Int64"),("someField","Int64"),("someField2","UUID")]
-
->>> tsvInsertHeader (Proxy @Example) "db" "table"
-"INSERT INTO db.table (channel_name,clientId,someField,someField2) FORMAT TSV\n"
-
->>> toBs _dataExample
-"text\t42\t5\t00000000-0000-0000-0000-000000000000\n"
--}

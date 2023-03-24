@@ -26,8 +26,7 @@ library
   exposed-modules:
       ClickHaskell,
       ClickHaskell.ChTypes,
-      ClickHaskell.TableDsl,
-      ToDelete
+      ClickHaskell.TableDsl
   other-modules:
       Paths_ClickHaskell
   hs-source-dirs:

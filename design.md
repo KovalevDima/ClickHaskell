@@ -13,7 +13,7 @@ type EventsTable =
     ]
     MergeTree
     -- | Typecheck is 'PARTITION BY' are empty or a suffix of 'ORDER BY'
-    (PARTITION BY '["eventType"])
-    (ORDER BY     '["eventType", "eventId"])
+    (PartitionBy '["eventType"])
+    (OrderBy     '["eventType", "eventId"])
 
 ```

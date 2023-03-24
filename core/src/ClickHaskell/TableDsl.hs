@@ -1,6 +1,6 @@
 {-# LANGUAGE
-  
-  DataKinds
+    AllowAmbiguousTypes
+  , DataKinds
   , DefaultSignatures
   , DerivingStrategies
   , FlexibleInstances
@@ -15,7 +15,6 @@
   , ScopedTypeVariables
   , UndecidableInstances
 #-}
-{-# LANGUAGE AllowAmbiguousTypes #-}
 
 module ClickHaskell.TableDsl where
 
@@ -34,8 +33,6 @@ import GHC.TypeLits.Singletons ()
 import ClickHaskell.ChTypes (ChTypeName, ToChTypeName, ChDateTime, ChInt64, ChUUID, IsChType (render), originalName, ChString)
 
 
-type ColumnRep a = Symbol
-
 type family SupportedAndVerifiedColumn (columns :: [Type]) :: [(Symbol, Symbol)] where
   SupportedAndVerifiedColumn (x ': xs) = SupportedColumn x ': SupportedAndVerifiedColumn xs
   SupportedAndVerifiedColumn '[] = '[]
@@ -48,14 +45,14 @@ data Table (name :: Symbol) (columns :: [column :: Type]) engine
   where Table :: IsChEngine engine => Table name columns engine
 
 
-
-
 showCreateTable :: (KnownSymbol name, IsChEngine engine) => String -> Proxy (Table name columns engine) -> String
 showCreateTable db (_ :: Proxy (Table name columns engine)) =
   let columns = "(" <> T.intercalate ", " (map (\(first, second) -> first <> " " <> second) (getColumnsDesc @Example)) <> ")" in
   "CREATE TABLE " <> db <> "." <> symbolVal (Proxy @name) <>
   " " <> T.unpack columns  <>
   " Engine=" <> engineName (Proxy @engine)
+
+
 
 
 class    IsChEngine engine    where engineName :: Proxy engine -> String
@@ -85,22 +82,17 @@ type Example =
      ]
     MergeTree
 
-
-
-
 example :: [(Text, Text)]
 example = getColumnsDesc @Example
+
+
 
 
 getColumnsDesc :: forall t columns engine name . (IsChEngine engine, t ~ Table name columns engine, SingI (SupportedAndVerifiedColumn columns)) => [(Text, Text)]
 getColumnsDesc = demote @(SupportedAndVerifiedColumn columns)
 
 
-
-
-
-
-newtype ChSchema   = ChSchema { schema :: [(Text, ChTypeName)] } deriving newtype (Show, Semigroup)
+newtype ChSchema = ChSchema { schema :: [(Text, ChTypeName)] } deriving newtype (Show, Semigroup)
 
 
 class HasChSchema a where
@@ -111,6 +103,7 @@ class HasChSchema a where
   default toBs :: (Generic a, GToBs (Rep a)) => a -> BS.ByteString
   toBs :: a -> BS.ByteString
   toBs = (<> "\n") . gToBs . from
+  {-# INLINE toBs #-}
 
 
 class GHasChSchema (p :: Type -> Type) where
