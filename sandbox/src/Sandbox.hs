@@ -15,7 +15,7 @@ module Sandbox
   ) where
 
 import ClickHaskell           (HttpChClient, initClient, ChCredential (..), createSizedBuffer,
-                              writeToBuffer, httpStreamChInsert, BufferSize, forkBufferFlusher)
+                              writeToSizedBuffer, httpStreamChInsert, BufferSize, forkBufferFlusher)
 import ClickHaskell.ChTypes   (ChString, ChInt64, ChUUID, ChDateTime, ToChType(toChType))
 import ClickHaskell.TableDsl  (HasChSchema)
 import Network.HTTP.Client    as H (newManager, defaultManagerSettings)
@@ -96,7 +96,7 @@ writeExample (
       $ replicateM_ rowsNumber
         ( (\someData -> do
             -- Writing
-            writeToBuffer buffer someData
+            writeToSizedBuffer buffer someData
 
             threadDelay msBetweenBufferWrites
           )

@@ -18,7 +18,7 @@ Package still under developing and doesn't have stable interface
 module Example where
 
 import ClickHaskell           (HttpChClient, initClient, ChCredential (..), createSizedBuffer,
-                              writeToBuffer, httpStreamChInsert, forkBufferFlusher)
+                              writeToSizedBuffer, httpStreamChInsert, forkBufferFlusher)
 import ClickHaskell.ChTypes   (ChString, ChInt64, ChUUID, ChDateTime, ToChType(toChType))
 import ClickHaskell.TableDsl  (HasChSchema)
 import Network.HTTP.Client    as H (newManager, defaultManagerSettings)
@@ -71,7 +71,7 @@ writeExample = do
         }
 
   -- 6. Write data to buffer
-  writeToBuffer buffer _dataExample
+  writeToSizedBuffer buffer _dataExample
 
   threadDelay 60_000_000
 ```

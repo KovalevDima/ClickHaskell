@@ -27,7 +27,7 @@ module ClickHaskell
   httpStreamChInsert, Database(..), Table(..)
 
   -- * Buffered writing abstractions
-  , writeToBuffer, createSizedBuffer, readFromBuffer, forkBufferFlusher, BufferSize(..), TBQueue
+  , writeToSizedBuffer, createSizedBuffer, readFromSizedBuffer, forkBufferFlusher, BufferSize(..), TBQueue
 
   -- * Client abstraction
   , ChClient(initClient), HttpChClient, ChCredential(ChCredential, chLogin, chPass, chUrl)
@@ -97,7 +97,7 @@ forkBufferFlusher freq buffer exceptionHandler flushAction
   = forkIO . forever
   $ do
     threadDelay freq
-    bufferData <- readFromBuffer buffer
+    bufferData <- readFromSizedBuffer buffer
     unless (null bufferData)
       ( handle exceptionHandler
       $ flushAction bufferData
@@ -107,16 +107,16 @@ newtype BufferSize = BufferSize Natural deriving newtype Num
 
 class IsBuffer buffer schemaData
   where
-  writeToBuffer     :: buffer schemaData -> schemaData -> IO ()
-  createSizedBuffer :: BufferSize -> IO (buffer schemaData)
-  readFromBuffer    :: buffer schemaData  -> IO [schemaData]
+  writeToSizedBuffer  :: buffer schemaData -> schemaData -> IO ()
+  createSizedBuffer   :: BufferSize -> IO (buffer schemaData)
+  readFromSizedBuffer :: buffer schemaData  -> IO [schemaData]
 
 instance HasChSchema schemaData
   => IsBuffer TBQueue schemaData
   where
-  createSizedBuffer (BufferSize size) = newTBQueueIO size
-  writeToBuffer     buffer d          = atomically $ writeTBQueue buffer d
-  readFromBuffer    buffer            = atomically $ flushTBQueue buffer
+  createSizedBuffer   (BufferSize size) = newTBQueueIO size
+  writeToSizedBuffer  buffer d          = atomically $ writeTBQueue buffer d
+  readFromSizedBuffer buffer            = atomically $ flushTBQueue buffer
 
 
 
