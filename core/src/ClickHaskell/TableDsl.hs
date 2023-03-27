@@ -42,6 +42,8 @@ type family SupportedAndVerifiedColumns (columns :: [Type]) :: [(Symbol, Symbol)
 type family SupportedColumn x :: (Symbol, Symbol)
 type instance SupportedColumn (DefaultColumn a b) = '(a, ToChTypeName b)
 
+data DefaultColumn (name :: Symbol) columnType
+
 
 data InDatabase
   (db :: Symbol)
@@ -95,7 +97,6 @@ data TinyLog
 data MergeTree
 
 
-data DefaultColumn (name :: Symbol) columnType
 
 
 type Example =
@@ -121,6 +122,12 @@ data ExampleData = ExampleData
 example :: [(Text, Text)]
 example = getColumnsDesc @Example
 
+exampleData :: ExampleData
+exampleData = ExampleData
+  (toChType ("text\t" :: Text))
+  (toChType $ show 42)
+  (toChType $ show nil)
+  (toChType ("hello World" :: Text))
 
 
 
@@ -208,12 +215,3 @@ instance (IsChType p)
   gFromBs :: IsChType p => ByteString -> S1 s (K1 i p) p1
   gFromBs bs = M1 $ K1 $ parse bs
   {-# INLINE gFromBs #-}
-
-
-
-exampleData :: ExampleData
-exampleData = ExampleData
-  (toChType ("text\t" :: Text))
-  (toChType $ show 42)
-  (toChType $ show nil)
-  (toChType ("hello World" :: Text))
