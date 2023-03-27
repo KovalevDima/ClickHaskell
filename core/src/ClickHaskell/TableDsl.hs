@@ -20,7 +20,7 @@
 module ClickHaskell.TableDsl where
 
 import Data.ByteString         as BS (ByteString)
-import Data.ByteString.Char8   as BS8 (takeWhile, dropWhile)
+import Data.ByteString.Char8   as BS8 (split, intercalate)
 import Data.Data               (Proxy(Proxy))
 import Data.Kind               (Type)
 import Data.Text               as T (Text, pack, unpack, intercalate)
@@ -130,8 +130,6 @@ exampleData = ExampleData
   (toChType ("hello World" :: Text))
 
 
-
-
 getColumnsDesc :: forall t columns engine name orderBy partitionBy .
   ( t ~ Table name columns engine orderBy partitionBy
   , SingI (SupportedAndVerifiedColumns columns)
@@ -152,7 +150,9 @@ class HasChSchema a where
 
   default fromBs :: (Generic a, GFromBS (Rep a)) => BS.ByteString -> a
   fromBs :: BS.ByteString -> a
-  fromBs = to . gFromBs
+  fromBs = to . normalize . gFromBs
+    where
+      normalize = id
 
 
 class GHasChSchema (p :: Type -> Type) where
@@ -204,9 +204,16 @@ instance GFromBS f => GFromBS (C1 c f) where
 instance (GFromBS f1, GFromBS f2)
   => GFromBS (f1 :*: f2) where
   gFromBs bs =
-    gFromBs (BS8.takeWhile (/= '\t') bs)
+    -- really need to optomize later
+    let byteStrings = '\t' `split` bs
+        lng = length byteStrings
+        firstWordsCount = lng `div` 2
+        lastWordsCount = lng - firstWordsCount
+        firstWords = BS8.intercalate "\t" $ take firstWordsCount byteStrings
+        lastWords = BS8.intercalate "\t" $ reverse $ take lastWordsCount $ reverse byteStrings in
+    gFromBs firstWords
     :*:
-    gFromBs (BS8.dropWhile (=='\t') . BS8.dropWhile (/= '\t') $ bs)
+    gFromBs lastWords
   {-# INLINE gFromBs #-}
 
 instance (IsChType p)
