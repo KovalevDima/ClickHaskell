@@ -23,7 +23,9 @@ source-repository head
 
 library
   exposed-modules:
-      Sandbox
+      Insert,
+      Sandbox,
+      Select
   other-modules:
       Paths_sandbox
   hs-source-dirs:
