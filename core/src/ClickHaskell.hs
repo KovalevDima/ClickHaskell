@@ -87,6 +87,7 @@ httpStreamChSelect (HttpChClient man req) = do
     else throw $ ChException $ T.decodeUtf8 $ BS.toStrict $ responseBody resp
   pure $ map (fromBs . BSL8.toStrict) $ BSL8.lines bytestring
 
+-- ToDo4: Implement table and handling data validation
 tsvSelectQuery :: forall chSchema t db table name columns engine partitionBy orderBy .
   ( HasChSchema chSchema
   , t ~ InDatabase db (table name columns engine partitionBy orderBy)
@@ -100,7 +101,7 @@ tsvSelectQuery =
 
 
 
-
+-- ToDo3: implement interface the same way as httpStreamChSelect
 httpStreamChInsert :: forall chSchema . (HasChSchema chSchema)
   => HttpChClient -> [chSchema] -> Database -> Table -> IO (H.Response BSL.ByteString)
 httpStreamChInsert (HttpChClient man req) schemaList db table = do
@@ -116,6 +117,7 @@ httpStreamChInsert (HttpChClient man req) schemaList db table = do
     then pure resp
     else throw $ ChException $ T.decodeUtf8 $ BS.toStrict $ responseBody resp
 
+-- ToDo4: Implement table and handling data validation
 tsvInsertQueryHeader :: HasChSchema schema => Proxy schema -> Database -> Table -> Text
 tsvInsertQueryHeader schemaRep (Database db) (Table table) =
   let columnsMapping = T.intercalate "," . map fst $ getSchema schemaRep

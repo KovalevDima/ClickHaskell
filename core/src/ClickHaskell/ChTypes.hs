@@ -34,7 +34,6 @@ import Data.UUID             as UUID (UUID, toASCIIBytes, fromASCIIBytes)
 import Data.WideWord         (Int128)
 import Data.Word             (Word32)
 import GHC.TypeLits          (AppendSymbol, Symbol, KnownSymbol, symbolVal)
-import GHC.Stack (HasCallStack)
 
 
 type family (ToChTypeName columnType) :: Symbol
@@ -104,6 +103,9 @@ instance      ToChType     ChString String where toChType = ChString . escape . 
 instance      ToChType     ChString Text   where toChType = ChString . escape . Text.encodeUtf8
 instance      ToChType     ChString Int    where toChType = ChString . escape . BS8.pack . show
 
+escape :: ByteString -> ByteString
+escape = BS8.concatMap (\sym -> if sym == '\t' then "\\t" else if sym == '\n' then "\\n" else BS8.singleton sym)
+
 
 -- | ClickHouse Int32 column type
 newtype                    ChInt32 = ChInt32    Int32  deriving newtype (Show)
@@ -119,8 +121,6 @@ newtype                    ChInt64 = ChInt64    Int    deriving newtype (Show)
 type instance ToChTypeName ChInt64 = "Int64"
 instance      IsChType     ChInt64   where
   render (ChInt64 val)    = BS8.pack $ show val
-  
-  parse :: HasCallStack => ByteString -> ChInt64
   parse                   = ChInt64 . fst . fromJust . BS8.readInt
 instance Integral a
   =>          ToChType     ChInt64 a where toChType = ChInt64 . fromIntegral
@@ -143,7 +143,3 @@ instance      IsChType     ChDateTime         where
   render (ChDateTime w32) = BS8.pack $ show w32
   parse = ChDateTime . fromInteger . floor . nominalDiffTimeToSeconds . utcTimeToPOSIXSeconds . fromJust . parseTimeM False defaultTimeLocale "%Y-%m-%d %H:%M:%S" . BS8.unpack
 instance      ToChType     ChDateTime UTCTime where toChType = ChDateTime . floor . utcTimeToPOSIXSeconds
-
-
-escape :: ByteString -> ByteString
-escape = BS8.concatMap (\sym -> if sym == '\t' then "\\t" else if sym == '\n' then "\\n" else BS8.singleton sym)

@@ -17,14 +17,13 @@ import Data.Time              (UTCTime(UTCTime), secondsToDiffTime, fromGregoria
 
 import Data.Text              (Text)
 import GHC.Generics           (Generic)
-import Control.Monad          (void)
 import Control.Exception      (SomeException)
 import Control.Concurrent     (threadDelay)
 import Control.Concurrent.STM (TBQueue)
+import Control.Monad          (void)
 
 
 -- 1. Create our schema haskell representation
-
 data Example = Example
   { channel_name :: ChString
   , clientId     :: ChInt64
@@ -33,11 +32,15 @@ data Example = Example
   }
   deriving (Generic, HasChSchema)
 
+
 insert :: IO ()
 insert = do
 
   -- 2. Init clienthttpStreamChInsert client bufferData
-  client <- initClient @HttpChClient (ChCredential "default" "" "http://localhost:8123") Nothing
+  client <- initClient
+    @HttpChClient
+    (ChCredential "default" "" "http://localhost:8123")
+    Nothing
 
   -- 3. Create buffer 
   (buffer :: TBQueue Example) <- createSizedBuffer 500_000

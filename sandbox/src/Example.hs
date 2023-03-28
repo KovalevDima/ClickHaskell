@@ -15,7 +15,8 @@ import GHC.Generics           (Generic)
 type ExampleTable =
   Table
     "example"
-    '[ DefaultColumn "channel_name" ChString
+    '[
+       DefaultColumn "channel_name" ChString
      , DefaultColumn "clientId"     ChInt64
      , DefaultColumn "someField"    ChDateTime
      , DefaultColumn "someField2"   ChUUID

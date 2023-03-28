@@ -4,28 +4,33 @@
   , DeriveGeneric
   , NumericUnderscores
   , OverloadedStrings
+  , PolyKinds
   , TypeApplications
   , ScopedTypeVariables
 #-}
 module Example.Select where
 
-import ClickHaskell           (HttpChClient, initClient, ChCredential (..), httpStreamChSelect)
-import ClickHaskell.TableDsl  (InDatabase)
-import Example                (ExampleTable, ExampleData)
+import ClickHaskell              (HttpChClient, initClient, ChCredential (..), httpStreamChSelect)
+import ClickHaskell.TableDsl     (InDatabase, Sampled)
 
-import Control.Concurrent     (threadDelay)
+-- 1. Describe table and queryable data
+import Example (ExampleTable, ExampleData)
+
+
+
 
 
 select :: IO ()
 select = do
 
-  -- 3. Init http client
+  -- 2. Init http client
   client <- initClient
     @HttpChClient
     (ChCredential "default" "" "http://localhost:8123")
     Nothing
 
-  dat <- httpStreamChSelect @ExampleData @(InDatabase "example" ExampleTable) client
-  mapM_ print dat
+  -- 3. Perform select
+  dat <- httpStreamChSelect @(Sampled "fieldName" "" ExampleData) @(InDatabase "example" ExampleTable) client
 
-  threadDelay 15_000_000
+  -- 4. Handle data
+  mapM_ print dat
