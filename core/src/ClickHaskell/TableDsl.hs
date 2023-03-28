@@ -15,7 +15,6 @@
   , ScopedTypeVariables
   , UndecidableInstances
 #-}
-{-# LANGUAGE DeriveAnyClass #-}
 
 module ClickHaskell.TableDsl where
 
@@ -29,9 +28,7 @@ import GHC.Generics            (Generic(Rep, from, to), Selector(selName), (:*:)
 import GHC.TypeLits            (symbolVal, KnownSymbol, TypeError, ErrorMessage(..), Symbol)
 import GHC.TypeLits.Singletons ()
 
-import Data.UUID (nil)
-
-import ClickHaskell.ChTypes (IsChType(render, originalName), ToChTypeName, ChInt64, ChUUID, ChString, parse, toChType, ChDateTime)
+import ClickHaskell.ChTypes (IsChType(originalName, parse, render), ToChTypeName)
 
 
 type family SupportedAndVerifiedColumns (columns :: [Type]) :: [(Symbol, Symbol)] where
@@ -47,7 +44,7 @@ data DefaultColumn (name :: Symbol) columnType
 
 data InDatabase
   (db :: Symbol)
-  t
+  (t :: Type)
   where
   InDatabase :: InDatabase db t
 
@@ -58,11 +55,20 @@ data Table
   (partitionBy :: [Symbol])
   (orderBy     :: [Symbol])
   where
-  Table :: IsChEngine engine => Table name columns engine partitionBy orderBy
+  Table :: forall name columns engine partitionBy orderBy . IsChEngine engine => Table name columns engine partitionBy orderBy
 
 
-showCreateTable :: forall t db name columns engine orderBy partitionBy .
-  ( t ~ InDatabase db (Table name columns engine orderBy partitionBy)
+getColumnsDesc :: forall t columns engine name orderBy partitionBy .
+  ( t ~ Table name columns engine orderBy partitionBy
+  , SingI (SupportedAndVerifiedColumns columns)
+  )
+  => [(Text, Text)]
+getColumnsDesc = demote @(SupportedAndVerifiedColumns columns)
+
+
+showCreateTable :: forall t db table name columns engine orderBy partitionBy .
+  ( table ~ Table name columns engine orderBy partitionBy
+  , t ~ InDatabase db table
   , KnownSymbol name
   , KnownSymbol db
   , SingI partitionBy
@@ -97,45 +103,6 @@ data TinyLog
 data MergeTree
 
 
-
-
-type Example =
-  Table
-    "example"
-    '[ DefaultColumn "channel_name" ChString
-     , DefaultColumn "clientId"     ChInt64
-     , DefaultColumn "someField"    ChDateTime
-     , DefaultColumn "someField2"   ChUUID
-     ]
-    MergeTree
-    '[]
-    '[]
-
-data ExampleData = ExampleData
-  { channel_name :: ChString
-  , clientId     :: ChString
-  , someField    :: ChString
-  , someField2   :: ChString
-  }
-  deriving (Generic, HasChSchema, Show)
-
-example :: [(Text, Text)]
-example = getColumnsDesc @Example
-
-exampleData :: ExampleData
-exampleData = ExampleData
-  (toChType ("text\t" :: Text))
-  (toChType $ show 42)
-  (toChType $ show nil)
-  (toChType ("hello World" :: Text))
-
-
-getColumnsDesc :: forall t columns engine name orderBy partitionBy .
-  ( t ~ Table name columns engine orderBy partitionBy
-  , SingI (SupportedAndVerifiedColumns columns)
-  )
-  => [(Text, Text)]
-getColumnsDesc = demote @(SupportedAndVerifiedColumns columns)
 
 
 class HasChSchema a where

@@ -6,13 +6,12 @@
   , TypeApplications
   , ScopedTypeVariables
 #-}
-module Insert where
+module Example.Insert where
 
 import ClickHaskell           (HttpChClient, initClient, ChCredential (..), createSizedBuffer,
                               writeToSizedBuffer, httpStreamChInsert, forkBufferFlusher)
 import ClickHaskell.ChTypes   (ChString, ChInt64, ChUUID, ChDateTime, ToChType(toChType))
 import ClickHaskell.TableDsl  (HasChSchema)
-import Network.HTTP.Client    as H (newManager, defaultManagerSettings)
 import Data.UUID              as UUID (nil)
 import Data.Time              (UTCTime(UTCTime), secondsToDiffTime, fromGregorian)
 
@@ -38,10 +37,7 @@ insert :: IO ()
 insert = do
 
   -- 2. Init clienthttpStreamChInsert client bufferData
-  httpManager <- H.newManager H.defaultManagerSettings
-  client <- initClient @HttpChClient
-    (Just httpManager)
-    (ChCredential "default" "" "http://localhost:8123")
+  client <- initClient @HttpChClient (ChCredential "default" "" "http://localhost:8123") Nothing
 
   -- 3. Create buffer 
   (buffer :: TBQueue Example) <- createSizedBuffer 500_000
@@ -64,14 +60,14 @@ insert = do
   -- 6. Write data to buffer
   writeToSizedBuffer buffer _dataExample
 
-  threadDelay 60_000_000
+  threadDelay 15_000_000
 
 
 
 _dataExample :: Example
 _dataExample = Example
-        { channel_name = toChType @ChString   $ ("text\t"   :: Text)
-        , clientId     = toChType @ChInt64      42
-        , someField    = toChType @ChDateTime $ UTCTime (fromGregorian 2018 10 27) (secondsToDiffTime 0)
-        , someField2 =   toChType @ChUUID       UUID.nil
-        }
+  { channel_name = toChType @ChString   $ ("text\t"   :: Text)
+  , clientId     = toChType @ChInt64      42
+  , someField    = toChType @ChDateTime $ UTCTime (fromGregorian 2018 10 27) (secondsToDiffTime 0)
+  , someField2 =   toChType @ChUUID       UUID.nil
+  }

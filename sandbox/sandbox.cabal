@@ -23,9 +23,10 @@ source-repository head
 
 library
   exposed-modules:
-      Insert,
-      Sandbox,
-      Select
+      WriteTest,
+      Example,
+      Example.Insert,
+      Example.Select
   other-modules:
       Paths_sandbox
   hs-source-dirs:
@@ -37,7 +38,6 @@ library
     , bytestring
     , ClickHaskell
     , conduit
-    , flush-queue
     , http-conduit
     , http-client
     , http-types

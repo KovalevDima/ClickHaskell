@@ -9,7 +9,7 @@
   , ScopedTypeVariables
 #-}
 
-module Sandbox
+module WriteTest
   ( writeExample
   , WriteExampleSettings(..)
   ) where
@@ -69,8 +69,8 @@ writeExample (
   -- 2. Init clienthttpStreamChInsert client bufferData
   httpManager <- H.newManager H.defaultManagerSettings
   client <- initClient @HttpChClient
-    (Just httpManager)
     (ChCredential "default" "" "http://localhost:8123")
+    (Just httpManager)
 
   -- 3. Create buffer 
   (buffer :: TBQueue Example) <- createSizedBuffer bufferSize

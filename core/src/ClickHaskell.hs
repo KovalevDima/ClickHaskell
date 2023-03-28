@@ -1,5 +1,6 @@
 {-# LANGUAGE
-    DataKinds
+    AllowAmbiguousTypes
+  , DataKinds
   , DefaultSignatures
   , DeriveAnyClass
   , DeriveGeneric
@@ -37,7 +38,7 @@ import Data.ByteString            as BS (toStrict)
 import Data.ByteString.Lazy.Char8 as BSL8 (lines, toStrict)
 import Data.ByteString.Lazy       as BSL (ByteString)
 import Data.Data                  (Proxy(..))
-import Data.Text                  as T (Text, intercalate, unpack)
+import Data.Text                  as T (Text, intercalate, unpack, pack)
 import Data.Text.Encoding         as T (encodeUtf8, decodeUtf8)
 import Control.Concurrent         (forkIO, ThreadId, threadDelay)
 import Control.Concurrent.STM     (TBQueue, writeTBQueue, atomically, newTBQueueIO, flushTBQueue)
@@ -47,6 +48,7 @@ import Control.Monad              (forever, unless)
 import GHC.Exts                   (IsString)
 import GHC.Generics               (Generic)
 import GHC.Num                    (Natural)
+import GHC.TypeLits               (symbolVal, KnownSymbol, Symbol)
 
 import Conduit                     (yieldMany, yield)
 import Network.HTTP.Client         as H (newManager, Manager, Response, httpLbs, responseStatus, responseBody)
@@ -54,7 +56,7 @@ import Network.HTTP.Client.Conduit as H (Request (..), defaultManagerSettings, p
 import Network.HTTP.Simple         as H (setRequestManager)
 import Network.HTTP.Types          (statusCode)
 
-import ClickHaskell.TableDsl (HasChSchema (getSchema, fromBs), toBs)
+import ClickHaskell.TableDsl (HasChSchema (getSchema, fromBs, toBs), InDatabase)
 
 
 data ChException = ChException
@@ -66,13 +68,18 @@ newtype Database = Database Text deriving newtype (Show, IsString)
 newtype Table    = Table    Text deriving newtype (Show, IsString)
 
 
-httpStreamChSelect :: forall chSchema . (HasChSchema chSchema)
-  => HttpChClient -> Database -> Table -> IO [chSchema]
-httpStreamChSelect (HttpChClient man req) db table = do
+httpStreamChSelect :: forall chSchema locatedTable db table name columns engine partitionBy orderBy .
+  ( HasChSchema chSchema
+  , locatedTable ~ InDatabase db (table (name :: Symbol) columns engine partitionBy orderBy)
+  , KnownSymbol db
+  , KnownSymbol name
+  )
+  => HttpChClient -> IO [chSchema]
+httpStreamChSelect (HttpChClient man req) = do
   resp <- H.httpLbs
     req
       { requestBody = H.requestBodySourceChunked
-      $ yield (encodeUtf8 $ tsvSelectQuery (Proxy @chSchema) db table)
+      $ yield (encodeUtf8 $ tsvSelectQuery @chSchema @locatedTable)
       }
     man
   bytestring <- if statusCode (responseStatus resp) == 200
@@ -80,10 +87,15 @@ httpStreamChSelect (HttpChClient man req) db table = do
     else throw $ ChException $ T.decodeUtf8 $ BS.toStrict $ responseBody resp
   pure $ map (fromBs . BSL8.toStrict) $ BSL8.lines bytestring
 
-tsvSelectQuery :: HasChSchema chSchema => Proxy chSchema -> Database -> Table -> Text
-tsvSelectQuery schemaRep (Database db) (Table table) = 
-  let columnsMapping = T.intercalate "," . map fst $ getSchema schemaRep
-  in "SELECT " <> columnsMapping <> " FROM " <> db <> "." <> table <> " FORMAT TSV"
+tsvSelectQuery :: forall chSchema t db table name columns engine partitionBy orderBy .
+  ( HasChSchema chSchema
+  , t ~ InDatabase db (table name columns engine partitionBy orderBy)
+  , KnownSymbol db
+  , KnownSymbol name
+  ) => Text
+tsvSelectQuery =
+  let columnsMapping = T.intercalate "," . map fst $ getSchema (Proxy @chSchema)
+  in "SELECT " <> columnsMapping <> " FROM " <> (T.pack . symbolVal) (Proxy @db) <> "." <> (T.pack . symbolVal) (Proxy @name) <> " FORMAT TSV"
 {-# INLINE tsvSelectQuery #-}
 
 
@@ -159,10 +171,10 @@ data ChCredential = ChCredential
 data HttpChClient = HttpChClient H.Manager H.Request
 
 class ChClient backend connectionManager | backend -> connectionManager where
-  initClient :: Maybe connectionManager -> ChCredential -> IO backend
+  initClient :: ChCredential -> Maybe connectionManager -> IO backend
 
 instance ChClient HttpChClient H.Manager where
-  initClient mManager (ChCredential login pass url) = do
+  initClient (ChCredential login pass url) mManager = do
     man <- maybe
       (H.newManager H.defaultManagerSettings)
       pure
