@@ -24,7 +24,7 @@ import Data.Data               (Proxy(Proxy))
 import Data.Kind               (Type)
 import Data.Text               as T (Text, pack, unpack, intercalate)
 import Data.Singletons         (demote, SingI)
-import GHC.Generics            (Generic(Rep, from, to), Selector(selName), (:*:)(..), D1, C1, S1, M1(..), K1(unK1, K1))
+import GHC.Generics            (Generic(Rep, from, to), Selector(selName), (:*:)(..), D1, C1, S1, M1(..), K1(unK1, K1), V1, U1)
 import GHC.TypeLits            (symbolVal, KnownSymbol, TypeError, ErrorMessage(..), Symbol)
 import GHC.TypeLits.Singletons ()
 
@@ -156,6 +156,25 @@ instance (IsChType p)
   => GToBs (S1 s (K1 i p)) where
   gToBs (M1 re) = render $ unK1 re
   {-# INLINE gToBs #-}
+
+
+class Counter f where
+  countOf :: f a -> Int
+
+instance Counter V1 where
+  countOf = const 0
+
+instance Counter U1 where
+  countOf = const 1
+
+instance (Counter f1, Counter f2) => Counter (f1 :*: f2) where
+  countOf (a :*: b) = countOf a + countOf b
+
+instance Counter (K1 i c) where
+  countOf = const 1
+
+instance Counter f => Counter (M1 i t f) where
+  countOf = countOf . unM1
 
 
 class GFromBS f where
