@@ -102,13 +102,17 @@ tsvSelectQuery =
 
 
 -- ToDo3: implement interface the same way as httpStreamChSelect 
-httpStreamChInsert :: forall chSchema . (HasChSchema chSchema)
-  => HttpChClient -> [chSchema] -> Database -> Table -> IO (H.Response BSL.ByteString)
-httpStreamChInsert (HttpChClient man req) schemaList db table = do
+httpStreamChInsert :: forall locatedTable chSchema db table name columns engine partitionBy orderBy .
+  ( HasChSchema chSchema
+  , locatedTable ~ InDatabase db (table (name :: Symbol) columns engine partitionBy orderBy)
+  , KnownSymbol db
+  , KnownSymbol name
+  ) => HttpChClient -> [chSchema] -> IO (H.Response BSL.ByteString)
+httpStreamChInsert (HttpChClient man req) schemaList = do
   resp <- H.httpLbs
     req
       { requestBody = H.requestBodySourceChunked $
-        yield     (encodeUtf8 $ tsvInsertQueryHeader (Proxy @chSchema) db table)
+        yield     (encodeUtf8 $ tsvInsertQueryHeader @chSchema @locatedTable)
         >> yieldMany (map toBs schemaList)
       }
     man
@@ -117,11 +121,17 @@ httpStreamChInsert (HttpChClient man req) schemaList db table = do
     then pure resp
     else throw $ ChException $ T.decodeUtf8 $ BS.toStrict $ responseBody resp
 
+
 -- ToDo4: Implement table and handling data validation
-tsvInsertQueryHeader :: HasChSchema schema => Proxy schema -> Database -> Table -> Text
-tsvInsertQueryHeader schemaRep (Database db) (Table table) =
-  let columnsMapping = T.intercalate "," . map fst $ getSchema schemaRep
-  in "INSERT INTO " <> db <> "." <> table <> " (" <> columnsMapping <> ") FORMAT TSV\n"
+tsvInsertQueryHeader :: forall chSchema t db table name columns engine partitionBy orderBy .
+  ( HasChSchema chSchema
+  , t ~ InDatabase db (table name columns engine partitionBy orderBy)
+  , KnownSymbol db
+  , KnownSymbol name
+  ) => Text
+tsvInsertQueryHeader =
+  let columnsMapping = T.intercalate "," . map fst $ getSchema (Proxy @chSchema)
+  in "INSERT INTO " <> (T.pack . symbolVal) (Proxy @db) <> "." <> (T.pack . symbolVal) (Proxy @name) <> " (" <> columnsMapping <> ") FORMAT TSV\n"
 {-# INLINE tsvInsertQueryHeader #-}
 
 

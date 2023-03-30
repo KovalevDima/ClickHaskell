@@ -86,6 +86,7 @@ type family SupportedAndVerifiedColumns (columns :: [Type]) :: [(Symbol, Symbol)
 type NoDuplicated :: [(Symbol, Symbol)] -> [(Symbol, Symbol)]
 type family NoDuplicated xs where
   NoDuplicated (x ': xs) = ElemOrNot x xs ': NoDuplicated xs
+  NoDuplicated '[] = '[]
 
 
 -- type level solver

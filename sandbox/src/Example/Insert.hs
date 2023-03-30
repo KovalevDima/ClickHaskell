@@ -6,12 +6,13 @@
   , TypeApplications
   , ScopedTypeVariables
 #-}
+{-# LANGUAGE DataKinds #-}
 module Example.Insert where
 
 import ClickHaskell           (HttpChClient, initClient, ChCredential (..), createSizedBuffer,
                               writeToSizedBuffer, httpStreamChInsert, forkBufferFlusher)
 import ClickHaskell.ChTypes   (ChString, ChInt64, ChUUID, ChDateTime, ToChType(toChType))
-import ClickHaskell.TableDsl  (HasChSchema)
+import ClickHaskell.TableDsl  (HasChSchema, InDatabase)
 import Data.UUID              as UUID (nil)
 import Data.Time              (UTCTime(UTCTime), secondsToDiffTime, fromGregorian)
 
@@ -21,6 +22,7 @@ import Control.Exception      (SomeException)
 import Control.Concurrent     (threadDelay)
 import Control.Concurrent.STM (TBQueue)
 import Control.Monad          (void)
+import Example (ExampleTable)
 
 
 -- 1. Create our schema haskell representation
@@ -50,7 +52,7 @@ insert = do
     5_000_000
     buffer
     (\(e :: SomeException)-> print e)
-    (\bufferData -> void $ httpStreamChInsert client bufferData "example" "example")
+    (void . httpStreamChInsert @(InDatabase "example" ExampleTable) client)
 
   -- 5. Get some data
   let _dataExample = Example
