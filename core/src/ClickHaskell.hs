@@ -101,7 +101,7 @@ tsvSelectQuery =
 
 
 
--- ToDo3: implement interface the same way as httpStreamChSelect
+-- ToDo3: implement interface the same way as httpStreamChSelect 
 httpStreamChInsert :: forall chSchema . (HasChSchema chSchema)
   => HttpChClient -> [chSchema] -> Database -> Table -> IO (H.Response BSL.ByteString)
 httpStreamChInsert (HttpChClient man req) schemaList db table = do

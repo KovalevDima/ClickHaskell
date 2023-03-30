@@ -55,21 +55,51 @@ type family ValidatedRequest handlingDataDescripion table where
 -- ToDo 1: to implement types equality and inclusion check
 type ValidatedSubset :: [(Symbol, Type)] -> [(Symbol, Type)] -> [(Symbol, Type)]
 type family ValidatedSubset a b where
-  -- error if fields types not equal
-  ValidatedSubset ('(field, fieldType) ': '[]) '[] = TypeError ('Text "There is a field " ':<>: 'Text field ':<>: 'Text " that not exists in table")
-  ValidatedSubset ('(field, fieldType) ': xs) x2s  = '[]
+  ValidatedSubset ('(field, fieldType) ': columns1) columns2 = columns2
 
+
+-- column solver
+type ColumnSolve :: (Symbol, Type) -> [(Symbol, Type)] -> (Symbol, Type)
+type family ColumnSolve a as where
+  ColumnSolve '(field, fieldType) ('(field, fieldType) ': fields) = 
+    '(field, fieldType)
+  ColumnSolve '(field, fieldType1) ('(field, fieldType2) ': fields) =
+    TypeError ('Text "There is a field " ':<>: 'Text field ':<>: 'Text " had duplicated type declarations")
+  ColumnSolve '(field, _) '[] =
+    TypeError ('Text "There is a field " ':<>: 'Text field ':<>: 'Text " that is out of table")
+  ColumnSolve column (column' ': columns) = ColumnSolve column columns
 
 
 -- ToDo 2: no duplicated columns check
+type family TransformedToSupportedColumns (columns :: [Type]) :: [(Symbol, Symbol)] where
+  TransformedToSupportedColumns (x ': '[]) = SupportedColumn x ': '[]
+  TransformedToSupportedColumns (x ': xs)  = SupportedColumn x ': TransformedToSupportedColumns xs
+  TransformedToSupportedColumns '[]        = TypeError ('Text "No columns in table")
+
+
+-- supported endpoint of columns
 type family SupportedAndVerifiedColumns (columns :: [Type]) :: [(Symbol, Symbol)] where
-  SupportedAndVerifiedColumns (x ': '[]) = SupportedColumn x ': '[]
-  SupportedAndVerifiedColumns (x ': xs)  = SupportedColumn x ': SupportedAndVerifiedColumns xs
-  SupportedAndVerifiedColumns '[]        = TypeError ('Text "No columns in table")
+  SupportedAndVerifiedColumns xs = NoDuplicated (TransformedToSupportedColumns xs)
+
+
+-- no dublicated typelevel list
+type NoDuplicated :: [(Symbol, Symbol)] -> [(Symbol, Symbol)]
+type family NoDuplicated xs where
+  NoDuplicated (x ': xs) = ElemOrNot x xs ': NoDuplicated xs
+
+
+-- type level solver
+type ElemOrNot :: a -> [a] -> a
+type family ElemOrNot a as where
+  ElemOrNot a '[] = a
+  ElemOrNot '(a, _) ('(a, _) ': xs) = 
+    TypeError ('Text "There is a field " ':<>: 'Text a ':<>: 'Text " duplicated")
+  ElemOrNot '(a, c) ('(b, _) ': xs) = ElemOrNot '(a, c) xs
 
 
 type family SupportedColumn x :: (Symbol, Symbol)
 type instance SupportedColumn (DefaultColumn a b) = '(a, ToChTypeName b)
+
 
 data DefaultColumn (name :: Symbol) columnType
 
