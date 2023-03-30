@@ -32,8 +32,14 @@ import ClickHaskell.ChTypes      (IsChType(originalName, parse, render), ToChTyp
 
 
 
-data Sampled (fieldName :: Symbol) (conditionalExpression :: Symbol) handlingData = Sampled handlingData
-  deriving (Generic, Show)
+data Sampled (fieldName :: Symbol) (conditionalExpression :: Symbol) handlingData
+  where Sampled :: handlingData -> Sampled fieldName conditionalExpression handlingData
+  deriving (Generic, Show, Functor)
+
+type Unwraped :: Type -> Type
+type family Unwraped t where
+  Unwraped (Sampled fieldName conditionalExpression handlingData) = Unwraped handlingData
+  Unwraped handlingData = handlingData
 
 
 type Unwrap :: Type -> [(Symbol, Symbol)]
