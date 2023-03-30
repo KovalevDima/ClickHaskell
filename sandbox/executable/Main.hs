@@ -5,7 +5,7 @@ module Main
   ( main
   ) where
 
-import Sandbox (writeExample, WriteExampleSettings(..))
+import WriteTest (writeExample, WriteExampleSettings(..))
 
 settings :: WriteExampleSettings
 settings = WriteExampleSettings

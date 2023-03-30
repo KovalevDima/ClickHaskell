@@ -8,6 +8,7 @@
   , TypeApplications
   , ScopedTypeVariables
 #-}
+{-# LANGUAGE DataKinds #-}
 
 module WriteTest
   ( writeExample
@@ -17,7 +18,7 @@ module WriteTest
 import ClickHaskell           (HttpChClient, initClient, ChCredential (..), createSizedBuffer,
                               writeToSizedBuffer, httpStreamChInsert, BufferSize, forkBufferFlusher)
 import ClickHaskell.ChTypes   (ChString, ChInt64, ChUUID, ChDateTime, ToChType(toChType))
-import ClickHaskell.TableDsl  (HasChSchema)
+import ClickHaskell.TableDsl  (HasChSchema, InDatabase)
 import Network.HTTP.Client    as H (newManager, defaultManagerSettings)
 import Data.UUID              as UUID (nil)
 import Data.Time              (UTCTime(UTCTime), secondsToDiffTime, fromGregorian)
@@ -28,6 +29,7 @@ import Control.Monad          (replicateM_, void)
 import Control.Exception      (SomeException)
 import Control.Concurrent     (threadDelay, forkIO)
 import Control.Concurrent.STM (TBQueue)
+import Example (ExampleTable)
 
 
 -- 0. Settings for test
@@ -80,7 +82,7 @@ writeExample (
     (fromIntegral msBetweenChWrites)
     buffer
     (\(e :: SomeException)-> print e)
-    (\bufferData -> void $ httpStreamChInsert client bufferData "test" "example")
+    (void . httpStreamChInsert @(InDatabase "example" ExampleTable) client)
 
   -- 5. Get some data
   let _dataExample = Example
