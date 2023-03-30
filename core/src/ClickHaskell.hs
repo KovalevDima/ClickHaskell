@@ -56,7 +56,7 @@ import Network.HTTP.Client.Conduit as H (Request (..), defaultManagerSettings, p
 import Network.HTTP.Simple         as H (setRequestManager)
 import Network.HTTP.Types          (statusCode)
 
-import ClickHaskell.TableDsl (HasChSchema (getSchema, fromBs, toBs), InDatabase)
+import ClickHaskell.TableDsl (HasChSchema (getSchema, fromBs, toBs), InDatabase, Unwraped)
 
 
 data ChException = ChException
@@ -69,12 +69,13 @@ newtype Table    = Table    Text deriving newtype (Show, IsString)
 
 
 httpStreamChSelect :: forall chSchema locatedTable db table name columns engine partitionBy orderBy .
-  ( HasChSchema chSchema
+  ( HasChSchema (Unwraped chSchema)
+  , HasChSchema chSchema
   , locatedTable ~ InDatabase db (table (name :: Symbol) columns engine partitionBy orderBy)
   , KnownSymbol db
   , KnownSymbol name
   )
-  => HttpChClient -> IO [chSchema]
+  => HttpChClient -> IO [Unwraped chSchema]
 httpStreamChSelect (HttpChClient man req) = do
   resp <- H.httpLbs
     req
