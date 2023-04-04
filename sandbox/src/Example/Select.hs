@@ -30,7 +30,7 @@ select = do
     Nothing
 
   -- 3. Perform select
-  dat <- httpStreamChSelect @(Sampled "fieldName" "" ExampleData) @(InDatabase "example" ExampleTable) client
+  dat <- httpStreamChSelect @(Sampled "fieldName" "const" ExampleData) @(InDatabase "example" ExampleTable) client
 
   -- 4. Handle data
   mapM_ print dat

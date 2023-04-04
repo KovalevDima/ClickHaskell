@@ -25,7 +25,7 @@ import Data.Kind               (Type)
 import Data.Text               as T (Text, pack, unpack, intercalate)
 import Data.Singletons         (demote, SingI)
 import GHC.Generics            (Generic(Rep, from, to), Selector(selName), (:*:)(..), D1, C1, S1, M1(..), K1(unK1, K1), V1, U1)
-import GHC.TypeLits            (symbolVal, KnownSymbol, TypeError, ErrorMessage(..), Symbol)
+import GHC.TypeLits            (symbolVal, KnownSymbol, TypeError, ErrorMessage(..), Symbol, AppendSymbol)
 import GHC.TypeLits.Singletons ()
 
 import ClickHaskell.ChTypes      (IsChType(originalName, parse, render), ToChTypeName)
@@ -40,6 +40,12 @@ type Unwraped :: Type -> Type
 type family Unwraped t where
   Unwraped (Sampled fieldName conditionalExpression handlingData) = Unwraped handlingData
   Unwraped handlingData = handlingData
+
+
+type UnwrapConditions :: Type -> [Symbol]
+type family UnwrapConditions t where
+  UnwrapConditions (Sampled fieldName conditionalExpression wrappedChSchema) = fieldName `AppendSymbol` "=" `AppendSymbol` conditionalExpression ': UnwrapConditions wrappedChSchema
+  UnwrapConditions wrappedChSchema = '[]
 
 
 type Unwrap :: Type -> [(Symbol, Symbol)]
