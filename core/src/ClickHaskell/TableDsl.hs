@@ -32,8 +32,8 @@ import ClickHaskell.ChTypes      (IsChType(originalName, parse, render), ToChTyp
 
 
 
-data Sampled (fieldName :: Symbol) (conditionalExpression :: Symbol) handlingData
-  where Sampled :: handlingData -> Sampled fieldName conditionalExpression handlingData
+data Sampled (fieldName :: Symbol) (conditionalExpression :: Symbol) handlingData where 
+  Sampled :: handlingData -> Sampled fieldName conditionalExpression handlingData
   deriving (Generic, Show, Functor)
 
 type Unwraped :: Type -> Type
@@ -42,10 +42,46 @@ type family Unwraped t where
   Unwraped handlingData = handlingData
 
 
-type UnwrapConditions :: Type -> [Symbol]
-type family UnwrapConditions t where
-  UnwrapConditions (Sampled fieldName conditionalExpression wrappedChSchema) = fieldName `AppendSymbol` "=" `AppendSymbol` conditionalExpression ': UnwrapConditions wrappedChSchema
-  UnwrapConditions wrappedChSchema = '[]
+-- so sytax here is about
+-- WHERE ("=" `ApplyingTo` (Sampled "hello" "world" Int)) `With` (">" `ApplyingTo` (Sampled "a" "b" Int))
+
+-- WHERE ("hello" `Sampled` ( == "world" ) ( "a" `Sampled` ( > "" ) Int))
+
+type ApplyingTo :: Symbol -> Type -> [Symbol]
+type family ApplyingTo op t where
+  ApplyingTo op (Sampled fieldName conditionalExpression wrappedChSchema) = 
+    fieldName `AppendSymbol` CompareBy op `AppendSymbol` conditionalExpression ': ApplyingTo op wrappedChSchema
+  ApplyingTo op wrappedChSchema = '[]
+
+
+type WHERE :: [Symbol] -> Symbol
+type family WHERE s where
+  WHERE '[] = ""
+  WHERE xs = " WHERE " `AppendSymbol` AND xs
+
+
+type AND :: [Symbol] -> Symbol
+type family AND s where
+  AND '[] = ""
+  AND ( x ': xs ) = x `AppendSymbol` " AND " `AppendSymbol` AND xs
+
+
+type With :: [Symbol] -> [Symbol] -> [Symbol]
+type family With a b where
+  '[] `With` '[] = '[]
+  '[] `With` (y ': ys) = y ': '[] `With` ys
+  (x ': xs) `With` ys = x ': xs `With` ys
+
+
+type CompareBy :: Symbol -> Symbol
+type family CompareBy s where
+  CompareBy "=" = "="
+  CompareBy ">" = ">"
+  CompareBy "<" = "<"
+  CompareBy ">=" = ">="
+  CompareBy "<=" = "<="
+  CompareBy other = 
+    TypeError ('Text "Wrong comparing operator at '" :<>: 'Text other :<>: 'Text "'")
 
 
 type Unwrap :: Type -> [(Symbol, Symbol)]
@@ -110,8 +146,8 @@ type family ElemOrNot a as where
   ElemOrNot '(a, c) ('(b, _) ': xs) = ElemOrNot '(a, c) xs
 
 
-type family SupportedColumn x :: (Symbol, Symbol)
-type instance SupportedColumn (DefaultColumn a b) = '(a, ToChTypeName b)
+type family SupportedColumn x :: (Symbol, Symbol) where
+  SupportedColumn (DefaultColumn a b) = '(a, ToChTypeName b)
 
 
 data DefaultColumn (name :: Symbol) columnType

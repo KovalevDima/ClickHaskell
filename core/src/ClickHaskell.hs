@@ -68,7 +68,7 @@ newtype Database = Database Text deriving newtype (Show, IsString)
 newtype Table    = Table    Text deriving newtype (Show, IsString)
 
 
-httpStreamChSelect :: forall chSchema locatedTable db table name columns engine partitionBy orderBy .
+httpStreamChSelect :: forall chSchema locatedTable db table name forWhere columns engine partitionBy orderBy .
   ( HasChSchema (Unwraped chSchema)
   , HasChSchema chSchema
   , locatedTable ~ InDatabase db (table (name :: Symbol) columns engine partitionBy orderBy)
@@ -89,21 +89,27 @@ httpStreamChSelect (HttpChClient man req) = do
   pure $ map (fromBs . BSL8.toStrict) $ BSL8.lines bytestring
 
 -- ToDo4: Implement table and handling data validation
-tsvSelectQuery :: forall chSchema t db table name columns engine partitionBy orderBy .
+tsvSelectQuery :: forall chSchema t db table name forWhere columns engine partitionBy orderBy .
   ( HasChSchema chSchema
   , t ~ InDatabase db (table name columns engine partitionBy orderBy)
   , KnownSymbol db
   , KnownSymbol name
+  , KnownSymbol forWhere
   ) => Text
 tsvSelectQuery =
   let columnsMapping = T.intercalate "," . map fst $ getSchema (Proxy @chSchema)
-  in "SELECT " <> columnsMapping <> " FROM " <> (T.pack . symbolVal) (Proxy @db) <> "." <> (T.pack . symbolVal) (Proxy @name) <> " FORMAT TSV"
+  in 
+    "SELECT " <> 
+    columnsMapping <> 
+    " FROM " <> 
+    (T.pack . symbolVal) (Proxy @db) <> "." <> (T.pack . symbolVal) (Proxy @name) <> 
+    (T.pack . symbolVal) (Proxy @forWhere) <>
+    " FORMAT TSV"
 {-# INLINE tsvSelectQuery #-}
 
 
-
 -- ToDo3: implement interface the same way as httpStreamChSelect 
-httpStreamChInsert :: forall locatedTable chSchema db table name columns engine partitionBy orderBy .
+httpStreamChInsert :: forall locatedTable chSchema db table name forWhere columns engine partitionBy orderBy .
   ( HasChSchema chSchema
   , locatedTable ~ InDatabase db (table (name :: Symbol) columns engine partitionBy orderBy)
   , KnownSymbol db
@@ -124,15 +130,21 @@ httpStreamChInsert (HttpChClient man req) schemaList = do
 
 
 -- ToDo4: Implement table and handling data validation
-tsvInsertQueryHeader :: forall chSchema t db table name columns engine partitionBy orderBy .
+tsvInsertQueryHeader :: forall chSchema t db table name forWhere columns engine partitionBy orderBy .
   ( HasChSchema chSchema
   , t ~ InDatabase db (table name columns engine partitionBy orderBy)
   , KnownSymbol db
   , KnownSymbol name
+  , KnownSymbol forWhere
   ) => Text
 tsvInsertQueryHeader =
   let columnsMapping = T.intercalate "," . map fst $ getSchema (Proxy @chSchema)
-  in "INSERT INTO " <> (T.pack . symbolVal) (Proxy @db) <> "." <> (T.pack . symbolVal) (Proxy @name) <> " (" <> columnsMapping <> ") FORMAT TSV\n"
+  in 
+    "INSERT INTO " <> 
+    (T.pack . symbolVal) (Proxy @db) <> "." <> (T.pack . symbolVal) (Proxy @name) <> 
+    " (" <> columnsMapping <> ")" <> 
+    (T.pack . symbolVal) (Proxy @forWhere) <>
+    "FORMAT TSV\n"
 {-# INLINE tsvInsertQueryHeader #-}
 
 
