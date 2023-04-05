@@ -55,8 +55,8 @@ type family UnwrapConditionalExpression' t where
 
 type ToConditionalExpression :: Type -> Symbol
 type family ToConditionalExpression op where
-  ToConditionalExpression (EqualityWith (var :: Symbol)) = "=\"" `AppendSymbol` var `AppendSymbol` "\""
-  ToConditionalExpression (Infixion (var :: Symbol)) = "=\"" `AppendSymbol` var `AppendSymbol` "%\""
+  ToConditionalExpression (EqualityWith (var :: Symbol)) = "='" `AppendSymbol` var `AppendSymbol` "'"
+  ToConditionalExpression (Infixion (var :: Symbol)) = "='" `AppendSymbol` var `AppendSymbol` "%'"
 
 data EqualityWith a = MkEqualityWith
 data Infixion     a = MkInfixion
