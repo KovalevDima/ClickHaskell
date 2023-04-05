@@ -25,7 +25,7 @@
 module ClickHaskell
   (
   -- * Data manipulation DSL 
-  httpStreamChInsert, httpStreamChSelect, Database(..), Table(..), tsvSelectQuery, tsvInsertQueryHeader
+  httpStreamChInsert, httpStreamChSelect, Database(..), Table(..), tsvSelectQuery, tsvInsertQueryHeader, ChException(..)
 
   -- * Buffered writing abstractions
   , writeToSizedBuffer, createSizedBuffer, readFromSizedBuffer, forkBufferFlusher, BufferSize(..), TBQueue
