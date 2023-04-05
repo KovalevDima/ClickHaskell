@@ -32,32 +32,40 @@ import ClickHaskell.ChTypes      (IsChType(originalName, parse, render), ToChTyp
 
 
 
-data Sampled (fieldName :: Symbol) (conditionalExpression :: Symbol) handlingData where 
-  Sampled :: handlingData -> Sampled fieldName conditionalExpression handlingData
+data SampledBy (fieldName :: Symbol) (conditionalExpression :: Type) handlingData where 
+  MkSampledBy :: handlingData -> SampledBy fieldName conditionalExpression handlingData
   deriving (Generic, Show, Functor)
 
 type Unwraped :: Type -> Type
 type family Unwraped t where
-  Unwraped (Sampled fieldName conditionalExpression handlingData) = Unwraped handlingData
+  Unwraped (SampledBy fieldName conditionalExpression handlingData) = Unwraped handlingData
   Unwraped handlingData = handlingData
 
 
--- so sytax here is about
--- WHERE ("=" `ApplyingTo` (Sampled "hello" "world" Int)) `With` (">" `ApplyingTo` (Sampled "a" "b" Int))
 
--- WHERE ("hello" `Sampled` ( == "world" ) ( "a" `Sampled` ( > "" ) Int))
+type UnwrapConditionalExpression :: Type -> Symbol
+type family UnwrapConditionalExpression t where
+  UnwrapConditionalExpression t = WHERE (UnwrapConditionalExpression' t)
 
-type ApplyingTo :: Symbol -> Type -> [Symbol]
-type family ApplyingTo op t where
-  ApplyingTo op (Sampled fieldName conditionalExpression wrappedChSchema) = 
-    fieldName `AppendSymbol` CompareBy op `AppendSymbol` conditionalExpression ': ApplyingTo op wrappedChSchema
-  ApplyingTo op wrappedChSchema = '[]
+type UnwrapConditionalExpression' :: Type -> [Symbol]
+type family UnwrapConditionalExpression' t where
+  UnwrapConditionalExpression' (SampledBy fieldName conditionalExpression handlingData) = fieldName `AppendSymbol` ToConditionalExpression conditionalExpression ': UnwrapConditionalExpression' handlingData
+  UnwrapConditionalExpression' handlingData = '[]
+
+
+type ToConditionalExpression :: Type -> Symbol
+type family ToConditionalExpression op where
+  ToConditionalExpression (EqualityWith (var :: Symbol)) = "=\"" `AppendSymbol` var `AppendSymbol` "\""
+  ToConditionalExpression (Infixion (var :: Symbol)) = "=\"" `AppendSymbol` var `AppendSymbol` "%\""
+
+data EqualityWith a = MkEqualityWith
+data Infixion     a = MkInfixion
 
 
 type WHERE :: [Symbol] -> Symbol
 type family WHERE s where
   WHERE '[] = ""
-  WHERE xs = " WHERE " `AppendSymbol` AND xs
+  WHERE xs = "WHERE " `AppendSymbol` AND xs
 
 
 type AND :: [Symbol] -> Symbol
@@ -66,28 +74,6 @@ type family AND s where
   AND ( x ': xs ) = x `AppendSymbol` " AND " `AppendSymbol` AND xs
 
 
-type With :: [Symbol] -> [Symbol] -> [Symbol]
-type family With a b where
-  '[] `With` '[] = '[]
-  '[] `With` (y ': ys) = y ': '[] `With` ys
-  (x ': xs) `With` ys = x ': xs `With` ys
-
-
-type CompareBy :: Symbol -> Symbol
-type family CompareBy s where
-  CompareBy "=" = "="
-  CompareBy ">" = ">"
-  CompareBy "<" = "<"
-  CompareBy ">=" = ">="
-  CompareBy "<=" = "<="
-  CompareBy other = 
-    TypeError ('Text "Wrong comparing operator at '" :<>: 'Text other :<>: 'Text "'")
-
-
-type Unwrap :: Type -> [(Symbol, Symbol)]
-type family Unwrap t where
-  Unwrap (Sampled fieldName conditionalExpression table) = '(fieldName, conditionalExpression) ': Unwrap table
-  Unwrap (Table a b c d g) = '[]
 
 type MapFst :: [(a, b)] -> [a]
 type family MapFst xs where
@@ -222,10 +208,10 @@ class HasChSchema a where
   fromBs :: BS.ByteString -> a
   fromBs = to . gFromBs
 
-instance (HasChSchema handlingData) => HasChSchema (Sampled fieldName conditionalExpression handlingData) where
+instance (HasChSchema handlingData) => HasChSchema (SampledBy fieldName conditionalExpression handlingData) where
   getSchema _ = getSchema (Proxy @handlingData)
-  toBs (Sampled handlingData) = toBs handlingData
-  fromBs bs = Sampled $ fromBs bs
+  toBs (MkSampledBy handlingData) = toBs handlingData
+  fromBs bs = MkSampledBy $ fromBs bs
 
 
 class GHasChSchema (p :: Type -> Type) where

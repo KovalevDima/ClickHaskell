@@ -8,10 +8,11 @@
   , TypeApplications
   , ScopedTypeVariables
 #-}
+{-# LANGUAGE TypeOperators #-}
 module Example.Select where
 
 import ClickHaskell              (HttpChClient, initClient, ChCredential (..), httpStreamChSelect)
-import ClickHaskell.TableDsl     (InDatabase, Sampled)
+import ClickHaskell.TableDsl     (InDatabase, SampledBy, EqualityWith)
 
 -- 1. Describe table and queryable data
 import Example (ExampleTable, ExampleData)
@@ -30,7 +31,7 @@ select = do
     Nothing
 
   -- 3. Perform select
-  dat <- httpStreamChSelect @(Sampled "fieldName" "const" ExampleData) @(InDatabase "example" ExampleTable) client
+  dat <- httpStreamChSelect @(("fieldName" `SampledBy` EqualityWith "const") ExampleData) @(InDatabase "example" ExampleTable) client
 
   -- 4. Handle data
   mapM_ print dat

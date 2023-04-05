@@ -25,7 +25,7 @@
 module ClickHaskell
   (
   -- * Data manipulation DSL 
-  httpStreamChInsert, httpStreamChSelect, Database(..), Table(..)
+  httpStreamChInsert, httpStreamChSelect, Database(..), Table(..), tsvSelectQuery, tsvInsertQueryHeader
 
   -- * Buffered writing abstractions
   , writeToSizedBuffer, createSizedBuffer, readFromSizedBuffer, forkBufferFlusher, BufferSize(..), TBQueue
@@ -56,7 +56,7 @@ import Network.HTTP.Client.Conduit as H (Request (..), defaultManagerSettings, p
 import Network.HTTP.Simple         as H (setRequestManager)
 import Network.HTTP.Types          (statusCode)
 
-import ClickHaskell.TableDsl (HasChSchema (getSchema, fromBs, toBs), InDatabase, Unwraped)
+import ClickHaskell.TableDsl (HasChSchema (getSchema, fromBs, toBs), InDatabase, Unwraped, UnwrapConditionalExpression)
 
 
 data ChException = ChException
@@ -68,19 +68,19 @@ newtype Database = Database Text deriving newtype (Show, IsString)
 newtype Table    = Table    Text deriving newtype (Show, IsString)
 
 
-httpStreamChSelect :: forall chSchema locatedTable db table name forWhere columns engine partitionBy orderBy .
-  ( HasChSchema (Unwraped chSchema)
-  , HasChSchema chSchema
+httpStreamChSelect :: forall handlingDataDescripion locatedTable db table name columns engine partitionBy orderBy .
+  ( HasChSchema (Unwraped handlingDataDescripion)
   , locatedTable ~ InDatabase db (table (name :: Symbol) columns engine partitionBy orderBy)
   , KnownSymbol db
   , KnownSymbol name
+  , KnownSymbol (UnwrapConditionalExpression handlingDataDescripion)
   )
-  => HttpChClient -> IO [Unwraped chSchema]
+  => HttpChClient -> IO [Unwraped handlingDataDescripion]
 httpStreamChSelect (HttpChClient man req) = do
   resp <- H.httpLbs
     req
       { requestBody = H.requestBodySourceChunked
-      $ yield (encodeUtf8 $ tsvSelectQuery @chSchema @locatedTable)
+      $ yield (encodeUtf8 $ tsvSelectQuery @handlingDataDescripion @locatedTable)
       }
     man
   bytestring <- if statusCode (responseStatus resp) == 200
@@ -89,37 +89,37 @@ httpStreamChSelect (HttpChClient man req) = do
   pure $ map (fromBs . BSL8.toStrict) $ BSL8.lines bytestring
 
 -- ToDo4: Implement table and handling data validation
-tsvSelectQuery :: forall chSchema t db table name forWhere columns engine partitionBy orderBy .
-  ( HasChSchema chSchema
+tsvSelectQuery :: forall handlingDataDescripion t db table name columns engine partitionBy orderBy .
+  ( HasChSchema (Unwraped handlingDataDescripion)
   , t ~ InDatabase db (table name columns engine partitionBy orderBy)
   , KnownSymbol db
   , KnownSymbol name
-  , KnownSymbol forWhere
+  , KnownSymbol (UnwrapConditionalExpression handlingDataDescripion)
   ) => Text
 tsvSelectQuery =
-  let columnsMapping = T.intercalate "," . map fst $ getSchema (Proxy @chSchema)
+  let columnsMapping = T.intercalate "," . map fst $ getSchema (Proxy @(Unwraped handlingDataDescripion))
   in 
     "SELECT " <> 
     columnsMapping <> 
     " FROM " <> 
     (T.pack . symbolVal) (Proxy @db) <> "." <> (T.pack . symbolVal) (Proxy @name) <> 
-    (T.pack . symbolVal) (Proxy @forWhere) <>
+    " " <> (T.pack . symbolVal) (Proxy @(UnwrapConditionalExpression handlingDataDescripion)) <>
     " FORMAT TSV"
 {-# INLINE tsvSelectQuery #-}
 
 
 -- ToDo3: implement interface the same way as httpStreamChSelect 
-httpStreamChInsert :: forall locatedTable chSchema db table name forWhere columns engine partitionBy orderBy .
-  ( HasChSchema chSchema
+httpStreamChInsert :: forall locatedTable handlingDataDescripion db table name columns engine partitionBy orderBy .
+  ( HasChSchema handlingDataDescripion
   , locatedTable ~ InDatabase db (table (name :: Symbol) columns engine partitionBy orderBy)
   , KnownSymbol db
   , KnownSymbol name
-  ) => HttpChClient -> [chSchema] -> IO (H.Response BSL.ByteString)
+  ) => HttpChClient -> [handlingDataDescripion] -> IO (H.Response BSL.ByteString)
 httpStreamChInsert (HttpChClient man req) schemaList = do
   resp <- H.httpLbs
     req
       { requestBody = H.requestBodySourceChunked $
-        yield     (encodeUtf8 $ tsvInsertQueryHeader @chSchema @locatedTable)
+        yield     (encodeUtf8 $ tsvInsertQueryHeader @handlingDataDescripion @locatedTable)
         >> yieldMany (map toBs schemaList)
       }
     man
@@ -130,12 +130,11 @@ httpStreamChInsert (HttpChClient man req) schemaList = do
 
 
 -- ToDo4: Implement table and handling data validation
-tsvInsertQueryHeader :: forall chSchema t db table name forWhere columns engine partitionBy orderBy .
+tsvInsertQueryHeader :: forall chSchema t db table name columns engine partitionBy orderBy .
   ( HasChSchema chSchema
   , t ~ InDatabase db (table name columns engine partitionBy orderBy)
   , KnownSymbol db
   , KnownSymbol name
-  , KnownSymbol forWhere
   ) => Text
 tsvInsertQueryHeader =
   let columnsMapping = T.intercalate "," . map fst $ getSchema (Proxy @chSchema)
@@ -143,7 +142,6 @@ tsvInsertQueryHeader =
     "INSERT INTO " <> 
     (T.pack . symbolVal) (Proxy @db) <> "." <> (T.pack . symbolVal) (Proxy @name) <> 
     " (" <> columnsMapping <> ")" <> 
-    (T.pack . symbolVal) (Proxy @forWhere) <>
     "FORMAT TSV\n"
 {-# INLINE tsvInsertQueryHeader #-}
 
