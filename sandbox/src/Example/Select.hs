@@ -16,6 +16,8 @@ import ClickHaskell.TableDsl     (InDatabase, SampledBy, EqualityWith)
 
 -- 1. Describe table and queryable data
 import Example (ExampleTable, ExampleData)
+import GHC.TypeLits (SomeSymbol(SomeSymbol), someSymbolVal)
+import Data.Data (Proxy(Proxy))
 
 
 

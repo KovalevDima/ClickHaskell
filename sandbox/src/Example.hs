@@ -3,10 +3,13 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Example where
 
-import Data.Text (Text)
-import GHC.Generics           (Generic)
+import Data.Data    (Proxy(..))
+import Data.Text    (Text)
+import GHC.Generics (Generic)
+import GHC.TypeLits (SomeSymbol(..), someSymbolVal)
 
 import ClickHaskell           (tsvSelectQuery)
 import ClickHaskell.ChTypes   (ChString, ChInt64, ChUUID, ChDateTime)
@@ -38,9 +41,9 @@ showCreateExample = showCreateTable @(InDatabase "example" ExampleTable)
 
 -- |
 -- >>> showSelect
--- "SELECT channel_name,clientId,someField,someField2 FROM example.example WHERE fieldName=\"const\" AND  FORMAT TSV"
+-- "SELECT channel_name,clientId,someField,someField2 FROM example.example WHERE fieldName='const' FORMAT TSV"
 showSelect :: Text
-showSelect = tsvSelectQuery @(("fieldName" `SampledBy` EqualityWith "const") ExampleData) @(InDatabase "example" ExampleTable)
+showSelect = case someSymbolVal "mysymbol" of (SomeSymbol (Proxy :: Proxy var)) -> tsvSelectQuery @(("fieldName" `SampledBy` EqualityWith var) ExampleData) @(InDatabase "example" ExampleTable)
 
 
 -- 2. Separate data you will work with

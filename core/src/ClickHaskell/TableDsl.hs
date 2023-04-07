@@ -23,9 +23,10 @@ import Data.ByteString.Char8   as BS8 (split, intercalate)
 import Data.Data               (Proxy(Proxy))
 import Data.Kind               (Type)
 import Data.Text               as T (Text, pack, unpack, intercalate)
+import Data.Text.Lazy.Builder  (Builder, fromString)
 import Data.Singletons         (demote, SingI)
 import GHC.Generics            (Generic(Rep, from, to), Selector(selName), (:*:)(..), D1, C1, S1, M1(..), K1(unK1, K1), V1, U1)
-import GHC.TypeLits            (symbolVal, KnownSymbol, TypeError, ErrorMessage(..), Symbol, AppendSymbol)
+import GHC.TypeLits            (symbolVal, KnownSymbol, TypeError, ErrorMessage(..), Symbol)
 import GHC.TypeLits.Singletons ()
 
 import ClickHaskell.ChTypes      (IsChType(originalName, parse, render), ToChTypeName)
@@ -43,35 +44,29 @@ type family Unwraped t where
 
 
 
-type UnwrapConditionalExpression :: Type -> Symbol
-type family UnwrapConditionalExpression t where
-  UnwrapConditionalExpression t = WHERE (UnwrapConditionalExpression' t)
+ 
+class ToConditionalExpression t where
+  toConditionalExpression :: Builder
 
-type UnwrapConditionalExpression' :: Type -> [Symbol]
-type family UnwrapConditionalExpression' t where
-  UnwrapConditionalExpression' (SampledBy fieldName conditionalExpression handlingData) = fieldName `AppendSymbol` ToConditionalExpression conditionalExpression ': UnwrapConditionalExpression' handlingData
-  UnwrapConditionalExpression' handlingData = '[]
-
-
-type ToConditionalExpression :: Type -> Symbol
-type family ToConditionalExpression op where
-  ToConditionalExpression (EqualityWith (var :: Symbol)) = "=\"" `AppendSymbol` var `AppendSymbol` "\""
-  ToConditionalExpression (Infixion (var :: Symbol)) = "=\"" `AppendSymbol` var `AppendSymbol` "%\""
-
-data EqualityWith a = MkEqualityWith
-data Infixion     a = MkInfixion
+instance {-# OVERLAPS #-}
+  ( ToConditionalExpression handlingData
+  , ToConditionalExpPart conditionalExpPart
+  , KnownSymbol fieldName
+  ) => 
+  ToConditionalExpression (SampledBy fieldName conditionalExpPart handlingData) where
+  toConditionalExpression = fromString (symbolVal (Proxy @fieldName)) <> "=" <> toConditionalExpPart @conditionalExpPart <> " AND " <> toConditionalExpression @handlingData 
 
 
-type WHERE :: [Symbol] -> Symbol
-type family WHERE s where
-  WHERE '[] = ""
-  WHERE xs = "WHERE " `AppendSymbol` AND xs
+instance {-# OVERLAPPING #-} HasChSchema handlingData => (ToConditionalExpression handlingData) where
+  toConditionalExpression = ""
 
 
-type AND :: [Symbol] -> Symbol
-type family AND s where
-  AND '[] = ""
-  AND ( x ': xs ) = x `AppendSymbol` " AND " `AppendSymbol` AND xs
+class ToConditionalExpPart a where
+  toConditionalExpPart :: Builder 
+  
+data EqualityWith (a :: Symbol)
+instance KnownSymbol a => ToConditionalExpPart (EqualityWith a) where toConditionalExpPart = "='" <> fromString (symbolVal (Proxy @a)) <> "'"
+data Infixion      a
 
 
 

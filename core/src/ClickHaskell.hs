@@ -39,6 +39,8 @@ import Data.ByteString.Lazy.Char8 as BSL8 (lines, toStrict)
 import Data.ByteString.Lazy       as BSL (ByteString)
 import Data.Data                  (Proxy(..))
 import Data.Text                  as T (Text, intercalate, unpack, pack)
+import Data.Text.Lazy             as T (toStrict)
+import Data.Text.Lazy.Builder     as T (toLazyText)
 import Data.Text.Encoding         as T (encodeUtf8, decodeUtf8)
 import Control.Concurrent         (forkIO, ThreadId, threadDelay)
 import Control.Concurrent.STM     (TBQueue, writeTBQueue, atomically, newTBQueueIO, flushTBQueue)
@@ -56,7 +58,7 @@ import Network.HTTP.Client.Conduit as H (Request (..), defaultManagerSettings, p
 import Network.HTTP.Simple         as H (setRequestManager)
 import Network.HTTP.Types          (statusCode)
 
-import ClickHaskell.TableDsl (HasChSchema (getSchema, fromBs, toBs), InDatabase, Unwraped, UnwrapConditionalExpression)
+import ClickHaskell.TableDsl (HasChSchema (getSchema, fromBs, toBs), InDatabase, Unwraped, toConditionalExpression, ToConditionalExpression)
 
 
 data ChException = ChException
@@ -73,7 +75,7 @@ httpStreamChSelect :: forall handlingDataDescripion locatedTable db table name c
   , locatedTable ~ InDatabase db (table (name :: Symbol) columns engine partitionBy orderBy)
   , KnownSymbol db
   , KnownSymbol name
-  , KnownSymbol (UnwrapConditionalExpression handlingDataDescripion)
+  , ToConditionalExpression handlingDataDescripion
   )
   => HttpChClient -> IO [Unwraped handlingDataDescripion]
 httpStreamChSelect (HttpChClient man req) = do
@@ -94,16 +96,17 @@ tsvSelectQuery :: forall handlingDataDescripion t db table name columns engine p
   , t ~ InDatabase db (table name columns engine partitionBy orderBy)
   , KnownSymbol db
   , KnownSymbol name
-  , KnownSymbol (UnwrapConditionalExpression handlingDataDescripion)
+  , ToConditionalExpression handlingDataDescripion
   ) => Text
 tsvSelectQuery =
   let columnsMapping = T.intercalate "," . map fst $ getSchema (Proxy @(Unwraped handlingDataDescripion))
+      whereConditions = T.toStrict (T.toLazyText $ toConditionalExpression @handlingDataDescripion)
   in 
     "SELECT " <> 
     columnsMapping <> 
     " FROM " <> 
     (T.pack . symbolVal) (Proxy @db) <> "." <> (T.pack . symbolVal) (Proxy @name) <> 
-    " " <> (T.pack . symbolVal) (Proxy @(UnwrapConditionalExpression handlingDataDescripion)) <>
+    " " <> (if whereConditions=="" then "" else "WHERE " <> whereConditions)  <>
     " FORMAT TSV"
 {-# INLINE tsvSelectQuery #-}
 
