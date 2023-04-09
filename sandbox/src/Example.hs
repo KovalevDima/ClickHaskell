@@ -41,7 +41,7 @@ showCreateExample = showCreateTable @(InDatabase "example" ExampleTable)
 
 -- |
 -- >>> showSelect
--- "SELECT channel_name,clientId,someField,someField2 FROM example.example WHERE fieldName=='mysymbol' AND  FORMAT TSV"
+-- "SELECT channel_name,clientId,someField,someField2 FROM example.example WHERE fieldName=='mysymbol' FORMAT TSV"
 showSelect :: Text
 showSelect = case someSymbolVal "mysymbol" of (SomeSymbol (Proxy :: Proxy var)) -> tsvSelectQuery @(("fieldName" `SampledBy` EqualityWith var) ExampleData) @(InDatabase "example" ExampleTable)
 
