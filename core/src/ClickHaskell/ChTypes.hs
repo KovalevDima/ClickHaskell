@@ -33,7 +33,9 @@ import Data.String           (IsString)
 import Data.UUID             as UUID (UUID, toASCIIBytes, fromASCIIBytes)
 import Data.WideWord         (Int128)
 import Data.Word             (Word32)
-import GHC.TypeLits          (AppendSymbol, Symbol, KnownSymbol, symbolVal)
+import GHC.TypeLits          (AppendSymbol, Symbol, KnownSymbol, symbolVal, TypeError, ErrorMessage (..))
+import Data.Kind (Type)
+import Conduit (Identity)
 
 
 type family (ToChTypeName columnType) :: Symbol
@@ -82,6 +84,37 @@ instance (KnownSymbol (NullableTypeName chType), IsChType chType, ToChType chTyp
   =>     ToChType (Maybe chType) (Maybe inputType) where
     toChType Nothing  = Nothing
     toChType (Just a) = Just (toChType @chType a)
+
+
+-- | ClickHouse LowCardinality(T) column type
+type PermittedType :: Type -> Type
+type family PermittedType a where
+  PermittedType ChString = ChString
+  PermittedType ChInt32 = ChInt32
+  PermittedType ChInt64 = ChInt64
+  PermittedType ChInt128 = ChInt128
+  PermittedType ChDateTime = ChDateTime
+  PermittedType ChUUID = ChUUID
+  PermittedType _ = TypeError ('Text "wrong type to apply to PermittedType")
+
+newtype LowCardinality chType = LowCardinality (PermittedType chType)
+
+type instance ToChTypeName (LowCardinality chType) =
+  "LowCardinality(" `AppendSymbol` ToChTypeName (PermittedType chType) `AppendSymbol` ")"
+
+instance 
+  ( IsChType (LowCardinality chType)
+  , ToChType (PermittedType chType) (Identity inputType)) => 
+  ToChType (LowCardinality chType) (Identity inputType) where
+  toChType value = LowCardinality $ toChType value
+
+instance 
+  ( KnownSymbol (ToChTypeName (LowCardinality chType))
+  , IsChType chType
+  , IsChType (PermittedType chType)) =>
+  IsChType (LowCardinality chType) where
+  render (LowCardinality value) = "LowCardinality(" <> render value <> ")"
+  parse value = LowCardinality $ parse value
 
 
 -- | ClickHouse UUID column type
