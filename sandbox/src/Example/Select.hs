@@ -16,6 +16,8 @@ import ClickHaskell.TableDsl     (InDatabase, SampledBy, EqualityWith)
 
 -- 1. Describe table and queryable data
 import Example (ExampleTable, ExampleData)
+import GHC.TypeLits (SomeSymbol(SomeSymbol), someSymbolVal)
+import Data.Data (Proxy(Proxy))
 
 
 
@@ -31,7 +33,7 @@ select = do
     Nothing
 
   -- 3. Perform select
-  dat <- httpStreamChSelect @(("fieldName" `SampledBy` EqualityWith "const") ExampleData) @(InDatabase "example" ExampleTable) client
+  dat <- case someSymbolVal "" of (SomeSymbol (Proxy :: Proxy var)) -> httpStreamChSelect @(("fieldName" `SampledBy` EqualityWith var) ExampleData) @(InDatabase "example" ExampleTable) client
 
   -- 4. Handle data
   mapM_ print dat
