@@ -95,7 +95,6 @@ type family PermittedType a where
   PermittedType ChInt64 = ChInt64
   PermittedType ChInt128 = ChInt128
   PermittedType ChDateTime = ChDateTime
-  PermittedType ChUUID = ChUUID
   PermittedType chType = TypeError 
     ('Text "wrong type " 
     :<>: 'Text (ToChTypeName chType) 
@@ -104,8 +103,7 @@ type family PermittedType a where
     :<>: 'Text "\n ChInt32"
     :<>: 'Text "\n ChInt64"
     :<>: 'Text "\n ChInt128"
-    :<>: 'Text "\n ChDateTime"
-    :<>: 'Text "\n ChUUID")
+    :<>: 'Text "\n ChDateTime")
 
 newtype LowCardinality chType = LowCardinality (PermittedType chType)
 
