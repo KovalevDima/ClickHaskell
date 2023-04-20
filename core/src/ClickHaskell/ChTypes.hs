@@ -96,14 +96,11 @@ type family PermittedType a where
   PermittedType ChInt128 = ChInt128
   PermittedType ChDateTime = ChDateTime
   PermittedType chType = TypeError 
-    ('Text "wrong type " 
+    ('Text "LowCardinality(" 
     :<>: 'Text (ToChTypeName chType) 
-    :<>: 'Text " couldn't be applied to LowCardinality, make sure that it uses one of next types"
-    :<>: 'Text "\n ChString"
-    :<>: 'Text "\n ChInt32"
-    :<>: 'Text "\n ChInt64"
-    :<>: 'Text "\n ChInt128"
-    :<>: 'Text "\n ChDateTime")
+    :<>: 'Text ") is unsupported. \nUse one of these types "
+    :$$: 'Text "ChString, ChInt32,"
+    :$$: 'Text "ChInt64, ChInt128, ChDateTime")
 
 newtype LowCardinality chType = LowCardinality (PermittedType chType)
 
