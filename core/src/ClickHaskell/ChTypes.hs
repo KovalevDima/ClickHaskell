@@ -96,11 +96,12 @@ type family PermittedType a where
   PermittedType ChInt128 = ChInt128
   PermittedType ChDateTime = ChDateTime
   PermittedType chType = TypeError 
-    ('Text "LowCardinality(" 
-    :<>: 'Text (ToChTypeName chType) 
-    :<>: 'Text ") is unsupported. \nUse one of these types "
-    :$$: 'Text "ChString, ChInt32,"
-    :$$: 'Text "ChInt64, ChInt128, ChDateTime")
+    (    'Text "LowCardinality("  :<>: 'Text (ToChTypeName chType)  :<>: 'Text ") is unsupported"
+    :$$: 'Text "Use one of these types:"
+    :$$: 'Text "  ChString"    :$$: 'Text "  ChInt32"
+    :$$: 'Text "  ChInt64"     :$$: 'Text "  ChInt128"
+    :$$: 'Text "  ChDateTime"
+    )
 
 newtype LowCardinality chType = LowCardinality (PermittedType chType)
 
