@@ -17,6 +17,7 @@
   , ScopedTypeVariables
   , UndecidableInstances
   #-}
+{-# OPTIONS_GHC -Wno-unticked-promoted-constructors #-}
 
 module ClickHaskell.ChTypes where
 
@@ -95,7 +96,16 @@ type family PermittedType a where
   PermittedType ChInt128 = ChInt128
   PermittedType ChDateTime = ChDateTime
   PermittedType ChUUID = ChUUID
-  PermittedType _ = TypeError ('Text "wrong type to apply to PermittedType")
+  PermittedType chType = TypeError 
+    ('Text "wrong type " 
+    :<>: 'Text (ToChTypeName chType) 
+    :<>: 'Text " couldn't be applied to LowCardinality, make sure that it uses one of next types"
+    :<>: 'Text "\n ChString"
+    :<>: 'Text "\n ChInt32"
+    :<>: 'Text "\n ChInt64"
+    :<>: 'Text "\n ChInt128"
+    :<>: 'Text "\n ChDateTime"
+    :<>: 'Text "\n ChUUID")
 
 newtype LowCardinality chType = LowCardinality (PermittedType chType)
 
@@ -113,7 +123,7 @@ instance
   , IsChType chType
   , IsChType (PermittedType chType)) =>
   IsChType (LowCardinality chType) where
-  render (LowCardinality value) = "LowCardinality(" <> render value <> ")"
+  render (LowCardinality value) = render value
   parse value = LowCardinality $ parse value
 
 
