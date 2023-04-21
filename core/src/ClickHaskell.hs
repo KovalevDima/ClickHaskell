@@ -23,9 +23,11 @@
   -Wno-unrecognised-pragmas
 #-}
 module ClickHaskell
-  (
+  ( module ClickHaskell.ChTypes
+  , module ClickHaskell.TableDsl
+
   -- * Data manipulation DSL 
-  httpStreamChInsert, httpStreamChSelect, Database(..), Table(..), tsvSelectQuery, tsvInsertQueryHeader, ChException(..)
+  , httpStreamChInsert, httpStreamChSelect, tsvSelectQuery, tsvInsertQueryHeader, ChException(..)
 
   -- * Buffered writing abstractions
   , writeToSizedBuffer, createSizedBuffer, readFromSizedBuffer, forkBufferFlusher, BufferSize(..), TBQueue
@@ -47,7 +49,6 @@ import Control.Concurrent.STM     (TBQueue, writeTBQueue, atomically, newTBQueue
 import Control.DeepSeq            (NFData)
 import Control.Exception          (SomeException, handle, Exception, throw)
 import Control.Monad              (forever, unless)
-import GHC.Exts                   (IsString)
 import GHC.Generics               (Generic)
 import GHC.Num                    (Natural)
 import GHC.TypeLits               (symbolVal, KnownSymbol, Symbol)
@@ -58,16 +59,13 @@ import Network.HTTP.Client.Conduit as H (Request (..), defaultManagerSettings, p
 import Network.HTTP.Simple         as H (setRequestManager)
 import Network.HTTP.Types          (statusCode)
 
-import ClickHaskell.TableDsl (HasChSchema (getSchema, fromBs, toBs), InDatabase, Unwraped, toConditionalExpression, ToConditionalExpression)
+import ClickHaskell.ChTypes
+import ClickHaskell.TableDsl
 
 
 data ChException = ChException
   { exceptionMessage :: Text
   } deriving (Show, Exception)
-
-
-newtype Database = Database Text deriving newtype (Show, IsString)
-newtype Table    = Table    Text deriving newtype (Show, IsString)
 
 
 httpStreamChSelect :: forall handlingDataDescripion locatedTable db table name columns engine partitionBy orderBy .
