@@ -1,8 +1,3 @@
-optimization: 2
 packages:
-    core
-  , sandbox/
-
-
---package *
---  ghc-options: -fprof-late
+  ./
+  ./sandbox/
