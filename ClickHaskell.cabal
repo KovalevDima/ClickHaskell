@@ -6,8 +6,9 @@ version:        0.0.1
 
 author:         Kovalev Dmitry
 maintainer:     Kovalev Dmitry
-
-description:    wide functionality library for solving most of the problems related to clickhouse integration 
+category:       ClickHouse
+synopsis:       DSL for integration ClickHouse as dependency
+description:    tools for configuring ClickHouse tables, selecting+inserting data and integrational testing
 homepage:       https://github.com/KovalevDima/ClickHaskell#readme
 bug-reports:    https://github.com/KovalevDima/ClickHaskell/issues
 License:        BSD-3-Clause
@@ -23,6 +24,8 @@ source-repository head
 
 
 library
+  autogen-modules:
+      Paths_ClickHaskell
   exposed-modules:
       ClickHaskell,
       ClickHaskell.ChTypes,
@@ -31,7 +34,7 @@ library
       Paths_ClickHaskell
   hs-source-dirs:
       src
-  ghc-options: -Wall -fno-warn-type-defaults -O2
+  ghc-options: -Wall -fno-warn-type-defaults
   build-depends:
       base >=4.7 && <5
     , bytestring
