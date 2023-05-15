@@ -9,26 +9,11 @@ package
 
 ### Work in sandbox
 
-1. Run clickhouse server with `empty password` on `default` user and provide access to `8123 http port` and `9000 native port` to `clickhouse-server` 
-2. Create example table via console
+1. Run clickhouse server with `empty password` on `default` user
+and provide access to `8123 http port` and `9000 native port` to `clickhouse-server`
 
-    ```bash
-    clickhouse-client --query "CREATE TABLE test.example (channel_name String, clientId Int64, DateTime Int64, someField2 UUID
-    ) ENGINE = MergeTree PARTITION BY channel_name ORDER BY channel_name SETTINGS index_granularity = 8192"
-    ```
-
-    or run query manualy
- 
-    ```sql
-    CREATE TABLE test.example
-        ( channel_name String
-        , clientId Int64
-        , someField DateTime
-        , someField2 UUID
-        )
-    ENGINE = MergeTree
-    PARTITION BY channel_name
-    ORDER BY channel_name
-    SETTINGS index_granularity = 8192
-    ```
-3. Run `cabal repl sandbox` or run an executable
+   You can setup this from docker image:
+   ```sh
+   docker run -d -p 8123:8123 -p 9000:9000 --name clickhouse-server --ulimit nofile=262144:262144 clickhouse/clickhouse-server
+   ```
+2. Run `cabal run sandbox`

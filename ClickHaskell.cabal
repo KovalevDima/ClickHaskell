@@ -8,7 +8,7 @@ author:         Kovalev Dmitry
 maintainer:     Kovalev Dmitry
 category:       ClickHouse
 synopsis:       DSL for integration ClickHouse as dependency
-description:    tools for configuring ClickHouse tables, selecting+inserting data and integrational testing
+description:    tools for configuring ClickHouse tables, data manipulation and integration testing
 homepage:       https://github.com/KovalevDima/ClickHaskell#readme
 bug-reports:    https://github.com/KovalevDima/ClickHaskell/issues
 License:        BSD-3-Clause
@@ -36,18 +36,21 @@ library
       src
   ghc-options: -Wall -fno-warn-type-defaults
   build-depends:
+    -- GHC included libraries
       base >=4.7 && <5
     , bytestring
     , deepseq
-    , singletons
-    , singletons-base
     , stm
     , text
     , time
+
+    -- External dependencies
     , conduit
     , http-conduit
     , http-client
     , http-types
+    , singletons
+    , singletons-base
     , uuid
     , wide-word
   default-language: GHC2021

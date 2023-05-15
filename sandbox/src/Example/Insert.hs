@@ -1,78 +1,57 @@
 {-# LANGUAGE
-    DeriveAnyClass
+    DataKinds
+  , DeriveAnyClass
   , DeriveGeneric
   , NumericUnderscores
   , OverloadedStrings
   , TypeApplications
   , ScopedTypeVariables
 #-}
-{-# LANGUAGE DataKinds #-}
+
 module Example.Insert where
 
-import ClickHaskell           (HttpChClient, initClient, ChCredential (..), createSizedBuffer,
-                              writeToSizedBuffer, httpStreamChInsert, forkBufferFlusher)
-import ClickHaskell.ChTypes   (ChString, ChInt64, ChUUID, ChDateTime, ToChType(toChType))
-import ClickHaskell.TableDsl  (HasChSchema, InDatabase)
-import Data.UUID              as UUID (nil)
-import Data.Time              (UTCTime(UTCTime), secondsToDiffTime, fromGregorian)
+-- Internal dependencies
+import ClickHaskell
+import Example      (ExampleTable, ExampleData(..))
 
+-- GHC included libraries imports
 import Data.Text              (Text)
-import GHC.Generics           (Generic)
-import Control.Exception      (SomeException)
 import Control.Concurrent     (threadDelay)
-import Control.Concurrent.STM (TBQueue)
 import Control.Monad          (void)
-import Example (ExampleTable)
-
-
--- 1. Create our schema haskell representation
-data Example = Example
-  { channel_name :: ChString
-  , clientId     :: ChInt64
-  , someField    :: ChDateTime
-  , someField2   :: ChUUID
-  }
-  deriving (Generic, HasChSchema)
 
 
 insert :: IO ()
 insert = do
 
-  -- 2. Init clienthttpStreamChInsert client bufferData
+  -- 1. Init clienthttpStreamChInsert client bufferData
   client <- initClient
     @HttpChClient
     (ChCredential "default" "" "http://localhost:8123")
     Nothing
 
+  -- 2. Create db and table
+  createDatabaseIfNotExists @"example" client
+  createTableIfNotExists @(InDatabase "example" ExampleTable) client
+
   -- 3. Create buffer 
-  (buffer :: TBQueue Example) <- createSizedBuffer 500_000
+  (buffer :: DefaultBuffer ExampleData) <- createSizedBuffer 500_000
 
   -- 4. Start buffer flusher
   _ <- forkBufferFlusher
     5_000_000
     buffer
-    (\(e :: SomeException)-> print e)
+    print
     (void . httpStreamChInsert @(InDatabase "example" ExampleTable) client)
 
   -- 5. Get some data
-  let _dataExample = Example
-        { channel_name = toChType @ChString   $ ("text\t"   :: Text)
-        , clientId     = toChType @ChInt64      42
-        , someField    = toChType @ChDateTime $ UTCTime (fromGregorian 2018 10 27) (secondsToDiffTime 0)
-        , someField2 =   toChType @ChUUID       UUID.nil
+  let _dataExample = ExampleData
+        { string   = toChType @ChString   $ ("text\t"   :: Text)
+        , int64    = toChType @ChInt64      42
+        , dateTime = toChType @ChDateTime $ (500 :: Word32)
+        , uuid     = toChType @ChUUID       nilChUUID
         }
 
   -- 6. Write data to buffer
   writeToSizedBuffer buffer _dataExample
 
   threadDelay 15_000_000
-
-
-
-_dataExample :: Example
-_dataExample = Example
-  { channel_name = toChType @ChString   $ ("text\t"   :: Text)
-  , clientId     = toChType @ChInt64      42
-  , someField    = toChType @ChDateTime $ UTCTime (fromGregorian 2018 10 27) (secondsToDiffTime 0)
-  , someField2 =   toChType @ChUUID       UUID.nil
-  }

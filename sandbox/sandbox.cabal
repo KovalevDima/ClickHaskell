@@ -23,7 +23,7 @@ source-repository head
 
 library
   exposed-modules:
-      WriteTest,
+      Bench,
       Example,
       Example.Insert,
       Example.Select
@@ -34,19 +34,8 @@ library
   ghc-options: -Wall -fno-warn-type-defaults -O2
   build-depends:
       base >=4.7 && <5
-    , async
-    , bytestring
     , ClickHaskell
-    , conduit
-    , http-conduit
-    , http-client
-    , http-types
-    , stm
     , text
-    , time
-    , uuid
-    , vector
-    , wide-word
   default-language: Haskell2010
 
 executable executable

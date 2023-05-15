@@ -1,12 +1,3 @@
-# ClickHaskell
-### Haskell interface for integration with ClickHouse
-
-Package still under developing and doesn't have stable interface 
-
-
-### Example of application that uses library functionality for development and profiling
-
-```haskell
 {-# LANGUAGE
     DataKinds
   , DeriveAnyClass
@@ -19,28 +10,19 @@ Package still under developing and doesn't have stable interface
   , ScopedTypeVariables
 #-}
 
-module Main
-  ( main
+module Bench
+  ( benchExecutable
+  , BenchSettings(..)
   ) where
 
+-- Internal dependencies
 import ClickHaskell
+import Example                (ExampleTable, ExampleData(..))
 
 -- GHC included libraries imports
 import Control.Concurrent (threadDelay, forkIO)
 import Control.Monad      (replicateM_, void)
 import Data.Text          (Text)
-
-settings :: BenchSettings
-settings = BenchSettings
-  { sBufferSize        = 5_000_000
-  , sConcurentWriters  = 500
-  , sRowsPerWriter     = 100_000
-  , sMsBetweenWrites   = 10
-  , sMsBetweenChWrites = 1_000_000
-  }
-
-main :: IO ()
-main = benchExecutable settings
 
 
 -- 0. Settings for test
@@ -59,28 +41,7 @@ data BenchSettings = BenchSettings
   , sMsBetweenChWrites :: MsBetweenClickHouseWrites
   }
 
-
--- 1. Describe table
-type ExampleTable =
-  Table
-    "example"
-    '[ DefaultColumn "string"   (LowCardinality ChString)
-     , DefaultColumn "int64"    ChInt64
-     , DefaultColumn "dateTime" ChDateTime
-     , DefaultColumn "uuid"     ChUUID
-     ]
-    MergeTree
-    '["string", "int64"]
-    '["string"]
-
--- 2. Separate data you will work with
-data ExampleData = ExampleData
-  { string   :: ChString
-  , int64    :: ChInt64
-  , dateTime :: ChDateTime
-  , uuid     :: ChUUID
-  }
-  deriving (Generic, HasChSchema, Show)
+-- 1. Create our schema haskell representation
 
 benchExecutable :: BenchSettings -> IO ()
 benchExecutable (
@@ -92,26 +53,26 @@ benchExecutable (
      (MsBetweenClickHouseWrites msBetweenChWrites      )
   ) = do
 
-  -- 3. Init clienthttpStreamChInsert client bufferData
+  -- 2. Init clienthttpStreamChInsert client bufferData
   client <- initClient @HttpChClient
     (ChCredential "default" "" "http://localhost:8123")
     (Just defaultHttpClientSettings)
 
-  -- 4. Create database and table
+  -- 3. Create database and table
   createDatabaseIfNotExists @"example" client
   createTableIfNotExists @(InDatabase "example" ExampleTable) client
 
-  -- 5. Create buffer 
+  -- 4. Create buffer 
   (buffer :: DefaultBuffer ExampleData) <- createSizedBuffer bufferSize
 
-  -- 6. Start buffer flusher
+  -- 5. Start buffer flusher
   _ <- forkBufferFlusher
     (fromIntegral msBetweenChWrites)
     buffer
     print
     (void . httpStreamChInsert @(InDatabase "example" ExampleTable) client)
 
-  -- 7. Get some data
+  -- 6. Get some data
   let _dataExample = ExampleData
         { string   = toChType @ChString   ("text"   :: Text)
         , int64    = toChType @ChInt64    42
@@ -119,12 +80,10 @@ benchExecutable (
         , uuid     = toChType @ChUUID     nilChUUID
         }
 
-  -- 8. Write something to buffer
+  -- 7. Write something to buffer
   _threadId <-
     replicateM_ concurrentBufferWriters . forkIO
       . replicateM_ rowsNumber
       $ (\someData -> writeToSizedBuffer buffer someData >> threadDelay msBetweenBufferWrites) _dataExample
 
   threadDelay 60_000_000
-
-```

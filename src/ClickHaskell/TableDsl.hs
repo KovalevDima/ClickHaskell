@@ -16,25 +16,42 @@
   , UndecidableInstances
 #-}
 
-module ClickHaskell.TableDsl where
+module ClickHaskell.TableDsl
+  ( HasChSchema(..)
+  
+  , SampledBy
+  , Infixion, EqualityWith
 
+  , InDatabase
+
+  , Table
+  , DefaultColumn
+
+  , IsChEngine, MergeTree
+
+  , Unwraped, ToConditionalExpression, toConditionalExpression, SupportedAndVerifiedColumns
+  , showCreateTableIfNotExists, showCreateTable
+  ) where
+
+-- Internal dependencies
+import ClickHaskell.ChTypes (IsChType(originalName, parse, render), ToChTypeName)
+
+-- External dependencies
+import Data.Singletons         (demote, SingI)
+import GHC.TypeLits.Singletons ()
+
+-- GHC included libraries imports
 import Data.ByteString         as BS (ByteString)
 import Data.ByteString.Char8   as BS8 (split, intercalate)
 import Data.Data               (Proxy(Proxy))
 import Data.Kind               (Type)
 import Data.Text               as T (Text, pack, unpack, intercalate)
 import Data.Text.Lazy.Builder  (Builder, fromString)
-import Data.Singletons         (demote, SingI)
 import GHC.Generics            (Generic(Rep, from, to), Selector(selName), (:*:)(..), D1, C1, S1, M1(..), K1(unK1, K1))
 import GHC.TypeLits            (symbolVal, KnownSymbol, TypeError, ErrorMessage(..), Symbol)
-import GHC.TypeLits.Singletons ()
-
-import ClickHaskell.ChTypes (IsChType(originalName, parse, render), ToChTypeName)
 
 
-data SampledBy (fieldName :: Symbol) (conditionalExpression :: Type) handlingData where 
-  MkSampledBy :: handlingData -> SampledBy fieldName conditionalExpression handlingData
-  deriving (Generic, Show, Functor)
+
 
 type Unwraped :: Type -> Type
 type family Unwraped t where
@@ -82,7 +99,13 @@ instance {-# OVERLAPPABLE #-}
 
 class ToConditionalExpPart a where
   toConditionalExpPart :: Builder 
-  
+
+
+data SampledBy (fieldName :: Symbol) (conditionalExpression :: Type) handlingData where 
+  MkSampledBy :: handlingData -> SampledBy fieldName conditionalExpression handlingData
+  deriving (Generic, Show, Functor)
+
+
 data EqualityWith (a :: Symbol)
 instance KnownSymbol a
   => ToConditionalExpPart (EqualityWith a) where
@@ -92,20 +115,15 @@ data Infixion      a
 
 
 
-type MapFst :: [(a, b)] -> [a]
-type family MapFst xs where
-  MapFst ('(a, b) ': xs) = a ': MapFst xs
-  MapFst '[] = '[]
-
-
-type ValidatedRequest :: Type -> Type -> Symbol
+type ValidatedRequest :: Type -> Table name columns c d e -> [(Symbol, Symbol)]
 type family ValidatedRequest handlingDataDescripion table where
-  ValidatedRequest handlingDataDescripion table = ""
+  ValidatedRequest handlingDataDescripion (t :: Table name columns c d e)
+    = TransformedToSupportedColumns columns
 
 
 type ValidatedSubset :: [(Symbol, Type)] -> [(Symbol, Type)] -> [(Symbol, Type)]
 type family ValidatedSubset a b where
-  ValidatedSubset ('(field, fieldType) ': columns1) columns2 = columns2
+  ValidatedSubset ('(field, fieldType) ': cols1) cols2 = ColumnSolve '(field, fieldType) cols2 ': cols2
 
 
 type ColumnSolve :: (Symbol, Type) -> [(Symbol, Type)] -> (Symbol, Type)
@@ -154,8 +172,7 @@ type family SupportedColumn x :: (Symbol, Symbol) where
 data InDatabase
   (db :: Symbol)
   (t :: Type)
-  where
-  InDatabase :: InDatabase db t
+
 
 data Table
   (name :: Symbol)
@@ -163,11 +180,30 @@ data Table
   engine
   (partitionBy :: [Symbol])
   (orderBy     :: [Symbol])
-  where
-  Table :: forall name columns engine partitionBy orderBy . IsChEngine engine => Table name columns engine partitionBy orderBy
 
 
 data DefaultColumn (name :: Symbol) columnType
+
+
+showCreateTableIfNotExists :: forall t db table name columns engine orderBy partitionBy .
+  ( table ~ Table name columns engine orderBy partitionBy
+  , t ~ InDatabase db table
+  , KnownSymbol name
+  , KnownSymbol db
+  , SingI partitionBy
+  , SingI orderBy
+  , SingI (SupportedAndVerifiedColumns columns)
+  , IsChEngine engine
+  ) => String
+showCreateTableIfNotExists =
+  let columns     = demote @(SupportedAndVerifiedColumns columns)
+      partitionBy = demote @partitionBy
+      orderBy     = demote @orderBy
+  in "CREATE TABLE IF NOT EXISTS "  <> symbolVal (Proxy @db) <> "." <> symbolVal (Proxy @name)
+  <> " "              <> T.unpack ("(" <> T.intercalate ", " (map (\(first, second) -> first <> " " <> second) columns) <> ")")
+  <> " Engine="       <> engineName @engine
+  <> " PARTITION BY " <> (if null partitionBy then "tuple()" else T.unpack ("(" <> T.intercalate ", " partitionBy <> ")"))
+  <> " ORDER BY "     <> (if null orderBy     then "tuple()" else T.unpack ("(" <> T.intercalate ", " orderBy     <> ")"))
 
 
 showCreateTable :: forall t db table name columns engine orderBy partitionBy .
@@ -210,9 +246,9 @@ data MergeTree
 
 
 class HasChSchema a where
-  default getSchema :: (Generic a, GHasChSchema (Rep a)) => Proxy a -> [(Text, Text)]
-  getSchema :: Proxy a -> [(Text, Text)]
-  getSchema _ = toSchema @(Rep a)
+  default getSchema :: (Generic a, GHasChSchema (Rep a)) => [(Text, Text)]
+  getSchema :: [(Text, Text)]
+  getSchema = toSchema @(Rep a)
 
   default toBs :: (Generic a, GToBs (Rep a)) => a -> BS.ByteString
   toBs :: a -> BS.ByteString
@@ -222,10 +258,17 @@ class HasChSchema a where
   default fromBs :: (Generic a, GFromBS (Rep a)) => BS.ByteString -> a
   fromBs :: BS.ByteString -> a
   fromBs = to . gFromBs
+  {-# INLINE fromBs #-}
 
-instance (HasChSchema handlingData) => HasChSchema (SampledBy fieldName conditionalExpression handlingData) where
-  getSchema _ = getSchema (Proxy @handlingData)
+instance (HasChSchema handlingData)
+  => HasChSchema (SampledBy fieldName conditionalExpression handlingData) where
+  getSchema :: HasChSchema handlingData => [(Text, Text)]
+  getSchema = getSchema @handlingData
+
+  toBs :: HasChSchema handlingData => SampledBy fieldName conditionalExpression handlingData -> ByteString
   toBs (MkSampledBy handlingData) = toBs handlingData
+
+  fromBs :: HasChSchema handlingData => ByteString -> SampledBy fieldName conditionalExpression handlingData
   fromBs bs = MkSampledBy $ fromBs bs
 
 

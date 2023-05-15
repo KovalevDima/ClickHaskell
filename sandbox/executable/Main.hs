@@ -1,14 +1,14 @@
 {-# LANGUAGE
-  NumericUnderscores
+    NumericUnderscores
 #-}
 module Main
   ( main
   ) where
 
-import WriteTest (writeExample, WriteExampleSettings(..))
+import Bench (benchExecutable, BenchSettings(..))
 
-settings :: WriteExampleSettings
-settings = WriteExampleSettings
+settings :: BenchSettings
+settings = BenchSettings
   { sBufferSize        = 5_000_000
   , sConcurentWriters  = 500
   , sRowsPerWriter     = 100_000
@@ -17,4 +17,4 @@ settings = WriteExampleSettings
   }
 
 main :: IO ()
-main = writeExample settings
+main = benchExecutable settings

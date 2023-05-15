@@ -1,56 +1,53 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE
+    DataKinds
+  , DeriveGeneric
+  , DeriveAnyClass
+  , TypeApplications
+  , TypeOperators
+  , ScopedTypeVariables
+#-}
+
 module Example where
 
-import Data.Data    (Proxy(..))
-import Data.Text    (Text)
-import GHC.Generics (Generic)
-import GHC.TypeLits (SomeSymbol(..), someSymbolVal)
+-- Internal dependencies
+import ClickHaskell
 
-import ClickHaskell           (tsvSelectQuery)
-import ClickHaskell.ChTypes   (ChString, ChInt64, ChUUID, ChDateTime)
-import ClickHaskell.TableDsl  (Table, DefaultColumn, MergeTree, HasChSchema, InDatabase, showCreateTable, SampledBy, EqualityWith)
+-- GHC included libraries imports
+import Data.Text (Text)
 
 
 -- 1. Describe table
-
 type ExampleTable =
   Table
     "example"
-    '[
-       DefaultColumn "channel_name" ChString
-     , DefaultColumn "clientId"     ChInt64
-     , DefaultColumn "someField"    ChDateTime
-     , DefaultColumn "someField2"   ChUUID
+    '[ DefaultColumn "string"   (LowCardinality ChString)
+     , DefaultColumn "int64"    ChInt64
+     , DefaultColumn "dateTime" ChDateTime
+     , DefaultColumn "uuid"     ChUUID
      ]
     MergeTree
-    '["clientId", "someField2"]
-    '["clientId"]
-
-
--- |
--- >>> showCreateExample
--- "CREATE TABLE example.example (channel_name String, clientId Int64, someField DateTime, someField2 UUID) Engine=MergeTree PARTITION BY (clientId) ORDER BY (clientId, client)"
-showCreateExample :: String
-showCreateExample = showCreateTable @(InDatabase "example" ExampleTable)
-
-
--- |
--- >>> showSelect
--- "SELECT channel_name,clientId,someField,someField2 FROM example.example WHERE fieldName=='mysymbol' FORMAT TSV"
-showSelect :: Text
-showSelect = case someSymbolVal "mysymbol" of (SomeSymbol (Proxy :: Proxy var)) -> tsvSelectQuery @(("fieldName" `SampledBy` EqualityWith var) ExampleData) @(InDatabase "example" ExampleTable)
-
+    '["string", "int64"]
+    '["string"]
 
 -- 2. Separate data you will work with
 data ExampleData = ExampleData
-  { channel_name :: ChString
-  , clientId     :: ChInt64
-  , someField    :: ChDateTime
-  , someField2   :: ChUUID
+  { string   :: ChString
+  , int64    :: ChInt64
+  , dateTime :: ChDateTime
+  , uuid     :: ChUUID
   }
   deriving (Generic, HasChSchema, Show)
+
+
+
+
+-- >>> showCreateExample
+-- "CREATE TABLE IF NOT EXISTS example.example (string String, int64 Int64, dateTime DateTime, uuid UUID) Engine=MergeTree PARTITION BY (clientId) ORDER BY (clientId, someField2)"
+showCreateExample :: String
+showCreateExample = showCreateTableIfNotExists @(InDatabase "example" ExampleTable)
+
+
+-- >>> showSelect
+-- "SELECT string,int64,dateTime,uuid FROM example.example WHERE fieldName=='mysymbol' FORMAT TSV"
+showSelect :: Text
+showSelect = case someSymbolVal "mysymbol" of (SomeSymbol (Proxy :: Proxy var)) -> tsvSelectQuery @(("fieldName" `SampledBy` EqualityWith var) ExampleData) @(InDatabase "example" ExampleTable)

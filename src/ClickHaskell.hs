@@ -30,42 +30,88 @@ module ClickHaskell
   , httpStreamChInsert, httpStreamChSelect, tsvSelectQuery, tsvInsertQueryHeader, ChException(..)
 
   -- * Buffered writing abstractions
-  , writeToSizedBuffer, createSizedBuffer, readFromSizedBuffer, forkBufferFlusher, BufferSize(..), TBQueue
+  , writeToSizedBuffer, createSizedBuffer, readFromSizedBuffer, forkBufferFlusher, BufferSize(..), DefaultBuffer
+
+  -- * Bootstrapping
+  , createTableIfNotExists, createDatabaseIfNotExists
 
   -- * Client abstraction
-  , ChClient(initClient), HttpChClient, ChCredential(ChCredential, chLogin, chPass, chUrl)
+  , ChClient(initClient), ChCredential(ChCredential, chLogin, chPass, chUrl)
+  , HttpChClient, HttpClientSettings, defaultHttpClientSettings, setHttpClientTimeout
+
+  -- Reexports
+  , Proxy(..), someSymbolVal, SomeSymbol(..), Generic, Word32, Word64,
   ) where
 
-import Data.ByteString            as BS (toStrict)
-import Data.ByteString.Lazy.Char8 as BSL8 (lines, toStrict)
-import Data.ByteString.Lazy       as BSL (ByteString)
-import Data.Data                  (Proxy(..))
-import Data.Text                  as T (Text, intercalate, unpack, pack)
-import Data.Text.Lazy             as T (toStrict)
-import Data.Text.Lazy.Builder     as T (toLazyText)
-import Data.Text.Encoding         as T (encodeUtf8, decodeUtf8)
-import Control.Concurrent         (forkIO, ThreadId, threadDelay)
-import Control.Concurrent.STM     (TBQueue, writeTBQueue, atomically, newTBQueueIO, flushTBQueue)
-import Control.DeepSeq            (NFData)
-import Control.Exception          (SomeException, handle, Exception, throw)
-import Control.Monad              (forever, unless)
-import GHC.Generics               (Generic)
-import GHC.Num                    (Natural)
-import GHC.TypeLits               (symbolVal, KnownSymbol, Symbol)
-
-import Conduit                     (yieldMany, yield)
-import Network.HTTP.Client         as H (newManager, Manager, Response, httpLbs, responseStatus, responseBody)
-import Network.HTTP.Client.Conduit as H (Request (..), defaultManagerSettings, parseRequest, requestBodySourceChunked)
-import Network.HTTP.Simple         as H (setRequestManager)
-import Network.HTTP.Types          (statusCode)
-
+-- Internal dependencies
 import ClickHaskell.ChTypes
 import ClickHaskell.TableDsl
+
+-- External dependencies
+import Conduit                     (yieldMany, yield)
+import Data.Singletons             (SingI)
+import Network.HTTP.Client         as H (newManager, Manager, Response, httpLbs, responseStatus, responseBody, RequestBody(..), ManagerSettings(..))
+import Network.HTTP.Client.Conduit as H (Request(..), defaultManagerSettings, parseRequest, requestBodySourceChunked, responseTimeoutNone, responseTimeoutMicro)
+import Network.HTTP.Simple         as H (setRequestManager)
+import Network.HTTP.Types          as H (statusCode)
+
+-- GHC included libraries imports
+import Control.Concurrent         (ThreadId, forkIO, threadDelay)
+import Control.Concurrent.STM     (TBQueue, atomically, flushTBQueue, newTBQueueIO, writeTBQueue)
+import Control.DeepSeq            (NFData)
+import Control.Exception          (Exception, SomeException, handle, throw)
+import Control.Monad              (forever, unless, when)
+import Data.ByteString            as BS (toStrict)
+import Data.ByteString.Lazy       as BSL (ByteString, toStrict)
+import Data.ByteString.Lazy.Char8 as BSL8 (lines, pack)
+import Data.Data                  (Proxy (..))
+import Data.Maybe                 (fromMaybe)
+import Data.Text                  as T (Text, intercalate, pack, unpack)
+import Data.Text.Encoding         as T (decodeUtf8, encodeUtf8)
+import Data.Text.Lazy             as T (toStrict)
+import Data.Text.Lazy.Builder     as T (toLazyText)
+import Data.Word                  (Word64, Word32)
+import GHC.Generics               (Generic)
+import GHC.Num                    (Natural)
+import GHC.TypeLits               (KnownSymbol, Symbol, symbolVal, someSymbolVal, SomeSymbol (SomeSymbol))
 
 
 data ChException = ChException
   { exceptionMessage :: Text
   } deriving (Show, Exception)
+
+
+createDatabaseIfNotExists :: forall db . KnownSymbol db => HttpChClient -> IO ()
+createDatabaseIfNotExists (HttpChClient man req) = do
+  resp <- H.httpLbs
+    req
+      { requestBody = H.RequestBodyLBS
+      $ "CREATE DATABASE IF NOT EXISTS " <> (BSL8.pack. symbolVal) (Proxy @db)
+      }
+    man
+  when (H.statusCode (responseStatus resp) /= 200) $
+    throw $ ChException $ T.decodeUtf8 $ BS.toStrict $ responseBody resp
+
+
+createTableIfNotExists :: forall locatedTable db table name columns engine orderBy partitionBy .
+  ( table ~ Table name columns engine orderBy partitionBy
+  , locatedTable ~ InDatabase db table
+  , KnownSymbol name
+  , KnownSymbol db
+  , SingI partitionBy
+  , SingI orderBy
+  , SingI (SupportedAndVerifiedColumns columns)
+  , IsChEngine engine
+  ) => HttpChClient -> IO ()
+createTableIfNotExists (HttpChClient man req) = do
+  resp <- H.httpLbs
+    req
+      { requestBody = H.RequestBodyLBS
+      $ BSL8.pack (showCreateTableIfNotExists @locatedTable)
+      }
+    man
+  when (H.statusCode (responseStatus resp) /= 200) $
+    throw $ ChException $ T.decodeUtf8 $ BS.toStrict $ responseBody resp
 
 
 httpStreamChSelect :: forall handlingDataDescripion locatedTable db table name columns engine partitionBy orderBy .
@@ -83,33 +129,36 @@ httpStreamChSelect (HttpChClient man req) = do
       $ yield (encodeUtf8 $ tsvSelectQuery @handlingDataDescripion @locatedTable)
       }
     man
-  bytestring <- if statusCode (responseStatus resp) == 200
-    then pure $ responseBody resp
-    else throw $ ChException $ T.decodeUtf8 $ BS.toStrict $ responseBody resp
-  pure $ map (fromBs . BSL8.toStrict) $ BSL8.lines bytestring
+  when (H.statusCode (responseStatus resp) /= 200) $
+    throw $ ChException $ T.decodeUtf8 $ BS.toStrict $ responseBody resp
+
+  pure
+    . map (fromBs . BSL.toStrict)
+    . BSL8.lines
+    $ responseBody resp
 
 -- ToDo4: Implement table and handling data validation
-tsvSelectQuery :: forall handlingDataDescripion t db table name columns engine partitionBy orderBy .
+tsvSelectQuery :: forall
+  handlingDataDescripion tableWithDb
+  db
+  tableWrapper name columns engine partitionBy orderBy
+  .
   ( HasChSchema (Unwraped handlingDataDescripion)
-  , t ~ InDatabase db (table name columns engine partitionBy orderBy)
+  , tableWithDb ~ InDatabase db (tableWrapper name columns engine partitionBy orderBy)
   , KnownSymbol db
   , KnownSymbol name
   , ToConditionalExpression handlingDataDescripion
   ) => Text
 tsvSelectQuery =
-  let columnsMapping = T.intercalate "," . map fst $ getSchema (Proxy @(Unwraped handlingDataDescripion))
+  let columnsMapping = T.intercalate "," . map fst $ getSchema @(Unwraped handlingDataDescripion)
       whereConditions = T.toStrict (T.toLazyText $ toConditionalExpression @handlingDataDescripion)
-  in 
-    "SELECT " <> 
-    columnsMapping <> 
-    " FROM " <> 
-    (T.pack . symbolVal) (Proxy @db) <> "." <> (T.pack . symbolVal) (Proxy @name) <> 
-    " " <> (if whereConditions=="" then "" else "WHERE " <> whereConditions)  <>
-    " FORMAT TSV"
+  in  "SELECT " <> columnsMapping
+  <> " FROM " <> (T.pack . symbolVal) (Proxy @db) <> "." <> (T.pack . symbolVal) (Proxy @name)
+  <> " " <> (if whereConditions=="" then "" else "WHERE " <> whereConditions)
+  <> " FORMAT TSV"
 {-# INLINE tsvSelectQuery #-}
 
 
--- ToDo3: implement interface the same way as httpStreamChSelect 
 httpStreamChInsert :: forall locatedTable handlingDataDescripion db table name columns engine partitionBy orderBy .
   ( HasChSchema handlingDataDescripion
   , locatedTable ~ InDatabase db (table (name :: Symbol) columns engine partitionBy orderBy)
@@ -125,9 +174,10 @@ httpStreamChInsert (HttpChClient man req) schemaList = do
       }
     man
 
-  if statusCode (responseStatus resp) == 200
-    then pure resp
-    else throw $ ChException $ T.decodeUtf8 $ BS.toStrict $ responseBody resp
+  when (H.statusCode (responseStatus resp) /= 200) $
+    throw $ ChException $ T.decodeUtf8 $ BS.toStrict $ responseBody resp
+
+  pure resp
 
 
 -- ToDo4: Implement table and handling data validation
@@ -138,12 +188,10 @@ tsvInsertQueryHeader :: forall chSchema t db table name columns engine partition
   , KnownSymbol name
   ) => Text
 tsvInsertQueryHeader =
-  let columnsMapping = T.intercalate "," . map fst $ getSchema (Proxy @chSchema)
-  in 
-    "INSERT INTO " <> 
-    (T.pack . symbolVal) (Proxy @db) <> "." <> (T.pack . symbolVal) (Proxy @name) <> 
-    " (" <> columnsMapping <> ")" <> 
-    "FORMAT TSV\n"
+  let columnsMapping = T.intercalate "," . map fst $ getSchema @chSchema
+  in "INSERT INTO " <> (T.pack . symbolVal) (Proxy @db) <> "." <> (T.pack . symbolVal) (Proxy @name)
+  <> " (" <> columnsMapping <> ")"
+  <> " FORMAT TSV\n"
 {-# INLINE tsvInsertQueryHeader #-}
 
 
@@ -175,8 +223,11 @@ class IsBuffer buffer schemaData
   createSizedBuffer   :: BufferSize -> IO (buffer schemaData)
   readFromSizedBuffer :: buffer schemaData  -> IO [schemaData]
 
+
+type DefaultBuffer = TBQueue
+
 instance HasChSchema schemaData
-  => IsBuffer TBQueue schemaData
+  => IsBuffer DefaultBuffer schemaData
   where
   createSizedBuffer   (BufferSize size) = newTBQueueIO size
   writeToSizedBuffer  buffer d          = atomically $ writeTBQueue buffer d
@@ -185,6 +236,9 @@ instance HasChSchema schemaData
 
 
 
+class ChClient backend connectionsManagerSettings | backend -> connectionsManagerSettings where
+  initClient :: ChCredential -> Maybe connectionsManagerSettings -> IO backend
+
 data ChCredential = ChCredential
   { chLogin :: !Text
   , chPass  :: !Text
@@ -192,17 +246,23 @@ data ChCredential = ChCredential
   }
   deriving (Generic, NFData, Show, Eq)
 
+
+
+
 data HttpChClient = HttpChClient H.Manager H.Request
 
-class ChClient backend connectionManager | backend -> connectionManager where
-  initClient :: ChCredential -> Maybe connectionManager -> IO backend
+type HttpClientSettings = ManagerSettings
 
-instance ChClient HttpChClient H.Manager where
-  initClient (ChCredential login pass url) mManager = do
-    man <- maybe
-      (H.newManager H.defaultManagerSettings)
-      pure
-      mManager
+defaultHttpClientSettings :: HttpClientSettings
+defaultHttpClientSettings = H.defaultManagerSettings{managerResponseTimeout = H.responseTimeoutNone}
+
+setHttpClientTimeout :: Int -> HttpClientSettings -> HttpClientSettings
+setHttpClientTimeout msTimeout manager = manager{managerResponseTimeout=H.responseTimeoutMicro msTimeout}
+
+
+instance ChClient HttpChClient H.ManagerSettings where
+  initClient (ChCredential login pass url) mManagerSettings = do
+    man <- H.newManager $ fromMaybe H.defaultManagerSettings mManagerSettings
     req <- H.setRequestManager man <$> H.parseRequest (T.unpack url)
 
     pure $! HttpChClient
