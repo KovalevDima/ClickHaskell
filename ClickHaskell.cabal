@@ -49,8 +49,6 @@ library
     , http-conduit
     , http-client
     , http-types
-    , singletons
-    , singletons-base
     , uuid
     , wide-word
   default-language: GHC2021

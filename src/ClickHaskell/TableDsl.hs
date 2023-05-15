@@ -20,25 +20,24 @@ module ClickHaskell.TableDsl
   ( HasChSchema(..)
   
   , SampledBy
-  , Infixion, EqualityWith
+  , EqualityWith, Infixion
 
   , InDatabase
 
   , Table
   , DefaultColumn
 
-  , IsChEngine, MergeTree
+  , IsChEngine
+  , MergeTree, TinyLog
 
-  , Unwraped, ToConditionalExpression, toConditionalExpression, SupportedAndVerifiedColumns
+  , ToConditionalExpression(toConditionalExpression), SupportedAndVerifiedColumns, Unwraped
   , showCreateTableIfNotExists, showCreateTable
+
+  , KnownSymbols, KnownTupleSymbols
   ) where
 
 -- Internal dependencies
 import ClickHaskell.ChTypes (IsChType(originalName, parse, render), ToChTypeName)
-
--- External dependencies
-import Data.Singletons         (demote, SingI)
-import GHC.TypeLits.Singletons ()
 
 -- GHC included libraries imports
 import Data.ByteString         as BS (ByteString)
@@ -110,6 +109,7 @@ data EqualityWith (a :: Symbol)
 instance KnownSymbol a
   => ToConditionalExpPart (EqualityWith a) where
   toConditionalExpPart = "='" <> fromString (symbolVal (Proxy @a)) <> "'"
+
 data Infixion      a
 
 
@@ -182,7 +182,23 @@ data Table
   (orderBy     :: [Symbol])
 
 
+class KnownSymbols (ns :: [Symbol]) where symbolsVal :: [Text]
+instance KnownSymbols '[] where symbolsVal = []
+instance (KnownSymbol n, KnownSymbols ns) => KnownSymbols (n ': ns) where
+  symbolsVal = T.pack (symbolVal (Proxy :: Proxy n)) : symbolsVal @ns
+
+class KnownTupleSymbols (ns :: [(Symbol, Symbol)]) where
+  symbolsTupleVals :: [(Text, Text)]
+instance KnownTupleSymbols '[] where symbolsTupleVals = []
+instance (KnownSymbol a, KnownSymbol b, KnownTupleSymbols ns) => KnownTupleSymbols ('(a,b) ': ns) where
+  symbolsTupleVals = (T.pack (symbolVal (Proxy :: Proxy a)), T.pack (symbolVal (Proxy :: Proxy b))) : symbolsTupleVals @ns
+
+
+
+
 data DefaultColumn (name :: Symbol) columnType
+
+
 
 
 showCreateTableIfNotExists :: forall t db table name columns engine orderBy partitionBy .
@@ -190,15 +206,15 @@ showCreateTableIfNotExists :: forall t db table name columns engine orderBy part
   , t ~ InDatabase db table
   , KnownSymbol name
   , KnownSymbol db
-  , SingI partitionBy
-  , SingI orderBy
-  , SingI (SupportedAndVerifiedColumns columns)
+  , KnownSymbols partitionBy
+  , KnownSymbols orderBy
+  , KnownTupleSymbols (SupportedAndVerifiedColumns columns)
   , IsChEngine engine
   ) => String
 showCreateTableIfNotExists =
-  let columns     = demote @(SupportedAndVerifiedColumns columns)
-      partitionBy = demote @partitionBy
-      orderBy     = demote @orderBy
+  let columns     = symbolsTupleVals @(SupportedAndVerifiedColumns columns)
+      partitionBy = symbolsVal @partitionBy
+      orderBy     = symbolsVal @orderBy
   in "CREATE TABLE IF NOT EXISTS "  <> symbolVal (Proxy @db) <> "." <> symbolVal (Proxy @name)
   <> " "              <> T.unpack ("(" <> T.intercalate ", " (map (\(first, second) -> first <> " " <> second) columns) <> ")")
   <> " Engine="       <> engineName @engine
@@ -211,15 +227,15 @@ showCreateTable :: forall t db table name columns engine orderBy partitionBy .
   , t ~ InDatabase db table
   , KnownSymbol name
   , KnownSymbol db
-  , SingI partitionBy
-  , SingI orderBy
-  , SingI (SupportedAndVerifiedColumns columns)
+  , KnownSymbols partitionBy
+  , KnownSymbols orderBy
+  , KnownTupleSymbols (SupportedAndVerifiedColumns columns)
   , IsChEngine engine
   ) => String
 showCreateTable =
-  let columns     = demote @(SupportedAndVerifiedColumns columns)
-      partitionBy = demote @partitionBy
-      orderBy     = demote @orderBy
+  let columns     = symbolsTupleVals @(SupportedAndVerifiedColumns columns)
+      partitionBy = symbolsVal @partitionBy
+      orderBy     = symbolsVal @orderBy
   in "CREATE TABLE "  <> symbolVal (Proxy @db) <> "." <> symbolVal (Proxy @name)
   <> " "              <> T.unpack ("(" <> T.intercalate ", " (map (\(first, second) -> first <> " " <> second) columns) <> ")")
   <> " Engine="       <> engineName @engine

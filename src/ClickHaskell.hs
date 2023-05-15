@@ -49,7 +49,6 @@ import ClickHaskell.TableDsl
 
 -- External dependencies
 import Conduit                     (yieldMany, yield)
-import Data.Singletons             (SingI)
 import Network.HTTP.Client         as H (newManager, Manager, Response, httpLbs, responseStatus, responseBody, RequestBody(..), ManagerSettings(..))
 import Network.HTTP.Client.Conduit as H (Request(..), defaultManagerSettings, parseRequest, requestBodySourceChunked, responseTimeoutNone, responseTimeoutMicro)
 import Network.HTTP.Simple         as H (setRequestManager)
@@ -98,9 +97,9 @@ createTableIfNotExists :: forall locatedTable db table name columns engine order
   , locatedTable ~ InDatabase db table
   , KnownSymbol name
   , KnownSymbol db
-  , SingI partitionBy
-  , SingI orderBy
-  , SingI (SupportedAndVerifiedColumns columns)
+  , KnownSymbols partitionBy
+  , KnownSymbols orderBy
+  , KnownTupleSymbols (SupportedAndVerifiedColumns columns)
   , IsChEngine engine
   ) => HttpChClient -> IO ()
 createTableIfNotExists (HttpChClient man req) = do
