@@ -20,7 +20,7 @@
 {-# OPTIONS_GHC -Wno-unticked-promoted-constructors #-}
 
 module ClickHaskell.ChTypes
-  ( IsChType(..), toChType, ToChTypeName
+  ( IsChType(..), ToChType(toChType), ToChTypeName
 
   , ChDateTime
   , ChInt32
