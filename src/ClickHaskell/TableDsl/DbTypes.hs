@@ -17,9 +17,8 @@
   , ScopedTypeVariables
   , UndecidableInstances
   #-}
-{-# OPTIONS_GHC -Wno-unticked-promoted-constructors #-}
 
-module ClickHaskell.ChTypes
+module ClickHaskell.TableDsl.DbTypes
   ( IsChType(..), ToChType(toChType), ToChTypeName
 
   , ChDateTime
@@ -111,11 +110,11 @@ type family PermittedType a where
   PermittedType ChInt128 = ChInt128
   PermittedType ChDateTime = ChDateTime
   PermittedType chType = TypeError 
-    (    'Text "LowCardinality("  :<>: 'Text (ToChTypeName chType)  :<>: 'Text ") is unsupported"
-    :$$: 'Text "Use one of these types:"
-    :$$: 'Text "  ChString"    :$$: 'Text "  ChInt32"
-    :$$: 'Text "  ChInt64"     :$$: 'Text "  ChInt128"
-    :$$: 'Text "  ChDateTime"
+    (    'Text "LowCardinality("  ':<>: 'Text (ToChTypeName chType)  ':<>: 'Text ") is unsupported"
+    ':$$: 'Text "Use one of these types:"
+    ':$$: 'Text "  ChString"    ':$$: 'Text "  ChInt32"
+    ':$$: 'Text "  ChInt64"     ':$$: 'Text "  ChInt128"
+    ':$$: 'Text "  ChDateTime"
     )
 
 newtype LowCardinality chType = LowCardinality (PermittedType chType)

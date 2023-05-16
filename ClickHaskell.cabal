@@ -27,10 +27,13 @@ library
   autogen-modules:
       Paths_ClickHaskell
   exposed-modules:
-      ClickHaskell,
-      ClickHaskell.ChTypes,
-      ClickHaskell.TableDsl
+      ClickHaskell
   other-modules:
+      ClickHaskell.Client
+      ClickHaskell.DataManipulationDsl
+      ClickHaskell.Buffering
+      ClickHaskell.TableDsl
+      ClickHaskell.TableDsl.DbTypes
       Paths_ClickHaskell
   hs-source-dirs:
       src

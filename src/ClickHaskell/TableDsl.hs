@@ -18,37 +18,71 @@
 
 module ClickHaskell.TableDsl
   ( HasChSchema(..)
-  
+
   , SampledBy
   , EqualityWith, Infixion
 
   , InDatabase
 
-  , Table
+  , Table, IsTable
   , DefaultColumn
 
   , IsChEngine
   , MergeTree, TinyLog
 
   , ToConditionalExpression(toConditionalExpression), SupportedAndVerifiedColumns, Unwraped
-  , showCreateTableIfNotExists, showCreateTable
-
-  , KnownSymbols, KnownTupleSymbols
+  , showCreateTableIfNotExists, showCreateTable, createDatabaseIfNotExists, createTableIfNotExists
   ) where
 
 -- Internal dependencies
-import ClickHaskell.ChTypes (IsChType(originalName, parse, render), ToChTypeName)
+import ClickHaskell.Client           (HttpChClient(..), ChException (..))
+import ClickHaskell.TableDsl.DbTypes (IsChType(originalName, parse, render), ToChTypeName)
+
+-- External dependencies
+import Network.HTTP.Client         as H (httpLbs, responseStatus, responseBody, RequestBody(..))
+import Network.HTTP.Client.Conduit as H (Request(..))
+import Network.HTTP.Types          as H (statusCode)
 
 -- GHC included libraries imports
-import Data.ByteString         as BS (ByteString)
-import Data.ByteString.Char8   as BS8 (split, intercalate)
-import Data.Data               (Proxy(Proxy))
-import Data.Kind               (Type)
-import Data.Text               as T (Text, pack, unpack, intercalate)
-import Data.Text.Lazy.Builder  (Builder, fromString)
-import GHC.Generics            (Generic(Rep, from, to), Selector(selName), (:*:)(..), D1, C1, S1, M1(..), K1(unK1, K1))
-import GHC.TypeLits            (symbolVal, KnownSymbol, TypeError, ErrorMessage(..), Symbol)
+import Control.Exception      (throw)
+import Control.Monad          (when)
+import Data.ByteString        as BS (ByteString, toStrict)
+import Data.ByteString.Char8  as BS8 (split, intercalate, pack, fromStrict)
+import Data.Data              (Proxy(Proxy))
+import Data.Text.Encoding     as T (decodeUtf8)
+import Data.Kind              (Type)
+import Data.Text              as T (Text, pack, unpack, intercalate)
+import Data.Text.Lazy.Builder (Builder, fromString)
+import GHC.Generics           (Generic(Rep, from, to), Selector(selName), (:*:)(..), D1, C1, S1, M1(..), K1(unK1, K1))
+import GHC.TypeLits           (symbolVal, KnownSymbol, TypeError, ErrorMessage(..), Symbol)
 
+
+createDatabaseIfNotExists :: forall db . KnownSymbol db => HttpChClient -> IO ()
+createDatabaseIfNotExists (HttpChClient man req) = do
+  resp <- H.httpLbs
+    req
+      { requestBody = H.RequestBodyLBS
+      $ "CREATE DATABASE IF NOT EXISTS " <> (BS8.fromStrict . BS8.pack. symbolVal) (Proxy @db)
+      }
+    man
+  when (H.statusCode (responseStatus resp) /= 200) $
+    throw $ ChException $ T.decodeUtf8 $ BS.toStrict $ responseBody resp
+
+
+createTableIfNotExists :: forall locatedTable db table name columns engine orderBy partitionBy .
+  ( IsTable table name columns engine orderBy partitionBy
+  , locatedTable ~ InDatabase db table
+  , KnownSymbol db
+  ) => HttpChClient -> IO ()
+createTableIfNotExists (HttpChClient man req) = do
+  resp <- H.httpLbs
+    req
+      { requestBody = H.RequestBodyLBS
+      $ BS8.fromStrict . BS8.pack $ showCreateTableIfNotExists @locatedTable
+      }
+    man
+  when (H.statusCode (responseStatus resp) /= 200) $
+    throw $ ChException $ T.decodeUtf8 $ BS.toStrict $ responseBody resp
 
 
 
@@ -59,7 +93,7 @@ type family Unwraped t where
 
 
 
- 
+
 class ToConditionalExpression t where
   toConditionalExpression :: Builder
 
@@ -115,9 +149,9 @@ data Infixion      a
 
 
 
-type ValidatedRequest :: Type -> Table name columns c d e -> [(Symbol, Symbol)]
-type family ValidatedRequest handlingDataDescripion table where
-  ValidatedRequest handlingDataDescripion (t :: Table name columns c d e)
+type ValidatedRequestedColumns :: Type -> Table name columns engine orderBy partitionBy -> [(Symbol, Symbol)]
+type family ValidatedRequestedColumns handlingDataDescripion table where
+  ValidatedRequestedColumns handlingDataDescripion (t :: Table name columns engine orderBy partitionBy)
     = TransformedToSupportedColumns columns
 
 
@@ -181,6 +215,15 @@ data Table
   (partitionBy :: [Symbol])
   (orderBy     :: [Symbol])
 
+type IsTable t name columns engine orderBy partitionBy =
+  ( t ~ Table name columns engine orderBy partitionBy
+  , KnownSymbol name
+  , KnownSymbols partitionBy
+  , KnownSymbols orderBy
+  , KnownTupleSymbols (SupportedAndVerifiedColumns columns)
+  , IsChEngine engine
+  )
+
 
 class KnownSymbols (ns :: [Symbol]) where symbolsVal :: [Text]
 instance KnownSymbols '[] where symbolsVal = []
@@ -202,14 +245,8 @@ data DefaultColumn (name :: Symbol) columnType
 
 
 showCreateTableIfNotExists :: forall t db table name columns engine orderBy partitionBy .
-  ( table ~ Table name columns engine orderBy partitionBy
-  , t ~ InDatabase db table
-  , KnownSymbol name
-  , KnownSymbol db
-  , KnownSymbols partitionBy
-  , KnownSymbols orderBy
-  , KnownTupleSymbols (SupportedAndVerifiedColumns columns)
-  , IsChEngine engine
+  ( IsTable table name columns engine partitionBy orderBy
+  , KnownSymbol db, t ~ InDatabase db table
   ) => String
 showCreateTableIfNotExists =
   let columns     = symbolsTupleVals @(SupportedAndVerifiedColumns columns)
@@ -223,14 +260,8 @@ showCreateTableIfNotExists =
 
 
 showCreateTable :: forall t db table name columns engine orderBy partitionBy .
-  ( table ~ Table name columns engine orderBy partitionBy
-  , t ~ InDatabase db table
-  , KnownSymbol name
-  , KnownSymbol db
-  , KnownSymbols partitionBy
-  , KnownSymbols orderBy
-  , KnownTupleSymbols (SupportedAndVerifiedColumns columns)
-  , IsChEngine engine
+  ( IsTable table name columns engine partitionBy orderBy
+  , KnownSymbol db, t ~ InDatabase db table
   ) => String
 showCreateTable =
   let columns     = symbolsTupleVals @(SupportedAndVerifiedColumns columns)
