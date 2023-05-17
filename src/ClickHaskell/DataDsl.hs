@@ -196,7 +196,6 @@ httpStreamChSelect (HttpChClient man req) = do
     . BSL8.lines
     $ responseBody resp
 
--- ToDo4: Implement table and handling data validation
 tsvSelectQuery :: forall
   handlingDataDescripion tableWithDb
   db
@@ -240,7 +239,6 @@ httpStreamChInsert (HttpChClient man req) schemaList = do
   pure resp
 
 
--- ToDo4: Implement table and handling data validation
 tsvInsertQueryHeader :: forall handlingDataDescripion t db name columns engine partitionBy orderBy .
   ( HasChSchema handlingDataDescripion
   , KnownTupleSymbols (ValidatedRequestedColumns (Unwraped handlingDataDescripion) columns)
