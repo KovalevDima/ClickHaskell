@@ -40,7 +40,6 @@ import Data.WideWord (Int128)
 import GHC.TypeLits          (AppendSymbol, ErrorMessage (..), KnownSymbol, Symbol, TypeError, symbolVal)
 import Data.ByteString       as BS (ByteString)
 import Data.ByteString.Char8 as BS8 (concatMap, pack, readInt, readInteger, singleton, unpack)
-import Data.Functor.Identity (Identity)
 import Data.Maybe            (fromJust)
 import Data.Int              (Int32)
 import Data.Kind             (Type)
@@ -120,14 +119,16 @@ type family PermittedType a where
 newtype LowCardinality chType = LowCardinality (PermittedType chType)
 instance Eq (PermittedType chType) => Eq (LowCardinality chType) where
   (==) (LowCardinality lc1) (LowCardinality lc2) = lc1 == lc2 
+instance Show (PermittedType a) => Show (LowCardinality a) where
+  show (LowCardinality a) = show a
 
 type instance ToChTypeName (LowCardinality chType) =
   "LowCardinality(" `AppendSymbol` ToChTypeName (PermittedType chType) `AppendSymbol` ")"
 
 instance 
   ( IsChType (LowCardinality chType)
-  , ToChType (PermittedType chType) (Identity inputType)) => 
-  ToChType (LowCardinality chType) (Identity inputType) where
+  , ToChType (PermittedType chType) inputType) => 
+  ToChType (LowCardinality chType) inputType where
   toChType value = LowCardinality $ toChType value
 
 instance 

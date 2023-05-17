@@ -66,6 +66,7 @@ benchExecutable (
   (buffer :: DefaultBuffer ExampleData) <- createSizedBuffer bufferSize
 
   -- 5. Start buffer flusher
+  print "Writing data"
   _ <- forkBufferFlusher
     (fromIntegral msBetweenChWrites)
     buffer
@@ -74,10 +75,10 @@ benchExecutable (
 
   -- 6. Get some data
   let _dataExample = ExampleData
-        { string   = toChType @ChString   ("text"   :: Text)
-        , int64    = toChType @ChInt64    42
-        , dateTime = toChType @ChDateTime (500 :: Word32)
-        , uuid     = toChType @ChUUID     nilChUUID
+        { string   = toChType @(LowCardinality ChString) ("text"   :: Text)
+        , int64    = toChType @ChInt64                   42
+        , dateTime = toChType @ChDateTime                (500 :: Word32)
+        , uuid     = toChType @ChUUID                    nilChUUID
         }
 
   -- 7. Write something to buffer

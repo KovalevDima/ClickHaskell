@@ -36,6 +36,7 @@ insert = do
   -- 3. Create buffer 
   (buffer :: DefaultBuffer ExampleData) <- createSizedBuffer 500_000
 
+  print "Writing data"
   -- 4. Start buffer flusher
   _ <- forkBufferFlusher
     5_000_000
@@ -45,10 +46,10 @@ insert = do
 
   -- 5. Get some data
   let _dataExample = ExampleData
-        { string   = toChType @ChString   $ ("text\t"   :: Text)
-        , int64    = toChType @ChInt64      42
-        , dateTime = toChType @ChDateTime $ (500 :: Word32)
-        , uuid     = toChType @ChUUID       nilChUUID
+        { string   = toChType @(LowCardinality ChString)   $ ("text\t"   :: Text)
+        , int64    = toChType @ChInt64                       42
+        , dateTime = toChType @ChDateTime                  $ (500 :: Word32)
+        , uuid     = toChType @ChUUID                        nilChUUID
         }
 
   -- 6. Write data to buffer

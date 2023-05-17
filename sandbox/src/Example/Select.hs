@@ -32,6 +32,7 @@ select = do
   createTableIfNotExists @(InDatabase "example" ExampleTable) client
 
   -- 3. Perform select
+  print "Reading data"
   dat <- case someSymbolVal "text\t" of
     (SomeSymbol (Proxy :: Proxy var)) ->
       httpStreamChSelect @(("string" `SampledBy` EqualityWith var) ExampleData) @(InDatabase "example" ExampleTable) client

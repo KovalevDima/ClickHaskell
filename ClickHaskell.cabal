@@ -30,7 +30,7 @@ library
       ClickHaskell
   other-modules:
       ClickHaskell.Client
-      ClickHaskell.DataManipulationDsl
+      ClickHaskell.DataDsl
       ClickHaskell.Buffering
       ClickHaskell.TableDsl
       ClickHaskell.TableDsl.DbTypes

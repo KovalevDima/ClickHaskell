@@ -2,6 +2,7 @@
     AllowAmbiguousTypes
   , DataKinds
   , DefaultSignatures
+  , DeriveAnyClass
   , DerivingStrategies
   , FlexibleInstances
   , FlexibleContexts
@@ -17,12 +18,7 @@
 #-}
 
 module ClickHaskell.TableDsl
-  ( HasChSchema(..)
-
-  , SampledBy
-  , EqualityWith, Infixion
-
-  , InDatabase
+  ( InDatabase
 
   , Table, IsTable
   , DefaultColumn
@@ -30,13 +26,15 @@ module ClickHaskell.TableDsl
   , IsChEngine
   , MergeTree, TinyLog
 
-  , ToConditionalExpression(toConditionalExpression), SupportedAndVerifiedColumns, Unwraped
+  , SupportedAndVerifiedColumns, ShowColumns
   , showCreateTableIfNotExists, showCreateTable, createDatabaseIfNotExists, createTableIfNotExists
+
+  , KnownTupleSymbols(symbolsTupleVals)
   ) where
 
 -- Internal dependencies
 import ClickHaskell.Client           (HttpChClient(..), ChException (..))
-import ClickHaskell.TableDsl.DbTypes (IsChType(originalName, parse, render), ToChTypeName)
+import ClickHaskell.TableDsl.DbTypes (ToChTypeName)
 
 -- External dependencies
 import Network.HTTP.Client         as H (httpLbs, responseStatus, responseBody, RequestBody(..))
@@ -44,17 +42,15 @@ import Network.HTTP.Client.Conduit as H (Request(..))
 import Network.HTTP.Types          as H (statusCode)
 
 -- GHC included libraries imports
-import Control.Exception      (throw)
-import Control.Monad          (when)
-import Data.ByteString        as BS (ByteString, toStrict)
-import Data.ByteString.Char8  as BS8 (split, intercalate, pack, fromStrict)
-import Data.Data              (Proxy(Proxy))
-import Data.Text.Encoding     as T (decodeUtf8)
-import Data.Kind              (Type)
-import Data.Text              as T (Text, pack, unpack, intercalate)
-import Data.Text.Lazy.Builder (Builder, fromString)
-import GHC.Generics           (Generic(Rep, from, to), Selector(selName), (:*:)(..), D1, C1, S1, M1(..), K1(unK1, K1))
-import GHC.TypeLits           (symbolVal, KnownSymbol, TypeError, ErrorMessage(..), Symbol)
+import Control.Exception     (throw)
+import Control.Monad         (when)
+import Data.ByteString       as BS (toStrict)
+import Data.ByteString.Char8 as BS8 (pack, fromStrict)
+import Data.Data             (Proxy(Proxy))
+import Data.Text.Encoding    as T (decodeUtf8)
+import Data.Kind             (Type)
+import Data.Text             as T (Text, pack, unpack, intercalate)
+import GHC.TypeLits          (symbolVal, KnownSymbol, TypeError, ErrorMessage(..), Symbol)
 
 
 createDatabaseIfNotExists :: forall db . KnownSymbol db => HttpChClient -> IO ()
@@ -86,97 +82,11 @@ createTableIfNotExists (HttpChClient man req) = do
 
 
 
-type Unwraped :: Type -> Type
-type family Unwraped t where
-  Unwraped (SampledBy fieldName conditionalExpression handlingData) = Unwraped handlingData
-  Unwraped handlingData = handlingData
 
-
-
-
-class ToConditionalExpression t where
-  toConditionalExpression :: Builder
-
-instance
-  ( ToConditionalExpression (SampledBy fieldName2 conditionalExpPart2 handlingData)
-  , ToConditionalExpPart conditionalExpPart
-  , ToConditionalExpPart conditionalExpPart2
-  , KnownSymbol fieldName
-  , KnownSymbol fieldName2
-  ) => 
-  ToConditionalExpression (SampledBy fieldName conditionalExpPart)
-  where
-  toConditionalExpression
-    =  fromString (symbolVal (Proxy @fieldName))  <> "=" <> toConditionalExpPart @conditionalExpPart
-    <> " AND "
-    <> toConditionalExpression @(SampledBy fieldName2 conditionalExpPart2 handlingData)
-
-instance
-  ( HasChSchema handlingData
-  , ToConditionalExpPart conditionalExpPart
-  , KnownSymbol fieldName
-  ) =>
-  ToConditionalExpression (SampledBy fieldName conditionalExpPart handlingData)
-  where
-  toConditionalExpression = fromString (symbolVal (Proxy @fieldName)) <> "=" <> toConditionalExpPart @conditionalExpPart
-
-instance {-# OVERLAPPABLE #-}
-  ( HasChSchema handlingData
-  ) =>
-  ToConditionalExpression handlingData
-  where
-  toConditionalExpression = ""
-
-
-
-
-class ToConditionalExpPart a where
-  toConditionalExpPart :: Builder 
-
-
-data SampledBy (fieldName :: Symbol) (conditionalExpression :: Type) handlingData where 
-  MkSampledBy :: handlingData -> SampledBy fieldName conditionalExpression handlingData
-  deriving (Generic, Show, Functor)
-
-
-data EqualityWith (a :: Symbol)
-instance KnownSymbol a
-  => ToConditionalExpPart (EqualityWith a) where
-  toConditionalExpPart = "='" <> fromString (symbolVal (Proxy @a)) <> "'"
-
-data Infixion      a
-
-
-
-
-type ValidatedRequestedColumns :: Type -> Table name columns engine orderBy partitionBy -> [(Symbol, Symbol)]
-type family ValidatedRequestedColumns handlingDataDescripion table where
-  ValidatedRequestedColumns handlingDataDescripion (t :: Table name columns engine orderBy partitionBy)
-    = TransformedToSupportedColumns columns
-
-
-type ValidatedSubset :: [(Symbol, Type)] -> [(Symbol, Type)] -> [(Symbol, Type)]
-type family ValidatedSubset a b where
-  ValidatedSubset ('(field, fieldType) ': cols1) cols2 = ColumnSolve '(field, fieldType) cols2 ': cols2
-
-
-type ColumnSolve :: (Symbol, Type) -> [(Symbol, Type)] -> (Symbol, Type)
-type family ColumnSolve a as where
-  ColumnSolve '(field, fieldType) ('(field, fieldType) ': fields) = 
-    '(field, fieldType)
-  ColumnSolve '(field, fieldType1) ('(field, fieldType2) ': fields) =
-    TypeError ('Text "There is a field " ':<>: 'Text field ':<>: 'Text " had duplicated type declarations")
-  ColumnSolve '(field, _) '[] =
-    TypeError ('Text "There is a field " ':<>: 'Text field ':<>: 'Text " that is out of table")
-  ColumnSolve column (column' ': columns) = ColumnSolve column columns
-
-
-
-
-type family SupportedAndVerifiedColumns (columns :: [Type]) :: [(Symbol, Symbol)] where
+type family SupportedAndVerifiedColumns (columns :: [Type]) :: [(Symbol, Type)] where
   SupportedAndVerifiedColumns xs = NoDuplicated (TransformedToSupportedColumns xs)
 
-type NoDuplicated :: [(Symbol, Symbol)] -> [(Symbol, Symbol)]
+type NoDuplicated :: [(Symbol, Type)] -> [(Symbol, Type)]
 type family NoDuplicated xs where
   NoDuplicated (x ': xs) = ElemOrNot x xs ': NoDuplicated xs
   NoDuplicated '[] = '[]
@@ -191,14 +101,20 @@ type family ElemOrNot a as where
 
 
 
-type family TransformedToSupportedColumns (columns :: [Type]) :: [(Symbol, Symbol)] where
+type family TransformedToSupportedColumns (columns :: [Type]) :: [(Symbol, Type)] where
   TransformedToSupportedColumns (x ': '[]) = SupportedColumn x ': '[]
   TransformedToSupportedColumns (x ': xs)  = SupportedColumn x ': TransformedToSupportedColumns xs
   TransformedToSupportedColumns '[]        = TypeError ('Text "No columns in table")
 
 
-type family SupportedColumn x :: (Symbol, Symbol) where
-  SupportedColumn (DefaultColumn a b) = '(a, ToChTypeName b)
+type family SupportedColumn x :: (Symbol, Type) where
+  SupportedColumn (DefaultColumn a b) = '(a, b)
+
+
+type ShowColumns :: [(Symbol, Type)] -> [(Symbol, Symbol)] 
+type family ShowColumns t where
+  ShowColumns ( '(a, b) ': xs) = '(a, ToChTypeName b) ': ShowColumns xs
+  ShowColumns '[] = '[]
 
 
 
@@ -220,7 +136,7 @@ type IsTable t name columns engine orderBy partitionBy =
   , KnownSymbol name
   , KnownSymbols partitionBy
   , KnownSymbols orderBy
-  , KnownTupleSymbols (SupportedAndVerifiedColumns columns)
+  , KnownTupleSymbols (ShowColumns (SupportedAndVerifiedColumns columns))
   , IsChEngine engine
   )
 
@@ -238,7 +154,6 @@ instance (KnownSymbol a, KnownSymbol b, KnownTupleSymbols ns) => KnownTupleSymbo
 
 
 
-
 data DefaultColumn (name :: Symbol) columnType
 
 
@@ -249,7 +164,7 @@ showCreateTableIfNotExists :: forall t db table name columns engine orderBy part
   , KnownSymbol db, t ~ InDatabase db table
   ) => String
 showCreateTableIfNotExists =
-  let columns     = symbolsTupleVals @(SupportedAndVerifiedColumns columns)
+  let columns     = symbolsTupleVals @(ShowColumns (SupportedAndVerifiedColumns columns))
       partitionBy = symbolsVal @partitionBy
       orderBy     = symbolsVal @orderBy
   in "CREATE TABLE IF NOT EXISTS "  <> symbolVal (Proxy @db) <> "." <> symbolVal (Proxy @name)
@@ -264,7 +179,7 @@ showCreateTable :: forall t db table name columns engine orderBy partitionBy .
   , KnownSymbol db, t ~ InDatabase db table
   ) => String
 showCreateTable =
-  let columns     = symbolsTupleVals @(SupportedAndVerifiedColumns columns)
+  let columns     = symbolsTupleVals @(ShowColumns (SupportedAndVerifiedColumns columns))
       partitionBy = symbolsVal @partitionBy
       orderBy     = symbolsVal @orderBy
   in "CREATE TABLE "  <> symbolVal (Proxy @db) <> "." <> symbolVal (Proxy @name)
@@ -288,105 +203,3 @@ instance {-# OVERLAPPABLE #-} TypeError
   )  => IsChEngine a where engineName = error "Unsupported engine"
 data TinyLog
 data MergeTree
-
-
-
-
-class HasChSchema a where
-  default getSchema :: (Generic a, GHasChSchema (Rep a)) => [(Text, Text)]
-  getSchema :: [(Text, Text)]
-  getSchema = toSchema @(Rep a)
-
-  default toBs :: (Generic a, GToBs (Rep a)) => a -> BS.ByteString
-  toBs :: a -> BS.ByteString
-  toBs = (<> "\n") . gToBs . from
-  {-# INLINE toBs #-}
-
-  default fromBs :: (Generic a, GFromBS (Rep a)) => BS.ByteString -> a
-  fromBs :: BS.ByteString -> a
-  fromBs = to . gFromBs
-  {-# INLINE fromBs #-}
-
-instance (HasChSchema handlingData)
-  => HasChSchema (SampledBy fieldName conditionalExpression handlingData) where
-  getSchema :: HasChSchema handlingData => [(Text, Text)]
-  getSchema = getSchema @handlingData
-
-  toBs :: HasChSchema handlingData => SampledBy fieldName conditionalExpression handlingData -> ByteString
-  toBs (MkSampledBy handlingData) = toBs handlingData
-
-  fromBs :: HasChSchema handlingData => ByteString -> SampledBy fieldName conditionalExpression handlingData
-  fromBs bs = MkSampledBy $ fromBs bs
-
-
-
-
-class GHasChSchema (p :: Type -> Type)
-  where toSchema :: [(Text, Text)]
-
-instance (GHasChSchema f)
-  => GHasChSchema (D1 c f) where
-  toSchema = toSchema @f
-instance (GHasChSchema f)
-  => GHasChSchema (C1 c f) where
-  toSchema = toSchema @f
-instance (GHasChSchema f, GHasChSchema f2)
-  => GHasChSchema (f :*: f2) where
-  toSchema = toSchema @f <> toSchema @f2
-instance (IsChType p, Selector s)
-  => GHasChSchema (S1 s (f p)) where
-  toSchema = [(T.pack $ selName (undefined :: t s f1 a), originalName (Proxy @p))]
-
-
-
-
-class GToBs f where
-  gToBs :: f p -> BS.ByteString
-
-instance GToBs f
-  => GToBs (D1 c f) where
-  gToBs (M1 re) = gToBs re
-  {-# INLINE gToBs #-}
-instance GToBs f
-  => GToBs (C1 c f) where
-  gToBs (M1 re) = gToBs re
-  {-# INLINE gToBs #-}
-instance (GToBs f, GToBs f2)
-  => GToBs (f :*: f2) where
-  gToBs (f :*: f2) = gToBs f <> "\t" <> gToBs f2
-  {-# INLINE gToBs #-}
-instance (IsChType p)
-  => GToBs (S1 s (K1 i p)) where
-  gToBs (M1 re) = render $ unK1 re
-  {-# INLINE gToBs #-}
-
-
-
-
-class GFromBS f where
-  gFromBs :: BS.ByteString -> f p
-
-instance GFromBS f => GFromBS (D1 c f) where
-  gFromBs bs = M1 $ gFromBs bs
-  {-# INLINE gFromBs #-}
-instance GFromBS f => GFromBS (C1 c f) where
-  gFromBs bs = M1 $ gFromBs bs
-  {-# INLINE gFromBs #-}
-instance (IsChType p)
-  => GFromBS (S1 s (K1 i p)) where
-  gFromBs bs = M1 $ K1 $ parse bs
-  {-# INLINE gFromBs #-}
-instance (GFromBS f1, GFromBS f2)
-  => GFromBS (f1 :*: f2) where
-  gFromBs bs =
-    -- really need to optomize later
-    let byteStrings = '\t' `split` bs
-        lng = length byteStrings
-        firstWordsCount = lng `div` 2
-        lastWordsCount = lng - firstWordsCount
-        firstWords = BS8.intercalate "\t" $ take firstWordsCount byteStrings
-        lastWords = BS8.intercalate "\t" $ reverse $ take lastWordsCount $ reverse byteStrings in
-    gFromBs firstWords
-    :*:
-    gFromBs lastWords
-  {-# INLINE gFromBs #-}

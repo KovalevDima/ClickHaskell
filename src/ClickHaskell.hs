@@ -29,7 +29,7 @@ module ClickHaskell
   , module ClickHaskell.TableDsl.DbTypes
 
   -- * Data manipulation DSL 
-  , module ClickHaskell.DataManipulationDsl
+  , module ClickHaskell.DataDsl
 
   -- * Buffering abstractions
   , module ClickHaskell.Buffering
@@ -42,11 +42,11 @@ module ClickHaskell
   ) where
 
 -- Internal dependencies
-import ClickHaskell.Client
 import ClickHaskell.Buffering
+import ClickHaskell.Client
+import ClickHaskell.DataDsl
 import ClickHaskell.TableDsl
 import ClickHaskell.TableDsl.DbTypes
-import ClickHaskell.DataManipulationDsl
 
 -- GHC included libraries imports
 import Data.Data                  (Proxy (..))

@@ -2,7 +2,7 @@
 module ClickHaskell.Buffering where
 
 -- Internal dependencies
-import ClickHaskell.TableDsl (HasChSchema)
+import ClickHaskell.DataDsl (HasChSchema)
 
 -- GHC included libraries imports
 import Control.Concurrent         (ThreadId, forkIO, threadDelay)

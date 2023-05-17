@@ -31,7 +31,7 @@ type ExampleTable =
 
 -- 2. Separate data you will work with
 data ExampleData = ExampleData
-  { string   :: ChString
+  { string   :: (LowCardinality ChString)
   , int64    :: ChInt64
   , dateTime :: ChDateTime
   , uuid     :: ChUUID
@@ -42,7 +42,7 @@ data ExampleData = ExampleData
 
 
 -- >>> showCreateExample
--- "CREATE TABLE IF NOT EXISTS example.example (string String, int64 Int64, dateTime DateTime, uuid UUID) Engine=MergeTree PARTITION BY (clientId) ORDER BY (clientId, someField2)"
+-- "CREATE TABLE IF NOT EXISTS example.example (string LowCardinality(String), int64 Int64, dateTime DateTime, uuid UUID) Engine=MergeTree PARTITION BY (string, int64) ORDER BY (string)"
 showCreateExample :: String
 showCreateExample = showCreateTableIfNotExists @(InDatabase "example" ExampleTable)
 
