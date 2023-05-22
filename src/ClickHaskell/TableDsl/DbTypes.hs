@@ -20,6 +20,7 @@
 
 module ClickHaskell.TableDsl.DbTypes
   ( IsChType(..), ToChType(toChType), ToChTypeName
+  , fromChType
 
   , ChDateTime
   , ChInt32
@@ -73,12 +74,13 @@ class KnownSymbol (ToChTypeName chType)
   parse        :: BS.ByteString -> chType
 
 -- | ClickHouse type requirements typeclass
-class
-  IsChType chType
-  =>     ToChType chType     inputType where toChType :: inputType -> chType
+class IsChType chType
+  => ToChType chType     inputType where
+  toChType :: inputType -> chType
 
-
-
+class IsChType chType
+  => FromChType chType outputType | chType -> outputType where
+  fromChType :: chType -> outputType
 
 -- | ClickHouse Nullable(T) column type (type synonym for Maybe)
 type Nullable = Maybe
@@ -150,6 +152,7 @@ instance      IsChType     ChUUID      where
   render (ChUUID uuid)   = UUID.toASCIIBytes uuid
   parse bs = ChUUID $ fromJust $ UUID.fromASCIIBytes bs
 instance      ToChType     ChUUID UUID where toChType = ChUUID
+instance FromChType ChUUID UUID where fromChType (ChUUID uuid) = uuid
 
 nilChUUID :: UUID
 nilChUUID = UUID.nil
@@ -164,6 +167,7 @@ instance      IsChType     ChString        where
 instance      ToChType     ChString String where toChType = ChString . escape . BS8.pack
 instance      ToChType     ChString Text   where toChType = ChString . escape . Text.encodeUtf8
 instance      ToChType     ChString Int    where toChType = ChString . escape . BS8.pack . show
+instance FromChType ChString ByteString where fromChType (ChString bs) = bs
 
 escape :: ByteString -> ByteString
 escape = BS8.concatMap (\sym -> if sym == '\t' then "\\t" else if sym == '\n' then "\\n" else BS8.singleton sym)
@@ -176,6 +180,7 @@ instance      IsChType     ChInt32       where
   render (ChInt32 val)   = BS8.pack $ show val
   parse = ChInt32 . fromIntegral . fst . fromJust . BS8.readInt
 instance      ToChType     ChInt32 Int32 where toChType = ChInt32
+instance FromChType ChInt32 Int32 where fromChType (ChInt32 int32) = int32
 
 
 -- | ClickHouse UInt32 column type
@@ -186,6 +191,7 @@ instance      IsChType     ChUInt32   where
   parse                   = ChUInt32 . fromIntegral . fst . fromJust . BS8.readInt
 instance Integral a
   =>          ToChType     ChUInt32 a where toChType = ChUInt32 . fromIntegral
+instance FromChType ChUInt32 Word32 where fromChType (ChUInt32 w32) = w32
 
 
 -- | ClickHouse Int64 column type
@@ -196,6 +202,7 @@ instance      IsChType     ChInt64   where
   parse                   = ChInt64 . fst . fromJust . BS8.readInt
 instance Integral a
   =>          ToChType     ChInt64 a where toChType = ChInt64 . fromIntegral
+instance FromChType ChInt64 Int where fromChType (ChInt64 int64) = int64
 
 
 -- | ClickHouse UInt64 column type
@@ -206,6 +213,7 @@ instance      IsChType     ChUInt64   where
   parse                   = ChUInt64 . fromIntegral . fst . fromJust . BS8.readInteger
 instance Integral a
   =>          ToChType     ChUInt64 a where toChType = ChUInt64 . fromIntegral
+instance FromChType ChUInt64 Word64 where fromChType (ChUInt64 w64) = w64
 
 
 -- | ClickHouse Int128 column type
@@ -216,6 +224,7 @@ instance      IsChType     ChInt128   where
   parse                   = ChInt128 . fromInteger . fst . fromJust . BS8.readInteger
 instance Integral a
   =>          ToChType     ChInt128 a where toChType = ChInt128 . fromIntegral
+instance FromChType ChInt128 Int128 where fromChType (ChInt128 int128) = int128
 
 
 -- | ClickHouse UInt128 column type
@@ -226,6 +235,7 @@ instance      IsChType     ChUInt128   where
   parse                   = ChUInt128 . fromIntegral . fst . fromJust . BS8.readInteger
 instance Integral a
   =>          ToChType     ChUInt128 a where toChType = ChUInt128 . fromIntegral
+instance FromChType ChUInt128 Word128 where fromChType (ChUInt128 word128) = word128
 
 
 -- | ClickHouse DateTime column type
@@ -236,3 +246,4 @@ instance      IsChType     ChDateTime         where
   parse = ChDateTime . fromInteger . floor . nominalDiffTimeToSeconds . utcTimeToPOSIXSeconds . fromJust . parseTimeM False defaultTimeLocale "%Y-%m-%d %H:%M:%S" . BS8.unpack
 instance      ToChType     ChDateTime Word32  where toChType = ChDateTime
 instance      ToChType     ChDateTime UTCTime where toChType = ChDateTime . floor . utcTimeToPOSIXSeconds
+instance FromChType ChDateTime Word32 where fromChType (ChDateTime word32) = word32
