@@ -34,7 +34,7 @@ module ClickHaskell.TableDsl.DbTypes
 
 -- External dependencies
 import Data.UUID     as UUID (UUID, fromASCIIBytes, toASCIIBytes, nil)
-import Data.WideWord (Int128)
+import Data.WideWord (Int128, Word128)
 
 -- GHC included libraries imports
 import GHC.TypeLits          (AppendSymbol, ErrorMessage (..), KnownSymbol, Symbol, TypeError, symbolVal)
@@ -49,7 +49,7 @@ import Data.Text.Encoding    as Text (encodeUtf8)
 import Data.Time             (UTCTime, defaultTimeLocale, nominalDiffTimeToSeconds, parseTimeM)
 import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
 import Data.String           (IsString)
-import Data.Word             (Word32)
+import Data.Word             (Word32, Word64)
 
 
 type family (ToChTypeName columnType) :: Symbol
@@ -175,6 +175,16 @@ instance      IsChType     ChInt32       where
 instance      ToChType     ChInt32 Int32 where toChType = ChInt32
 
 
+-- | ClickHouse UInt32 column type
+newtype                    ChUInt32 = ChUInt32    Word32   deriving newtype (Show)
+type instance ToChTypeName ChUInt32 = "UInt32"
+instance      IsChType     ChUInt32   where
+  render (ChUInt32 val)    = BS8.pack $ show val
+  parse                   = ChUInt32 . fromIntegral . fst . fromJust . BS8.readInt
+instance Integral a
+  =>          ToChType     ChUInt32 a where toChType = ChUInt32 . fromIntegral
+
+
 -- | ClickHouse Int64 column type
 newtype                    ChInt64 = ChInt64    Int    deriving newtype (Show, Eq)
 type instance ToChTypeName ChInt64 = "Int64"
@@ -185,6 +195,16 @@ instance Integral a
   =>          ToChType     ChInt64 a where toChType = ChInt64 . fromIntegral
 
 
+-- | ClickHouse UInt64 column type
+newtype                    ChUInt64 = ChUInt64    Word64   deriving newtype (Show)
+type instance ToChTypeName ChUInt64 = "UInt64"
+instance      IsChType     ChUInt64   where
+  render (ChUInt64 val)    = BS8.pack $ show val
+  parse                   = ChUInt64 . fromIntegral . fst . fromJust . BS8.readInteger
+instance Integral a
+  =>          ToChType     ChUInt64 a where toChType = ChUInt64 . fromIntegral
+
+
 -- | ClickHouse Int128 column type
 newtype ChInt128                    = ChInt128   Int128 deriving newtype (Show, Eq)
 type instance ToChTypeName ChInt128 = "Int128"
@@ -193,6 +213,16 @@ instance      IsChType     ChInt128   where
   parse                   = ChInt128 . fromInteger . fst . fromJust . BS8.readInteger
 instance Integral a
   =>          ToChType     ChInt128 a where toChType = ChInt128 . fromIntegral
+
+
+-- | ClickHouse UInt128 column type
+newtype                    ChUInt128 = ChUInt128    Word128   deriving newtype (Show)
+type instance ToChTypeName ChUInt128 = "UInt128"
+instance      IsChType     ChUInt128   where
+  render (ChUInt128 val)    = BS8.pack $ show val
+  parse                   = ChUInt128 . fromIntegral . fst . fromJust . BS8.readInteger
+instance Integral a
+  =>          ToChType     ChUInt128 a where toChType = ChUInt128 . fromIntegral
 
 
 -- | ClickHouse DateTime column type
