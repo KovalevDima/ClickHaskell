@@ -23,8 +23,11 @@ module ClickHaskell.TableDsl.DbTypes
 
   , ChDateTime
   , ChInt32
+  , ChUInt32
   , ChInt64
+  , ChUInt64
   , ChInt128
+  , ChUInt128
   , ChString
   , ChUUID, nilChUUID
 
