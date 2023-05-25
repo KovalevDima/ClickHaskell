@@ -57,7 +57,7 @@ import Data.Kind             (Type)
 import Data.Proxy            (Proxy (Proxy))
 import Data.Text             as Text (Text, pack)
 import Data.Text.Encoding    as Text (encodeUtf8)
-import Data.Time             (UTCTime, defaultTimeLocale, nominalDiffTimeToSeconds, parseTimeM)
+import Data.Time             (UTCTime, defaultTimeLocale, nominalDiffTimeToSeconds, parseTimeM, ZonedTime, zonedTimeToUTC)
 import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
 import Data.String           (IsString)
 import Data.Word             (Word64, Word32, Word16, Word8)
@@ -290,4 +290,5 @@ instance      IsChType     ChDateTime         where
   parse = ChDateTime . fromInteger . floor . nominalDiffTimeToSeconds . utcTimeToPOSIXSeconds . fromJust . parseTimeM False defaultTimeLocale "%Y-%m-%d %H:%M:%S" . BS8.unpack
 instance      ToChType     ChDateTime Word32  where toChType = ChDateTime
 instance      ToChType     ChDateTime UTCTime where toChType = ChDateTime . floor . utcTimeToPOSIXSeconds
+instance      ToChType     ChDateTime ZonedTime where toChType = ChDateTime . floor . utcTimeToPOSIXSeconds . zonedTimeToUTC
 instance FromChType ChDateTime Word32 where fromChType (ChDateTime word32) = word32
