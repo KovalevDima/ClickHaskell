@@ -23,12 +23,19 @@ module ClickHaskell.TableDsl.DbTypes
   , fromChType
 
   , ChDateTime
+
+  , ChInt8
+  , ChInt16
   , ChInt32
-  , ChUInt32
   , ChInt64
-  , ChUInt64
   , ChInt128
+
+  , ChUInt8
+  , ChUInt16
+  , ChUInt32
+  , ChUInt64
   , ChUInt128
+
   , ChString
   , ChUUID, nilChUUID
 
@@ -45,7 +52,7 @@ import GHC.TypeLits          (AppendSymbol, ErrorMessage (..), KnownSymbol, Symb
 import Data.ByteString       as BS (ByteString)
 import Data.ByteString.Char8 as BS8 (concatMap, pack, readInt, readInteger, singleton, unpack)
 import Data.Maybe            (fromJust)
-import Data.Int              (Int32)
+import Data.Int              (Int32, Int16, Int8, Int64)
 import Data.Kind             (Type)
 import Data.Proxy            (Proxy (Proxy))
 import Data.Text             as Text (Text, pack)
@@ -53,7 +60,7 @@ import Data.Text.Encoding    as Text (encodeUtf8)
 import Data.Time             (UTCTime, defaultTimeLocale, nominalDiffTimeToSeconds, parseTimeM)
 import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
 import Data.String           (IsString)
-import Data.Word             (Word32, Word64)
+import Data.Word             (Word64, Word32, Word16, Word8)
 
 
 type family (ToChTypeName columnType) :: Symbol
@@ -173,14 +180,74 @@ escape :: ByteString -> ByteString
 escape = BS8.concatMap (\sym -> if sym == '\t' then "\\t" else if sym == '\n' then "\\n" else BS8.singleton sym)
 
 
+-- | ClickHouse Int8 column type
+newtype                    ChInt8 = ChInt8       Int8    deriving newtype (Show, Eq)
+type instance ToChTypeName ChInt8 = "Int8"
+instance      IsChType     ChInt8       where
+  render (ChInt8 val)   = BS8.pack $ show val
+  parse = ChInt8 . fromIntegral . fst . fromJust . BS8.readInt
+instance ToChType   ChInt8 Int8 where toChType = ChInt8
+instance FromChType ChInt8 Int8 where fromChType (ChInt8 int8) = int8
+
+-- | ClickHouse Int16 column type
+newtype                    ChInt16 = ChInt16     Int16   deriving newtype (Show, Eq)
+type instance ToChTypeName ChInt16 = "Int16"
+instance      IsChType     ChInt16       where
+  render (ChInt16 val)   = BS8.pack $ show val
+  parse = ChInt16 . fromIntegral . fst . fromJust . BS8.readInt
+instance ToChType   ChInt16 Int16 where toChType = ChInt16
+instance FromChType ChInt16 Int16 where fromChType (ChInt16 int16) = int16
+
+
 -- | ClickHouse Int32 column type
-newtype                    ChInt32 = ChInt32    Int32  deriving newtype (Show, Eq)
+newtype                    ChInt32 = ChInt32     Int32   deriving newtype (Show, Eq)
 type instance ToChTypeName ChInt32 = "Int32"
 instance      IsChType     ChInt32       where
   render (ChInt32 val)   = BS8.pack $ show val
   parse = ChInt32 . fromIntegral . fst . fromJust . BS8.readInt
-instance      ToChType     ChInt32 Int32 where toChType = ChInt32
+instance ToChType   ChInt32 Int32 where toChType = ChInt32
 instance FromChType ChInt32 Int32 where fromChType (ChInt32 int32) = int32
+
+
+-- | ClickHouse Int64 column type
+newtype                    ChInt64 = ChInt64     Int64   deriving newtype (Show, Eq)
+type instance ToChTypeName ChInt64 = "Int64"
+instance      IsChType     ChInt64   where
+  render (ChInt64 val)    = BS8.pack $ show val
+  parse                   = ChInt64 . fromInteger . fst . fromJust . BS8.readInteger
+instance Integral a
+  =>          ToChType     ChInt64 a where toChType = ChInt64 . fromIntegral
+instance FromChType ChInt64 Int64 where fromChType (ChInt64 int64) = int64
+
+
+-- | ClickHouse Int128 column type
+newtype                    ChInt128 = ChInt128   Int128  deriving newtype (Show, Eq)
+type instance ToChTypeName ChInt128 = "Int128"
+instance      IsChType     ChInt128   where
+  render (ChInt128 val)   = BS8.pack $ show val
+  parse                   = ChInt128 . fromInteger . fst . fromJust . BS8.readInteger
+instance Integral a
+  =>          ToChType     ChInt128 a where toChType = ChInt128 . fromIntegral
+instance FromChType ChInt128 Int128 where fromChType (ChInt128 int128) = int128
+
+
+-- | ClickHouse UInt8 column type
+newtype                    ChUInt8 = ChUInt8     Word8   deriving newtype (Show, Eq)
+type instance ToChTypeName ChUInt8 = "UInt8"
+instance      IsChType     ChUInt8       where
+  render (ChUInt8 val)   = BS8.pack $ show val
+  parse = ChUInt8 . fromIntegral . fst . fromJust . BS8.readInt
+instance ToChType   ChUInt8 Word8 where toChType = ChUInt8
+instance FromChType ChUInt8 Word8 where fromChType (ChUInt8 word8) = word8
+
+-- | ClickHouse UInt16 column type
+newtype                    ChUInt16 = ChUInt16   Word16  deriving newtype (Show, Eq)
+type instance ToChTypeName ChUInt16 = "UInt16"
+instance      IsChType     ChUInt16       where
+  render (ChUInt16 val)   = BS8.pack $ show val
+  parse = ChUInt16 . fromIntegral . fst . fromJust . BS8.readInt
+instance ToChType   ChUInt16 Word16 where toChType = ChUInt16
+instance FromChType ChUInt16 Word16 where fromChType (ChUInt16 word16) = word16
 
 
 -- | ClickHouse UInt32 column type
@@ -189,20 +256,8 @@ type instance ToChTypeName ChUInt32 = "UInt32"
 instance      IsChType     ChUInt32   where
   render (ChUInt32 val)    = BS8.pack $ show val
   parse                   = ChUInt32 . fromIntegral . fst . fromJust . BS8.readInt
-instance Integral a
-  =>          ToChType     ChUInt32 a where toChType = ChUInt32 . fromIntegral
+instance ToChType   ChUInt32 Word32 where toChType = ChUInt32 . fromIntegral
 instance FromChType ChUInt32 Word32 where fromChType (ChUInt32 w32) = w32
-
-
--- | ClickHouse Int64 column type
-newtype                    ChInt64 = ChInt64    Int    deriving newtype (Show, Eq)
-type instance ToChTypeName ChInt64 = "Int64"
-instance      IsChType     ChInt64   where
-  render (ChInt64 val)    = BS8.pack $ show val
-  parse                   = ChInt64 . fst . fromJust . BS8.readInt
-instance Integral a
-  =>          ToChType     ChInt64 a where toChType = ChInt64 . fromIntegral
-instance FromChType ChInt64 Int where fromChType (ChInt64 int64) = int64
 
 
 -- | ClickHouse UInt64 column type
@@ -214,17 +269,6 @@ instance      IsChType     ChUInt64   where
 instance Integral a
   =>          ToChType     ChUInt64 a where toChType = ChUInt64 . fromIntegral
 instance FromChType ChUInt64 Word64 where fromChType (ChUInt64 w64) = w64
-
-
--- | ClickHouse Int128 column type
-newtype ChInt128                    = ChInt128   Int128 deriving newtype (Show, Eq)
-type instance ToChTypeName ChInt128 = "Int128"
-instance      IsChType     ChInt128   where
-  render (ChInt128 val)   = BS8.pack $ show val
-  parse                   = ChInt128 . fromInteger . fst . fromJust . BS8.readInteger
-instance Integral a
-  =>          ToChType     ChInt128 a where toChType = ChInt128 . fromIntegral
-instance FromChType ChInt128 Int128 where fromChType (ChInt128 int128) = int128
 
 
 -- | ClickHouse UInt128 column type
