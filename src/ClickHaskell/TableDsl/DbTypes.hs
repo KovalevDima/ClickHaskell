@@ -145,11 +145,11 @@ instance
   toChType value = LowCardinality $ toChType value
 instance {-# OVERLAPPING #-}
   ( TypeError
-    (    'Text "LowCardinality(Nullable("     ':<>: 'Text (ToChTypeName chType) ':<>: 'Text ")) is unsupported"
-    :$$: 'Text "Use Nullable(LowCardinality(" ':<>: 'Text (ToChTypeName chType) ':<>: 'Text ")) instead"
+    (    'Text "Nullable(LowCardinality("     ':<>: 'Text (ToChTypeName chType) ':<>: 'Text ")) is unsupported"
+    :$$: 'Text "Use LowCardinality(Nullable(" ':<>: 'Text (ToChTypeName chType) ':<>: 'Text ")) instead"
     )
-  , IsChType chType, KnownSymbol (ToChTypeName (LowCardinality (Nullable chType))))
-  => (IsChType (LowCardinality (Nullable chType)))
+  , IsChType chType, KnownSymbol (ToChTypeName (Nullable (LowCardinality chType))))
+  => (IsChType (Nullable (LowCardinality chType)))
 
 
 instance 
