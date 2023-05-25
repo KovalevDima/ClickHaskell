@@ -17,6 +17,7 @@
   , ScopedTypeVariables
   , UndecidableInstances
   #-}
+{-# OPTIONS_GHC -Wno-missing-methods #-}
 
 module ClickHaskell.TableDsl.DbTypes
   ( IsChType(..), ToChType(toChType), ToChTypeName
@@ -34,7 +35,6 @@ module ClickHaskell.TableDsl.DbTypes
   , ChUInt16
   , ChUInt32
   , ChUInt64
-  , ChUInt128
 
   , ChString
   , ChUUID, nilChUUID
@@ -45,7 +45,7 @@ module ClickHaskell.TableDsl.DbTypes
 
 -- External dependencies
 import Data.UUID     as UUID (UUID, fromASCIIBytes, toASCIIBytes, nil)
-import Data.WideWord (Int128, Word128)
+import Data.WideWord (Int128)
 
 -- GHC included libraries imports
 import GHC.TypeLits          (AppendSymbol, ErrorMessage (..), KnownSymbol, Symbol, TypeError, symbolVal)
@@ -115,6 +115,7 @@ instance (KnownSymbol (NullableTypeName chType), IsChType chType, ToChType chTyp
 -- | ClickHouse LowCardinality(T) column type
 type PermittedType :: Type -> Type
 type family PermittedType a where
+  PermittedType (Nullable a) = Nullable (PermittedType a)
   PermittedType ChString = ChString
   PermittedType ChInt32 = ChInt32
   PermittedType ChInt64 = ChInt64
@@ -142,6 +143,14 @@ instance
   , ToChType (PermittedType chType) inputType) => 
   ToChType (LowCardinality chType) inputType where
   toChType value = LowCardinality $ toChType value
+instance {-# OVERLAPPING #-}
+  ( TypeError
+    (    'Text "LowCardinality(Nullable("     ':<>: 'Text (ToChTypeName chType) ':<>: 'Text ")) is unsupported"
+    :$$: 'Text "Use Nullable(LowCardinality(" ':<>: 'Text (ToChTypeName chType) ':<>: 'Text ")) instead"
+    )
+  , IsChType chType, KnownSymbol (ToChTypeName (LowCardinality (Nullable chType))))
+  => (IsChType (LowCardinality (Nullable chType)))
+
 
 instance 
   ( KnownSymbol (ToChTypeName (LowCardinality chType))
@@ -269,17 +278,6 @@ instance      IsChType     ChUInt64   where
 instance Integral a
   =>          ToChType     ChUInt64 a where toChType = ChUInt64 . fromIntegral
 instance FromChType ChUInt64 Word64 where fromChType (ChUInt64 w64) = w64
-
-
--- | ClickHouse UInt128 column type
-newtype                    ChUInt128 = ChUInt128    Word128   deriving newtype (Show)
-type instance ToChTypeName ChUInt128 = "UInt128"
-instance      IsChType     ChUInt128   where
-  render (ChUInt128 val)    = BS8.pack $ show val
-  parse                   = ChUInt128 . fromIntegral . fst . fromJust . BS8.readInteger
-instance Integral a
-  =>          ToChType     ChUInt128 a where toChType = ChUInt128 . fromIntegral
-instance FromChType ChUInt128 Word128 where fromChType (ChUInt128 word128) = word128
 
 
 -- | ClickHouse DateTime column type
