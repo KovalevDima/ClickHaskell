@@ -50,7 +50,7 @@ import Data.WideWord (Int128)
 -- GHC included libraries imports
 import GHC.TypeLits          (AppendSymbol, ErrorMessage (..), KnownSymbol, Symbol, TypeError, symbolVal)
 import Data.ByteString       as BS (ByteString)
-import Data.ByteString.Char8 as BS8 (concatMap, pack, readInt, readInteger, singleton, unpack)
+import Data.ByteString.Char8 as BS8 (concatMap, pack, readInt, readInteger, singleton, unpack, replicate, length)
 import Data.Maybe            (fromJust)
 import Data.Int              (Int32, Int16, Int8, Int64)
 import Data.Kind             (Type)
@@ -284,7 +284,7 @@ instance FromChType ChUInt64 Word64 where fromChType (ChUInt64 w64) = w64
 newtype                    ChDateTime =  ChDateTime Word32  deriving newtype (Show, Eq)
 type instance ToChTypeName ChDateTime = "DateTime"
 instance      IsChType     ChDateTime         where
-  render (ChDateTime w32) = BS8.pack $ show w32
+  render (ChDateTime w32) = let time = BS8.pack $ show w32 in BS8.replicate (10 - BS8.length time) '0' <>  time
   parse = ChDateTime . fromInteger . floor . nominalDiffTimeToSeconds . utcTimeToPOSIXSeconds . fromJust . parseTimeM False defaultTimeLocale "%Y-%m-%d %H:%M:%S" . BS8.unpack
 instance      ToChType     ChDateTime Word32  where toChType = ChDateTime
 instance      ToChType     ChDateTime UTCTime where toChType = ChDateTime . floor . utcTimeToPOSIXSeconds
