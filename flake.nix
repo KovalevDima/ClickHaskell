@@ -7,17 +7,20 @@
     haskell-flake.url = "github:srid/haskell-flake";
   };
 
-  outputs = inputs@{ self, flake-parts, nixpkgs, ... }:
-    flake-parts.lib.mkFlake { inherit inputs; } {
+  outputs = inputs @ {
+    self,
+    flake-parts,
+    nixpkgs,
+    ...
+  }:
+    flake-parts.lib.mkFlake {inherit inputs;} {
       systems = nixpkgs.lib.systems.flakeExposed;
       imports = [
         inputs.haskell-flake.flakeModule
       ];
-      perSystem = { self', inputs', system, config, final, lib, pkgs, ... }:
-        {
-          haskellProjects.default = { };
-          packages.default = self'.packages.ClickHaskell;
-        };
+      perSystem = {self', ...}: {
+        haskellProjects.default = {};
+        packages.default = self'.packages.ClickHaskell;
+      };
     };
 }
-
