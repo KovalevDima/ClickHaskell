@@ -1,13 +1,6 @@
 {-# LANGUAGE
     DataKinds
-  , DeriveAnyClass
-  , DeriveGeneric
-  , DerivingStrategies
-  , GeneralizedNewtypeDeriving
-  , NumericUnderscores
   , OverloadedStrings
-  , TypeApplications
-  , ScopedTypeVariables
 #-}
 
 module Bench
@@ -17,20 +10,19 @@ module Bench
 
 -- Internal dependencies
 import ClickHaskell
-import Example                (ExampleTable, ExampleData(..))
+import Example      (ExampleTable, ExampleData(..), dataExample)
 
 -- GHC included libraries imports
 import Control.Concurrent (threadDelay, forkIO)
 import Control.Monad      (replicateM_, void)
-import Data.Text          (Text)
 
 
 -- 0. Settings for test
 
-newtype ConcurrentBufferWriters   = ConcurrentBufferWriters   Int deriving newtype (Num)
-newtype RowsPerBufferWriter       = RowsPerBufferWriter       Int deriving newtype (Num)
-newtype MsBetweenBufferWrites     = MsBetweenBufferWrites     Int deriving newtype (Num)
-newtype MsBetweenClickHouseWrites = MsBetweenClickHouseWrites Int deriving newtype (Num)
+newtype ConcurrentBufferWriters   = ConcurrentBufferWriters   Int deriving Num
+newtype RowsPerBufferWriter       = RowsPerBufferWriter       Int deriving Num
+newtype MsBetweenBufferWrites     = MsBetweenBufferWrites     Int deriving Num
+newtype MsBetweenClickHouseWrites = MsBetweenClickHouseWrites Int deriving Num
 
 
 data BenchSettings = BenchSettings
@@ -67,24 +59,19 @@ benchExecutable (
 
   -- 5. Start buffer flusher
   print "Writing data"
-  _ <- forkBufferFlusher
+  _ <- forkBufferFlusher @(InDatabase "example" ExampleTable)
     (fromIntegral msBetweenChWrites)
     buffer
     print
     (void . httpStreamChInsert @(InDatabase "example" ExampleTable) client)
 
   -- 6. Get some data
-  let _dataExample = ExampleData
-        { string   = toChType @(LowCardinality ChString) ("text"   :: Text)
-        , int64    = toChType @ChInt64                   42
-        , dateTime = toChType @ChDateTime                (500 :: Word32)
-        , uuid     = toChType @ChUUID                    nilChUUID
-        }
+  let dataExample' = dataExample
 
   -- 7. Write something to buffer
   _threadId <-
     replicateM_ concurrentBufferWriters . forkIO
       . replicateM_ rowsNumber
-      $ (\someData -> writeToSizedBuffer buffer someData >> threadDelay msBetweenBufferWrites) _dataExample
+      $ (\someData -> writeToSizedBuffer buffer someData >> threadDelay msBetweenBufferWrites) dataExample'
 
   threadDelay 60_000_000

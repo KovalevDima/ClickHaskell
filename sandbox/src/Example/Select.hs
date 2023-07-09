@@ -1,15 +1,9 @@
 {-# LANGUAGE
     DataKinds
-  , DeriveAnyClass
-  , DeriveGeneric
-  , NamedFieldPuns
-  , NumericUnderscores
   , OverloadedStrings
-  , PolyKinds
-  , TypeApplications
-  , TypeOperators
-  , ScopedTypeVariables
 #-}
+
+{-# OPTIONS_GHC -fprint-potential-instances #-}
 
 module Example.Select where
 
@@ -25,7 +19,7 @@ select = do
   client <- initClient
     @HttpChClient
     (ChCredential "default" "" "http://localhost:8123")
-    (Just $ setHttpClientTimeout 60 defaultHttpClientSettings)
+    (Just $ setHttpClientTimeout 6000000 defaultHttpClientSettings)
 
   -- 2. Create database and table
   createDatabaseIfNotExists @"example" client
@@ -33,9 +27,8 @@ select = do
 
   -- 3. Perform select
   print "Reading data"
-  dat <- case someSymbolVal "text\t" of
-    (SomeSymbol (Proxy :: Proxy var)) ->
-      httpStreamChSelect @(("string" `SampledBy` EqualityWith var) ExampleData) @(InDatabase "example" ExampleTable) client
+  dat <-
+      httpStreamChSelect @(("a2" `SuchThat` HasInfix "") ExampleData) @(InDatabase "example" ExampleTable) client
 
   -- 4. Handle data
-  mapM_ print dat
+  print $ length dat

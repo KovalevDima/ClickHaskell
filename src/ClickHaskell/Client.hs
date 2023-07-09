@@ -1,7 +1,9 @@
 {-# LANGUAGE
     DeriveAnyClass
+  , DeriveGeneric
   , FunctionalDependencies
   , OverloadedStrings
+  , TypeSynonymInstances
 #-}
 
 module ClickHaskell.Client where
@@ -40,7 +42,7 @@ data ChCredential = ChCredential
 
 data HttpChClient = HttpChClient H.Manager H.Request
 
-type HttpClientSettings = ManagerSettings
+type HttpClientSettings = H.ManagerSettings
 
 defaultHttpClientSettings :: HttpClientSettings
 defaultHttpClientSettings = H.defaultManagerSettings{managerResponseTimeout = H.responseTimeoutNone}
@@ -49,7 +51,7 @@ setHttpClientTimeout :: Int -> HttpClientSettings -> HttpClientSettings
 setHttpClientTimeout msTimeout manager = manager{managerResponseTimeout=H.responseTimeoutMicro msTimeout}
 
 
-instance ChClient HttpChClient H.ManagerSettings where
+instance ChClient HttpChClient HttpClientSettings where
   initClient (ChCredential login pass url) mManagerSettings = do
     man <- H.newManager $ fromMaybe H.defaultManagerSettings mManagerSettings
     req <- H.setRequestManager man <$> H.parseRequest (T.unpack url)

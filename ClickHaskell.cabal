@@ -28,16 +28,23 @@ library
       Paths_ClickHaskell
   exposed-modules:
       ClickHaskell
-  other-modules:
       ClickHaskell.Client
       ClickHaskell.DataDsl
+      ClickHaskell.DataDsl.Inserting
+      ClickHaskell.DataDsl.Selecting
+      ClickHaskell.DbTypes
       ClickHaskell.Buffering
       ClickHaskell.TableDsl
-      ClickHaskell.TableDsl.DbTypes
+  other-modules:
+      ClickHaskell.DataDsl.Type
       Paths_ClickHaskell
   hs-source-dirs:
       src
-  ghc-options: -Wall -fno-warn-type-defaults
+  ghc-options:
+    -Wall
+    -fno-warn-type-defaults
+
+    -- -ddump-to-file -ddump-simpl -dsuppress-type-applications -dsuppress-coercions -dsuppress-idinfo -dsuppress-type-signatures -dsuppress-var-kinds -dsuppress-module-prefixes -dsuppress-uniques
   build-depends:
     -- GHC included libraries
       base >=4.7 && <5
@@ -54,4 +61,4 @@ library
     , http-types
     , uuid
     , wide-word
-  default-language: GHC2021
+  default-language: Haskell2010
