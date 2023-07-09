@@ -1,22 +1,27 @@
-{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE
+  AllowAmbiguousTypes,
+  DerivingStrategies,
+  FlexibleInstances,
+  GeneralizedNewtypeDeriving,
+  MultiParamTypeClasses
+#-}
+
 module ClickHaskell.Buffering where
 
 -- Internal dependencies
-import ClickHaskell.DataDsl (HasChSchema)
+import ClickHaskell.DataDsl.Inserting (InsertableInto)
 
 -- GHC included libraries imports
-import Control.Concurrent         (ThreadId, forkIO, threadDelay)
-import Control.Concurrent.STM     (TBQueue, atomically, flushTBQueue, newTBQueueIO, writeTBQueue)
-import Control.Exception          (SomeException, handle)
-import Control.Monad              (forever, unless)
-import GHC.Num                    (Natural)
-
-
+import Control.Concurrent     (ThreadId, forkIO, threadDelay)
+import Control.Concurrent.STM (TBQueue, atomically, flushTBQueue, newTBQueueIO, writeTBQueue)
+import Control.Exception      (SomeException, handle)
+import Control.Monad          (forever, unless)
+import GHC.Num                (Natural)
 
 
 -- | Forks buffer flusher with given frequency 
 --
-forkBufferFlusher :: (HasChSchema schemaData, IsBuffer buffer schemaData)
+forkBufferFlusher :: (InsertableInto table schemaData, IsBuffer buffer schemaData)
   => Int                      -- ^ Flushes frequency
   -> buffer schemaData        -- ^ Buffer with schema specialized data
   -> (SomeException -> IO ()) -- ^ Flush action exception handler
@@ -25,12 +30,12 @@ forkBufferFlusher :: (HasChSchema schemaData, IsBuffer buffer schemaData)
 forkBufferFlusher freq buffer exceptionHandler flushAction
   = forkIO . forever
   $ do
-    threadDelay freq
-    bufferData <- readFromSizedBuffer buffer
-    unless (null bufferData)
-      ( handle exceptionHandler
-      $ flushAction bufferData
-      )
+  threadDelay freq
+  bufferData <- readFromSizedBuffer buffer
+  unless (null bufferData)
+    ( handle exceptionHandler
+    $ flushAction bufferData
+    )
 
 newtype BufferSize = BufferSize Natural deriving newtype Num
 
@@ -43,9 +48,10 @@ class IsBuffer buffer schemaData
 
 type DefaultBuffer = TBQueue
 
-instance HasChSchema schemaData
-  => IsBuffer DefaultBuffer schemaData
+instance IsBuffer DefaultBuffer schemaData
   where
   createSizedBuffer   (BufferSize size) = newTBQueueIO size
   writeToSizedBuffer  buffer d          = atomically $ writeTBQueue buffer d
+  {-# NOINLINE writeToSizedBuffer #-}
   readFromSizedBuffer buffer            = atomically $ flushTBQueue buffer
+  {-# NOINLINE readFromSizedBuffer #-}

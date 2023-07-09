@@ -1,53 +1,65 @@
 {-# LANGUAGE
     DataKinds
-  , DeriveGeneric
-  , DeriveAnyClass
-  , TypeApplications
-  , TypeOperators
-  , ScopedTypeVariables
+  , DerivingStrategies
+  , OverloadedStrings
+  , UndecidableInstances
 #-}
 
+{-# OPTIONS_GHC -fprint-potential-instances #-}
 module Example where
 
 -- Internal dependencies
 import ClickHaskell
-
--- GHC included libraries imports
-import Data.Text (Text)
+import Data.Int     (Int32)
 
 
 -- 1. Describe table
 type ExampleTable =
   Table
     "example"
-    '[ DefaultColumn "string"   (LowCardinality ChString)
-     , DefaultColumn "int64"    ChInt64
-     , DefaultColumn "dateTime" ChDateTime
-     , DefaultColumn "uuid"     ChUUID
+    '[ DefaultColumn "a1"  ChInt64
+     , DefaultColumn "a2"  (LowCardinality ChString)
+     , DefaultColumn "a3" ChDateTime
+     , DefaultColumn "a4" ChUUID
+     , DefaultColumn "a5" ChInt32
      ]
     MergeTree
-    '["string", "int64"]
-    '["string"]
+    '[ OrderBy '["a1"]
+     , PartitionBy '["a1"]
+     ]
 
--- 2. Separate data you will work with
+
 data ExampleData = ExampleData
-  { string   :: (LowCardinality ChString)
-  , int64    :: ChInt64
-  , dateTime :: ChDateTime
-  , uuid     :: ChUUID
+  { a1 :: ChInt64
+  , a2 :: ChString
+  , a3 :: ChDateTime
+  , a4 :: ChUUID
+  , a5 :: ChInt32
   }
-  deriving (Generic, HasChSchema, Show)
+  deriving (Generic)
 
+instance SelectableFrom ExampleTable ExampleData
+instance InsertableInto ExampleTable ExampleData
+ 
 
+dataExample :: ExampleData
+dataExample = ExampleData
+  { a1 = toChType (42 :: Int64)
+  , a2 = "text"
+  , a3 = toChType (42 :: Word32) 
+  , a4 = nilChUUID
+  , a5 = toChType (42 :: Int32)
+  }
 
 
 -- >>> showCreateExample
--- "CREATE TABLE IF NOT EXISTS example.example (string LowCardinality(String), int64 Int64, dateTime DateTime, uuid UUID) Engine=MergeTree PARTITION BY (string, int64) ORDER BY (string)"
-showCreateExample :: String
+-- "CREATE TABLE IF NOT EXISTS example.example (a1 Int64, a2 LowCardinality(String), a3 DateTime, a4 UUID, a5 Int32) Engine=MergeTree PARTITION BY tuple() ORDER BY tuple()"
+showCreateExample :: Text
 showCreateExample = showCreateTableIfNotExists @(InDatabase "example" ExampleTable)
 
 
 -- >>> showSelect
--- "SELECT string,int64,dateTime,uuid FROM example.example WHERE fieldName=='mysymbol' FORMAT TSV"
+-- "SELECT a1,a2,a3,a4,a5 FROM example.example  FORMAT TSV"
 showSelect :: Text
-showSelect = case someSymbolVal "mysymbol" of (SomeSymbol (Proxy :: Proxy var)) -> tsvSelectQuery @(("fieldName" `SampledBy` EqualityWith var) ExampleData) @(InDatabase "example" ExampleTable)
+showSelect = case someSymbolVal "" of
+  (SomeSymbol (Proxy :: Proxy var)) -> tsvSelectQuery @(("a2" `SuchThat` HasInfix var) ExampleData) @(InDatabase "example"  ExampleTable)

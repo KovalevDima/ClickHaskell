@@ -1,5 +1,12 @@
 .stack-work
 dist-newstyle
+
+*.aux
+*.hp
+*.pdf
+*.prof
+*.ps
+
 *~
 /result
 /.direnv
