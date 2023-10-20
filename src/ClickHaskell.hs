@@ -27,12 +27,14 @@ module ClickHaskell
   (
   -- * Tables description DSL
     module ClickHaskell.TableDsl
-  , module ClickHaskell.DbTypes
 
   -- * Data manipulation DSL 
   , module ClickHaskell.DataDsl
 
-  -- * Buffering abstractions
+  -- * Databases types
+  , module ClickHaskell.DbTypes
+
+  -- * Simple buffering abstractions
   , module ClickHaskell.Buffering
 
   -- * Client abstraction

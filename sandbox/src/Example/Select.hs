@@ -15,20 +15,22 @@ import Example      (ExampleTable, ExampleData)
 select :: IO ()
 select = do
 
-  -- 1. Init http client
+  print "1. Initializing http client"
   client <- initClient
     @HttpChClient
     (ChCredential "default" "" "http://localhost:8123")
-    (Just $ setHttpClientTimeout 6000000 defaultHttpClientSettings)
+    (Just $ setHttpClientTimeout 6_000_000 defaultHttpClientSettings)
 
-  -- 2. Create database and table
+  print "2. Creating database and table"
   createDatabaseIfNotExists @"example" client
   createTableIfNotExists @(InDatabase "example" ExampleTable) client
 
-  -- 3. Perform select
-  print "Reading data"
+  print "3. Performing select"
   dat <-
-      httpStreamChSelect @(("a2" `SuchThat` HasInfix "") ExampleData) @(InDatabase "example" ExampleTable) client
+    httpStreamChSelect
+      @(("a2" `SuchThat` HasInfix "") ExampleData)
+      @(InDatabase "example" ExampleTable)
+      client
 
-  -- 4. Handle data
+  print "4. Handling data"
   print $ length dat

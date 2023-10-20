@@ -18,41 +18,32 @@
 
 module ClickHaskell.DataDsl.Selecting
   ( SelectableFrom(toSelectedFrom)
-  , httpStreamChSelect
   , tsvSelectQuery
 
   , SuchThat
   , EqualTo, HasInfix
+
+  , ToConditionalExpression, UnwrapedDescription
   ) where
 
 -- Internal dependencies
-import ClickHaskell.Client       (HttpChClient(..), ChException (..))
-import ClickHaskell.DataDsl.Type (SpanByColumnName, GetGenericProductHeadSelector, GetGenericProductLastSelector, HandleSeveralErrors, AssumePlacedAfter) 
+import ClickHaskell.DataDsl.Type (SpanByColumnName, GetGenericProductHeadSelector, GetGenericProductLastSelector, AssumePlacedBefore) 
 import ClickHaskell.DbTypes      (Deserializable(deserialize), fromChType, FromChType)
-import ClickHaskell.TableDsl     (ShowColumns, KnownTupleSymbols(..), IsLocatedTable(..), InDatabase, IsTable(..))
-
--- External dependenices
-import Conduit              (yield)
-import Network.HTTP.Client  as H (Request(..), Response(..), httpLbs)
-import Network.HTTP.Conduit as H (requestBodySourceChunked)
-import Network.HTTP.Types   as H (Status(..))
+import ClickHaskell.Validation   (HandleErrors)
+import ClickHaskell.TableDsl     (IsLocatedTable(..), InDatabase, IsTable(..))
 
 -- GHC included libraries imports
-import Control.Exception          (throw)
-import Control.Monad              (when)
-import Data.ByteString            as BS (ByteString, toStrict)
-import Data.ByteString.Char8      as BS8 (intercalate, split)
-import Data.ByteString.Lazy.Char8 as BSL8 (lines)
-import Data.Kind                  (Type)
-import Data.Proxy                 (Proxy(..))
-import Data.Text                  as T (Text, intercalate)
-import Data.Text.Encoding         as T (encodeUtf8, decodeUtf8)
-import Data.Text.Lazy             as T (toStrict)
-import Data.Text.Lazy.Builder     as T (Builder, toLazyText)
-import Data.String                (IsString(fromString))
-import GHC.Generics               (Generic(to, Rep), K1(K1), M1(M1), type (:*:)(..), D1, C1, S1, Rec0, Meta(MetaSel))
-import GHC.TypeError              (TypeError, ErrorMessage(..))
-import GHC.TypeLits               (KnownSymbol, Symbol, symbolVal)
+import Data.ByteString        as BS (ByteString)
+import Data.ByteString.Char8  as BS8 (intercalate, split)
+import Data.Kind              (Type)
+import Data.Proxy             (Proxy(..))
+import Data.Text              as T (Text, intercalate)
+import Data.Text.Lazy         as T (toStrict)
+import Data.Text.Lazy.Builder as T (Builder, toLazyText)
+import Data.String            (IsString(fromString))
+import GHC.Generics           (Generic(to, Rep), K1(K1), M1(M1), type (:*:)(..), D1, C1, S1, Meta(MetaSel))
+import GHC.TypeError          (TypeError, ErrorMessage(..))
+import GHC.TypeLits           (KnownSymbol, Symbol, symbolVal)
 
 
 class
@@ -62,8 +53,7 @@ class
     ::
     ( IsTable table
     , GSelectable
-      '(False, 'Text "Report an issue if you see this message ClickHaskell.DataDsl.Selecting.1")
-      "entrypoint"
+      (TableValidationResult table)
       (GetTableColumns table)
       (Rep dataDescripion)
     , Generic dataDescripion
@@ -72,8 +62,7 @@ class
   toSelectedFrom
     = to
     . gFromBs
-      @'(False, 'Text "Report an issue if you see this message ClickHaskell.DataDsl.Selecting.1")
-      @"entrypoint"
+      @(TableValidationResult table)
       @(GetTableColumns table)
   {-# INLINE toSelectedFrom #-} 
 
@@ -98,7 +87,7 @@ instance {-# OVERLAPPABLE #-}
     :$$: 'Text "  |instance SelectableFrom (Table \"" :<>: 'Text (GetTableName table)  :<>: 'Text "\" ...) " :<>: ShowType dataDescripion
     )
   ) => SelectableFrom table dataDescripion
-  where 
+  where
   toSelectedFrom = error "Unreachable"
 
 
@@ -168,36 +157,11 @@ instance
 
 
 
-httpStreamChSelect :: forall handlingDataDescripion locatedTable .
-  ( IsLocatedTable locatedTable
-  , SelectableFrom locatedTable (UnwrapedDescription handlingDataDescripion)
-  , ToConditionalExpression handlingDataDescripion
-  , KnownTupleSymbols (ShowColumns (GetColumns (Rep (UnwrapedDescription handlingDataDescripion))))
-  ) => HttpChClient -> IO [UnwrapedDescription handlingDataDescripion]
-httpStreamChSelect (HttpChClient man req) = do
-  resp <- H.httpLbs
-    req
-      { H.requestBody = H.requestBodySourceChunked
-      $ yield (encodeUtf8 $ tsvSelectQuery @handlingDataDescripion @locatedTable)
-      }
-    man
-  when (H.statusCode (responseStatus resp) /= 200) $
-    throw $ ChException $ T.decodeUtf8 $ BS.toStrict $ responseBody resp
-
-  pure
-    . map (toSelectedFrom @locatedTable . BS.toStrict)
-    . BSL8.lines
-    $ responseBody resp
-
-
-
-
 tsvSelectQuery :: forall
   handlingDataDescripion locatedTable .
   ( IsLocatedTable locatedTable
   , SelectableFrom locatedTable (UnwrapedDescription handlingDataDescripion)
   , ToConditionalExpression handlingDataDescripion
-  , KnownTupleSymbols (ShowColumns (GetColumns (Rep (UnwrapedDescription handlingDataDescripion))))
   ) => Text
 tsvSelectQuery
   =  "SELECT " <> columnsMapping
@@ -212,104 +176,70 @@ tsvSelectQuery
   columnsMapping
     = T.intercalate ","
     . map fst
-    $ symbolsTupleVals @(ShowColumns (GetColumns (Rep (UnwrapedDescription handlingDataDescripion))))
+    $ getTableRenderedColumns @locatedTable
 {-# INLINE tsvSelectQuery #-}
 
 
 
 
-type family GetColumns (t :: k -> Type) :: [(Symbol, Type)] where
-  GetColumns (D1 _ cons) = GetColumns cons
-  GetColumns (C1 _ sels) = GetColumns sels
-  GetColumns (c :*: c2) = GetColumns c ++ GetColumns c2
-  GetColumns (S1 (MetaSel (Just sel) _ _ f) (Rec0 t)) = '[ '(sel, t)]
-
-type family (++) (as :: [k]) (bs :: [k]) :: [k] where
-  (++) a '[] = a
-  (++) '[] b = b
-  (++) (a ': as) bs = a ': (as ++ bs)
-
-
-
-class GSelectable (deivingState :: (Bool, ErrorMessage)) (cmpElement :: Symbol) (columns :: [(Symbol, Type)]) f where
+class GSelectable
+  (deivingState :: (Bool, ErrorMessage))
+  (columns :: [(Symbol, Type)])
+  f
+  where
   gFromBs :: BS.ByteString -> f p
 
 
 instance
-  ( GSelectable derivingState "entrypoint" columns f
-  ) => GSelectable derivingState "entrypoint" columns (D1 c f) where
-  gFromBs bs = M1 $ gFromBs @derivingState @"entrypoint" @columns bs
-  {-# INLINE gFromBs #-}
-
-
-instance
-  ( firstTreeElement ~ GetGenericProductHeadSelector left
-  , leftCenterTreeElement ~ GetGenericProductLastSelector left
-  , rightCenterTreeElement ~ GetGenericProductHeadSelector right
-  , '(firstColumnsPart, secondColumnsPart) ~ SpanByColumnName rightCenterTreeElement columns
-  , GSelectable derivingState firstTreeElement firstColumnsPart left
-  , GSelectable derivingState rightCenterTreeElement secondColumnsPart right
-  , derivingState ~ HandleSeveralErrors
-    '[ firstTreeElement `AssumePlacedAfter` rightCenterTreeElement
-     ]
-  ) => GSelectable '(False, unreachableError) "entrypoint" columns (C1 c (left :*: right)) where
-  gFromBs bs = {- [ClickHaskell.DataDsl.Selecting.ToDo.1]: optimize string deconstruction -}
-    let byteStrings = '\t' `BS8.split` bs
-        (firstWords, lastWords) = splitAt (length byteStrings `div` 2) byteStrings
-    in
-    M1
-      (   gFromBs @derivingState @firstTreeElement @firstColumnsPart (BS8.intercalate "\t" firstWords)
-      :*: gFromBs @derivingState @rightCenterTreeElement @secondColumnsPart (BS8.intercalate "\t" lastWords)
-      )
-  {-# INLINE gFromBs #-}
-
-instance
   ( TypeError errorMsg
-  ) => GSelectable '(True, errorMsg) "entrypoint" columns (C1 c (left :*: right)) where
+  ) => GSelectable '(True, errorMsg) columns genericRep where
   gFromBs _ = error "Unreachable"
   {-# INLINE gFromBs #-}
 
-instance
-  ( TypeError errorMsg
-  ) => GSelectable '(True, errorMsg) cmpElement columns (left :*: right)
+
+instance {-# OVERLAPPING #-}
+  ( GSelectable '(False, unreachableError) columns f
+  ) => GSelectable '(False, unreachableError) columns (D1 c f)
   where
-  gFromBs _ = error "Unreachable"
+  gFromBs bs = M1 $ gFromBs @'(False, unreachableError) @columns bs
+  {-# INLINE gFromBs #-}
 
 
-instance
+instance {-# OVERLAPPING #-}
+  ( GSelectable '(False, unreachableError) columns (left :*: right)
+  ) => GSelectable '(False, unreachableError) columns (C1 c (left :*: right))
+  where
+  gFromBs = M1 . gFromBs @'(False, unreachableError) @columns
+  {-# INLINE gFromBs #-}
+
+
+instance {-# OVERLAPPING #-}
   ( firstTreeElement ~ GetGenericProductHeadSelector left
   , leftCenterTreeElement ~ GetGenericProductLastSelector left
   , rightCenterTreeElement ~ GetGenericProductHeadSelector right
+  , lastTreeElement ~ GetGenericProductLastSelector right
   , '(firstColumnsPart, secondColumnsPart) ~ SpanByColumnName rightCenterTreeElement columns
-  , GSelectable derivingState leftCenterTreeElement firstColumnsPart left
-  , GSelectable derivingState rightCenterTreeElement secondColumnsPart right
-  , derivingState ~ HandleSeveralErrors
-    '[ firstTreeElement `AssumePlacedAfter` rightCenterTreeElement
-     , firstTreeElement `AssumePlacedAfter` rightCenterTreeElement
+  , derivingState ~ HandleErrors
+    '[ firstTreeElement       `AssumePlacedBefore` leftCenterTreeElement
+     , leftCenterTreeElement  `AssumePlacedBefore` rightCenterTreeElement
+     , rightCenterTreeElement `AssumePlacedBefore` lastTreeElement
      ]
-  ) => GSelectable '(False, unreachableError) cmpElement columns (left :*: right)
+  , GSelectable derivingState firstColumnsPart left
+  , GSelectable derivingState secondColumnsPart right
+  ) => GSelectable '(False, unreachableError) columns (left :*: right)
   where
-  gFromBs bs = {- [ClickHaskell.DataDsl.Selecting.ToDo.1]: optimize string deconstruction -}
+  gFromBs bs = {- [ClickHaskell.DataDsl.Selecting.ToDo.1]: optimize line deconstruction -}
     let byteStrings = '\t' `BS8.split` bs
         (leftWords, rightWords) = splitAt (length byteStrings `div` 2) byteStrings
-    in  gFromBs @derivingState @leftCenterTreeElement @firstColumnsPart (BS8.intercalate "\t" leftWords)
-    :*: gFromBs @derivingState @rightCenterTreeElement @secondColumnsPart (BS8.intercalate "\t" rightWords)
+    in  gFromBs @derivingState @firstColumnsPart (BS8.intercalate "\t" leftWords)
+    :*: gFromBs @derivingState @secondColumnsPart (BS8.intercalate "\t" rightWords)
   {-# INLINE gFromBs #-}
 
 
-
-instance
-  ( TypeError errorMsg
-  ) => GSelectable '(True, errorMsg) cmpElement anyList
-    ( S1 (MetaSel (Just columnName) a b f) (K1 i outputType)
-    )
-  where
-  gFromBs _ = error "Unreachable"
-
-instance
+instance {-# OVERLAPPING #-}
   ( Deserializable chType
   , FromChType chType outputType
-  ) => GSelectable '(False, unrechableError) cmpElement '[ '(columnName, chType)]
+  ) => GSelectable '(False, unrechableError) '[ '(columnName, chType)]
     ( S1 (MetaSel (Just columnName) a b f) (K1 i outputType)
     )
   where
@@ -318,10 +248,9 @@ instance
 
 
 instance
-  ( TypeError ('Text "Not found column with name " :<>: 'Text sel)
-  ) => GSelectable '(False, unrechableError) cmpElement '[]
-    ( S1 (MetaSel (Just sel) a b f) (K1 i outputType)
+  ( TypeError ('Text "Not found column with name \"" :<>: 'Text columnName :<>: 'Text "\" in table")
+  ) => GSelectable '(False, unrechableError) '[]
+    ( S1 (MetaSel (Just columnName) a b f) (K1 i outputType)
     )
   where
   gFromBs = error "Unreachable"
-  {-# INLINE gFromBs #-}

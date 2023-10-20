@@ -7,8 +7,8 @@ version:        0.0.1
 author:         Kovalev Dmitry
 maintainer:     Kovalev Dmitry
 category:       ClickHouse
-synopsis:       DSL for integration ClickHouse as dependency
-description:    tools for configuring ClickHouse tables, data manipulation and integration testing
+synopsis:       DSL for integration ClickHouse to Haskell 
+description:    tools for describing ClickHouse integration, data manipulation and integration testing
 homepage:       https://github.com/KovalevDima/ClickHaskell#readme
 bug-reports:    https://github.com/KovalevDima/ClickHaskell/issues
 License:        BSD-3-Clause
@@ -28,12 +28,16 @@ library
       Paths_ClickHaskell
   exposed-modules:
       ClickHaskell
+      ClickHaskell.Buffering
       ClickHaskell.Client
+      ClickHaskell.Client.DataDsl
+      ClickHaskell.Client.Interface
+      ClickHaskell.Client.TableDsl
       ClickHaskell.DataDsl
       ClickHaskell.DataDsl.Inserting
       ClickHaskell.DataDsl.Selecting
       ClickHaskell.DbTypes
-      ClickHaskell.Buffering
+      ClickHaskell.Validation
       ClickHaskell.TableDsl
   other-modules:
       ClickHaskell.DataDsl.Type
@@ -41,7 +45,8 @@ library
   hs-source-dirs:
       src
   ghc-options:
-    -Wall
+    -Wall -Werror
+    -Wunused-packages
     -fno-warn-type-defaults
 
     -- -ddump-to-file -ddump-simpl -dsuppress-type-applications -dsuppress-coercions -dsuppress-idinfo -dsuppress-type-signatures -dsuppress-var-kinds -dsuppress-module-prefixes -dsuppress-uniques

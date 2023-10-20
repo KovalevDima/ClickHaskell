@@ -4,13 +4,19 @@
   , OverloadedStrings
   , UndecidableInstances
 #-}
-
 {-# OPTIONS_GHC -fprint-potential-instances #-}
+
 module Example where
 
 -- Internal dependencies
 import ClickHaskell
-import Data.Int     (Int32)
+
+-- GHC included libraries imports
+import Data.ByteString (ByteString)
+import Data.Int        (Int32)
+import Data.Proxy      (Proxy(..))
+import GHC.Generics    (Generic)
+import GHC.TypeLits    (SomeSymbol(..), someSymbolVal)
 
 
 -- 1. Describe table
@@ -30,25 +36,24 @@ type ExampleTable =
 
 
 data ExampleData = ExampleData
-  { a1 :: ChInt64
-  , a2 :: ChString
-  , a3 :: ChDateTime
+  { a1 :: Int64
+  , a2 :: ByteString
+  , a3 :: Word32
   , a4 :: ChUUID
-  , a5 :: ChInt32
-  }
-  deriving (Generic)
+  , a5 :: Int32
+  } deriving (Generic)
 
 instance SelectableFrom ExampleTable ExampleData
 instance InsertableInto ExampleTable ExampleData
- 
+
 
 dataExample :: ExampleData
 dataExample = ExampleData
-  { a1 = toChType (42 :: Int64)
+  { a1 = 42
   , a2 = "text"
-  , a3 = toChType (42 :: Word32) 
   , a4 = nilChUUID
-  , a5 = toChType (42 :: Int32)
+  , a3 = 42 
+  , a5 = 42 :: Int32
   }
 
 
@@ -59,7 +64,7 @@ showCreateExample = showCreateTableIfNotExists @(InDatabase "example" ExampleTab
 
 
 -- >>> showSelect
--- "SELECT a1,a2,a3,a4,a5 FROM example.example  FORMAT TSV"
+-- "SELECT a1,a2,a3,a4,a5 FROM example.example WHERE a2 like '%' FORMAT TSV"
 showSelect :: Text
 showSelect = case someSymbolVal "" of
   (SomeSymbol (Proxy :: Proxy var)) -> tsvSelectQuery @(("a2" `SuchThat` HasInfix var) ExampleData) @(InDatabase "example"  ExampleTable)

@@ -1,9 +1,9 @@
 {-# LANGUAGE
-  AllowAmbiguousTypes,
-  DerivingStrategies,
-  FlexibleInstances,
-  GeneralizedNewtypeDeriving,
-  MultiParamTypeClasses
+    AllowAmbiguousTypes
+  , DerivingStrategies
+  , FlexibleInstances
+  , GeneralizedNewtypeDeriving
+  , MultiParamTypeClasses
 #-}
 
 module ClickHaskell.Buffering where
@@ -36,6 +36,7 @@ forkBufferFlusher freq buffer exceptionHandler flushAction
     ( handle exceptionHandler
     $ flushAction bufferData
     )
+
 
 newtype BufferSize = BufferSize Natural deriving newtype Num
 

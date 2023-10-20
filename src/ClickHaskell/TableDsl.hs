@@ -1,16 +1,10 @@
 {-# LANGUAGE
     AllowAmbiguousTypes
   , DataKinds
-  , DefaultSignatures
-  , DeriveAnyClass
-  , DerivingStrategies
   , FlexibleInstances
   , FlexibleContexts
-  , GADTs
-  , GeneralizedNewtypeDeriving
   , InstanceSigs
   , OverloadedStrings
-  , PolyKinds
   , TypeFamilies
   , TypeOperators
   , TypeApplications
@@ -23,42 +17,30 @@
 #-}
 
 module ClickHaskell.TableDsl
-  ( InDatabase
+  ( IsLocatedTable(..), InDatabase
 
-  , Table, IsTable(..), IsLocatedTable(..)
-  , DefaultColumn
+  , IsTable(..), Table
   , OrderBy, PartitionBy, PrimaryKey
+  , DefaultColumn
 
   , IsChEngine
-  , MergeTree, TinyLog
+  , MergeTree
 
-  , ShowColumns
-  , showCreateTableIfNotExists, showCreateTable, createDatabaseIfNotExists, createTableIfNotExists
-
-  , KnownTupleSymbols(symbolsTupleVals)
+  , showCreateTableIfNotExists, showCreateTable
   ) where
 
 -- Internal dependencies
-import ClickHaskell.Client  (ChException (..), HttpChClient (..))
-import ClickHaskell.DbTypes (ToChTypeName)
-
--- External dependencies
-import Network.HTTP.Client         as H (RequestBody (..), httpLbs, responseBody, responseStatus)
-import Network.HTTP.Client.Conduit as H (Request (..))
-import Network.HTTP.Types          as H (statusCode)
+import ClickHaskell.DbTypes       (ToChTypeName)
 
 -- GHC included libraries imports
-import Control.Exception     (throw)
-import Control.Monad         (when)
-import Data.ByteString       as BS (toStrict)
-import Data.ByteString.Char8 as BS8 (fromStrict, pack)
-import Data.Data             (Proxy (Proxy))
-import Data.Kind             (Type)
-import Data.Text             as T (Text, intercalate, pack)
-import Data.Text.Encoding    as T (decodeUtf8, encodeUtf8)
-import Data.Type.Bool        (If)
-import Data.Type.Ord         (type (>?))
-import GHC.TypeLits          (ErrorMessage (..), KnownSymbol, Symbol, TypeError, symbolVal)
+import Data.Data      (Proxy (Proxy))
+import Data.Kind      (Type)
+import Data.Text      as T (Text, intercalate, pack)
+import Data.Type.Bool (If)
+import Data.Type.Ord  (type(>?))
+import GHC.TypeLits   (ErrorMessage (..), KnownSymbol, Symbol, TypeError, symbolVal)
+
+import ClickHaskell.Validation (HandleErrors)
 
 
 data OrderBy (columnNamesList :: [Symbol])
@@ -67,27 +49,11 @@ data PrimaryKey (columnNamesList :: [Symbol])
 
 
 
-class IsChEngine (GetTableEngine a) => HasTableEngine a where
-  type GetTableEngine a :: Type
-
-instance
-  ( IsChEngine (GetTableEngine a)
-  ) => HasTableEngine (InDatabase dbName a)
-  where
-  type GetTableEngine (InDatabase dbName a) = GetTableEngine a
-
-instance
-  ( IsChEngine engine
-  ) => HasTableEngine (Table name columns engine engineSpecificSettings)
-  where
-  type GetTableEngine (Table name columns engine engineSpecificSettings) = engine
-
-
-
 
 class
   IsLocatedTable table
   where
+  type GetTable table :: Type
   getDatabaseName :: Text
 
 
@@ -120,93 +86,89 @@ instance {-# OVERLAPPABLE #-}
 
 
 class IsTable table where
-  type IsSupportedTable table :: Bool
   type GetTableColumns table :: [(Symbol, Type)]
   type GetTableName table :: Symbol
   type GetEngineSpecificSettings table :: [Type]
+  type GetTableEngine table :: Type
+  type TableValidationResult table :: (Bool, ErrorMessage)
 
+  getTableEngineName :: Text
   getTableName :: Text
+  getTableRenderedColumnsNames :: [Text]
+  getTableRenderedColumns :: [(Text, Text)]
 
-
-instance {-# OVERLAPS #-}
-  ( KnownSymbol name
-  ) => IsTable (Table name columns engine engineSpecificSettings)
-  where
-  type IsSupportedTable (Table _ _ _ _) = True
-  type GetTableColumns (Table _ columns _ _) = DeduplicatedAndAlphabeticallySorted (TransformedToSupportedColumns columns)
-  type GetTableName (Table name _ _ _) = name
-  type GetEngineSpecificSettings (Table _ _ _ engineSpecificSettings) = engineSpecificSettings
-
-  getTableName :: Text
-  getTableName = (T.pack . symbolVal) (Proxy @name)
-
-instance {-# OVERLAPS #-} (IsTable table) => IsTable (InDatabase db table)
-  where
-  type IsSupportedTable (InDatabase db table) = True
-  type GetTableColumns (InDatabase db table) = GetTableColumns table
-  type GetTableName (InDatabase db table) = GetTableName table
-  type GetEngineSpecificSettings (InDatabase db table) = GetEngineSpecificSettings table
-
-  getTableName :: Text
-  getTableName = getTableName @table
 
 instance {-# OVERLAPPABLE #-}
   ( TypeError
     (    'Text "Expected a table description, but got " :<>: ShowType something
-    :$$: 'Text "Provide a type that describe a table")
+    :$$: 'Text "Provide a type that describes a table")
   ) => IsTable something
 
 
+instance {-# OVERLAPS #-} (IsTable table) => IsTable (InDatabase db table)
+  where
+  type GetTableColumns (InDatabase db table) = GetTableColumns table
+  type GetTableName (InDatabase db table) = GetTableName table
+  type GetTableEngine (InDatabase db table) = GetTableEngine table
+  type GetEngineSpecificSettings (InDatabase db table) = GetEngineSpecificSettings table
+  type TableValidationResult (InDatabase db table) = TableValidationResult table 
 
+  getTableEngineName :: Text
+  getTableEngineName = getTableEngineName @table
 
-createDatabaseIfNotExists :: forall db . KnownSymbol db => HttpChClient -> IO ()
-createDatabaseIfNotExists (HttpChClient man req) = do
-  resp <- H.httpLbs
-    req
-      { requestBody = H.RequestBodyLBS
-      $ "CREATE DATABASE IF NOT EXISTS " <> (BS8.fromStrict . BS8.pack. symbolVal) (Proxy @db)
-      }
-    man
-  when (H.statusCode (responseStatus resp) /= 200) $
-    throw $ ChException $ T.decodeUtf8 $ BS.toStrict $ responseBody resp
+  getTableName :: Text
+  getTableName = getTableName @table
 
+  getTableRenderedColumnsNames :: [Text]
+  getTableRenderedColumnsNames = getTableRenderedColumnsNames @table
 
-createTableIfNotExists :: forall locatedTable .
-  ( IsLocatedTable locatedTable
-  , IsTable locatedTable
-  , HasTableEngine locatedTable
-  , KnownSymbol (GetTableName locatedTable)
-  , KnownTupleSymbols (ShowColumns (GetTableColumns locatedTable))
-  ) => HttpChClient -> IO ()
-createTableIfNotExists (HttpChClient man req) = do
-  resp <- H.httpLbs
-    req
-      { requestBody = H.RequestBodyLBS
-      $ BS8.fromStrict . T.encodeUtf8 $ showCreateTableIfNotExists @locatedTable
-      }
-    man
-  when (H.statusCode (responseStatus resp) /= 200) $
-    throw $ ChException $ T.decodeUtf8 $ BS.toStrict $ responseBody resp
+  getTableRenderedColumns :: [(Text, Text)]
+  getTableRenderedColumns = getTableRenderedColumns @table
 
 
 
 
-type family DeduplicatedAndAlphabeticallySorted xs :: [(Symbol, Type)] where
-  DeduplicatedAndAlphabeticallySorted (fst ': snd ': xs) = HasNoDuplicationsAndAplabeticlySorted fst snd ': DeduplicatedAndAlphabeticallySorted (snd ': xs)
-  DeduplicatedAndAlphabeticallySorted '[x] = '[x]
-  DeduplicatedAndAlphabeticallySorted '[] = '[]
+instance {-# OVERLAPS #-}
+  ( KnownSymbol name
+  , IsChEngine engine
+  , KnownTupleSymbols (ShowColumns (TransformedToSupportedColumns columns))
+  ) => IsTable (Table name columns engine engineSpecificSettings)
+  where
+  type GetTableColumns (Table _ columns _ _) = TransformedToSupportedColumns columns
+  type GetTableName (Table name _ _ _) = name
+  type GetTableEngine (Table _ _ engine _) = engine
+  type GetEngineSpecificSettings (Table _ _ _ engineSpecificSettings) = engineSpecificSettings
+  type TableValidationResult (Table _ columns _ _) =
+    HandleErrors
+      '[ IsValidColumnsDescription (TransformedToSupportedColumns columns)
+       ]
 
-type family HasNoDuplicationsAndAplabeticlySorted firstColumn secondColumn :: (Symbol, Type) where
-  HasNoDuplicationsAndAplabeticlySorted '(sym, type1)  '(sym, type2)  = TypeError ('Text "There are 2 columns with identical names: " :<>: 'Text sym :<>: 'Text ". Rename one of them")
-  HasNoDuplicationsAndAplabeticlySorted '(sym1, type1) '(sym2, type2) =
-    If
-      (sym1 >? sym2)
-      (TypeError
-        (    'Text "There are some aplabetically unsorted columns. Column with name \"" :<>: 'Text sym1 :<>: 'Text "\" should be after " :<>: 'Text sym2 
-        :$$: 'Text "Aplabetically sorting required to make compilation faster. Also it makes your code more readable"
-        )
-      )
-      '(sym1, type1)
+  getTableEngineName :: Text
+  getTableEngineName = engineName @engine
+
+  getTableName :: Text
+  getTableName = (T.pack . symbolVal) (Proxy @name)
+
+  getTableRenderedColumnsNames :: [Text]
+  getTableRenderedColumnsNames = map fst $ symbolsTupleVals @(ShowColumns (TransformedToSupportedColumns columns))
+
+  getTableRenderedColumns :: [(Text, Text)]
+  getTableRenderedColumns = symbolsTupleVals @(ShowColumns (TransformedToSupportedColumns columns))
+
+
+
+
+type family IsValidColumnsDescription xs :: (Bool, ErrorMessage) where
+  IsValidColumnsDescription ('(sameName, type1) ': '(sameName, type2) ': xs) = '(True, 'Text "There are 2 columns with identical names: " :<>: 'Text sameName :<>: 'Text "\". Rename one of them")
+  IsValidColumnsDescription '[x] = '(False, 'Text "Report an issue if you see this message [ClickHaskell.TableDsl.1]")
+  IsValidColumnsDescription '[] = '(True, 'Text "Data source should have at least one column but given empty list of expected columns")
+  IsValidColumnsDescription ('(name1, type1) ': '(name2, type2) ': columns)
+    = If (name1 >? name2)
+      '( True
+       , 'Text "Source columns description contains aplabetically unsorted columns."
+          :$$: 'Text "Column with name \"" :<>: 'Text name1 :<>: 'Text "\" should be placed after \"" :<>: 'Text name2 :<>: 'Text "\""
+       )
+      (IsValidColumnsDescription ('(name2, type2) ': columns))
 
 
 
@@ -214,7 +176,7 @@ type family HasNoDuplicationsAndAplabeticlySorted firstColumn secondColumn :: (S
 type family TransformedToSupportedColumns (columns :: [Type]) :: [(Symbol, Type)] where
   TransformedToSupportedColumns (x ': '[]) = SupportedColumn x ': '[]
   TransformedToSupportedColumns (x ': xs)  = SupportedColumn x ': TransformedToSupportedColumns xs
-  TransformedToSupportedColumns '[]        = TypeError ('Text "No columns in table")
+  TransformedToSupportedColumns '[]        = TypeError ('Text "Report an issue if you see this message [ClickHaskell.TableDsl.2]")
 
 
 type family SupportedColumn x :: (Symbol, Type) where
@@ -259,15 +221,12 @@ data DefaultColumn (name :: Symbol) columnType
 showCreateTableIfNotExists :: forall locatedTable .
   ( IsLocatedTable locatedTable
   , IsTable locatedTable
-  , HasTableEngine locatedTable
-  , KnownSymbol (GetTableName locatedTable)
-  , KnownTupleSymbols (ShowColumns (GetTableColumns locatedTable))
   ) => Text
 showCreateTableIfNotExists =
-  let columns     = symbolsTupleVals @(ShowColumns (GetTableColumns locatedTable))
+  let columns     = getTableRenderedColumns @locatedTable
   in "CREATE TABLE IF NOT EXISTS "  <> getDatabaseName @locatedTable <> "." <> getTableName @locatedTable
   <> " "              <> ("(" <> T.intercalate ", " (map (\(first, second) -> first <> " " <> second) columns) <> ")")
-  <> " Engine="       <> engineName @(GetTableEngine locatedTable)
+  <> " Engine="       <> getTableEngineName @locatedTable
   <> " PARTITION BY " <> "tuple()"
   <> " ORDER BY "     <> "tuple()"
 
@@ -275,15 +234,12 @@ showCreateTableIfNotExists =
 showCreateTable :: forall locatedTable .
   ( IsLocatedTable locatedTable
   , IsTable locatedTable
-  , HasTableEngine locatedTable
-  , KnownSymbol (GetTableName locatedTable)
-  , KnownTupleSymbols (ShowColumns (GetTableColumns locatedTable))
   ) => Text
 showCreateTable =
-  let columns     = symbolsTupleVals @(ShowColumns (GetTableColumns locatedTable))
+  let columns     = getTableRenderedColumns @locatedTable
   in "CREATE TABLE "  <> getDatabaseName @locatedTable <> "." <> getTableName @locatedTable
   <> " "              <> ("(" <> T.intercalate ", " (map (\(first, second) -> first <> " " <> second) columns) <> ")")
-  <> " Engine="       <> engineName @(GetTableEngine locatedTable)
+  <> " Engine="       <> getTableEngineName @locatedTable
   <> " PARTITION BY " <> "tuple()"
   <> " ORDER BY "     <> "tuple()"
 
@@ -292,13 +248,11 @@ showCreateTable =
 
 class    IsChEngine engine    where engineName :: Text
 instance IsChEngine MergeTree where engineName = "MergeTree"
-instance IsChEngine TinyLog   where engineName = "TinyLog"
 instance {-# OVERLAPPABLE #-} TypeError
   (     'Text "Unknown table engine " ':<>: 'ShowType a
   ':$$: 'Text "Use one of the provided:"
   ':$$: 'Text "  MergeTree"
-  ':$$: 'Text "  TinyLog"
   ':$$: 'Text "or implement your own support"
   )  => IsChEngine a where engineName = error "Unreachable"
+
 data MergeTree
-data TinyLog

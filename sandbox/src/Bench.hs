@@ -17,8 +17,7 @@ import Control.Concurrent (threadDelay, forkIO)
 import Control.Monad      (replicateM_, void)
 
 
--- 0. Settings for test
-
+-- Settings for test
 newtype ConcurrentBufferWriters   = ConcurrentBufferWriters   Int deriving Num
 newtype RowsPerBufferWriter       = RowsPerBufferWriter       Int deriving Num
 newtype MsBetweenBufferWrites     = MsBetweenBufferWrites     Int deriving Num
@@ -33,8 +32,6 @@ data BenchSettings = BenchSettings
   , sMsBetweenChWrites :: MsBetweenClickHouseWrites
   }
 
--- 1. Create our schema haskell representation
-
 benchExecutable :: BenchSettings -> IO ()
 benchExecutable (
   BenchSettings
@@ -45,30 +42,33 @@ benchExecutable (
      (MsBetweenClickHouseWrites msBetweenChWrites      )
   ) = do
 
-  -- 2. Init clienthttpStreamChInsert client bufferData
+  print "1. Initializing client"
   client <- initClient @HttpChClient
     (ChCredential "default" "" "http://localhost:8123")
     (Just defaultHttpClientSettings)
 
-  -- 3. Create database and table
+  print "2. Bootstrapping DB"
   createDatabaseIfNotExists @"example" client
   createTableIfNotExists @(InDatabase "example" ExampleTable) client
 
-  -- 4. Create buffer 
+  print "3. Creating buffer"
   (buffer :: DefaultBuffer ExampleData) <- createSizedBuffer bufferSize
 
-  -- 5. Start buffer flusher
-  print "Writing data"
+  print "4. Starting buffer flusher"
   _ <- forkBufferFlusher @(InDatabase "example" ExampleTable)
     (fromIntegral msBetweenChWrites)
     buffer
     print
-    (void . httpStreamChInsert @(InDatabase "example" ExampleTable) client)
+    ( \dataList
+      -> print "Starting writing to database"
+      >> void (httpStreamChInsert @(InDatabase "example" ExampleTable) client dataList)
+      >> print "Writing completed"
+    )
 
-  -- 6. Get some data
+  -- Construct or get some data
   let dataExample' = dataExample
 
-  -- 7. Write something to buffer
+  print "5. Writing to buffer"
   _threadId <-
     replicateM_ concurrentBufferWriters . forkIO
       . replicateM_ rowsNumber

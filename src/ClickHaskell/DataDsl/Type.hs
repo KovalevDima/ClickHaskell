@@ -11,33 +11,26 @@ module ClickHaskell.DataDsl.Type
   , GetGenericProductHeadSelector
   , GetGenericProductLastSelector
 
-  , HandleSeveralErrors
-  , AssumePlacedAfter
+  , AssumePlacedBefore
   ) where
 
 -- GHC included libraries imports
 import Data.Type.Bool (If)
-import Data.Type.Ord  (type(<=?))
+import Data.Type.Ord  (type(<=?), type(<?))
 import GHC.Base       (Type, Symbol)
 import GHC.Generics   (type(:*:), D1, C1, S1, Meta(MetaSel))
-import GHC.TypeError (ErrorMessage (..))
+import GHC.TypeError  (ErrorMessage (..))
 
 
-type family HandleSeveralErrors  (a :: [(Bool, ErrorMessage)]) :: (Bool, ErrorMessage)
+type family (sym1 :: Symbol) `AssumePlacedBefore` (sym2 :: Symbol) :: (Bool, ErrorMessage)
   where
-  HandleSeveralErrors '[] = '( 'False, 'Text "HandleSeveralErrors: Please report an issue if you see this message")
-  HandleSeveralErrors ('(False, txt) ': xs) = HandleSeveralErrors xs
-  HandleSeveralErrors ('(True, txt) ': xs) = '(True, txt) 
-
-
-type family (sym1 :: Symbol) `AssumePlacedAfter` (sym2 :: Symbol) :: (Bool, ErrorMessage)
-  where
-  sym1 `AssumePlacedAfter` sym2 =
-    '( sym2 <=? sym1
-     ,    'Text "Records fields should be sorted alphabetically. But field \""
+  sym1 `AssumePlacedBefore` sym2 =
+    '( sym2 <? sym1
+     ,    'Text "Record fields should be sorted alphabetically. But field \""
      :<>: 'Text sym2
-     :<>: 'Text "\" placed before "
+     :<>: 'Text "\" placed before \""
      :<>: 'Text sym1
+     :<>: 'Text "\""
      )
 
 
