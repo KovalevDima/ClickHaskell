@@ -30,17 +30,15 @@ library
       ClickHaskell
       ClickHaskell.Buffering
       ClickHaskell.Client
-      ClickHaskell.Client.DataDsl
-      ClickHaskell.Client.Interface
-      ClickHaskell.Client.TableDsl
       ClickHaskell.DataDsl
-      ClickHaskell.DataDsl.Inserting
-      ClickHaskell.DataDsl.Selecting
       ClickHaskell.DbTypes
       ClickHaskell.Validation
       ClickHaskell.TableDsl
   other-modules:
-      ClickHaskell.DataDsl.Type
+      ClickHaskell.Client.DataDsl
+      ClickHaskell.Client.Interface
+      ClickHaskell.DataDsl.Inserting
+      ClickHaskell.DataDsl.Selecting
       Paths_ClickHaskell
   hs-source-dirs:
       src

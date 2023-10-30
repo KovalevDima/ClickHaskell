@@ -8,9 +8,6 @@
 
 module ClickHaskell.Buffering where
 
--- Internal dependencies
-import ClickHaskell.DataDsl.Inserting (InsertableInto)
-
 -- GHC included libraries imports
 import Control.Concurrent     (ThreadId, forkIO, threadDelay)
 import Control.Concurrent.STM (TBQueue, atomically, flushTBQueue, newTBQueueIO, writeTBQueue)
@@ -21,7 +18,7 @@ import GHC.Num                (Natural)
 
 -- | Forks buffer flusher with given frequency 
 --
-forkBufferFlusher :: (InsertableInto table schemaData, IsBuffer buffer schemaData)
+forkBufferFlusher :: (IsBuffer buffer schemaData)
   => Int                      -- ^ Flushes frequency
   -> buffer schemaData        -- ^ Buffer with schema specialized data
   -> (SomeException -> IO ()) -- ^ Flush action exception handler

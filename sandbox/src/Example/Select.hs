@@ -21,16 +21,16 @@ select = do
     (ChCredential "default" "" "http://localhost:8123")
     (Just $ setHttpClientTimeout 6_000_000 defaultHttpClientSettings)
 
-  print "2. Creating database and table"
-  createDatabaseIfNotExists @"example" client
-  createTableIfNotExists @(InDatabase "example" ExampleTable) client
-
-  print "3. Performing select"
+  print "2. Performing select"
   dat <-
     httpStreamChSelect
-      @(("a2" `SuchThat` HasInfix "") ExampleData)
-      @(InDatabase "example" ExampleTable)
       client
+      $ constructSelection
+        @(InDatabase "example" ExampleTable)
+        @(Result ExampleData
+          %% EqualTo "a2" "Variable"
+          %% EqualTo "a3" "Variable"
+        )
 
-  print "4. Handling data"
+  print "3. Handling data"
   print $ length dat

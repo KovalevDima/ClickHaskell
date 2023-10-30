@@ -14,24 +14,20 @@ import ClickHaskell
 -- GHC included libraries imports
 import Data.ByteString (ByteString)
 import Data.Int        (Int32)
-import Data.Proxy      (Proxy(..))
 import GHC.Generics    (Generic)
-import GHC.TypeLits    (SomeSymbol(..), someSymbolVal)
 
 
 -- 1. Describe table
 type ExampleTable =
   Table
     "example"
-    '[ DefaultColumn "a1"  ChInt64
-     , DefaultColumn "a2"  (LowCardinality ChString)
+    '[ DefaultColumn "a1" ChInt64
+     , DefaultColumn "a2" (LowCardinality ChString)
      , DefaultColumn "a3" ChDateTime
      , DefaultColumn "a4" ChUUID
      , DefaultColumn "a5" ChInt32
      ]
-    MergeTree
-    '[ OrderBy '["a1"]
-     , PartitionBy '["a1"]
+    '[ ExpectsFiltrationBy '["a1"]
      ]
 
 
@@ -57,14 +53,25 @@ dataExample = ExampleData
   }
 
 
--- >>> showCreateExample
--- "CREATE TABLE IF NOT EXISTS example.example (a1 Int64, a2 LowCardinality(String), a3 DateTime, a4 UUID, a5 Int32) Engine=MergeTree PARTITION BY tuple() ORDER BY tuple()"
-showCreateExample :: Text
-showCreateExample = showCreateTableIfNotExists @(InDatabase "example" ExampleTable)
-
-
 -- >>> showSelect
--- "SELECT a1,a2,a3,a4,a5 FROM example.example WHERE a2 like '%' FORMAT TSV"
-showSelect :: Text
-showSelect = case someSymbolVal "" of
-  (SomeSymbol (Proxy :: Proxy var)) -> tsvSelectQuery @(("a2" `SuchThat` HasInfix var) ExampleData) @(InDatabase "example"  ExampleTable)
+-- "SELECT a1,a2,a3,a4,a5 FROM example.example WHERE a3=0000000042 AND a2='text' FORMAT TSV"
+showSelect :: ByteString
+showSelect = renderSelectQuery
+  $ constructSelection
+    @(InDatabase "example" ExampleTable)
+    @(Result ExampleData
+      %% EqualTo "a2" Variable
+      %% EqualTo "a3" Variable
+    )
+    (toChType @Word32 42)
+    (toChType @ByteString "text")
+
+
+-- >>> showSelect2
+-- "SELECT a1,a2,a3,a4,a5 FROM example.example FORMAT TSV"
+showSelect2 :: ByteString
+showSelect2 = renderSelectQuery
+  $ constructSelection
+    @(InDatabase "example" ExampleTable)
+    @(Result ExampleData
+    )

@@ -8,5 +8,6 @@ dist-newstyle
 *.ps
 
 *~
+~*
 /result
 /.direnv

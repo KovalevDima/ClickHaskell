@@ -10,7 +10,7 @@ module Bench
 
 -- Internal dependencies
 import ClickHaskell
-import Example      (ExampleTable, ExampleData(..), dataExample)
+import Example      (ExampleTable, dataExample)
 
 -- GHC included libraries imports
 import Control.Concurrent (threadDelay, forkIO)
@@ -43,19 +43,15 @@ benchExecutable (
   ) = do
 
   print "1. Initializing client"
-  client <- initClient @HttpChClient
+  client <- initClient
     (ChCredential "default" "" "http://localhost:8123")
     (Just defaultHttpClientSettings)
 
-  print "2. Bootstrapping DB"
-  createDatabaseIfNotExists @"example" client
-  createTableIfNotExists @(InDatabase "example" ExampleTable) client
+  print "2. Creating buffer"
+  buffer <- createSizedBuffer @DefaultBuffer bufferSize
 
-  print "3. Creating buffer"
-  (buffer :: DefaultBuffer ExampleData) <- createSizedBuffer bufferSize
-
-  print "4. Starting buffer flusher"
-  _ <- forkBufferFlusher @(InDatabase "example" ExampleTable)
+  print "3. Starting buffer flusher"
+  !_ <- forkBufferFlusher
     (fromIntegral msBetweenChWrites)
     buffer
     print
@@ -68,8 +64,8 @@ benchExecutable (
   -- Construct or get some data
   let dataExample' = dataExample
 
-  print "5. Writing to buffer"
-  _threadId <-
+  print "4. Writing to buffer"
+  !_threadId <-
     replicateM_ concurrentBufferWriters . forkIO
       . replicateM_ rowsNumber
       $ (\someData -> writeToSizedBuffer buffer someData >> threadDelay msBetweenBufferWrites) dataExample'

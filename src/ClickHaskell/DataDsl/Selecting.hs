@@ -2,8 +2,10 @@
     AllowAmbiguousTypes
   , DataKinds
   , DefaultSignatures
+  , DerivingStrategies
   , FlexibleContexts
   , FlexibleInstances
+  , GeneralizedNewtypeDeriving
   , ScopedTypeVariables
   , MultiParamTypeClasses
   , OverloadedStrings
@@ -15,71 +17,80 @@
   , UndecidableInstances
   , UndecidableSuperClasses
 #-}
+{-# LANGUAGE InstanceSigs #-}
 
 module ClickHaskell.DataDsl.Selecting
-  ( SelectableFrom(toSelectedFrom)
-  , tsvSelectQuery
+  ( SelectableFrom(deserializeSelectionResult)
+  , renderSelectQuery
 
-  , SuchThat
+  , SelectionDescription
+  , IsSelectionDescription(SelectionDescriptionConstructor, ToSelectionResult, GetFilters)
+  , constructSelection
+
+  , type (%%)
+  , Result
   , EqualTo, HasInfix
-
-  , ToConditionalExpression, UnwrapedDescription
+  , Variable
   ) where
 
 -- Internal dependencies
-import ClickHaskell.DataDsl.Type (SpanByColumnName, GetGenericProductHeadSelector, GetGenericProductLastSelector, AssumePlacedBefore) 
-import ClickHaskell.DbTypes      (Deserializable(deserialize), fromChType, FromChType)
-import ClickHaskell.Validation   (HandleErrors)
-import ClickHaskell.TableDsl     (IsLocatedTable(..), InDatabase, IsTable(..))
+import ClickHaskell.DbTypes    (Deserializable(deserialize), fromChType, FromChType, QuerySerializable (renderForQuery))
+import ClickHaskell.Validation (HandleErrors, SpanByColumnName, GetGenericProductHeadSelector, GetGenericProductLastSelector, AssumePlacedBefore, GetRepresentationInColumns)
+import ClickHaskell.TableDsl   (IsLocatedTable(..), IsTable(..), InDatabase)
 
 -- GHC included libraries imports
-import Data.ByteString        as BS (ByteString)
-import Data.ByteString.Char8  as BS8 (intercalate, split)
-import Data.Kind              (Type)
-import Data.Proxy             (Proxy(..))
-import Data.Text              as T (Text, intercalate)
-import Data.Text.Lazy         as T (toStrict)
-import Data.Text.Lazy.Builder as T (Builder, toLazyText)
-import Data.String            (IsString(fromString))
-import GHC.Generics           (Generic(to, Rep), K1(K1), M1(M1), type (:*:)(..), D1, C1, S1, Meta(MetaSel))
-import GHC.TypeError          (TypeError, ErrorMessage(..))
-import GHC.TypeLits           (KnownSymbol, Symbol, symbolVal)
+import Data.ByteString    as BS (ByteString, intercalate, split)
+import Data.Data          (Proxy(..))
+import Data.Kind          (Type)
+import Data.Text          as T (Text, intercalate, pack)
+import Data.Text.Encoding as T (encodeUtf8, decodeUtf8)
+import Data.String        (IsString(..))
+import GHC.Generics       (Generic(to, Rep), K1(K1), M1(M1), type (:*:)(..), D1, C1, S1, Meta(MetaSel))
+import GHC.TypeError      (TypeError, ErrorMessage(..))
+import GHC.TypeLits       (Symbol, KnownSymbol, symbolVal)
+
+
 
 
 class
   ( IsTable table
   ) => SelectableFrom table dataDescripion where
-  default toSelectedFrom
+  default deserializeSelectionResult
     ::
-    ( IsTable table
-    , GSelectable
+    ( GSelectable
       (TableValidationResult table)
       (GetTableColumns table)
       (Rep dataDescripion)
     , Generic dataDescripion
     ) => BS.ByteString -> dataDescripion
-  toSelectedFrom :: BS.ByteString -> dataDescripion
-  toSelectedFrom
+
+  deserializeSelectionResult :: BS.ByteString -> dataDescripion
+  deserializeSelectionResult
     = to
     . gFromBs
       @(TableValidationResult table)
       @(GetTableColumns table)
-  {-# INLINE toSelectedFrom #-} 
+  {-# INLINE deserializeSelectionResult #-}
 
 
 instance
-  ( SelectableFrom table dataDescripion
-  ) => SelectableFrom (InDatabase db table) dataDescripion
+  ( IsTable table
+  , SelectableFrom table dataDescripion
+  ) => SelectableFrom (InDatabase dbname table) dataDescripion
   where
-  toSelectedFrom = toSelectedFrom @table
+  deserializeSelectionResult = deserializeSelectionResult @table @dataDescripion
 
 
 instance {-# OVERLAPPABLE #-}
   ( IsTable table
   , Generic dataDescripion
   , TypeError
-    (    'Text "You didn't provide (SelectableFrom (Table \"" :<>: 'Text (GetTableName table) :<>: 'Text "\" ...) "
-    :<>: ShowType dataDescripion :<>: 'Text ") instance"
+    (    'Text "You didn't provide"
+    :$$: 'Text "  ( SelectableFrom"
+    :$$: 'Text "    (Table \"" :<>: 'Text (GetTableName table) :<>: 'Text "\" ...)"
+    :$$: 'Text "    (" :<>: ShowType dataDescripion :<>: 'Text ")"
+    :$$: 'Text "  )"
+    :$$: 'Text "instance"
     :$$: 'Text "Derive it via:"
     :$$: 'Text "  |data " :<>: ShowType dataDescripion
     :$$: 'Text "  |  { .."
@@ -88,96 +99,182 @@ instance {-# OVERLAPPABLE #-}
     )
   ) => SelectableFrom table dataDescripion
   where
-  toSelectedFrom = error "Unreachable"
-
-
-
-type family UnwrapedDescription t :: Type where
-  UnwrapedDescription (SuchThat fieldName conditionalExpression handlingData) = UnwrapedDescription handlingData
-  UnwrapedDescription handlingData = handlingData
+  deserializeSelectionResult = error "Unreachable"
 
 
 
 
-class ToConditionalExpression t where
-  toConditionalExpression :: Builder
+
+
+constructSelection :: forall table selectionDescription columnsSubset .
+  ( IsSelectionDescription table selectionDescription columnsSubset
+  , columnsSubset ~ GetRepresentationInColumns (GetFilters selectionDescription) (GetTableColumns table)
+  ) => SelectionDescriptionConstructor table selectionDescription columnsSubset
+constructSelection = consructSelectionDescription @table @selectionDescription @columnsSubset emptyDesc
+
+
+class
+  ( IsLocatedTable table
+  , SelectableFrom table (ToSelectionResult selectionDescription)
+  ) => IsSelectionDescription table selectionDescription (columnsSubset :: [(Symbol, Type)])
+  where
+
+  type GetFilters selectionDescription :: [Symbol]
+  type ToSelectionResult selectionDescription :: Type
+  type SelectionDescriptionConstructor table selectionDescription columnsSubset :: Type
+  consructSelectionDescription
+    :: SelectionDescription table (ToSelectionResult selectionDescription)
+    -> SelectionDescriptionConstructor table selectionDescription columnsSubset
+
+
+instance {-# OVERLAPPING #-}
+  ( IsSelectionDescription table type2 columnsSubset
+  , KnownSymbol columnName
+  , KnownSymbol expressionValue
+  ) => IsSelectionDescription table (type2 %% EqualTo columnName (expressionValue :: Symbol)) columnsSubset
+  where
+  type GetFilters (type2 %% EqualTo columnName (expressionValue :: Symbol)) = columnName ': GetFilters type2
+  type ToSelectionResult (type2 %% EqualTo columnName expressionValue) = ToSelectionResult type2
+  type SelectionDescriptionConstructor table (type2 %% EqualTo columnName expressionValue) columnsSubset = SelectionDescriptionConstructor table type2 columnsSubset
+  consructSelectionDescription desc
+    = consructSelectionDescription @table @type2 @columnsSubset
+    . appendFilteringToSelection desc
+    $ (T.pack . symbolVal $ Proxy @columnName) <> "=" <> (T.pack . symbolVal $ Proxy @expressionValue)
+
+
+instance {-# OVERLAPPING #-}
+  ( IsSelectionDescription table type2 columnsSubset
+  , KnownSymbol columnName
+  , QuerySerializable (GetColumnTypeByName columnName columnsSubset)
+
+  ) => IsSelectionDescription table (type2 %% EqualTo columnName Variable) columnsSubset
+  where
+  type GetFilters (type2 %% EqualTo columnName Variable) = columnName ': GetFilters type2
+  type ToSelectionResult (type2 %% EqualTo columnName Variable) = ToSelectionResult type2
+  type SelectionDescriptionConstructor table (type2 %% EqualTo columnName Variable) columnsSubset = GetColumnTypeByName columnName columnsSubset -> SelectionDescriptionConstructor table type2 columnsSubset
+  consructSelectionDescription desc text
+    = consructSelectionDescription @table @type2 @columnsSubset
+    . appendFilteringToSelection desc
+    $ (T.pack . symbolVal $ Proxy @columnName) <> "=" <> T.decodeUtf8 (renderForQuery text)
+
+
+instance {-# OVERLAPPING #-}
+  ( IsSelectionDescription table type2 columnsSubset
+  , KnownSymbol columnName
+  , KnownSymbol expressionValue
+  ) => IsSelectionDescription table (type2 %% HasInfix columnName (expressionValue :: Symbol)) columnsSubset
+  where
+  type GetFilters (type2 %% HasInfix columnName expressionValue) = columnName ': GetFilters type2
+  type ToSelectionResult (type2 %% HasInfix columnName expressionValue) = ToSelectionResult type2
+  type SelectionDescriptionConstructor table (type2 %% HasInfix columnName expressionValue) columnsSubset = SelectionDescriptionConstructor table type2 columnsSubset
+  consructSelectionDescription desc
+    = consructSelectionDescription @table @type2 @columnsSubset
+    . appendFilteringToSelection desc
+    $ (T.pack . symbolVal $ Proxy @columnName) <> "=" <> (T.pack . symbolVal $ Proxy @expressionValue)
+
+
+instance {-# OVERLAPPING #-}
+  ( IsSelectionDescription table type2 columnsSubset
+  , KnownSymbol columnName
+  , QuerySerializable (GetColumnTypeByName columnName columnsSubset)
+  ) => IsSelectionDescription table (type2 %% HasInfix columnName Variable) columnsSubset
+  where
+  type GetFilters (type2 %% HasInfix columnName Variable) = columnName ': GetFilters type2
+  type ToSelectionResult (type2 %% HasInfix columnName Variable) = ToSelectionResult type2
+  type SelectionDescriptionConstructor table (type2 %% HasInfix columnName Variable) columnsSubset = GetColumnTypeByName columnName columnsSubset -> SelectionDescriptionConstructor table type2 columnsSubset
+  consructSelectionDescription desc text
+    = consructSelectionDescription @table @type2 @columnsSubset
+    . appendFilteringToSelection desc
+    $ (T.pack . symbolVal $ Proxy @columnName) <> "=" <> T.decodeUtf8 (renderForQuery text)
+
 
 instance
-  ( ToConditionalExpression (SuchThat fieldName2 conditionalExpPart2 handlingData)
-  , ToConditionalExpPart conditionalExpPart
-  , ToConditionalExpPart conditionalExpPart2
-  , KnownSymbol fieldName
-  , KnownSymbol fieldName2
-  ) => ToConditionalExpression
-    (fieldName `SuchThat` conditionalExpPart
-      (SuchThat fieldName2 conditionalExpPart2 handlingData)
+  ( SelectableFrom table selectableData
+  , IsLocatedTable table
+  ) => IsSelectionDescription table (Result selectableData) columnsSubset
+  where
+  type GetFilters (Result selectableData) = '[]
+  type ToSelectionResult (Result selectableData) = selectableData
+  type SelectionDescriptionConstructor table (Result selectableData) columnsSubset = SelectionDescription table selectableData
+  consructSelectionDescription desc = desc
+    { tableName = getTableName @table
+    , dbName = getDatabaseName @table
+    , renderedColumns = getTableRenderedColumnsNames @table
+    }
+
+
+type family GetColumnTypeByName
+  (name :: Symbol)
+  (columnsSymbol :: [(Symbol, Type)])
+  ::
+  Type
+  where
+  GetColumnTypeByName name ('(name, columnType) ': xs) = columnType
+  GetColumnTypeByName name ('(notTheSameName, _) ': xs) = GetColumnTypeByName name xs
+  GetColumnTypeByName name '[] = TypeError
+    (    'Text "Cannot find column with name \"" :<>: 'Text name :<>: 'Text "\"."  
+    :$$: 'Text " Report an issue if you see this message"
     )
-  where
-  toConditionalExpression
-    =  fromString (symbolVal (Proxy @fieldName)) <> "=" <> toConditionalExpPart @conditionalExpPart
-    <> " AND "
-    <> toConditionalExpression @((fieldName2 `SuchThat` conditionalExpPart2) handlingData)
-
-instance
-  ( ToConditionalExpPart conditionalExpPart
-  , KnownSymbol fieldName
-  ) => ToConditionalExpression (SuchThat fieldName conditionalExpPart handlingData)
-  where
-  toConditionalExpression = fromString (symbolVal (Proxy @fieldName)) <> toConditionalExpPart @conditionalExpPart
-
-instance {-# OVERLAPPABLE #-}
-  ToConditionalExpression handlingData
-  where
-  toConditionalExpression = ""
 
 
 
 
-class ToConditionalExpPart a where
-  toConditionalExpPart :: T.Builder 
 
 
-data SuchThat (fieldName :: Symbol) (conditionalExpression :: Type) handlingData
+data (%%) a b
+infixl 4 %%
 
+data Result a
 
-data EqualTo (a :: Symbol)
-instance
-  ( KnownSymbol a
-  ) => ToConditionalExpPart (EqualTo a)
-  where
-  toConditionalExpPart = "='" <> fromString (symbolVal (Proxy @a)) <> "'"
-
-data HasInfix (a :: Symbol)
-instance
-  ( KnownSymbol a
-  ) => ToConditionalExpPart (HasInfix a)
-  where
-  toConditionalExpPart = " like '" <> fromString (symbolVal (Proxy @a)) <> "%'"
+data Variable
+data EqualTo  (columnName :: Symbol) expressionValue
+data HasInfix (columnName :: Symbol) expressionValue
 
 
 
 
-tsvSelectQuery :: forall
-  handlingDataDescripion locatedTable .
-  ( IsLocatedTable locatedTable
-  , SelectableFrom locatedTable (UnwrapedDescription handlingDataDescripion)
-  , ToConditionalExpression handlingDataDescripion
-  ) => Text
-tsvSelectQuery
-  =  "SELECT " <> columnsMapping
-  <> " FROM " <> getDatabaseName @locatedTable <> "." <> getTableName @locatedTable
-  <> " " <> (if whereConditions=="" then "" else "WHERE " <> whereConditions)
-  <> " FORMAT TSV"
-  where
-  whereConditions
-    = T.toStrict
-    . T.toLazyText 
-    $ toConditionalExpression @handlingDataDescripion
-  columnsMapping
-    = T.intercalate ","
-    . map fst
-    $ getTableRenderedColumns @locatedTable
-{-# INLINE tsvSelectQuery #-}
+
+
+renderSelectQuery :: SelectionDescription table description -> ByteString
+renderSelectQuery (MkSelectionDescription columns db table filteringParts) =
+  T.encodeUtf8
+    $ "SELECT " <> T.intercalate "," columns
+    <> " FROM " <> db <> "." <> table
+    <> renderFilteringParts filteringParts
+    <> " FORMAT TSV"
+{-# INLINE renderSelectQuery #-}
+
+data SelectionDescription table description = MkSelectionDescription
+  { renderedColumns :: [Text]
+  , dbName :: Text
+  , tableName :: Text
+  , _filtertingParts :: [FilteringPart]
+  }
+
+emptyDesc :: SelectionDescription table description
+emptyDesc = MkSelectionDescription [] "" "" []
+
+appendFilteringToSelection :: SelectionDescription table description -> Text -> SelectionDescription table description
+appendFilteringToSelection (MkSelectionDescription columns db table filteringParts) filteringContent
+  = MkSelectionDescription columns db table (MkFilteringPart filteringContent : filteringParts)
+
+newtype FilteringPart = MkFilteringPart Text
+  deriving newtype (IsString)
+
+-- | WHERE query part rendering mechanism
+--
+-- >>> renderFilteringParts []
+-- ""
+-- >>> renderFilteringParts ["field1=\"Hello\""]
+-- " WHERE field1=\"Hello\""
+-- >>> renderFilteringParts ["field1=\"Hello\"", "field2=\"World\""]
+-- " WHERE field2=\"World\" AND field1=\"Hello\""
+renderFilteringParts :: [FilteringPart] -> Text
+renderFilteringParts [MkFilteringPart part] = " WHERE " <> part
+renderFilteringParts (MkFilteringPart part : otherParts) = renderFilteringParts otherParts <> " AND " <> part
+renderFilteringParts [] = ""
+
+
 
 
 
@@ -192,7 +289,8 @@ class GSelectable
 
 instance
   ( TypeError errorMsg
-  ) => GSelectable '(True, errorMsg) columns genericRep where
+  ) => GSelectable '(True, errorMsg) columns genericRep
+  where
   gFromBs _ = error "Unreachable"
   {-# INLINE gFromBs #-}
 
@@ -214,34 +312,35 @@ instance {-# OVERLAPPING #-}
 
 
 instance {-# OVERLAPPING #-}
-  ( firstTreeElement ~ GetGenericProductHeadSelector left
-  , leftCenterTreeElement ~ GetGenericProductLastSelector left
+  ( firstTreeElement       ~ GetGenericProductHeadSelector left
+  , leftCenterTreeElement  ~ GetGenericProductLastSelector left
   , rightCenterTreeElement ~ GetGenericProductHeadSelector right
-  , lastTreeElement ~ GetGenericProductLastSelector right
-  , '(firstColumnsPart, secondColumnsPart) ~ SpanByColumnName rightCenterTreeElement columns
+  , lastTreeElement        ~ GetGenericProductLastSelector right
   , derivingState ~ HandleErrors
-    '[ firstTreeElement       `AssumePlacedBefore` leftCenterTreeElement
-     , leftCenterTreeElement  `AssumePlacedBefore` rightCenterTreeElement
-     , rightCenterTreeElement `AssumePlacedBefore` lastTreeElement
-     ]
+     '[ firstTreeElement `AssumePlacedBefore` leftCenterTreeElement
+      , leftCenterTreeElement `AssumePlacedBefore` rightCenterTreeElement
+      , rightCenterTreeElement `AssumePlacedBefore` lastTreeElement
+      ]
+  , '(firstColumnsPart, secondColumnsPart) ~ SpanByColumnName rightCenterTreeElement columns
   , GSelectable derivingState firstColumnsPart left
   , GSelectable derivingState secondColumnsPart right
   ) => GSelectable '(False, unreachableError) columns (left :*: right)
   where
   gFromBs bs = {- [ClickHaskell.DataDsl.Selecting.ToDo.1]: optimize line deconstruction -}
-    let byteStrings = '\t' `BS8.split` bs
+    let byteStrings = 9 `BS.split` bs
         (leftWords, rightWords) = splitAt (length byteStrings `div` 2) byteStrings
-    in  gFromBs @derivingState @firstColumnsPart (BS8.intercalate "\t" leftWords)
-    :*: gFromBs @derivingState @secondColumnsPart (BS8.intercalate "\t" rightWords)
+    in  gFromBs @derivingState @firstColumnsPart (BS.intercalate "\t" leftWords)
+    :*: gFromBs @derivingState @secondColumnsPart (BS.intercalate "\t" rightWords)
   {-# INLINE gFromBs #-}
 
 
 instance {-# OVERLAPPING #-}
   ( Deserializable chType
   , FromChType chType outputType
-  ) => GSelectable '(False, unrechableError) '[ '(columnName, chType)]
-    ( S1 (MetaSel (Just columnName) a b f) (K1 i outputType)
-    )
+  ) => GSelectable
+    '(False, unrechableError)
+    '[ '(columnName, chType)]
+    (S1 (MetaSel (Just columnName) a b f) (K1 i outputType))
   where
   gFromBs = M1 . K1 . fromChType @chType @outputType . deserialize
   {-# INLINE gFromBs #-}
@@ -249,8 +348,9 @@ instance {-# OVERLAPPING #-}
 
 instance
   ( TypeError ('Text "Not found column with name \"" :<>: 'Text columnName :<>: 'Text "\" in table")
-  ) => GSelectable '(False, unrechableError) '[]
-    ( S1 (MetaSel (Just columnName) a b f) (K1 i outputType)
-    )
+  ) => GSelectable
+    '(False, unrechableError)
+    '[]
+    (S1 (MetaSel (Just columnName) a b f) (K1 i outputType))
   where
   gFromBs = error "Unreachable"

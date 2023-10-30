@@ -20,14 +20,12 @@ module ClickHaskell.TableDsl
   ( IsLocatedTable(..), InDatabase
 
   , IsTable(..), Table
-  , OrderBy, PartitionBy, PrimaryKey
+  , ExpectsFiltrationBy
   , DefaultColumn
-
-  , IsChEngine
-  , MergeTree
-
-  , showCreateTableIfNotExists, showCreateTable
   ) where
+
+-- Internal dependencies
+import ClickHaskell.Validation (HandleErrors)
 
 -- Internal dependencies
 import ClickHaskell.DbTypes       (ToChTypeName)
@@ -35,17 +33,13 @@ import ClickHaskell.DbTypes       (ToChTypeName)
 -- GHC included libraries imports
 import Data.Data      (Proxy (Proxy))
 import Data.Kind      (Type)
-import Data.Text      as T (Text, intercalate, pack)
+import Data.Text      as T (Text, pack)
 import Data.Type.Bool (If)
 import Data.Type.Ord  (type(>?))
 import GHC.TypeLits   (ErrorMessage (..), KnownSymbol, Symbol, TypeError, symbolVal)
 
-import ClickHaskell.Validation (HandleErrors)
 
-
-data OrderBy (columnNamesList :: [Symbol])
-data PartitionBy (columnNamesList :: [Symbol])
-data PrimaryKey (columnNamesList :: [Symbol])
+data ExpectsFiltrationBy (columnNamesList :: [Symbol])
 
 
 
@@ -53,7 +47,6 @@ data PrimaryKey (columnNamesList :: [Symbol])
 class
   IsLocatedTable table
   where
-  type GetTable table :: Type
   getDatabaseName :: Text
 
 
@@ -65,7 +58,10 @@ instance {-# OVERLAPPING #-}
   getDatabaseName = T.pack $ symbolVal (Proxy @dbName)
 
 instance {-# OVERLAPPABLE #-}
-  ( TypeError ('Text "Expected a table description with its location. E. g. (InDatabase \"myDatabase\" MyTable)" :$$: 'Text " but got " :<>: ShowType table)
+  ( TypeError
+    (    'Text "Expected a table description with its location. E. g. (InDatabase \"myDatabase\" Table)"
+    :$$: 'Text "But got only Table: " :<>: ShowType table
+    )
   ) => IsLocatedTable table
   where
   getDatabaseName = error "Unreachable"
@@ -77,10 +73,9 @@ instance {-# OVERLAPPABLE #-}
     :$$: 'Text "Specify table location:"
     :$$: 'Text "  |(InDatabase \"yourDatabaseName\" " :<>: tableName :<>: 'Text ")"
     )
-  ) => IsLocatedTable (Table a b c d)
+  ) => IsLocatedTable (Table a b c)
   where
   getDatabaseName = error "Unreachable"
-
 
 
 
@@ -94,8 +89,10 @@ class IsTable table where
 
   getTableEngineName :: Text
   getTableName :: Text
-  getTableRenderedColumnsNames :: [Text]
   getTableRenderedColumns :: [(Text, Text)]
+
+  getTableRenderedColumnsNames :: [Text]
+  getTableRenderedColumnsNames = fst `map` getTableRenderedColumns @table
 
 
 instance {-# OVERLAPPABLE #-}
@@ -119,9 +116,6 @@ instance {-# OVERLAPS #-} (IsTable table) => IsTable (InDatabase db table)
   getTableName :: Text
   getTableName = getTableName @table
 
-  getTableRenderedColumnsNames :: [Text]
-  getTableRenderedColumnsNames = getTableRenderedColumnsNames @table
-
   getTableRenderedColumns :: [(Text, Text)]
   getTableRenderedColumns = getTableRenderedColumns @table
 
@@ -130,27 +124,19 @@ instance {-# OVERLAPS #-} (IsTable table) => IsTable (InDatabase db table)
 
 instance {-# OVERLAPS #-}
   ( KnownSymbol name
-  , IsChEngine engine
   , KnownTupleSymbols (ShowColumns (TransformedToSupportedColumns columns))
-  ) => IsTable (Table name columns engine engineSpecificSettings)
+  ) => IsTable (Table name columns settings)
   where
-  type GetTableColumns (Table _ columns _ _) = TransformedToSupportedColumns columns
-  type GetTableName (Table name _ _ _) = name
-  type GetTableEngine (Table _ _ engine _) = engine
-  type GetEngineSpecificSettings (Table _ _ _ engineSpecificSettings) = engineSpecificSettings
-  type TableValidationResult (Table _ columns _ _) =
+  type GetTableColumns (Table _ columns _) = TransformedToSupportedColumns columns
+  type GetTableName (Table name _ _) = name
+  type GetEngineSpecificSettings (Table _ _ settings) = settings
+  type TableValidationResult (Table _ columns _) =
     HandleErrors
       '[ IsValidColumnsDescription (TransformedToSupportedColumns columns)
        ]
 
-  getTableEngineName :: Text
-  getTableEngineName = engineName @engine
-
   getTableName :: Text
   getTableName = (T.pack . symbolVal) (Proxy @name)
-
-  getTableRenderedColumnsNames :: [Text]
-  getTableRenderedColumnsNames = map fst $ symbolsTupleVals @(ShowColumns (TransformedToSupportedColumns columns))
 
   getTableRenderedColumns :: [(Text, Text)]
   getTableRenderedColumns = symbolsTupleVals @(ShowColumns (TransformedToSupportedColumns columns))
@@ -159,13 +145,13 @@ instance {-# OVERLAPS #-}
 
 
 type family IsValidColumnsDescription xs :: (Bool, ErrorMessage) where
-  IsValidColumnsDescription ('(sameName, type1) ': '(sameName, type2) ': xs) = '(True, 'Text "There are 2 columns with identical names: " :<>: 'Text sameName :<>: 'Text "\". Rename one of them")
+  IsValidColumnsDescription ('(sameName, _) ': '(sameName, _) ': _) = '(True, 'Text "There are 2 columns with identical names: " :<>: 'Text sameName :<>: 'Text "\". Rename one of them")
   IsValidColumnsDescription '[x] = '(False, 'Text "Report an issue if you see this message [ClickHaskell.TableDsl.1]")
   IsValidColumnsDescription '[] = '(True, 'Text "Data source should have at least one column but given empty list of expected columns")
   IsValidColumnsDescription ('(name1, type1) ': '(name2, type2) ': columns)
     = If (name1 >? name2)
       '( True
-       , 'Text "Source columns description contains aplabetically unsorted columns."
+       , 'Text "Table columns description contains aplabetically unsorted columns."
           :$$: 'Text "Column with name \"" :<>: 'Text name1 :<>: 'Text "\" should be placed after \"" :<>: 'Text name2 :<>: 'Text "\""
        )
       (IsValidColumnsDescription ('(name2, type2) ': columns))
@@ -188,6 +174,13 @@ type family ShowColumns t :: [(Symbol, Symbol)] where
   ShowColumns '[] = '[]
 
 
+class KnownTupleSymbols (ns :: [(Symbol, Symbol)]) where
+  symbolsTupleVals :: [(Text, Text)]
+instance KnownTupleSymbols '[] where symbolsTupleVals = []
+instance (KnownTupleSymbols ns, KnownSymbol a, KnownSymbol b) => KnownTupleSymbols ('(a,b) ': ns) where
+  symbolsTupleVals = (T.pack (symbolVal (Proxy @a)), T.pack (symbolVal (Proxy @b))) : symbolsTupleVals @ns
+
+
 
 
 data InDatabase
@@ -198,61 +191,9 @@ data InDatabase
 data Table
   (name :: Symbol)
   (columns :: [Type])
-  (engine :: Type)
   (engineSpecificSettings :: [Type])
 
 
 
 
-class KnownTupleSymbols (ns :: [(Symbol, Symbol)]) where
-  symbolsTupleVals :: [(Text, Text)]
-instance KnownTupleSymbols '[] where symbolsTupleVals = []
-instance (KnownTupleSymbols ns, KnownSymbol a, KnownSymbol b) => KnownTupleSymbols ('(a,b) ': ns) where
-  symbolsTupleVals = (T.pack (symbolVal (Proxy :: Proxy a)), T.pack (symbolVal (Proxy :: Proxy b))) : symbolsTupleVals @ns
-
-
-
-
 data DefaultColumn (name :: Symbol) columnType
-
-
-
-
-showCreateTableIfNotExists :: forall locatedTable .
-  ( IsLocatedTable locatedTable
-  , IsTable locatedTable
-  ) => Text
-showCreateTableIfNotExists =
-  let columns     = getTableRenderedColumns @locatedTable
-  in "CREATE TABLE IF NOT EXISTS "  <> getDatabaseName @locatedTable <> "." <> getTableName @locatedTable
-  <> " "              <> ("(" <> T.intercalate ", " (map (\(first, second) -> first <> " " <> second) columns) <> ")")
-  <> " Engine="       <> getTableEngineName @locatedTable
-  <> " PARTITION BY " <> "tuple()"
-  <> " ORDER BY "     <> "tuple()"
-
-
-showCreateTable :: forall locatedTable .
-  ( IsLocatedTable locatedTable
-  , IsTable locatedTable
-  ) => Text
-showCreateTable =
-  let columns     = getTableRenderedColumns @locatedTable
-  in "CREATE TABLE "  <> getDatabaseName @locatedTable <> "." <> getTableName @locatedTable
-  <> " "              <> ("(" <> T.intercalate ", " (map (\(first, second) -> first <> " " <> second) columns) <> ")")
-  <> " Engine="       <> getTableEngineName @locatedTable
-  <> " PARTITION BY " <> "tuple()"
-  <> " ORDER BY "     <> "tuple()"
-
-
-
-
-class    IsChEngine engine    where engineName :: Text
-instance IsChEngine MergeTree where engineName = "MergeTree"
-instance {-# OVERLAPPABLE #-} TypeError
-  (     'Text "Unknown table engine " ':<>: 'ShowType a
-  ':$$: 'Text "Use one of the provided:"
-  ':$$: 'Text "  MergeTree"
-  ':$$: 'Text "or implement your own support"
-  )  => IsChEngine a where engineName = error "Unreachable"
-
-data MergeTree

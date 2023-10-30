@@ -23,10 +23,9 @@ module ClickHaskell.DataDsl.Inserting
   ) where
 
 -- Internal dependencies
-import ClickHaskell.DataDsl.Type (GetGenericProductHeadSelector, SpanByColumnName, GetGenericProductLastSelector, AssumePlacedBefore)
-import ClickHaskell.DbTypes      (Serializable(serialize), ToChType(toChType))
-import ClickHaskell.Validation   (HandleErrors, )
-import ClickHaskell.TableDsl     (InDatabase, IsLocatedTable(getDatabaseName), IsTable(..))
+import ClickHaskell.DbTypes    (Serializable(serialize), ToChType(toChType))
+import ClickHaskell.Validation (HandleErrors, GetGenericProductHeadSelector, SpanByColumnName, GetGenericProductLastSelector, AssumePlacedBefore)
+import ClickHaskell.TableDsl   (InDatabase, IsTable(..), IsLocatedTable (..))
 
 -- GHC included libraries imports
 import Data.ByteString as BS (ByteString)
@@ -41,13 +40,13 @@ class
   ) => InsertableInto table insertableData where
   default toInsertableInto
     ::
-    ( IsTable table
-    , GInsertable
+    ( GInsertable
       (TableValidationResult table)
       (GetTableColumns table)
       (Rep insertableData)
     , Generic insertableData
     ) => insertableData -> BS.ByteString
+
   toInsertableInto :: insertableData -> BS.ByteString
   toInsertableInto
     = gToBs
@@ -68,8 +67,12 @@ instance  {-# OVERLAPPABLE #-}
   ( IsTable table
   , Generic insertableData
   , TypeError
-    (    'Text "You didn't provide (InsertableInto (Table \"" :<>: 'Text (GetTableName table) :<>: 'Text "\" ...) "
-    :<>: ShowType insertableData :<>: 'Text ") instance"
+    (    'Text "You didn't provide"
+    :$$: 'Text "  ( InsertableInto "
+    :$$: 'Text "    (Table \"" :<>: 'Text (GetTableName table) :<>: 'Text "\" ...) "
+    :$$: 'Text "    (" :<>: ShowType insertableData :<>: 'Text ")"
+    :$$: 'Text "  )"
+    :$$: 'Text "instance"
     :$$: 'Text "Derive it via:"
     :$$: 'Text "  |data " :<>: ShowType insertableData
     :$$: 'Text "  |  { .."
@@ -133,30 +136,31 @@ instance {-# OVERLAPPING #-}
   , rightCenterTreeElement ~ GetGenericProductHeadSelector right
   , lastTreeElement ~ GetGenericProductLastSelector right
   , '(firstColumnsPart, secondColumnsPart) ~ SpanByColumnName rightCenterTreeElement columns
-  , '(doesHaveErrors, text) ~ HandleErrors
+  , derivingState ~ HandleErrors
     '[ firstTreeElement       `AssumePlacedBefore` leftCenterTreeElement
      , leftCenterTreeElement  `AssumePlacedBefore` rightCenterTreeElement
      , rightCenterTreeElement `AssumePlacedBefore` lastTreeElement
      ]
-  , GInsertable '(doesHaveErrors, text) firstColumnsPart left
-  , GInsertable '(doesHaveErrors, text) secondColumnsPart right
+  , GInsertable derivingState firstColumnsPart left
+  , GInsertable derivingState secondColumnsPart right
   ) => GInsertable '(False, unreachableError) columns (left :*: right)
   where
   gToBs (left :*: right)
-    =          gToBs @'(doesHaveErrors, text) @firstColumnsPart left
-    <> "\t" <> gToBs @'(doesHaveErrors, text) @secondColumnsPart right
+    =          gToBs @derivingState @firstColumnsPart left
+    <> "\t" <> gToBs @derivingState @secondColumnsPart right
   {-# INLINE gToBs #-}
 
 
 instance {-# OVERLAPPING #-}
   ( Serializable chType
-  , ToChType chType inputType
+  , ToChType inputType chType
   ) => GInsertable '(False, unrechableError) '[ '(columnName, chType)]
     ( S1 (MetaSel (Just columnName) a b f) (Rec0 inputType)
     )
   where
-  gToBs = serialize . toChType @chType @inputType . unK1 . unM1
+  gToBs = serialize . toChType @inputType @chType . unK1 . unM1
   {-# INLINE gToBs #-}
+
 
 instance
   ( TypeError
@@ -166,6 +170,7 @@ instance
   ) => GInsertable '(False, unrechableError) ('(otherColumnName, chType) ': someElem ': moreColumns) (S1 columnName (K1 i inputType))
   where
   gToBs _ = error "Unreachable"
+
 
 instance
   ( TypeError

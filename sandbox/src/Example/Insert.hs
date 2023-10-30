@@ -23,15 +23,11 @@ insert = do
     (ChCredential "default" "" "http://localhost:8123")
     Nothing
 
-  -- 2. Create db and table
-  createDatabaseIfNotExists @"example" client
-  createTableIfNotExists @(InDatabase "example" ExampleTable) client
-
-  print "3. Create buffer" 
+  print "2. Create buffer" 
   buffer <- createSizedBuffer @DefaultBuffer 500_000
 
-  print "4. Start buffer flusher"
-  _ <- forkBufferFlusher @(InDatabase "example" ExampleTable)
+  print "3. Start buffer flusher"
+  _ <- forkBufferFlusher
     5_000_000
     buffer
     print
@@ -40,7 +36,7 @@ insert = do
   -- Construct or get some data
   let dataExample' = dataExample
 
-  print "5. Writing data to buffer"
+  print "4. Writing data to buffer"
   writeToSizedBuffer buffer dataExample'
 
   threadDelay 15_000_000
