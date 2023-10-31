@@ -113,6 +113,56 @@ constructSelection :: forall table selectionDescription columnsSubset .
 constructSelection = consructSelectionDescription @table @selectionDescription @columnsSubset emptyDesc
 
 
+data (%%) a b
+infixl 4 %%
+
+data Result a
+
+data Variable
+data EqualTo  (columnName :: Symbol) expressionValue
+data HasInfix (columnName :: Symbol) expressionValue
+
+
+renderSelectQuery :: SelectionDescription table description -> ByteString
+renderSelectQuery (MkSelectionDescription columns db table filteringParts) =
+  T.encodeUtf8
+    $ "SELECT " <> T.intercalate "," columns
+    <> " FROM " <> db <> "." <> table
+    <> renderFilteringParts filteringParts
+    <> " FORMAT TSV"
+{-# INLINE renderSelectQuery #-}
+
+data SelectionDescription table description = MkSelectionDescription
+  { renderedColumns :: [Text]
+  , dbName :: Text
+  , tableName :: Text
+  , _filtertingParts :: [FilteringPart]
+  }
+
+emptyDesc :: SelectionDescription table description
+emptyDesc = MkSelectionDescription [] "" "" []
+
+appendFilteringToSelection :: SelectionDescription table description -> Text -> SelectionDescription table description
+appendFilteringToSelection (MkSelectionDescription columns db table filteringParts) filteringContent
+  = MkSelectionDescription columns db table (MkFilteringPart filteringContent : filteringParts)
+
+newtype FilteringPart = MkFilteringPart Text
+  deriving newtype (IsString)
+
+-- | WHERE query part rendering mechanism
+--
+-- >>> renderFilteringParts []
+-- ""
+-- >>> renderFilteringParts ["field1=\"Hello\""]
+-- " WHERE field1=\"Hello\""
+-- >>> renderFilteringParts ["field1=\"Hello\"", "field2=\"World\""]
+-- " WHERE field2=\"World\" AND field1=\"Hello\""
+renderFilteringParts :: [FilteringPart] -> Text
+renderFilteringParts [MkFilteringPart part] = " WHERE " <> part
+renderFilteringParts (MkFilteringPart part : otherParts) = renderFilteringParts otherParts <> " AND " <> part
+renderFilteringParts [] = ""
+
+
 class
   ( IsLocatedTable table
   , SelectableFrom table (ToSelectionResult selectionDescription)
@@ -158,36 +208,6 @@ instance {-# OVERLAPPING #-}
     $ (T.pack . symbolVal $ Proxy @columnName) <> "=" <> T.decodeUtf8 (renderForQuery text)
 
 
-instance {-# OVERLAPPING #-}
-  ( IsSelectionDescription table type2 columnsSubset
-  , KnownSymbol columnName
-  , KnownSymbol expressionValue
-  ) => IsSelectionDescription table (type2 %% HasInfix columnName (expressionValue :: Symbol)) columnsSubset
-  where
-  type GetFilters (type2 %% HasInfix columnName expressionValue) = columnName ': GetFilters type2
-  type ToSelectionResult (type2 %% HasInfix columnName expressionValue) = ToSelectionResult type2
-  type SelectionDescriptionConstructor table (type2 %% HasInfix columnName expressionValue) columnsSubset = SelectionDescriptionConstructor table type2 columnsSubset
-  consructSelectionDescription desc
-    = consructSelectionDescription @table @type2 @columnsSubset
-    . appendFilteringToSelection desc
-    $ (T.pack . symbolVal $ Proxy @columnName) <> "=" <> (T.pack . symbolVal $ Proxy @expressionValue)
-
-
-instance {-# OVERLAPPING #-}
-  ( IsSelectionDescription table type2 columnsSubset
-  , KnownSymbol columnName
-  , QuerySerializable (GetColumnTypeByName columnName columnsSubset)
-  ) => IsSelectionDescription table (type2 %% HasInfix columnName Variable) columnsSubset
-  where
-  type GetFilters (type2 %% HasInfix columnName Variable) = columnName ': GetFilters type2
-  type ToSelectionResult (type2 %% HasInfix columnName Variable) = ToSelectionResult type2
-  type SelectionDescriptionConstructor table (type2 %% HasInfix columnName Variable) columnsSubset = GetColumnTypeByName columnName columnsSubset -> SelectionDescriptionConstructor table type2 columnsSubset
-  consructSelectionDescription desc text
-    = consructSelectionDescription @table @type2 @columnsSubset
-    . appendFilteringToSelection desc
-    $ (T.pack . symbolVal $ Proxy @columnName) <> "=" <> T.decodeUtf8 (renderForQuery text)
-
-
 instance
   ( SelectableFrom table selectableData
   , IsLocatedTable table
@@ -215,64 +235,6 @@ type family GetColumnTypeByName
     (    'Text "Cannot find column with name \"" :<>: 'Text name :<>: 'Text "\"."  
     :$$: 'Text " Report an issue if you see this message"
     )
-
-
-
-
-
-
-data (%%) a b
-infixl 4 %%
-
-data Result a
-
-data Variable
-data EqualTo  (columnName :: Symbol) expressionValue
-data HasInfix (columnName :: Symbol) expressionValue
-
-
-
-
-
-
-renderSelectQuery :: SelectionDescription table description -> ByteString
-renderSelectQuery (MkSelectionDescription columns db table filteringParts) =
-  T.encodeUtf8
-    $ "SELECT " <> T.intercalate "," columns
-    <> " FROM " <> db <> "." <> table
-    <> renderFilteringParts filteringParts
-    <> " FORMAT TSV"
-{-# INLINE renderSelectQuery #-}
-
-data SelectionDescription table description = MkSelectionDescription
-  { renderedColumns :: [Text]
-  , dbName :: Text
-  , tableName :: Text
-  , _filtertingParts :: [FilteringPart]
-  }
-
-emptyDesc :: SelectionDescription table description
-emptyDesc = MkSelectionDescription [] "" "" []
-
-appendFilteringToSelection :: SelectionDescription table description -> Text -> SelectionDescription table description
-appendFilteringToSelection (MkSelectionDescription columns db table filteringParts) filteringContent
-  = MkSelectionDescription columns db table (MkFilteringPart filteringContent : filteringParts)
-
-newtype FilteringPart = MkFilteringPart Text
-  deriving newtype (IsString)
-
--- | WHERE query part rendering mechanism
---
--- >>> renderFilteringParts []
--- ""
--- >>> renderFilteringParts ["field1=\"Hello\""]
--- " WHERE field1=\"Hello\""
--- >>> renderFilteringParts ["field1=\"Hello\"", "field2=\"World\""]
--- " WHERE field2=\"World\" AND field1=\"Hello\""
-renderFilteringParts :: [FilteringPart] -> Text
-renderFilteringParts [MkFilteringPart part] = " WHERE " <> part
-renderFilteringParts (MkFilteringPart part : otherParts) = renderFilteringParts otherParts <> " AND " <> part
-renderFilteringParts [] = ""
 
 
 

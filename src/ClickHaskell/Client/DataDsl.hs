@@ -33,8 +33,7 @@ httpStreamChSelect :: forall table descripion .
   ( SelectableFrom table descripion
   ) => HttpChClient -> SelectionDescription table descripion -> IO [descripion]
 httpStreamChSelect (HttpChClient man req) descConstructor = do
-  resp <- H.httpLbs req{H.requestBody = H.RequestBodyBS (renderSelectQuery $ descConstructor)}
-    man
+  resp <- H.httpLbs req{H.requestBody = H.RequestBodyBS (renderSelectQuery descConstructor)} man
 
   when (H.statusCode (responseStatus resp) /= 200) $
     throw $ ChException $ T.decodeUtf8 $ BS.toStrict $ responseBody resp

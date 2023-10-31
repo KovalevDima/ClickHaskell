@@ -26,17 +26,21 @@ type ExampleTable =
      , DefaultColumn "a3" ChDateTime
      , DefaultColumn "a4" ChUUID
      , DefaultColumn "a5" ChInt32
+     , DefaultColumn "a6" (Nullable ChString)
+     , DefaultColumn "a7" (LowCardinality ChString)
      ]
     '[ ExpectsFiltrationBy '["a1"]
      ]
 
 
 data ExampleData = ExampleData
-  { a1 :: Int64
+  { a1 :: ChInt64
   , a2 :: ByteString
   , a3 :: Word32
   , a4 :: ChUUID
   , a5 :: Int32
+  , a6 :: Nullable ChString
+  , a7 :: LowCardinality ChString
   } deriving (Generic)
 
 instance SelectableFrom ExampleTable ExampleData
@@ -45,11 +49,13 @@ instance InsertableInto ExampleTable ExampleData
 
 dataExample :: ExampleData
 dataExample = ExampleData
-  { a1 = 42
+  { a1 = toChType @Int64 42
   , a2 = "text"
   , a4 = nilChUUID
   , a3 = 42 
   , a5 = 42 :: Int32
+  , a6 = Just "500"
+  , a7 = toChType ("5" :: Text)
   }
 
 
