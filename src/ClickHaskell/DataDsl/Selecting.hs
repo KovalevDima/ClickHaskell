@@ -266,8 +266,8 @@ instance {-# OVERLAPPING #-}
 
 
 instance {-# OVERLAPPING #-}
-  ( GSelectable '(False, unreachableError) columns (left :*: right)
-  ) => GSelectable '(False, unreachableError) columns (C1 c (left :*: right))
+  ( GSelectable '(False, unreachableError) columns f
+  ) => GSelectable '(False, unreachableError) columns (C1 c f)
   where
   gFromBs = M1 . gFromBs @'(False, unreachableError) @columns
   {-# INLINE gFromBs #-}
@@ -313,6 +313,6 @@ instance
   ) => GSelectable
     '(False, unrechableError)
     '[]
-    (S1 (MetaSel (Just columnName) a b f) (K1 i outputType))
+    (S1 (MetaSel (Just columnName) a b f) k)
   where
   gFromBs = error "Unreachable"

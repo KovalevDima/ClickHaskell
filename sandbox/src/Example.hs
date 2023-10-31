@@ -1,6 +1,7 @@
 {-# LANGUAGE
     DataKinds
   , DerivingStrategies
+  , DuplicateRecordFields
   , OverloadedStrings
   , UndecidableInstances
 #-}
@@ -27,10 +28,24 @@ type ExampleTable =
      , DefaultColumn "a4" ChUUID
      , DefaultColumn "a5" ChInt32
      , DefaultColumn "a6" (Nullable ChString)
-     , DefaultColumn "a7" (LowCardinality ChString)
+     , DefaultColumn "a7" (LowCardinality ChString) 
      ]
     '[ ExpectsFiltrationBy '["a1"]
      ]
+
+
+type SingleFieldTable =
+  Table
+    "example2"
+    '[ DefaultColumn "a1" ChInt64
+     ]
+    '[
+     ]
+
+
+newtype SingleFieldRecord = MkSingleFieldRecord {a1 :: Int64} deriving Generic
+instance SelectableFrom SingleFieldTable SingleFieldRecord
+instance InsertableInto SingleFieldTable SingleFieldRecord
 
 
 data ExampleData = ExampleData
