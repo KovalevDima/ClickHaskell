@@ -28,9 +28,9 @@ select = do
       $ constructSelection
         @(InDatabase "example" ExampleTable)
         @(Result ExampleData
-          %% EqualTo "a2" "Variable"
+          %% EqualTo "a2" Variable
           %% EqualTo "a3" "Variable"
         )
-
+        (toChType ("" :: Text))
   print "3. Handling data"
   print $ length dat

@@ -23,7 +23,7 @@ module ClickHaskell.DataDsl.Inserting
   ) where
 
 -- Internal dependencies
-import ClickHaskell.DbTypes    (Serializable(serialize), ToChType(toChType))
+import ClickHaskell.DbTypes    (Serializable(serialize), toChType, ToChType)
 import ClickHaskell.Validation (HandleErrors, GetGenericProductHeadSelector, SpanByColumnName, GetGenericProductLastSelector, AssumePlacedBefore)
 import ClickHaskell.TableDsl   (InDatabase, IsTable(..), IsLocatedTable (..))
 
@@ -153,7 +153,7 @@ instance {-# OVERLAPPING #-}
 
 instance {-# OVERLAPPING #-}
   ( Serializable chType
-  , ToChType inputType chType
+  , ToChType chType inputType
   ) => GInsertable '(False, unrechableError) '[ '(columnName, chType)]
     ( S1 (MetaSel (Just columnName) a b f) (Rec0 inputType)
     )

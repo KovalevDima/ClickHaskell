@@ -75,7 +75,7 @@ dataExample = ExampleData
 
 
 -- >>> showSelect
--- "SELECT a1,a2,a3,a4,a5 FROM example.example WHERE a3=0000000042 AND a2='text' FORMAT TSV"
+-- "SELECT a1,a2,a3,a4,a5,a6,a7 FROM example.example WHERE a3=0000000042 AND a2='text' FORMAT TSV"
 showSelect :: ByteString
 showSelect = renderSelectQuery
   $ constructSelection
