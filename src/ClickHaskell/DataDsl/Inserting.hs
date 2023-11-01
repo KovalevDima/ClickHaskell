@@ -23,7 +23,7 @@ module ClickHaskell.DataDsl.Inserting
   ) where
 
 -- Internal dependencies
-import ClickHaskell.DbTypes    (Serializable(serialize), toChType, ToChType)
+import ClickHaskell.DbTypes    (Serializable(serialize), ToChType(toChType))
 import ClickHaskell.Validation (HandleErrors, GetGenericProductHeadSelector, SpanByColumnName, GetGenericProductLastSelector, AssumePlacedBefore)
 import ClickHaskell.TableDsl   (InDatabase, IsTable(..), IsLocatedTable (..))
 
@@ -158,7 +158,7 @@ instance {-# OVERLAPPING #-}
     ( S1 (MetaSel (Just columnName) a b f) (Rec0 inputType)
     )
   where
-  gToBs = serialize . toChType @inputType @chType . unK1 . unM1
+  gToBs = serialize . toChType @chType @inputType . unK1 . unM1
   {-# INLINE gToBs #-}
 
 

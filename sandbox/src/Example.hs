@@ -64,13 +64,13 @@ instance InsertableInto ExampleTable ExampleData
 
 dataExample :: ExampleData
 dataExample = ExampleData
-  { a1 = toChType @Int64 42
+  { a1 = toCh @Int64 42
   , a2 = "text"
   , a4 = nilChUUID
   , a3 = 42 
   , a5 = 42 :: Int32
   , a6 = Just "500"
-  , a7 = toChType ("5" :: Text)
+  , a7 = toCh ("5" :: Text)
   }
 
 
@@ -84,8 +84,8 @@ showSelect = renderSelectQuery
       %% EqualTo "a2" Variable
       %% EqualTo "a3" Variable
     )
-    (toChType @Word32 42)
-    (toChType @ByteString "text")
+    (toCh @Word32 42)
+    (toCh @ByteString "text")
 
 
 -- >>> showSelect2
