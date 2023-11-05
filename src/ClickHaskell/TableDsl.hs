@@ -25,9 +25,6 @@ module ClickHaskell.TableDsl
   ) where
 
 -- Internal dependencies
-import ClickHaskell.Validation (HandleErrors)
-
--- Internal dependencies
 import ClickHaskell.DbTypes       (ToChTypeName)
 
 -- GHC included libraries imports
@@ -130,10 +127,7 @@ instance {-# OVERLAPS #-}
   type GetTableColumns (Table _ columns _) = TransformedToSupportedColumns columns
   type GetTableName (Table name _ _) = name
   type GetEngineSpecificSettings (Table _ _ settings) = settings
-  type TableValidationResult (Table _ columns _) =
-    HandleErrors
-      '[ IsValidColumnsDescription (TransformedToSupportedColumns columns)
-       ]
+  type TableValidationResult (Table _ columns _) = IsValidColumnsDescription (TransformedToSupportedColumns columns)
 
   getTableName :: Text
   getTableName = (T.pack . symbolVal) (Proxy @name)

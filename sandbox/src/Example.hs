@@ -68,9 +68,9 @@ dataExample = ExampleData
   , a2 = "text"
   , a4 = nilChUUID
   , a3 = 42 
-  , a5 = 42 :: Int32
+  , a5 = 42
   , a6 = Just "500"
-  , a7 = toCh ("5" :: Text)
+  , a7 = toCh @Text "5"
   }
 
 
@@ -89,7 +89,7 @@ showSelect = renderSelectQuery
 
 
 -- >>> showSelect2
--- "SELECT a1,a2,a3,a4,a5 FROM example.example FORMAT TSV"
+-- "SELECT a1,a2,a3,a4,a5,a6,a7 FROM example.example FORMAT TSV"
 showSelect2 :: ByteString
 showSelect2 = renderSelectQuery
   $ constructSelection
