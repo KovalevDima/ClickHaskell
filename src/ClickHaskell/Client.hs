@@ -36,6 +36,22 @@ import Network.HTTP.Simple         as H (setRequestManager)
 import Network.HTTP.Types          as H (Status(..))
 
 
+
+{- ToDo:
+  1.Wrap database responses with query Summary info.
+    Database responds it inside `X-ClickHouse-Summary` HTTP header in json format:
+      { "read_rows":"1"
+      , "read_bytes":"78"
+      , "written_rows":"1"
+      , "written_bytes":"78"
+      , "total_rows_to_read":"0"
+      , "result_rows":"1"
+      , "result_bytes":"78"
+      }
+  2. Extend ChException type to all of the database errors
+
+-}
+
 httpStreamChSelect :: forall table descripion .
   ( SelectableFrom table descripion
   ) => HttpChClient -> SelectionDescription table descripion -> IO [descripion]
