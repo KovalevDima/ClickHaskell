@@ -1,22 +1,19 @@
 {-# LANGUAGE
-    DeriveAnyClass
+    AllowAmbiguousTypes
+  , DeriveAnyClass
   , DeriveGeneric
+  , FlexibleContexts
   , FunctionalDependencies
+  , MonoLocalBinds
   , OverloadedStrings
+  , ScopedTypeVariables
+  , TypeApplications
   , TypeSynonymInstances
 #-}
-{-# LANGUAGE
-    AllowAmbiguousTypes
-  , FlexibleContexts
-  , MonoLocalBinds
-  , TypeApplications
-  , ScopedTypeVariables
-#-}
 module ClickHaskell.Client where
--- Internal dependencies
 
-import ClickHaskell.DataDsl          (InsertableInto (..), SelectableFrom (..), tsvInsertQueryHeader, renderSelectQuery, SelectionDescription)
-import ClickHaskell.TableDsl         (IsLocatedTable)
+-- Internal dependencies
+import ClickHaskell.DataDsl  (InsertableInto (..), SelectableFrom (..), tsvInsertQueryHeader, renderSelectQuery, SelectionDescription)
 
 -- GHC included libraries imports
 import Control.DeepSeq            (NFData)
@@ -56,7 +53,6 @@ httpStreamChSelect (HttpChClient man req) descConstructor = do
 
 httpStreamChInsert :: forall locatedTable handlingDataDescripion .
   ( InsertableInto locatedTable handlingDataDescripion
-  , IsLocatedTable locatedTable
   ) => HttpChClient -> [handlingDataDescripion] -> IO (H.Response BSL.ByteString)
 httpStreamChInsert (HttpChClient man req) schemaList = do
   resp <- H.httpLbs
@@ -83,9 +79,10 @@ newtype ChException = ChException
   } deriving (Show, Exception)
 
 data ChCredential = ChCredential
-  { chLogin :: !Text
-  , chPass  :: !Text
-  , chUrl   :: !Text
+  { chLogin    :: !Text
+  , chPass     :: !Text
+  , chUrl      :: !Text
+  , chDatabase :: !Text
   }
   deriving (Generic, NFData, Show, Eq)
 
@@ -103,7 +100,7 @@ setHttpClientTimeout :: Int -> HttpClientSettings -> HttpClientSettings
 setHttpClientTimeout msTimeout manager = manager{managerResponseTimeout=H.responseTimeoutMicro msTimeout}
 
 instance ChClient HttpChClient HttpClientSettings where
-  initClient (ChCredential login pass url) mManagerSettings = do
+  initClient (ChCredential login pass url databaseName) mManagerSettings = do
     man <- H.newManager $ fromMaybe H.defaultManagerSettings mManagerSettings
     req <- H.setRequestManager man <$> H.parseRequest (T.unpack url)
 
@@ -114,6 +111,7 @@ instance ChClient HttpChClient HttpClientSettings where
         , H.requestHeaders =
           [ ("X-ClickHouse-User", encodeUtf8 login)
           , ("X-ClickHouse-Key", encodeUtf8 pass)
+          , ("X-ClickHouse-Database", encodeUtf8 databaseName)
           ]
           <> H.requestHeaders req
         }

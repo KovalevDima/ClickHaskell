@@ -5,13 +5,10 @@
 
 module Example.Insert where
 
--- Internal dependencies
-import ClickHaskell
-import Example      (ExampleTable, dataExample)
+import Control.Monad (void)
 
--- GHC included libraries imports
-import Control.Concurrent (threadDelay)
-import Control.Monad      (void)
+import ClickHaskell.Client (httpStreamChInsert, ChClient(..), ChCredential(..), HttpChClient)
+import Example             (ExampleTable, dataExample)
 
 
 insert :: IO ()
@@ -20,23 +17,7 @@ insert = do
   print "1. Init client"
   client <- initClient
     @HttpChClient
-    (ChCredential "default" "" "http://localhost:8123")
+    (ChCredential "default" "" "http://localhost:8123" "exampleDb")
     Nothing
 
-  print "2. Create buffer" 
-  buffer <- createSizedBuffer @DefaultBuffer 500_000
-
-  print "3. Start buffer flusher"
-  _ <- forkBufferFlusher
-    5_000_000
-    buffer
-    print
-    (void . httpStreamChInsert @(InDatabase "example" ExampleTable) client)
-
-  -- Construct or get some data
-  let dataExample' = dataExample
-
-  print "4. Writing data to buffer"
-  writeToSizedBuffer buffer dataExample'
-
-  threadDelay 15_000_000
+  void $ httpStreamChInsert @ExampleTable client [dataExample]

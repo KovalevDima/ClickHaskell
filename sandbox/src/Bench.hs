@@ -8,11 +8,10 @@ module Bench
   , BenchSettings(..)
   ) where
 
--- Internal dependencies
-import ClickHaskell
-import Example      (ExampleTable, dataExample)
+import ClickHaskell.Buffering (forkBufferFlusher, BufferSize, DefaultBuffer, IsBuffer(..))
+import ClickHaskell.Client    (defaultHttpClientSettings, httpStreamChInsert, ChClient(..), ChCredential(..))
+import Example                (ExampleTable, dataExample)
 
--- GHC included libraries imports
 import Control.Concurrent (threadDelay, forkIO)
 import Control.Monad      (replicateM_, void)
 
@@ -44,7 +43,7 @@ benchExecutable (
 
   print "1. Initializing client"
   client <- initClient
-    (ChCredential "default" "" "http://localhost:8123")
+    (ChCredential "default" "" "http://localhost:8123" "example")
     (Just defaultHttpClientSettings)
 
   print "2. Creating buffer"
@@ -57,7 +56,7 @@ benchExecutable (
     print
     ( \dataList
       -> print "Starting writing to database"
-      >> void (httpStreamChInsert @(InDatabase "example" ExampleTable) client dataList)
+      >> void (httpStreamChInsert @ExampleTable client dataList)
       >> print "Writing completed"
     )
 
@@ -68,6 +67,10 @@ benchExecutable (
   !_threadId <-
     replicateM_ concurrentBufferWriters . forkIO
       . replicateM_ rowsNumber
-      $ (\someData -> writeToSizedBuffer buffer someData >> threadDelay msBetweenBufferWrites) dataExample'
+      . (\someData
+        -> writeToSizedBuffer buffer someData
+        >> threadDelay msBetweenBufferWrites
+        )
+      $ dataExample'
 
   threadDelay 60_000_000

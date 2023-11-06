@@ -31,6 +31,7 @@ module ClickHaskell.DataDsl
   , SelectionDescription
   , IsSelectionDescription(SelectionDescriptionConstructor, ToSelectionResult, GetFilters)
   , constructSelection
+  -- , setDbName
 
   , type (%%)
   , Result
@@ -39,7 +40,7 @@ module ClickHaskell.DataDsl
   ) where
 
 -- Internal dependencies
-import ClickHaskell.TableDsl   (InDatabase, IsTable(..), IsLocatedTable (..))
+import ClickHaskell.TableDsl   (IsTable(..))
 import ClickHaskell.DbTypes    (Serializable(serialize), Deserializable(deserialize), FromChType(fromChType), ToChType(toChType), QuerySerializable (renderForQuery))
 
 
@@ -62,62 +63,54 @@ import GHC.TypeLits       (Symbol, KnownSymbol, symbolVal)
 
 class
   ( IsTable table
-  ) => InsertableInto table insertableData where
+  ) => InsertableInto table record where
   default toTsvLine
     ::
     ( GInsertable
       (TableValidationResult table)
       (GetTableColumns table)
-      (Rep insertableData)
-    , Generic insertableData
-    ) => insertableData -> BS.ByteString
+      (Rep record)
+    , Generic record
+    ) => record -> BS.ByteString
 
-  toTsvLine :: insertableData -> BS.ByteString
+  toTsvLine :: record -> BS.ByteString
   toTsvLine
     = gToTsvBs
       @(TableValidationResult table)
       @(GetTableColumns table)
     . from
-  {-# INLINE toTsvLine #-}
-
-
-instance {-# OVERLAPPING #-}
-  ( InsertableInto table insertableData
-  ) => InsertableInto (InDatabase dbName table) insertableData
-  where
-  toTsvLine = toTsvLine @table
+  {-# NOINLINE toTsvLine #-}
 
 
 instance  {-# OVERLAPPABLE #-}
   ( IsTable table
-  , Generic insertableData
+  , Generic record
   , TypeError
     (    'Text "You didn't provide"
     :$$: 'Text "  ( InsertableInto "
     :$$: 'Text "    (Table \"" :<>: 'Text (GetTableName table) :<>: 'Text "\" ...) "
-    :$$: 'Text "    (" :<>: ShowType insertableData :<>: 'Text ")"
+    :$$: 'Text "    (" :<>: ShowType record :<>: 'Text ")"
     :$$: 'Text "  )"
     :$$: 'Text "instance"
     :$$: 'Text "Derive it via:"
-    :$$: 'Text "  |data " :<>: ShowType insertableData
+    :$$: 'Text "  |data " :<>: ShowType record
     :$$: 'Text "  |  { .."
     :$$: 'Text "  |  } deriving (Generic)"
-    :$$: 'Text "  |instance InsertableInto (Table \"" :<>: 'Text (GetTableName table)  :<>: 'Text "\" ...) " :<>: ShowType insertableData
+    :$$: 'Text "  |instance InsertableInto (Table \"" :<>: 'Text (GetTableName table)  :<>: 'Text "\" ...) " :<>: ShowType record
     )
-  ) => InsertableInto table insertableData
+  ) => InsertableInto table record
   where
   toTsvLine = error "Unreachable"
 
 
 
 
-tsvInsertQueryHeader :: forall locatedTable handlingDataDescripion .
-  ( InsertableInto locatedTable handlingDataDescripion
-  , IsLocatedTable locatedTable
+tsvInsertQueryHeader :: forall locatedTable description .
+  ( InsertableInto locatedTable description
   ) => Text
 tsvInsertQueryHeader =
   let columnsMapping = T.intercalate "," $ getTableRenderedColumnsNames @locatedTable
-  in "INSERT INTO " <> getDatabaseName @locatedTable <> "." <> getTableName @locatedTable
+  in "INSERT INTO " <> getTableName @locatedTable
   <> " (" <> columnsMapping <> ")"
   <> " FORMAT TSV\n"
 
@@ -239,14 +232,6 @@ class
   {-# INLINE fromTsvLine #-}
 
 
-instance
-  ( IsTable table
-  , SelectableFrom table dataDescripion
-  ) => SelectableFrom (InDatabase dbname table) dataDescripion
-  where
-  fromTsvLine = fromTsvLine @table @dataDescripion
-
-
 instance {-# OVERLAPPABLE #-}
   ( IsTable table
   , Generic dataDescripion
@@ -288,27 +273,26 @@ data HasInfix (columnName :: Symbol) expressionValue
 
 
 renderSelectQuery :: SelectionDescription table description -> ByteString
-renderSelectQuery (MkSelectionDescription columns db table filteringParts) =
+renderSelectQuery (MkSelectionDescription columns table filteringParts) =
   T.encodeUtf8
     $ "SELECT " <> T.intercalate "," columns
-    <> " FROM " <> db <> "." <> table
+    <> " FROM " <> table
     <> renderFilteringParts filteringParts
     <> " FORMAT TSV"
 {-# INLINE renderSelectQuery #-}
 
 data SelectionDescription table description = MkSelectionDescription
   { renderedColumns :: [Text]
-  , dbName :: Text
   , tableName :: Text
   , _filtertingParts :: [FilteringPart]
   }
 
 emptyDesc :: SelectionDescription table description
-emptyDesc = MkSelectionDescription [] "" "" []
+emptyDesc = MkSelectionDescription [] "" []
 
 appendFilteringToSelection :: SelectionDescription table description -> Text -> SelectionDescription table description
-appendFilteringToSelection (MkSelectionDescription columns db table filteringParts) filteringContent
-  = MkSelectionDescription columns db table (MkFilteringPart filteringContent : filteringParts)
+appendFilteringToSelection (MkSelectionDescription columns table filteringParts) filteringContent
+  = MkSelectionDescription columns table (MkFilteringPart filteringContent : filteringParts)
 
 newtype FilteringPart = MkFilteringPart Text
   deriving newtype (IsString)
@@ -328,17 +312,16 @@ renderFilteringParts [] = ""
 
 
 class
-  ( IsLocatedTable table
-  , SelectableFrom table (ToSelectionResult selectionDescription)
-  ) => IsSelectionDescription table selectionDescription (columnsSubset :: [(Symbol, Type)])
+  ( SelectableFrom table (ToSelectionResult description)
+  ) => IsSelectionDescription table description (columnsSubset :: [(Symbol, Type)])
   where
 
-  type GetFilters selectionDescription :: [Symbol]
-  type ToSelectionResult selectionDescription :: Type
-  type SelectionDescriptionConstructor table selectionDescription columnsSubset :: Type
+  type GetFilters description :: [Symbol]
+  type ToSelectionResult description :: Type
+  type SelectionDescriptionConstructor table description columnsSubset :: Type
   consructSelectionDescription
-    :: SelectionDescription table (ToSelectionResult selectionDescription)
-    -> SelectionDescriptionConstructor table selectionDescription columnsSubset
+    :: SelectionDescription table (ToSelectionResult description)
+    -> SelectionDescriptionConstructor table description columnsSubset
 
 
 instance {-# OVERLAPPING #-}
@@ -374,7 +357,6 @@ instance {-# OVERLAPPING #-}
 
 instance
   ( SelectableFrom table selectableData
-  , IsLocatedTable table
   ) => IsSelectionDescription table (Result selectableData) columnsSubset
   where
   type GetFilters (Result selectableData) = '[]
@@ -382,7 +364,6 @@ instance
   type SelectionDescriptionConstructor table (Result selectableData) columnsSubset = SelectionDescription table selectableData
   consructSelectionDescription desc = desc
     { tableName = getTableName @table
-    , dbName = getDatabaseName @table
     , renderedColumns = getTableRenderedColumnsNames @table
     }
 
@@ -471,7 +452,10 @@ instance {-# OVERLAPPING #-}
 
 
 instance
-  ( TypeError ('Text "Not found column with name \"" :<>: 'Text columnName :<>: 'Text "\" in table")
+  ( TypeError
+    (    'Text "Not found column with name \"" :<>: 'Text columnName :<>: 'Text "\" in table."
+    :$$: 'Text "You can't select this field"
+    )
   ) => GSelectable
     '(False, unrechableError)
     '[]

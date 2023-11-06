@@ -17,15 +17,15 @@
 #-}
 
 module ClickHaskell.TableDsl
-  ( IsLocatedTable(..), InDatabase
-
-  , IsTable(..), Table
+  ( IsTable(..), Table
   , ExpectsFiltrationBy
-  , DefaultColumn
+
+  , IsColumnDescription(..)
+  , DefaultColumn, ReadOnlyColumn
   ) where
 
 -- Internal dependencies
-import ClickHaskell.DbTypes       (ToChTypeName)
+import ClickHaskell.DbTypes (ToChTypeName, IsChType)
 
 -- GHC included libraries imports
 import Data.Data      (Proxy (Proxy))
@@ -41,82 +41,31 @@ data ExpectsFiltrationBy (columnNamesList :: [Symbol])
 
 
 
-class
-  IsLocatedTable table
-  where
-  getDatabaseName :: Text
-
-
-instance {-# OVERLAPPING #-}
-  ( KnownSymbol dbName
-  , IsTable table
-  ) => IsLocatedTable (InDatabase dbName table)
-  where
-  getDatabaseName = T.pack $ symbolVal (Proxy @dbName)
-
-instance {-# OVERLAPPABLE #-}
-  ( TypeError
-    (    'Text "Expected a table description with its location. E. g. (InDatabase \"myDatabase\" Table)"
-    :$$: 'Text "But got only Table: " :<>: ShowType table
-    )
-  ) => IsLocatedTable table
-  where
-  getDatabaseName = error "Unreachable"
-
-instance {-# OVERLAPPABLE #-}
-  ( tableName ~ ('Text "(Table \"" :<>: 'Text a :<>: 'Text "\" ...)")
-  , TypeError
-    (    'Text "Expected a table description with its location description. But got just Table"
-    :$$: 'Text "Specify table location:"
-    :$$: 'Text "  |(InDatabase \"yourDatabaseName\" " :<>: tableName :<>: 'Text ")"
-    )
-  ) => IsLocatedTable (Table a b c)
-  where
-  getDatabaseName = error "Unreachable"
-
-
-
-
 class IsTable table where
   type GetTableColumns table :: [(Symbol, Type)]
   type GetTableName table :: Symbol
-  type GetEngineSpecificSettings table :: [Type]
+  type GetTableSettings table :: [Type]
   type GetTableEngine table :: Type
   type TableValidationResult table :: (Bool, ErrorMessage)
 
-  getTableEngineName :: Text
   getTableName :: Text
   getTableRenderedColumns :: [(Text, Text)]
 
   getTableRenderedColumnsNames :: [Text]
   getTableRenderedColumnsNames = fst `map` getTableRenderedColumns @table
 
+data Table
+  (name :: Symbol)
+  (columns :: [Type])
+  (settings :: [Type])
+
 
 instance {-# OVERLAPPABLE #-}
   ( TypeError
-    (    'Text "Expected a table description, but got " :<>: ShowType something
-    :$$: 'Text "Provide a type that describes a table")
+    (    'Text "Expected a valid table description, but got: "
+    :$$: ShowType something
+    )
   ) => IsTable something
-
-
-instance {-# OVERLAPS #-} (IsTable table) => IsTable (InDatabase db table)
-  where
-  type GetTableColumns (InDatabase db table) = GetTableColumns table
-  type GetTableName (InDatabase db table) = GetTableName table
-  type GetTableEngine (InDatabase db table) = GetTableEngine table
-  type GetEngineSpecificSettings (InDatabase db table) = GetEngineSpecificSettings table
-  type TableValidationResult (InDatabase db table) = TableValidationResult table 
-
-  getTableEngineName :: Text
-  getTableEngineName = getTableEngineName @table
-
-  getTableName :: Text
-  getTableName = getTableName @table
-
-  getTableRenderedColumns :: [(Text, Text)]
-  getTableRenderedColumns = getTableRenderedColumns @table
-
-
 
 
 instance {-# OVERLAPS #-}
@@ -126,7 +75,7 @@ instance {-# OVERLAPS #-}
   where
   type GetTableColumns (Table _ columns _) = TransformedToSupportedColumns columns
   type GetTableName (Table name _ _) = name
-  type GetEngineSpecificSettings (Table _ _ settings) = settings
+  type GetTableSettings (Table _ _ settings) = settings
   type TableValidationResult (Table _ columns _) = IsValidColumnsDescription (TransformedToSupportedColumns columns)
 
   getTableName :: Text
@@ -177,17 +126,52 @@ instance (KnownTupleSymbols ns, KnownSymbol a, KnownSymbol b) => KnownTupleSymbo
 
 
 
-data InDatabase
-  (db :: Symbol)
-  (t :: Type)
+class IsColumnDescription columnDescription where
+  type GetColumnName columnDescription :: Symbol
+  renderColumnName :: Text
+
+  type GetColumnType columnDescription :: Type
+  renderColumnType :: Text
+
+  type IsColumnReadOnly columnDescription :: Bool
+
+data DefaultColumn (name :: Symbol) (columnType :: Type)
+data ReadOnlyColumn (name :: Symbol) (columnType :: Type)
 
 
-data Table
-  (name :: Symbol)
-  (columns :: [Type])
-  (engineSpecificSettings :: [Type])
+instance {-# OVERLAPPABLE #-}
+  ( TypeError
+    (   'Text "Expected a valid column description. But got: "
+    :$$: ShowType unsupportedColumnDescription
+    )
+  ) => IsColumnDescription unsupportedColumnDescription
 
 
+instance
+  ( IsChType columnType
+  , KnownSymbol name
+  , KnownSymbol (ToChTypeName columnType)
+  ) => IsColumnDescription (DefaultColumn name columnType)
+  where
+  type GetColumnName (DefaultColumn name columnType) = name
+  renderColumnName = T.pack . symbolVal $ Proxy @name
+
+  type GetColumnType (DefaultColumn name columnType) = columnType
+  renderColumnType = T.pack . symbolVal $ Proxy @(ToChTypeName columnType)
+
+  type IsColumnReadOnly (DefaultColumn _ _) = False
 
 
-data DefaultColumn (name :: Symbol) columnType
+instance
+  ( IsChType columnType
+  , KnownSymbol name
+  , KnownSymbol (ToChTypeName columnType)
+  ) => IsColumnDescription (ReadOnlyColumn name columnType)
+  where
+  type GetColumnName (ReadOnlyColumn name _) = name
+  renderColumnName = T.pack . symbolVal $ Proxy @name
+
+  type GetColumnType (ReadOnlyColumn _ columnType) = columnType
+  renderColumnType = T.pack . symbolVal $ Proxy @(ToChTypeName columnType)
+
+  type IsColumnReadOnly (ReadOnlyColumn _ _) = True

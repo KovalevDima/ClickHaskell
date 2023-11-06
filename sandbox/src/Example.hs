@@ -1,18 +1,16 @@
 {-# LANGUAGE
     DataKinds
-  , DerivingStrategies
   , DuplicateRecordFields
+  , ExplicitNamespaces
   , OverloadedStrings
-  , UndecidableInstances
 #-}
-{-# OPTIONS_GHC -fprint-potential-instances #-}
 
 module Example where
 
--- Internal dependencies
-import ClickHaskell
+import ClickHaskell.DataDsl  (EqualTo, Variable, Result, type(%%), SelectableFrom, InsertableInto, constructSelection, renderSelectQuery)
+import ClickHaskell.DbTypes  (Int64, Word32, nilChUUID, toCh, ChDateTime, ChInt32, ChInt64, ChString, ChUUID, LowCardinality, Nullable, Text)
+import ClickHaskell.TableDsl (DefaultColumn, ExpectsFiltrationBy, Table)
 
--- GHC included libraries imports
 import Data.ByteString (ByteString)
 import Data.Int        (Int32)
 import GHC.Generics    (Generic)
@@ -75,24 +73,24 @@ dataExample = ExampleData
 
 
 -- >>> showSelect
--- "SELECT a1,a2,a3,a4,a5,a6,a7 FROM example.example WHERE a3=0000000042 AND a2='text' FORMAT TSV"
+-- "SELECT a1,a2,a3,a4,a5,a6,a7 FROM example WHERE a3=0000000042 AND a2='a2' FORMAT TSV"
 showSelect :: ByteString
 showSelect = renderSelectQuery
   $ constructSelection
-    @(InDatabase "example" ExampleTable)
+    @ExampleTable
     @(Result ExampleData
       %% EqualTo "a2" Variable
       %% EqualTo "a3" Variable
     )
     (toCh @Word32 42)
-    (toCh @ByteString "text")
+    (toCh @ByteString "a2")
 
 
 -- >>> showSelect2
--- "SELECT a1,a2,a3,a4,a5,a6,a7 FROM example.example FORMAT TSV"
+-- "SELECT a1,a2,a3,a4,a5,a6,a7 FROM example FORMAT TSV"
 showSelect2 :: ByteString
 showSelect2 = renderSelectQuery
   $ constructSelection
-    @(InDatabase "example" ExampleTable)
+    @ExampleTable
     @(Result ExampleData
     )

@@ -8,6 +8,7 @@
   , FlexibleInstances
   , FunctionalDependencies
   , GeneralizedNewtypeDeriving
+  , InstanceSigs
   , MultiParamTypeClasses
   , OverloadedStrings
   , PolyKinds
@@ -18,7 +19,6 @@
   , StandaloneDeriving
   , UndecidableInstances
   #-}
-{-# LANGUAGE InstanceSigs #-}
 
 module ClickHaskell.DbTypes
   ( IsChType(ToChTypeName), Serializable(serialize), Deserializable(deserialize)

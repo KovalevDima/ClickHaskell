@@ -27,7 +27,6 @@ library
   autogen-modules:
       Paths_ClickHaskell
   exposed-modules:
-      ClickHaskell
       ClickHaskell.Buffering
       ClickHaskell.Client
       ClickHaskell.DataDsl
