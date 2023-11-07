@@ -37,6 +37,7 @@ module ClickHaskell.DbTypes
   , ChUInt16
   , ChUInt32
   , ChUInt64
+  , ChUInt128
 
   , ChString
   , ChUUID, nilChUUID
@@ -49,7 +50,7 @@ module ClickHaskell.DbTypes
 
 -- External dependencies
 import Data.UUID     as UUID (UUID, fromASCIIBytes, toASCIIBytes, nil)
-import Data.WideWord (Int128)
+import Data.WideWord (Int128, Word128)
 
 -- GHC included libraries imports
 import Data.ByteString       as BS (ByteString)
@@ -341,9 +342,23 @@ instance IsChType       ChUInt64          where type ToChTypeName ChUInt64 = "UI
 instance Serializable   ChUInt64          where serialize = BS8.pack . show @ChUInt64 . coerce
 instance Deserializable ChUInt64          where deserialize = ChUInt64 . fromIntegral . fst . fromJust . BS8.readInteger
 instance ToChType       ChUInt64 ChUInt64 where toChType = id
-instance ToChType       ChUInt64 Word64   where toChType = ChUInt64 . fromIntegral
+instance ToChType       ChUInt64 Word64   where toChType = ChUInt64
 instance FromChType     ChUInt64 ChUInt64 where fromChType = id
 instance FromChType     ChUInt64 Word64   where fromChType (ChUInt64 w64) = w64
+
+
+
+
+-- | ClickHouse UInt128 column type
+newtype                 ChUInt128 = ChUInt128 Word128  deriving newtype (Show, Eq)
+instance IsChType       ChUInt128           where type ToChTypeName ChUInt128 = "UInt128"
+instance Serializable   ChUInt128           where serialize = BS8.pack . show @ChUInt128 . coerce
+instance Deserializable ChUInt128           where deserialize = ChUInt128 . fromIntegral . fst . fromJust . BS8.readInteger
+instance ToChType       ChUInt128 ChUInt128 where toChType = id
+instance ToChType       ChUInt128 Word128   where toChType = ChUInt128
+instance ToChType       ChUInt128 Word64    where toChType = ChUInt128 . fromIntegral
+instance FromChType     ChUInt128 ChUInt128 where fromChType = id
+instance FromChType     ChUInt128 Word128   where fromChType (ChUInt128 w128) = w128
 
 
 
