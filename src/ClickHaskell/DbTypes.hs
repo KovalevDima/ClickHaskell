@@ -45,12 +45,12 @@ module ClickHaskell.DbTypes
   , Nullable
   , LowCardinality
 
-  , Word32, Word64, Text, Int64
+  , Word32, Word64, Word128, Text, Int64
   ) where
 
 -- External dependencies
-import Data.UUID     as UUID (UUID, fromASCIIBytes, toASCIIBytes, nil)
-import Data.WideWord (Int128, Word128)
+import Data.UUID     as UUID (UUID, fromASCIIBytes, toASCIIBytes, nil, toWords64)
+import Data.WideWord (Int128, Word128(Word128))
 
 -- GHC included libraries imports
 import Data.ByteString       as BS (ByteString)
@@ -107,9 +107,9 @@ instance IsChType chType => IsChType (Nullable chType) where
 instance
   ( Deserializable chType
   ) => Deserializable (Nullable chType)
-  where 
+  where
   deserialize "\\N" = Nothing
-  deserialize someTypeBs = Just (deserialize someTypeBs)  
+  deserialize someTypeBs = Just (deserialize someTypeBs)
 
 instance
   ( Serializable chType
@@ -356,6 +356,7 @@ instance Serializable   ChUInt128           where serialize = BS8.pack . show @C
 instance Deserializable ChUInt128           where deserialize = ChUInt128 . fromIntegral . fst . fromJust . BS8.readInteger
 instance ToChType       ChUInt128 ChUInt128 where toChType = id
 instance ToChType       ChUInt128 Word128   where toChType = ChUInt128
+instance ToChType       ChUInt128 UUID      where toChType = ChUInt128 . uncurry Word128 . toWords64
 instance ToChType       ChUInt128 Word64    where toChType = ChUInt128 . fromIntegral
 instance FromChType     ChUInt128 ChUInt128 where fromChType = id
 instance FromChType     ChUInt128 Word128   where fromChType (ChUInt128 w128) = w128
