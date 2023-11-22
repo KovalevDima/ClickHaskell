@@ -4,6 +4,11 @@
   , ExplicitNamespaces
   , OverloadedStrings
 #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module Example where
 
@@ -25,26 +30,11 @@ type ExampleTable =
      , DefaultColumn "a3" ChDateTime
      , DefaultColumn "a4" ChUUID
      , DefaultColumn "a5" ChInt32
-     , DefaultColumn "a6" (Nullable ChString)
-     , DefaultColumn "a7" (LowCardinality ChString) 
+     , DefaultColumn "a6" (LowCardinality (Nullable ChString))
+     , DefaultColumn "a7" (LowCardinality ChString)
      ]
     '[ ExpectsFiltrationBy '["a1"]
      ]
-
-
-type SingleFieldTable =
-  Table
-    "example2"
-    '[ DefaultColumn "a1" ChInt64
-     ]
-    '[
-     ]
-
-
-newtype SingleFieldRecord = MkSingleFieldRecord {a1 :: Int64} deriving Generic
-instance SelectableFrom SingleFieldTable SingleFieldRecord
-instance InsertableInto SingleFieldTable SingleFieldRecord
-
 
 data ExampleData = ExampleData
   { a1 :: ChInt64
@@ -54,11 +44,10 @@ data ExampleData = ExampleData
   , a5 :: Int32
   , a6 :: Nullable ChString
   , a7 :: LowCardinality ChString
-  } deriving (Generic)
+  } deriving (Generic, Show)
 
 instance SelectableFrom ExampleTable ExampleData
 instance InsertableInto ExampleTable ExampleData
-
 
 dataExample :: ExampleData
 dataExample = ExampleData
@@ -70,7 +59,6 @@ dataExample = ExampleData
   , a6 = Just "500"
   , a7 = toCh @Text "5"
   }
-
 
 -- >>> showSelect
 -- "SELECT a1,a2,a3,a4,a5,a6,a7 FROM example WHERE a3=0000000042 AND a2='a2' FORMAT TSV"
@@ -94,3 +82,21 @@ showSelect2 = renderSelectQuery
     @ExampleTable
     @(Result ExampleData
     )
+
+
+
+
+type SingleFieldTable =
+  Table
+    "example2"
+    '[ DefaultColumn "a1" ChInt64
+     , DefaultColumn "a2" (Nullable ChInt64)
+     , DefaultColumn "a3" (Nullable ChInt64)
+     ]
+    '[
+     ]
+
+newtype SingleFieldRecord = MkSingleFieldRecord {a1 :: Int64} deriving Generic
+
+instance SelectableFrom SingleFieldTable SingleFieldRecord
+instance InsertableInto SingleFieldTable SingleFieldRecord

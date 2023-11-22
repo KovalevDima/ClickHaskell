@@ -17,6 +17,7 @@
   , UndecidableInstances
   , UndecidableSuperClasses
 #-}
+{-# LANGUAGE InstanceSigs #-}
 module ClickHaskell.DataDsl
   (
   -- * Inserting
@@ -40,7 +41,7 @@ module ClickHaskell.DataDsl
   ) where
 
 -- Internal dependencies
-import ClickHaskell.TableDsl   (IsTable(..))
+import ClickHaskell.TableDsl   (IsTable(..), IsColumnDescription (..))
 import ClickHaskell.DbTypes    (Serializable(serialize), Deserializable(deserialize), FromChType(fromChType), ToChType(toChType), QuerySerializable (renderForQuery))
 
 
@@ -51,6 +52,7 @@ import Data.Kind          (Type)
 import Data.Text          as T (Text, intercalate, pack)
 import Data.Text.Encoding as T (encodeUtf8, decodeUtf8)
 import Data.Type.Bool     (If)
+import Data.Type.Equality (type(==))
 import Data.Type.Ord      (type(>?), type(<=?))
 import Data.String        (IsString(..))
 import GHC.Generics       (Generic(..), K1(..), M1(..), type (:*:)(..), D1, C1, S1, Meta(MetaSel), Rec0)
@@ -69,7 +71,7 @@ class
     ( GInsertable
       (TableValidationResult table)
       (GetTableColumns table)
-      (Rep record)
+      (Rep record)  
     , Generic record
     ) => record -> BS.ByteString
 
@@ -118,8 +120,8 @@ tsvInsertQueryHeader =
 
 
 class GInsertable
-  (deivingState :: (Bool, ErrorMessage))
-  (columns :: [(Symbol, Type)])
+  (deivingState :: Maybe ErrorMessage)
+  (columns :: [Type])
   f
   where
   gToTsvBs :: f p -> BS.ByteString
@@ -127,41 +129,40 @@ class GInsertable
 
 instance
   ( TypeError errorMsg
-  ) => GInsertable '(True, errorMsg) columns genericRep where
+  ) => GInsertable ('Just errorMsg) columns genericRep
+  where
   gToTsvBs _ = error "Unreachable"
   {-# INLINE gToTsvBs #-}
 
 
 instance {-# OVERLAPPING #-}
-  ( GInsertable '(False, unreachableError) columns f
-  ) => GInsertable '(False, unreachableError) columns (D1 c f)
+  ( GInsertable 'Nothing columns f
+  ) => GInsertable 'Nothing columns (D1 c f)
   where
-  gToTsvBs (M1 re) = gToTsvBs @'(False, unreachableError) @columns re <> "\n"
+  gToTsvBs (M1 re) = gToTsvBs @'Nothing @columns re <> "\n"
   {-# INLINE gToTsvBs #-}
 
 
 instance {-# OVERLAPPING #-}
-  ( GInsertable '(False, unreachableError) columns f
-  ) => GInsertable '(False, unreachableError) columns (C1 c f)
+  ( GInsertable 'Nothing columns f
+  ) => GInsertable 'Nothing columns (C1 c f)
   where
-  gToTsvBs (M1 re) = gToTsvBs @'(False, unreachableError) @columns re
+  gToTsvBs (M1 re) = gToTsvBs @'Nothing @columns re
   {-# INLINE gToTsvBs #-}
 
 
 instance {-# OVERLAPPING #-}
-  ( firstTreeElement ~ GetGenericProductHeadSelector left
-  , leftCenterTreeElement ~ GetGenericProductLastSelector left
+  ( leftCenterTreeElement ~ GetGenericProductLastSelector left
   , rightCenterTreeElement ~ GetGenericProductHeadSelector right
-  , lastTreeElement ~ GetGenericProductLastSelector right
   , '(firstColumnsPart, secondColumnsPart) ~ SpanByColumnName rightCenterTreeElement columns
-  , derivingState ~ HandleErrors
-    '[ firstTreeElement       `AssumePlacedBefore` leftCenterTreeElement
-     , leftCenterTreeElement  `AssumePlacedBefore` rightCenterTreeElement
-     , rightCenterTreeElement `AssumePlacedBefore` lastTreeElement
+  , derivingState ~ FirstJustOrNothing
+    '[ GetGenericProductHeadSelector left `AssumePlacedBefore` leftCenterTreeElement
+     , leftCenterTreeElement              `AssumePlacedBefore` rightCenterTreeElement
+     , rightCenterTreeElement             `AssumePlacedBefore` GetGenericProductLastSelector right
      ]
   , GInsertable derivingState firstColumnsPart left
   , GInsertable derivingState secondColumnsPart right
-  ) => GInsertable '(False, unreachableError) columns (left :*: right)
+  ) => GInsertable 'Nothing columns (left :*: right)
   where
   gToTsvBs (left :*: right)
     =          gToTsvBs @derivingState @firstColumnsPart left
@@ -172,7 +173,9 @@ instance {-# OVERLAPPING #-}
 instance {-# OVERLAPPING #-}
   ( Serializable chType
   , ToChType chType inputType
-  ) => GInsertable '(False, unrechableError) '[ '(columnName, chType)]
+  , columnName ~ GetColumnName column
+  , chType ~ GetColumnType column
+  ) => GInsertable 'Nothing '[column]
     ( S1 (MetaSel (Just columnName) a b f) (Rec0 inputType)
     )
   where
@@ -181,21 +184,43 @@ instance {-# OVERLAPPING #-}
 
 
 instance
-  ( TypeError
-    (    'Text "Column " :<>: ShowType someElem :<>: 'Text " required for insert."
-    :$$: 'Text "Add it to your insertable type"
+  (GInsertable
+    (If (IsColumnWriteOptional anotherColumn)
+      'Nothing
+      ('Just
+        (    'Text "Column with name " :<>: 'Text (GetColumnName anotherColumn) :<>: 'Text " is required for insert."
+        :$$: 'Text "Add it to your insertable type"
+        )
+      )
     )
-  ) => GInsertable '(False, unrechableError) ('(otherColumnName, chType) ': someElem ': moreColumns) (S1 columnName (K1 i inputType))
+    (column ': moreColumns)
+    (S1 (MetaSel (Just columnName) a b f) (K1 i inputType))
+  , ToChType (GetColumnType column) inputType
+  , Serializable (GetColumnType column)
+  )
+  =>
+  GInsertable
+    'Nothing
+    (column ': anotherColumn ': moreColumns)
+    (S1 (MetaSel (Just columnName) a b f) (K1 i inputType))
   where
-  gToTsvBs _ = error "Unreachable"
+  gToTsvBs = serialize . toChType @(GetColumnType column) @inputType . unK1 . unM1
 
 
 instance
-  ( TypeError
-    (    'Text "There is no column " :<>: 'Text columnName :<>: 'Text " in table"
-    :$$: 'Text "You can't insert this field"
+  ( GInsertable
+    ('Just
+      (    'Text "There is no column \"" :<>: 'Text columnName :<>: 'Text "\" in table"
+      :$$: 'Text "You can't insert this field"
+      )
     )
-  ) => GInsertable '(False, unrechableError) '[] (S1 (MetaSel (Just columnName) a b f) (K1 i inputType))
+    '[]
+    (S1 (MetaSel (Just columnName) a b f) (K1 i inputType))
+  ) =>
+  GInsertable
+    'Nothing
+    '[]
+    (S1 (MetaSel (Just columnName) a b f) (K1 i inputType))
   where
   gToTsvBs = error "Unreachable"
 
@@ -313,7 +338,7 @@ renderFilteringParts [] = ""
 
 class
   ( SelectableFrom table (ToSelectionResult description)
-  ) => IsSelectionDescription table description (columnsSubset :: [(Symbol, Type)])
+  ) => IsSelectionDescription table description (columnsSubset :: [Type])
   where
 
   type GetFilters description :: [Symbol]
@@ -370,12 +395,11 @@ instance
 
 type family GetColumnTypeByName
   (name :: Symbol)
-  (columnsSymbol :: [(Symbol, Type)])
+  (columnsSymbol :: [Type])
   ::
   Type
   where
-  GetColumnTypeByName name ('(name, columnType) ': xs) = columnType
-  GetColumnTypeByName name ('(notTheSameName, _) ': xs) = GetColumnTypeByName name xs
+  GetColumnTypeByName name (column ': xs) = If (GetColumnName column == name) (GetColumnType column) (GetColumnTypeByName name xs)
   GetColumnTypeByName name '[] = TypeError
     (    'Text "Cannot find column with name \"" :<>: 'Text name :<>: 'Text "\"."
     :$$: 'Text " Report an issue if you see this message"
@@ -385,8 +409,8 @@ type family GetColumnTypeByName
 
 
 class GSelectable
-  (deivingState :: (Bool, ErrorMessage))
-  (columns :: [(Symbol, Type)])
+  (deivingState :: Maybe ErrorMessage)
+  (columns :: [Type])
   f
   where
   gFromTsvBs :: BS.ByteString -> f p
@@ -394,42 +418,40 @@ class GSelectable
 
 instance
   ( TypeError errorMsg
-  ) => GSelectable '(True, errorMsg) columns genericRep
+  ) => GSelectable ('Just errorMsg) columns genericRep
   where
   gFromTsvBs _ = error "Unreachable"
   {-# INLINE gFromTsvBs #-}
 
 
 instance {-# OVERLAPPING #-}
-  ( GSelectable '(False, unreachableError) columns f
-  ) => GSelectable '(False, unreachableError) columns (D1 c f)
+  ( GSelectable 'Nothing columns f
+  ) => GSelectable 'Nothing columns (D1 c f)
   where
-  gFromTsvBs bs = M1 $ gFromTsvBs @'(False, unreachableError) @columns bs
+  gFromTsvBs bs = M1 $ gFromTsvBs @'Nothing @columns bs
   {-# INLINE gFromTsvBs #-}
 
 
 instance {-# OVERLAPPING #-}
-  ( GSelectable '(False, unreachableError) columns f
-  ) => GSelectable '(False, unreachableError) columns (C1 c f)
+  ( GSelectable 'Nothing columns f
+  ) => GSelectable 'Nothing columns (C1 c f)
   where
-  gFromTsvBs = M1 . gFromTsvBs @'(False, unreachableError) @columns
+  gFromTsvBs = M1 . gFromTsvBs @'Nothing @columns
   {-# INLINE gFromTsvBs #-}
 
 
 instance {-# OVERLAPPING #-}
-  ( firstTreeElement       ~ GetGenericProductHeadSelector left
-  , leftCenterTreeElement  ~ GetGenericProductLastSelector left
+  ( leftCenterTreeElement  ~ GetGenericProductLastSelector left
   , rightCenterTreeElement ~ GetGenericProductHeadSelector right
-  , lastTreeElement        ~ GetGenericProductLastSelector right
-  , derivingState ~ HandleErrors
-     '[ firstTreeElement `AssumePlacedBefore` leftCenterTreeElement
-      , leftCenterTreeElement `AssumePlacedBefore` rightCenterTreeElement
-      , rightCenterTreeElement `AssumePlacedBefore` lastTreeElement
+  , derivingState ~ FirstJustOrNothing
+     '[ GetGenericProductHeadSelector left `AssumePlacedBefore` leftCenterTreeElement
+      , leftCenterTreeElement              `AssumePlacedBefore` rightCenterTreeElement
+      , rightCenterTreeElement             `AssumePlacedBefore` GetGenericProductLastSelector right
       ]
   , '(firstColumnsPart, secondColumnsPart) ~ SpanByColumnName rightCenterTreeElement columns
   , GSelectable derivingState firstColumnsPart left
   , GSelectable derivingState secondColumnsPart right
-  ) => GSelectable '(False, unreachableError) columns (left :*: right)
+  ) => GSelectable 'Nothing columns (left :*: right)
   where
   gFromTsvBs bs = {- [ClickHaskell.DataDsl.ToDo.1]: optimize line deconstruction -}
     let byteStrings = 9 `BS.split` bs
@@ -442,9 +464,11 @@ instance {-# OVERLAPPING #-}
 instance {-# OVERLAPPING #-}
   ( Deserializable chType
   , FromChType chType outputType
+  , columnName ~ GetColumnName column
+  , chType ~ GetColumnType column
   ) => GSelectable
-    '(False, unrechableError)
-    '[ '(columnName, chType)]
+    'Nothing
+    (column ': xs)
     (S1 (MetaSel (Just columnName) a b f) (K1 i outputType))
   where
   gFromTsvBs = M1 . K1 . fromChType @chType @outputType . deserialize
@@ -452,12 +476,17 @@ instance {-# OVERLAPPING #-}
 
 
 instance
-  ( TypeError
-    (    'Text "Not found column with name \"" :<>: 'Text columnName :<>: 'Text "\" in table."
-    :$$: 'Text "You can't select this field"
+  ( GSelectable
+    ('Just
+      (    'Text "There is no column \"" :<>: 'Text columnName :<>: 'Text "\" in table."
+      :$$: 'Text "You can't select this field"
+      )
     )
-  ) => GSelectable
-    '(False, unrechableError)
+    '[]
+    (S1 (MetaSel (Just columnName) a b f) k)
+  ) =>
+  GSelectable
+    'Nothing
     '[]
     (S1 (MetaSel (Just columnName) a b f) k)
   where
@@ -475,16 +504,19 @@ instance
 -- * Generic rep validations tools
 
 
-type family (sym1 :: Symbol) `AssumePlacedBefore` (sym2 :: Symbol) :: (Bool, ErrorMessage)
+type family (sym1 :: Symbol) `AssumePlacedBefore` (sym2 :: Symbol) :: Maybe ErrorMessage
   where
   sym1 `AssumePlacedBefore` sym2 =
-    '( sym1 >? sym2 
-     ,    'Text "Record fields should be sorted alphabetically. But field \""
-     :<>: 'Text sym2
-     :<>: ' Text "\" placed before \""
-     :<>: 'Text sym1
-     :<>: 'Text "\""
+    If (sym1 >? sym2) 
+     ('Just
+      (    'Text "Record fields should be sorted alphabetically. But field \""
+      :<>: 'Text sym2
+      :<>: 'Text "\" placed before \""
+      :<>: 'Text sym1
+      :<>: 'Text "\""
+      )
      )
+     'Nothing
 
 type family GetGenericProductHeadSelector (f :: k -> Type) :: Symbol where
   GetGenericProductHeadSelector (c :*: c2) = GetGenericProductHeadSelector c
@@ -500,76 +532,61 @@ type family GetGenericProductLastSelector (f :: k -> Type) :: Symbol where
 
 type family SpanByColumnName
   (name :: Symbol)
-  (columns :: [(Symbol, Type)])
+  (columns :: [Type])
   ::
-  ([(Symbol, Type)], [(Symbol, Type)])
+  ([Type], [Type])
   where
   SpanByColumnName name columns = GoSpanByColumnName name '( columns, '[])
 
 type family GoSpanByColumnName
   (name :: Symbol)
-  (acc :: ([(Symbol, Type)], [(Symbol, Type)]))
+  (acc :: ([Type], [Type]))
   ::
-  ([(Symbol, Type)], [(Symbol, Type)])
+  ([Type], [Type])
   where
   GoSpanByColumnName name '( '[], acc2) = '(Reverse acc2, '[])
-  GoSpanByColumnName name '( '(colName, colType) ': columns, acc2) =
-    If (name <=? colName)
-      '(Reverse acc2, '(colName, colType) ': columns)
-      (GoSpanByColumnName name '(columns, '(colName, colType) ': acc2))
+  GoSpanByColumnName name '( column ': columns, acc2) =
+    If (name <=? GetColumnName column)
+      '(Reverse acc2, column ': columns)
+      (GoSpanByColumnName name '(columns, column ': acc2))
 
 type family Reverse (b :: [a]) :: [a] where Reverse list = GoReverse list '[]
-type family GoReverse (list :: [a]) (accum :: [a])
+type family GoReverse (list :: [a]) (acc :: [a])
   where
-  GoReverse '[]        acc = acc
+  GoReverse '[]       acc = acc
   GoReverse (x ': xs) acc = GoReverse xs (x ': acc)
 
 
--- | Type family usefull when you have a several posible errors and need to return first one.
--- 
--- `True` indicates an error
--- 
--- @  
--- type NotAnError = '(False, 'Text "Not an error")
--- type Error1     = '(True, 'Text "error1")
--- type Error2     = '(True, 'Text "error2")
---
--- type HandleErrors '[NotAnError, Error2] = '(True, 'Text "error2")
--- type HandleErrors '[Error1,     Error2] = '(True, 'Text "error1")
--- type HandleErrors '[NotAnError]         = '(False, 'Text "HandleErrors: Please report an issue if you see this message")
--- @
-type family HandleErrors (a :: [(Bool, ErrorMessage)]) :: (Bool, ErrorMessage)
-  where
-  HandleErrors '[] = '( 'False, 'Text "HandleErrors: Please report an issue if you see this message")
-  HandleErrors ('(False, txt) ': xs) = HandleErrors xs
-  HandleErrors ('(True, txt) ': xs) = '(True, txt) 
 
 
 type family GetRepresentationInColumns
   (names :: [Symbol])
-  (columns :: [(Symbol, Type)])
+  (columns :: [Type])
   ::
-  [(Symbol, Type)]
+  [Type]
   where
   GetRepresentationInColumns '[] columns = TypeError ('Text "Report an issue if you see this message: Validation")
   GetRepresentationInColumns names columns = (GoGetRepresentationInColumns (GetMinimum names) columns)
 
-
 type family GoGetRepresentationInColumns
   (minimumWithOthers :: (Symbol, [Symbol]))
-  (columns :: [(Symbol, Type)])
+  (columns :: [Type])
   ::
-  [(Symbol, Type)]
+  [Type]
   where
-  GoGetRepresentationInColumns '(columnName, '[])  ('(columnName, columnType)  ': columns) = '[ '(columnName, columnType)]
-  GoGetRepresentationInColumns '(min, '[])         ('(columnName, _)           ': columns) = GoGetRepresentationInColumns '(min, '[]) columns
-  GoGetRepresentationInColumns '(columnName, rest) ('(columnName, columnType)  ': columns) = '(columnName, columnType) ': GoGetRepresentationInColumns (GetMinimum rest) columns
-  GoGetRepresentationInColumns '(min, otherElems)  ('(columnName, columnType)  ': columns) =
-    If (columnName >? min)
-      (TypeError ('Text "Column with name " :<>: 'Text min :<>: 'Text " is not represented in table"))
-      (GoGetRepresentationInColumns '(min, otherElems) columns)
-  GoGetRepresentationInColumns '(min, xs)          '[]                                     = TypeError ('Text "Column with name " :<>: 'Text min :<>: 'Text " is not represented in table")
-
+  GoGetRepresentationInColumns '(min, '[])  (column ': columns) =
+    If (min == GetColumnName column)
+      '[column]
+      (GoGetRepresentationInColumns '(min, '[]) columns)
+  GoGetRepresentationInColumns '(min, xs) '[] = TypeError ('Text "Column with name " :<>: 'Text min :<>: 'Text " is not represented in table")
+  GoGetRepresentationInColumns '(min, otherElems) (column ': columns) =
+    If (GetColumnName column >? min)
+      (TypeError ('Text "Column with name " :<>: 'Text min :<>: 'Text " is not represented2 in table"))
+      (If
+        (GetColumnName column == min)
+        (column ': GoGetRepresentationInColumns (GetMinimum otherElems) columns)
+        (GoGetRepresentationInColumns '(min, otherElems) columns)
+      )
 
 type family GetMinimum (elems :: [Symbol]) :: (Symbol, [Symbol])
   where
@@ -585,3 +602,23 @@ type family GoGetMinimum
   GoGetMinimum (previousMin ': xs) '(previousMin, acc) = TypeError ('Text "There are duplicated filters with name \"" :<>: 'Text previousMin :<>: 'Text "\"") 
   GoGetMinimum (x ': xs) '(previousMin, acc) = If (previousMin >? x) (GoGetMinimum xs '(x, previousMin ': acc)) (GoGetMinimum xs '(previousMin, x ': acc))
   GoGetMinimum '[] '(previousMin, acc) = '(previousMin, acc)
+
+
+-- * Errors handling
+
+-- | Type family usefull when you have a several posible errors and need to return first one.
+-- 
+-- @
+-- type NotAnError = 'Nothng
+-- type Error1     = 'Just ('Text "error1")
+-- type Error2     = 'Just ('Text "error2")
+--
+-- type FirstJustOrNothing '[NotAnError, Error2] = 'Just ('Text "error2")
+-- type FirstJustOrNothing '[Error1,     Error2] = 'Just ('Text "error1")
+-- type FirstJustOrNothing '[NotAnError]         = 'Nothing
+-- @
+type family FirstJustOrNothing (a :: [Maybe ErrorMessage]) :: Maybe ErrorMessage
+  where
+  FirstJustOrNothing '[] = 'Nothing
+  FirstJustOrNothing ('Nothing ': xs) = FirstJustOrNothing xs
+  FirstJustOrNothing ('Just txt ': xs) = 'Just txt

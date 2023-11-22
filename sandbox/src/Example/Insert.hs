@@ -1,23 +1,22 @@
 {-# LANGUAGE
     DataKinds
   , OverloadedStrings
+  , TypeApplications
 #-}
 
 module Example.Insert where
 
-import Control.Monad (void)
-
-import ClickHaskell.Client (httpStreamChInsert, ChClient(..), ChCredential(..), HttpChClient)
+import ClickHaskell.Client (httpStreamChInsert, ChClient(..), ChCredential(..), HttpChClient, ClientResponse)
 import Example             (ExampleTable, dataExample)
 
 
-insert :: IO ()
+insert :: IO (ClientResponse ())
 insert = do
 
-  print "1. Init client"
+  -- 1. Init client
   client <- initClient
     @HttpChClient
     (ChCredential "default" "" "http://localhost:8123" "exampleDb")
     Nothing
 
-  void $ httpStreamChInsert @ExampleTable client [dataExample]
+  httpStreamChInsert @ExampleTable client [dataExample]

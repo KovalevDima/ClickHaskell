@@ -1,6 +1,10 @@
 {-# LANGUAGE
-    DataKinds
+    BangPatterns
+  , DataKinds
+  , GeneralizedNewtypeDeriving
+  , NumericUnderscores
   , OverloadedStrings
+  , TypeApplications
 #-}
 
 module Bench
@@ -16,29 +20,22 @@ import Control.Concurrent (threadDelay, forkIO)
 import Control.Monad      (replicateM_, void)
 
 
--- Settings for test
-newtype ConcurrentBufferWriters   = ConcurrentBufferWriters   Int deriving Num
-newtype RowsPerBufferWriter       = RowsPerBufferWriter       Int deriving Num
-newtype MsBetweenBufferWrites     = MsBetweenBufferWrites     Int deriving Num
-newtype MsBetweenClickHouseWrites = MsBetweenClickHouseWrites Int deriving Num
-
-
 data BenchSettings = BenchSettings
   { sBufferSize        :: BufferSize
-  , sConcurentWriters  :: ConcurrentBufferWriters
-  , sRowsPerWriter     :: RowsPerBufferWriter
-  , sMsBetweenWrites   :: MsBetweenBufferWrites
-  , sMsBetweenChWrites :: MsBetweenClickHouseWrites
+  , sConcurentWriters  :: Int
+  , sRowsPerWriter     :: Int
+  , sMsBetweenWrites   :: Int
+  , sMsBetweenChWrites :: Int
   }
 
 benchExecutable :: BenchSettings -> IO ()
 benchExecutable (
   BenchSettings
-     bufferSize
-     (ConcurrentBufferWriters   concurrentBufferWriters)
-     (RowsPerBufferWriter       rowsNumber             )
-     (MsBetweenBufferWrites     msBetweenBufferWrites  )
-     (MsBetweenClickHouseWrites msBetweenChWrites      )
+    bufferSize
+    concurrentBufferWriters
+    rowsNumber
+    msBetweenBufferWrites
+    msBetweenChWrites
   ) = do
 
   print "1. Initializing client"
@@ -64,13 +61,12 @@ benchExecutable (
   let dataExample' = dataExample
 
   print "4. Writing to buffer"
-  !_threadId <-
-    replicateM_ concurrentBufferWriters . forkIO
-      . replicateM_ rowsNumber
-      . (\someData
-        -> writeToSizedBuffer buffer someData
-        >> threadDelay msBetweenBufferWrites
-        )
-      $ dataExample'
+  replicateM_ concurrentBufferWriters . forkIO
+    . replicateM_ rowsNumber
+    . (\someData
+      -> writeToSizedBuffer buffer someData
+      >> threadDelay msBetweenBufferWrites
+      )
+    $ dataExample'
 
   threadDelay 60_000_000

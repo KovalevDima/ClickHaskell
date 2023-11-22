@@ -38,7 +38,6 @@ library
       src
   ghc-options:
     -Wall -Werror
-    -Wunused-packages
     -fno-warn-type-defaults
 
     -- -ddump-to-file -ddump-simpl -dsuppress-type-applications -dsuppress-coercions -dsuppress-idinfo -dsuppress-type-signatures -dsuppress-var-kinds -dsuppress-module-prefixes -dsuppress-uniques

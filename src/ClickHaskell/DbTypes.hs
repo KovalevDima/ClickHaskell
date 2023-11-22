@@ -19,11 +19,13 @@
   , StandaloneDeriving
   , UndecidableInstances
   #-}
+{-# OPTIONS_GHC -Wno-missing-methods #-}
 
 module ClickHaskell.DbTypes
-  ( IsChType(ToChTypeName), Serializable(serialize), Deserializable(deserialize)
+  ( IsChType(ToChTypeName, IsWriteOptional), Serializable(serialize), Deserializable(deserialize)
   , QuerySerializable(renderForQuery)
   , toCh, ToChType(toChType), FromChType(fromChType)
+
 
   , ChDateTime
 
@@ -61,7 +63,7 @@ import Data.Int              (Int32, Int16, Int8, Int64)
 import Data.Kind             (Type)
 import Data.Text             as Text (Text)
 import Data.Text.Encoding    as Text (encodeUtf8)
-import Data.Time             (UTCTime, defaultTimeLocale, nominalDiffTimeToSeconds, parseTimeM, ZonedTime, zonedTimeToUTC)
+import Data.Time             (UTCTime, defaultTimeLocale, parseTimeM, ZonedTime, zonedTimeToUTC)
 import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
 import Data.String           (IsString)
 import Data.Word             (Word64, Word32, Word16, Word8)
@@ -70,14 +72,22 @@ import GHC.TypeLits          (AppendSymbol, ErrorMessage (..), Symbol, TypeError
 
 class IsChType chType
   where
+  -- | Shows database original type name
+  --
+  -- @
+  -- type ToChTypeName ChString = \"String\"
+  -- type ToChTypeName (Nullable ChUInt32) = \"Nullable(UInt32)\"
+  -- @
   type ToChTypeName chType :: Symbol
+  -- | There is only one native ClickHaskell write optional type - Nullable(T)
+  type IsWriteOptional chType :: Bool
 
 class IsChType chType => Serializable   chType where serialize   :: chType -> BS.ByteString
 class IsChType chType => Deserializable chType where deserialize :: BS.ByteString -> chType
 
 class Serializable chType => QuerySerializable chType where renderForQuery :: chType -> BS.ByteString
-instance {-# OVERLAPPING #-} QuerySerializable ChString where renderForQuery (ChString bs) = "'" <> bs <> "'"
 instance Serializable chType => QuerySerializable chType where renderForQuery = serialize
+instance {-# OVERLAPPING #-} QuerySerializable ChString where renderForQuery (ChString bs) = "'" <> bs <> "'"
 instance {-# OVERLAPPING #-} QuerySerializable (LowCardinality ChString) where renderForQuery (LowCardinality chString) = renderForQuery chString
 instance {-# OVERLAPPING #-} QuerySerializable (Nullable ChString) where renderForQuery = maybe "\\N" renderForQuery
 
@@ -101,8 +111,18 @@ type Nullable = Maybe
 
 type NullableTypeName chType = "Nullable(" `AppendSymbol` ToChTypeName chType `AppendSymbol` ")"
 
-instance IsChType chType => IsChType (Nullable chType) where
+instance {-# OVERLAPPING #-}
+  ( TypeError
+    (    'Text "Nullable(LowCardinality(" :<>: ShowType chType :<>: 'Text ")) is unsupported in description."
+    :$$: 'Text "Use LowCardinality(Nullable(" :<>: ShowType chType :<>: 'Text "))."
+    )
+  ) => IsChType (Nullable (LowCardinality chType))
+
+instance {-# OVERLAPPABLE #-}
+  ( IsChType chType
+  ) => IsChType (Nullable chType) where
   type ToChTypeName (Nullable chType) = NullableTypeName chType
+  type IsWriteOptional _ = 'True
 
 instance
   ( Deserializable chType
@@ -133,18 +153,33 @@ instance
 
 
 -- | ClickHouse LowCardinality(T) column type
-newtype LowCardinality chType = LowCardinality (ToLowCardinalitySupported chType)
-deriving instance Eq (ToLowCardinalitySupported chType) => Eq (LowCardinality chType)
-deriving instance Show (ToLowCardinalitySupported chType) => Show (LowCardinality chType)
+newtype LowCardinality chType = LowCardinality chType
+deriving instance (Eq chType, IsLowCardinalitySupported chType) => Eq (LowCardinality chType)
+deriving instance (Show chType, IsLowCardinalitySupported chType) => Show (LowCardinality chType)
 
-instance IsChType (LowCardinality chType) where
+class (IsChType chType) => IsLowCardinalitySupported chType
+instance IsLowCardinalitySupported ChString
+instance IsLowCardinalitySupported chType => IsLowCardinalitySupported (Nullable chType) 
+instance {-# OVERLAPPABLE #-}
+  ( IsChType chType
+  , TypeError
+    ( 'Text "LowCardinality("  ':<>: ShowType chType  ':<>: 'Text ") is unsupported"
+    ':$$: 'Text "Use one of these types:"
+    ':$$: 'Text "  ChString"    ':$$: 'Text "  ChInt32"
+    ':$$: 'Text "  ChInt64"     ':$$: 'Text "  ChInt128"
+    ':$$: 'Text "  ChDateTime"
+    )
+  ) => IsLowCardinalitySupported chType
+
+instance IsLowCardinalitySupported chType => IsChType (LowCardinality chType) where
   type ToChTypeName (LowCardinality chType) =
     "LowCardinality(" `AppendSymbol` ToChTypeName (ToLowCardinalitySupported chType) `AppendSymbol` ")"
+  type IsWriteOptional (LowCardinality chType) = IsWriteOptional (ToLowCardinalitySupported chType)
 
 type family ToLowCardinalitySupported a :: Type where
   ToLowCardinalitySupported (Nullable (LowCardinality chType)) =  TypeError
-    (    'Text "Nullable(LowCardinality("     ':<>: 'Text (ToChTypeName chType) ':<>: 'Text ")) is unsupported"
-    :$$: 'Text "Use LowCardinality(Nullable(" ':<>: 'Text (ToChTypeName chType) ':<>: 'Text ")) instead"
+    (     'Text "Nullable(LowCardinality("     ':<>: 'Text (ToChTypeName chType) ':<>: 'Text ")) is unsupported"
+    ':$$: 'Text "Use LowCardinality(Nullable(" ':<>: 'Text (ToChTypeName chType) ':<>: 'Text ")) instead"
     )
   ToLowCardinalitySupported (Nullable a) = Nullable (ToLowCardinalitySupported a)
   ToLowCardinalitySupported ChString = ChString
@@ -161,34 +196,41 @@ type family ToLowCardinalitySupported a :: Type where
     )
 
 instance
-  ( Serializable (ToLowCardinalitySupported chType)
+  ( Serializable chType
+  , IsLowCardinalitySupported chType
   ) => Serializable (LowCardinality chType) where
   serialize (LowCardinality value) = serialize value
 
 instance
-  ( Deserializable (ToLowCardinalitySupported chType)
+  ( Deserializable chType
+  , IsLowCardinalitySupported chType
   ) => Deserializable (LowCardinality chType) where
     deserialize = LowCardinality . deserialize
 
 instance {-# OVERLAPPING #-}
-  ( ToChType (ToLowCardinalitySupported chType) (ToLowCardinalitySupported inputType)
+  ( ToChType chType inputType
+  , IsLowCardinalitySupported chType
   ) => ToChType (LowCardinality chType) (LowCardinality inputType) where
   toChType (LowCardinality value) = LowCardinality $ toChType value
 
 instance {-# OVERLAPPING #-}
-  ( ToChType (ToLowCardinalitySupported chType) inputType
+  ( ToChType chType inputType
+  , IsLowCardinalitySupported chType
   ) => ToChType (LowCardinality chType) inputType where
   toChType value = LowCardinality $ toChType value
 
 
 instance {-# OVERLAPPING #-}
-  ( FromChType (ToLowCardinalitySupported chType) (ToLowCardinalitySupported outputType)
+  ( FromChType chType outputType
+  , IsLowCardinalitySupported chType
+  , IsLowCardinalitySupported outputType
   ) => FromChType (LowCardinality chType) (LowCardinality outputType) where
   fromChType (LowCardinality value) = LowCardinality $ fromChType value
 
 
 instance {-# OVERLAPPING #-}
-  ( FromChType (ToLowCardinalitySupported chType) outputType
+  ( FromChType chType outputType
+  , IsLowCardinalitySupported chType
   ) => FromChType (LowCardinality chType) outputType where
   fromChType (LowCardinality value) = fromChType value
 
@@ -197,7 +239,9 @@ instance {-# OVERLAPPING #-}
 
 -- | ClickHouse UUID column type
 newtype                 ChUUID = ChUUID UUID   deriving newtype (Show, Eq)
-instance IsChType       ChUUID        where type ToChTypeName ChUUID = "UUID"
+instance IsChType       ChUUID        where
+  type ToChTypeName ChUUID = "UUID"
+  type IsWriteOptional  ChUUID = 'False
 instance Serializable   ChUUID        where serialize (ChUUID uuid)   = UUID.toASCIIBytes uuid
 instance Deserializable ChUUID        where deserialize bs = ChUUID $ fromJust $ UUID.fromASCIIBytes bs
 instance ToChType       ChUUID ChUUID where toChType = id
@@ -213,7 +257,9 @@ nilChUUID = toChType UUID.nil
 
 -- | ClickHouse String column type
 newtype ChString = ChString ByteString  deriving newtype (Show, Eq, IsString)
-instance IsChType       ChString              where type ToChTypeName ChString = "String"
+instance IsChType       ChString              where
+  type ToChTypeName ChString = "String"
+  type IsWriteOptional  ChString = 'False
 instance Serializable   ChString              where serialize = coerce
 instance Deserializable ChString              where deserialize = ChString
 instance ToChType       ChString   ChString   where toChType = id
@@ -232,7 +278,9 @@ escape = BS8.concatMap (\sym -> if sym == '\t' then "\\t" else if sym == '\n' th
 
 -- | ClickHouse Int8 column type
 newtype                 ChInt8 = ChInt8 Int8  deriving newtype (Show, Eq)
-instance IsChType       ChInt8        where type ToChTypeName ChInt8 = "Int8"
+instance IsChType       ChInt8        where
+  type ToChTypeName ChInt8 = "Int8"
+  type IsWriteOptional  ChInt8 = 'False
 instance Serializable   ChInt8        where serialize = BS8.pack . show @ChInt8 . coerce
 instance Deserializable ChInt8        where deserialize = ChInt8 . fromIntegral . fst . fromJust . BS8.readInt
 instance ToChType       ChInt8 ChInt8 where toChType = id
@@ -245,7 +293,9 @@ instance FromChType     ChInt8 Int8   where fromChType (ChInt8 int8) = int8
 
 -- | ClickHouse Int16 column type
 newtype                 ChInt16 = ChInt16 Int16  deriving newtype (Show, Eq)
-instance IsChType       ChInt16         where type ToChTypeName ChInt16 = "Int16"
+instance IsChType       ChInt16         where
+  type ToChTypeName ChInt16 = "Int16"
+  type IsWriteOptional  ChInt16 = 'False
 instance Serializable   ChInt16         where serialize = BS8.pack . show @Int16 . coerce
 instance Deserializable ChInt16         where deserialize  = ChInt16 . fromIntegral . fst . fromJust . BS8.readInt
 instance ToChType       ChInt16 ChInt16 where toChType = id
@@ -258,7 +308,9 @@ instance FromChType     ChInt16 Int16   where fromChType (ChInt16 int16) = int16
 
 -- | ClickHouse Int32 column type
 newtype                 ChInt32 = ChInt32 Int32  deriving newtype (Show, Eq)
-instance IsChType       ChInt32         where type ToChTypeName ChInt32 = "Int32"
+instance IsChType       ChInt32         where
+  type ToChTypeName ChInt32 = "Int32"
+  type IsWriteOptional  ChInt32 = 'False
 instance Serializable   ChInt32         where serialize = BS8.pack . show @ChInt32 . coerce
 instance Deserializable ChInt32         where deserialize = ChInt32 . fromIntegral . fst . fromJust . BS8.readInt
 instance ToChType       ChInt32 ChInt32 where toChType = id
@@ -271,7 +323,9 @@ instance FromChType     ChInt32 Int32   where fromChType (ChInt32 int32) = int32
 
 -- | ClickHouse Int64 column type
 newtype                 ChInt64 = ChInt64 Int64  deriving newtype (Show, Eq)
-instance IsChType       ChInt64         where type ToChTypeName ChInt64 = "Int64"
+instance IsChType       ChInt64         where
+  type ToChTypeName ChInt64 = "Int64"
+  type IsWriteOptional  ChInt64 = 'False
 instance Serializable   ChInt64         where serialize (ChInt64 val)    = BS8.pack $ show val
 instance Deserializable ChInt64         where deserialize = ChInt64 . fromInteger . fst . fromJust . BS8.readInteger
 instance ToChType       ChInt64 ChInt64 where toChType = id
@@ -287,6 +341,7 @@ instance FromChType     ChInt64 Int64   where fromChType = coerce
 newtype                    ChInt128 = ChInt128   Int128  deriving newtype (Show, Eq)
 instance IsChType ChInt128 where
   type ToChTypeName ChInt128 = "Int128"
+  type IsWriteOptional  ChInt128 = 'False
 instance Serializable   ChInt128          where serialize = BS8.pack . show @ChInt128 . coerce
 instance Deserializable ChInt128          where deserialize = ChInt128 . fromInteger . fst . fromJust . BS8.readInteger
 instance ToChType       ChInt128 ChInt128 where toChType = id
@@ -299,7 +354,9 @@ instance FromChType     ChInt128 Int128   where fromChType (ChInt128 int128) = i
 
 -- | ClickHouse UInt8 column type
 newtype                 ChUInt8 = ChUInt8 Word8  deriving newtype (Show, Eq)
-instance IsChType       ChUInt8         where type ToChTypeName ChUInt8 = "UInt8"
+instance IsChType       ChUInt8         where
+  type ToChTypeName ChUInt8 = "UInt8"
+  type IsWriteOptional  ChUInt8 = 'False
 instance Serializable   ChUInt8         where serialize = BS8.pack . show @ChUInt8 . coerce
 instance Deserializable ChUInt8         where deserialize = ChUInt8 . fromIntegral . fst . fromJust . BS8.readInt
 instance ToChType       ChUInt8 ChUInt8 where toChType = id
@@ -312,7 +369,9 @@ instance FromChType     ChUInt8 Word8   where fromChType (ChUInt8 word8) = word8
 
 -- | ClickHouse UInt16 column type
 newtype                 ChUInt16 = ChUInt16 Word16  deriving newtype (Show, Eq)
-instance IsChType       ChUInt16          where type ToChTypeName ChUInt16 = "UInt16"
+instance IsChType       ChUInt16          where
+  type ToChTypeName ChUInt16 = "UInt16"
+  type IsWriteOptional  ChUInt16 = 'False
 instance Serializable   ChUInt16          where serialize = BS8.pack . show @ChUInt16 . coerce
 instance Deserializable ChUInt16          where deserialize = ChUInt16 . fromIntegral . fst . fromJust . BS8.readInt
 instance ToChType       ChUInt16 ChUInt16 where toChType = id
@@ -325,7 +384,9 @@ instance FromChType     ChUInt16 Word16   where fromChType (ChUInt16 word16) = w
 
 -- | ClickHouse UInt32 column type
 newtype                  ChUInt32 = ChUInt32 Word32  deriving newtype (Show, Eq)
-instance IsChType        ChUInt32          where type ToChTypeName ChUInt32 = "UInt32"
+instance IsChType        ChUInt32          where
+  type ToChTypeName ChUInt32 = "UInt32"
+  type IsWriteOptional  ChUInt32 = 'False
 instance Serializable    ChUInt32          where serialize (ChUInt32 val)    = BS8.pack $ show val
 instance Deserializable  ChUInt32          where deserialize = ChUInt32 . fromIntegral . fst . fromJust . BS8.readInt
 instance ToChType        ChUInt32 ChUInt32 where toChType = id
@@ -338,7 +399,9 @@ instance FromChType      ChUInt32 Word32   where fromChType (ChUInt32 w32) = w32
 
 -- | ClickHouse UInt64 column type
 newtype                 ChUInt64 = ChUInt64 Word64  deriving newtype (Show, Eq)
-instance IsChType       ChUInt64          where type ToChTypeName ChUInt64 = "UInt64"
+instance IsChType       ChUInt64          where
+  type ToChTypeName ChUInt64 = "UInt64"
+  type IsWriteOptional  ChUInt64 = 'False
 instance Serializable   ChUInt64          where serialize = BS8.pack . show @ChUInt64 . coerce
 instance Deserializable ChUInt64          where deserialize = ChUInt64 . fromIntegral . fst . fromJust . BS8.readInteger
 instance ToChType       ChUInt64 ChUInt64 where toChType = id
@@ -351,7 +414,9 @@ instance FromChType     ChUInt64 Word64   where fromChType (ChUInt64 w64) = w64
 
 -- | ClickHouse UInt128 column type
 newtype                 ChUInt128 = ChUInt128 Word128  deriving newtype (Show, Eq)
-instance IsChType       ChUInt128           where type ToChTypeName ChUInt128 = "UInt128"
+instance IsChType       ChUInt128           where
+  type ToChTypeName ChUInt128 = "UInt128"
+  type IsWriteOptional  ChUInt128 = 'False
 instance Serializable   ChUInt128           where serialize = BS8.pack . show @ChUInt128 . coerce
 instance Deserializable ChUInt128           where deserialize = ChUInt128 . fromIntegral . fst . fromJust . BS8.readInteger
 instance ToChType       ChUInt128 ChUInt128 where toChType = id
@@ -366,12 +431,14 @@ instance FromChType     ChUInt128 Word128   where fromChType (ChUInt128 w128) = 
 
 -- | ClickHouse DateTime column type
 newtype                 ChDateTime = ChDateTime Word32  deriving newtype (Show, Eq)
-instance IsChType       ChDateTime            where type ToChTypeName ChDateTime = "DateTime"
+instance IsChType       ChDateTime            where
+  type ToChTypeName ChDateTime = "DateTime"
+  type IsWriteOptional  ChDateTime = 'False
 instance Serializable   ChDateTime            where serialize (ChDateTime w32) = let time = BS8.pack $ show w32 in BS8.replicate (10 - BS8.length time) '0' <>  time
 instance Deserializable ChDateTime            where
   deserialize
     = ChDateTime . fromInteger
-    . floor . nominalDiffTimeToSeconds . utcTimeToPOSIXSeconds
+    . floor . utcTimeToPOSIXSeconds
     . fromJust . parseTimeM False defaultTimeLocale "%Y-%m-%d %H:%M:%S"
     . BS8.unpack
 instance ToChType       ChDateTime ChDateTime where toChType = id

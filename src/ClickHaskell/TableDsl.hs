@@ -25,15 +25,16 @@ module ClickHaskell.TableDsl
   ) where
 
 -- Internal dependencies
-import ClickHaskell.DbTypes (ToChTypeName, IsChType)
+import ClickHaskell.DbTypes (IsChType (..))
 
 -- GHC included libraries imports
-import Data.Data      (Proxy (Proxy))
-import Data.Kind      (Type)
-import Data.Text      as T (Text, pack)
-import Data.Type.Bool (If)
-import Data.Type.Ord  (type(>?))
-import GHC.TypeLits   (ErrorMessage (..), KnownSymbol, Symbol, TypeError, symbolVal)
+import Data.Data          (Proxy (Proxy))
+import Data.Kind          (Type)
+import Data.Text          as T (Text, pack)
+import Data.Type.Bool     (If)
+import Data.Type.Equality (type(==))
+import Data.Type.Ord      (type(>?))
+import GHC.TypeLits       (ErrorMessage (..), KnownSymbol, Symbol, TypeError, symbolVal)
 
 
 data ExpectsFiltrationBy (columnNamesList :: [Symbol])
@@ -41,23 +42,22 @@ data ExpectsFiltrationBy (columnNamesList :: [Symbol])
 
 
 
+data Table
+  (name :: Symbol)
+  (columns :: [Type])
+  (settings :: [Type])
+
 class IsTable table where
-  type GetTableColumns table :: [(Symbol, Type)]
   type GetTableName table :: Symbol
+  type GetTableColumns table :: [Type]
   type GetTableSettings table :: [Type]
-  type GetTableEngine table :: Type
-  type TableValidationResult table :: (Bool, ErrorMessage)
+  type TableValidationResult table :: Maybe ErrorMessage
 
   getTableName :: Text
   getTableRenderedColumns :: [(Text, Text)]
 
   getTableRenderedColumnsNames :: [Text]
   getTableRenderedColumnsNames = fst `map` getTableRenderedColumns @table
-
-data Table
-  (name :: Symbol)
-  (columns :: [Type])
-  (settings :: [Type])
 
 
 instance {-# OVERLAPPABLE #-}
@@ -70,63 +70,75 @@ instance {-# OVERLAPPABLE #-}
 
 instance {-# OVERLAPS #-}
   ( KnownSymbol name
-  , KnownTupleSymbols (ShowColumns (TransformedToSupportedColumns columns))
+  , IsValidColumns columns
   ) => IsTable (Table name columns settings)
   where
-  type GetTableColumns (Table _ columns _) = TransformedToSupportedColumns columns
-  type GetTableName (Table name _ _) = name
+  type GetTableName     (Table name _ _)     = name
+  type GetTableColumns  (Table _ columns _)  = GetColumnsRep columns
   type GetTableSettings (Table _ _ settings) = settings
-  type TableValidationResult (Table _ columns _) = IsValidColumnsDescription (TransformedToSupportedColumns columns)
+  type TableValidationResult (Table _ columns _) = ColumnsValdationResult columns
 
   getTableName :: Text
   getTableName = (T.pack . symbolVal) (Proxy @name)
 
   getTableRenderedColumns :: [(Text, Text)]
-  getTableRenderedColumns = symbolsTupleVals @(ShowColumns (TransformedToSupportedColumns columns))
+  getTableRenderedColumns = getRenederedColumns @columns
 
 
 
 
-type family IsValidColumnsDescription xs :: (Bool, ErrorMessage) where
-  IsValidColumnsDescription ('(sameName, _) ': '(sameName, _) ': _) = '(True, 'Text "There are 2 columns with identical names: " :<>: 'Text sameName :<>: 'Text "\". Rename one of them")
-  IsValidColumnsDescription '[x] = '(False, 'Text "Report an issue if you see this message [ClickHaskell.TableDsl.1]")
-  IsValidColumnsDescription '[] = '(True, 'Text "Data source should have at least one column but given empty list of expected columns")
-  IsValidColumnsDescription ('(name1, type1) ': '(name2, type2) ': columns)
-    = If (name1 >? name2)
-      '( True
-       , 'Text "Table columns description contains aplabetically unsorted columns."
-          :$$: 'Text "Column with name \"" :<>: 'Text name1 :<>: 'Text "\" should be placed after \"" :<>: 'Text name2 :<>: 'Text "\""
-       )
-      (IsValidColumnsDescription ('(name2, type2) ': columns))
+class IsValidColumns (columns :: [Type])
+  where
+  type ColumnsValdationResult columns :: Maybe ErrorMessage
+  type GetColumnsRep columns :: [Type]
+  getRenederedColumns :: [(Text, Text)]
+
+
+instance
+  ( IsColumnDescription column1
+  , IsColumnDescription column2
+  , IsValidColumns (column2 ': columns)
+  ) => IsValidColumns (column1 ': column2 ': columns)
+  where
+  type GetColumnsRep (column1 ': column2 ': columns) = column1 ': GetColumnsRep (column2 ': columns)
+  type (ColumnsValdationResult (column1 ': column2 ': columns)) =
+    If (GetColumnName column1 >? GetColumnName column2)
+      ( 'Just
+       (     'Text "Table columns description contains aplabetically unsorted columns."
+        :$$: 'Text "Column with name \""         :<>: 'Text (GetColumnName column1) :<>: 'Text "\" "
+          :<>: 'Text "should be placed after \"" :<>: 'Text (GetColumnName column2) :<>: 'Text "\""
+       ) 
+      )
+      (If (GetColumnName column2 == GetColumnName column1)
+        ('Just ('Text "There are two columns with identical name: \"" :<>: 'Text (GetColumnName column1) :<>: 'Text "\""))
+        (ColumnsValdationResult (column2 ': columns))
+      )
+  getRenederedColumns = (renderColumnName @column1, renderColumnType @column2) : getRenederedColumns @(column2 ': columns)
+
+
+instance
+  ( IsColumnDescription column
+  ) => IsValidColumns '[column]
+  where
+  type GetColumnsRep '[column] = '[column]
+  getRenederedColumns = [(renderColumnName @column, renderColumnType @column)]
+
+  type (ColumnsValdationResult '[column]) = 'Nothing
+
+
+instance
+  ( TypeError ('Text "Data source should have at least one column but given empty list of expected columns")
+  ) => IsValidColumns '[]
 
 
 
 
-type family TransformedToSupportedColumns (columns :: [Type]) :: [(Symbol, Type)] where
-  TransformedToSupportedColumns (x ': '[]) = SupportedColumn x ': '[]
-  TransformedToSupportedColumns (x ': xs)  = SupportedColumn x ': TransformedToSupportedColumns xs
-  TransformedToSupportedColumns '[]        = TypeError ('Text "Report an issue if you see this message [ClickHaskell.TableDsl.2]")
-
-
-type family SupportedColumn x :: (Symbol, Type) where
-  SupportedColumn (DefaultColumn a b) = '(a, b)
-
-
-type family ShowColumns t :: [(Symbol, Symbol)] where
-  ShowColumns ( '(a, b) ': xs) = '(a, ToChTypeName b) ': ShowColumns xs
-  ShowColumns '[] = '[]
-
-
-class KnownTupleSymbols (ns :: [(Symbol, Symbol)]) where
-  symbolsTupleVals :: [(Text, Text)]
-instance KnownTupleSymbols '[] where symbolsTupleVals = []
-instance (KnownTupleSymbols ns, KnownSymbol a, KnownSymbol b) => KnownTupleSymbols ('(a,b) ': ns) where
-  symbolsTupleVals = (T.pack (symbolVal (Proxy @a)), T.pack (symbolVal (Proxy @b))) : symbolsTupleVals @ns
-
-
+data DefaultColumn (name :: Symbol) (columnType :: Type)
+data ReadOnlyColumn (name :: Symbol) (columnType :: Type)
 
 
 class IsColumnDescription columnDescription where
+  type ColumnDescriptionValidationResult columnDescription :: Maybe ErrorMessage
   type GetColumnName columnDescription :: Symbol
   renderColumnName :: Text
 
@@ -134,14 +146,12 @@ class IsColumnDescription columnDescription where
   renderColumnType :: Text
 
   type IsColumnReadOnly columnDescription :: Bool
-
-data DefaultColumn (name :: Symbol) (columnType :: Type)
-data ReadOnlyColumn (name :: Symbol) (columnType :: Type)
+  type IsColumnWriteOptional columnDescription :: Bool
 
 
 instance {-# OVERLAPPABLE #-}
   ( TypeError
-    (   'Text "Expected a valid column description. But got: "
+    (    'Text "Expected a valid column description. But got: "
     :$$: ShowType unsupportedColumnDescription
     )
   ) => IsColumnDescription unsupportedColumnDescription
@@ -159,7 +169,8 @@ instance
   type GetColumnType (DefaultColumn name columnType) = columnType
   renderColumnType = T.pack . symbolVal $ Proxy @(ToChTypeName columnType)
 
-  type IsColumnReadOnly (DefaultColumn _ _) = False
+  type IsColumnReadOnly (DefaultColumn _ columnType) = 'False
+  type IsColumnWriteOptional (DefaultColumn _ columnType) = IsWriteOptional columnType
 
 
 instance
@@ -175,3 +186,26 @@ instance
   renderColumnType = T.pack . symbolVal $ Proxy @(ToChTypeName columnType)
 
   type IsColumnReadOnly (ReadOnlyColumn _ _) = True
+  type IsColumnWriteOptional (ReadOnlyColumn _ columnType) = 'True
+
+
+
+
+-- * Errors handling
+
+-- | Type family usefull when you have a several posible errors and need to return first one.
+-- 
+-- @
+-- type NotAnError = 'Nothng
+-- type Error1     = 'Just ('Text "error1")
+-- type Error2     = 'Just ('Text "error2")
+--
+-- type FirstJustOrNothing '[NotAnError, Error2] = 'Just ('Text "error2")
+-- type FirstJustOrNothing '[Error1,     Error2] = 'Just ('Text "error1")
+-- type FirstJustOrNothing '[NotAnError]         = 'Nothing
+-- @
+type family FirstJustOrNothing (a :: [Maybe ErrorMessage]) :: Maybe ErrorMessage
+  where
+  FirstJustOrNothing '[] = 'Nothing
+  FirstJustOrNothing ('Nothing ': xs) = FirstJustOrNothing xs
+  FirstJustOrNothing ('Just txt ': xs) = 'Just txt

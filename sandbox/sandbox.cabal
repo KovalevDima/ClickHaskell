@@ -37,7 +37,7 @@ library
     , bytestring
     , ClickHaskell
     , text
-  default-language: GHC2021
+  default-language: Haskell2010
 
 executable executable
   main-is: Main.hs
