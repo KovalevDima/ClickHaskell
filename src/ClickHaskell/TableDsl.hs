@@ -37,15 +37,14 @@ import Data.Type.Ord      (type(>?))
 import GHC.TypeLits       (ErrorMessage (..), KnownSymbol, Symbol, TypeError, symbolVal)
 
 
-data ExpectsFiltrationBy (columnNamesList :: [Symbol])
-
-
-
-
 data Table
   (name :: Symbol)
   (columns :: [Type])
   (settings :: [Type])
+
+
+data ExpectsFiltrationBy (columnNamesList :: [Symbol])
+
 
 class IsTable table where
   type GetTableName table :: Symbol
@@ -127,7 +126,10 @@ instance
 
 
 instance
-  ( TypeError ('Text "Data source should have at least one column but given empty list of expected columns")
+  ( TypeError
+    (    'Text "Data source should have at least one column"
+    :$$: 'Text "but given empty list of expected columns"
+    )
   ) => IsValidColumns '[]
 
 
@@ -163,6 +165,7 @@ instance
   , KnownSymbol (ToChTypeName columnType)
   ) => IsColumnDescription (DefaultColumn name columnType)
   where
+  type ColumnDescriptionValidationResult (DefaultColumn name columnType) = 'Nothing
   type GetColumnName (DefaultColumn name columnType) = name
   renderColumnName = T.pack . symbolVal $ Proxy @name
 
@@ -179,6 +182,7 @@ instance
   , KnownSymbol (ToChTypeName columnType)
   ) => IsColumnDescription (ReadOnlyColumn name columnType)
   where
+  type ColumnDescriptionValidationResult (ReadOnlyColumn name columnType) = 'Nothing
   type GetColumnName (ReadOnlyColumn name _) = name
   renderColumnName = T.pack . symbolVal $ Proxy @name
 
@@ -187,25 +191,3 @@ instance
 
   type IsColumnReadOnly (ReadOnlyColumn _ _) = True
   type IsColumnWriteOptional (ReadOnlyColumn _ columnType) = 'True
-
-
-
-
--- * Errors handling
-
--- | Type family usefull when you have a several posible errors and need to return first one.
--- 
--- @
--- type NotAnError = 'Nothng
--- type Error1     = 'Just ('Text "error1")
--- type Error2     = 'Just ('Text "error2")
---
--- type FirstJustOrNothing '[NotAnError, Error2] = 'Just ('Text "error2")
--- type FirstJustOrNothing '[Error1,     Error2] = 'Just ('Text "error1")
--- type FirstJustOrNothing '[NotAnError]         = 'Nothing
--- @
-type family FirstJustOrNothing (a :: [Maybe ErrorMessage]) :: Maybe ErrorMessage
-  where
-  FirstJustOrNothing '[] = 'Nothing
-  FirstJustOrNothing ('Nothing ': xs) = FirstJustOrNothing xs
-  FirstJustOrNothing ('Just txt ': xs) = 'Just txt

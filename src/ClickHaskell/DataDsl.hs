@@ -6,7 +6,7 @@
   , FlexibleContexts
   , FlexibleInstances
   , GeneralizedNewtypeDeriving
-  , ScopedTypeVariables
+  , InstanceSigs
   , MultiParamTypeClasses
   , OverloadedStrings
   , PolyKinds
@@ -14,16 +14,14 @@
   , TypeApplications
   , TypeFamilies
   , TypeOperators
+  , ScopedTypeVariables
   , UndecidableInstances
   , UndecidableSuperClasses
 #-}
-{-# LANGUAGE InstanceSigs #-}
 module ClickHaskell.DataDsl
   (
   -- * Inserting
-  InsertableInto(toTsvLine)
-
-  , tsvInsertQueryHeader
+  InsertableInto(toTsvLine, toInsertQueryHeader)
 
   -- * Seleting
   , SelectableFrom(fromTsvLine)
@@ -32,7 +30,6 @@ module ClickHaskell.DataDsl
   , SelectionDescription
   , IsSelectionDescription(SelectionDescriptionConstructor, ToSelectionResult, GetFilters)
   , constructSelection
-  -- , setDbName
 
   , type (%%)
   , Result
@@ -46,18 +43,19 @@ import ClickHaskell.DbTypes    (Serializable(serialize), Deserializable(deserial
 
 
 -- GHC included libraries imports
-import Data.ByteString    as BS (ByteString, intercalate, split)
-import Data.Data          (Proxy(..))
-import Data.Kind          (Type)
-import Data.Text          as T (Text, intercalate, pack)
-import Data.Text.Encoding as T (encodeUtf8, decodeUtf8)
-import Data.Type.Bool     (If)
-import Data.Type.Equality (type(==))
-import Data.Type.Ord      (type(>?), type(<=?))
-import Data.String        (IsString(..))
-import GHC.Generics       (Generic(..), K1(..), M1(..), type (:*:)(..), D1, C1, S1, Meta(MetaSel), Rec0)
-import GHC.TypeError      (TypeError, ErrorMessage(..))
-import GHC.TypeLits       (Symbol, KnownSymbol, symbolVal)
+import Data.ByteString       as BS (ByteString, intercalate, split)
+import Data.ByteString.Char8 as BS8 (pack)
+import Data.Data             (Proxy(..))
+import Data.Kind             (Type)
+import Data.Text             as T (Text, pack)
+import Data.Text.Encoding    as T (encodeUtf8, decodeUtf8)
+import Data.Type.Bool        (If)
+import Data.Type.Equality    (type(==))
+import Data.Type.Ord         (type(>?), type(<=?))
+import Data.String           (IsString(..))
+import GHC.Generics          (Generic(..), K1(..), M1(..), type (:*:)(..), D1, C1, S1, Meta(MetaSel), Rec0)
+import GHC.TypeError         (TypeError, ErrorMessage(..))
+import GHC.TypeLits          (Symbol, KnownSymbol, symbolVal)
 
 
 -- * Inserting
@@ -66,6 +64,7 @@ import GHC.TypeLits       (Symbol, KnownSymbol, symbolVal)
 class
   ( IsTable table
   ) => InsertableInto table record where
+
   default toTsvLine
     ::
     ( GInsertable
@@ -74,7 +73,6 @@ class
       (Rep record)  
     , Generic record
     ) => record -> BS.ByteString
-
   toTsvLine :: record -> BS.ByteString
   toTsvLine
     = gToTsvBs
@@ -82,6 +80,24 @@ class
       @(GetTableColumns table)
     . from
   {-# NOINLINE toTsvLine #-}
+
+  default toInsertQueryHeader
+    ::
+    ( GInsertable
+      (TableValidationResult table)
+      (GetTableColumns table)
+      (Rep record)  
+    , Generic record
+    ) => BS.ByteString
+  toInsertQueryHeader :: BS.ByteString
+  toInsertQueryHeader
+    =  "INSERT INTO " <> T.encodeUtf8 (getTableName @table)
+    <> " (" <> gRenderedInsertableColumns
+      @(TableValidationResult table)
+      @(GetTableColumns table)
+      @(Rep record)
+    <> ")"
+  {-# NOINLINE toInsertQueryHeader #-}
 
 
 instance  {-# OVERLAPPABLE #-}
@@ -102,21 +118,8 @@ instance  {-# OVERLAPPABLE #-}
     )
   ) => InsertableInto table record
   where
-  toTsvLine = error "Unreachable"
-
-
-
-
-tsvInsertQueryHeader :: forall locatedTable description .
-  ( InsertableInto locatedTable description
-  ) => Text
-tsvInsertQueryHeader =
-  let columnsMapping = T.intercalate "," $ getTableRenderedColumnsNames @locatedTable
-  in "INSERT INTO " <> getTableName @locatedTable
-  <> " (" <> columnsMapping <> ")"
-  <> " FORMAT TSV\n"
-
-
+  toTsvLine _         = error "Unreachable"
+  toInsertQueryHeader = error "Unreachable"
 
 
 class GInsertable
@@ -125,6 +128,7 @@ class GInsertable
   f
   where
   gToTsvBs :: f p -> BS.ByteString
+  gRenderedInsertableColumns :: BS.ByteString
 
 
 instance
@@ -134,6 +138,9 @@ instance
   gToTsvBs _ = error "Unreachable"
   {-# INLINE gToTsvBs #-}
 
+  gRenderedInsertableColumns = error "Unreachable"
+  {-# INLINE gRenderedInsertableColumns #-}
+
 
 instance {-# OVERLAPPING #-}
   ( GInsertable 'Nothing columns f
@@ -142,6 +149,9 @@ instance {-# OVERLAPPING #-}
   gToTsvBs (M1 re) = gToTsvBs @'Nothing @columns re <> "\n"
   {-# INLINE gToTsvBs #-}
 
+  gRenderedInsertableColumns = gRenderedInsertableColumns @'Nothing @columns @f
+  {-# INLINE gRenderedInsertableColumns #-}
+
 
 instance {-# OVERLAPPING #-}
   ( GInsertable 'Nothing columns f
@@ -149,6 +159,9 @@ instance {-# OVERLAPPING #-}
   where
   gToTsvBs (M1 re) = gToTsvBs @'Nothing @columns re
   {-# INLINE gToTsvBs #-}
+
+  gRenderedInsertableColumns = gRenderedInsertableColumns @'Nothing @columns @f
+  {-# INLINE gRenderedInsertableColumns #-}
 
 
 instance {-# OVERLAPPING #-}
@@ -169,11 +182,17 @@ instance {-# OVERLAPPING #-}
     <> "\t" <> gToTsvBs @derivingState @secondColumnsPart right
   {-# INLINE gToTsvBs #-}
 
+  gRenderedInsertableColumns
+    =  gRenderedInsertableColumns @derivingState @firstColumnsPart @left
+    <> ", "
+    <> gRenderedInsertableColumns @derivingState @secondColumnsPart @right
+  {-# INLINE gRenderedInsertableColumns #-}
 
 instance {-# OVERLAPPING #-}
   ( Serializable chType
   , ToChType chType inputType
   , columnName ~ GetColumnName column
+  , KnownSymbol columnName
   , chType ~ GetColumnType column
   ) => GInsertable 'Nothing '[column]
     ( S1 (MetaSel (Just columnName) a b f) (Rec0 inputType)
@@ -182,6 +201,8 @@ instance {-# OVERLAPPING #-}
   gToTsvBs = serialize . toChType @chType @inputType . unK1 . unM1
   {-# INLINE gToTsvBs #-}
 
+  gRenderedInsertableColumns = BS8.pack $ symbolVal (Proxy @columnName) 
+  {-# INLINE gRenderedInsertableColumns #-}
 
 instance
   (GInsertable
@@ -197,6 +218,7 @@ instance
     (S1 (MetaSel (Just columnName) a b f) (K1 i inputType))
   , ToChType (GetColumnType column) inputType
   , Serializable (GetColumnType column)
+  , KnownSymbol columnName
   )
   =>
   GInsertable
@@ -205,6 +227,9 @@ instance
     (S1 (MetaSel (Just columnName) a b f) (K1 i inputType))
   where
   gToTsvBs = serialize . toChType @(GetColumnType column) @inputType . unK1 . unM1
+
+  gRenderedInsertableColumns = BS8.pack $ symbolVal (Proxy @columnName)
+  {-# INLINE gRenderedInsertableColumns #-}
 
 
 instance
@@ -223,6 +248,7 @@ instance
     (S1 (MetaSel (Just columnName) a b f) (K1 i inputType))
   where
   gToTsvBs = error "Unreachable"
+  gRenderedInsertableColumns = error "Unreachable"
 
 
 
@@ -238,23 +264,37 @@ instance
 
 class
   ( IsTable table
-  ) => SelectableFrom table dataDescripion where
+  ) => SelectableFrom table record where
   default fromTsvLine
     ::
     ( GSelectable
       (TableValidationResult table)
       (GetTableColumns table)
-      (Rep dataDescripion)
-    , Generic dataDescripion
-    ) => BS.ByteString -> dataDescripion
-
-  fromTsvLine :: BS.ByteString -> dataDescripion
+      (Rep record)
+    , Generic record
+    ) => BS.ByteString -> record
+  fromTsvLine :: BS.ByteString -> record
   fromTsvLine
     = to
     . gFromTsvBs
       @(TableValidationResult table)
       @(GetTableColumns table)
   {-# INLINE fromTsvLine #-}
+
+  default renderedSelectableColumns
+    ::
+    ( GSelectable
+      (TableValidationResult table)
+      (GetTableColumns table)
+      (Rep record)
+    , Generic record
+    ) => BS.ByteString
+  renderedSelectableColumns :: BS.ByteString
+  renderedSelectableColumns
+    = gRenderedSelectableColumns
+      @(TableValidationResult table)
+      @(GetTableColumns table)
+      @(Rep record)
 
 
 instance {-# OVERLAPPABLE #-}
@@ -275,16 +315,8 @@ instance {-# OVERLAPPABLE #-}
     )
   ) => SelectableFrom table dataDescripion
   where
-  fromTsvLine = error "Unreachable"
-
-
-
-
-constructSelection :: forall table selectionDescription columnsSubset .
-  ( IsSelectionDescription table selectionDescription columnsSubset
-  , columnsSubset ~ GetRepresentationInColumns (GetFilters selectionDescription) (GetTableColumns table)
-  ) => SelectionDescriptionConstructor table selectionDescription columnsSubset
-constructSelection = consructSelectionDescription @table @selectionDescription @columnsSubset emptyDesc
+  fromTsvLine _ = error "Unreachable"
+  renderedSelectableColumns = error "Unreachable"
 
 
 data (%%) a b
@@ -297,23 +329,29 @@ data EqualTo  (columnName :: Symbol) expressionValue
 data HasInfix (columnName :: Symbol) expressionValue
 
 
+constructSelection :: forall table selectionDescription  .
+  ( IsSelectionDescription             table selectionDescription (GetRepresentationInColumns table selectionDescription)
+  ) => SelectionDescriptionConstructor table selectionDescription (GetRepresentationInColumns table selectionDescription)
+constructSelection =
+  consructSelectionDescription @table @selectionDescription @(GetRepresentationInColumns table selectionDescription) emptyDesc
+
+
 renderSelectQuery :: SelectionDescription table description -> ByteString
 renderSelectQuery (MkSelectionDescription columns table filteringParts) =
   T.encodeUtf8
-    $ "SELECT " <> T.intercalate "," columns
+    $ "SELECT " <> columns
     <> " FROM " <> table
     <> renderFilteringParts filteringParts
-    <> " FORMAT TSV"
 {-# INLINE renderSelectQuery #-}
 
 data SelectionDescription table description = MkSelectionDescription
-  { renderedColumns :: [Text]
+  { renderedColumns :: Text
   , tableName :: Text
   , _filtertingParts :: [FilteringPart]
   }
 
 emptyDesc :: SelectionDescription table description
-emptyDesc = MkSelectionDescription [] "" []
+emptyDesc = MkSelectionDescription "" "" []
 
 appendFilteringToSelection :: SelectionDescription table description -> Text -> SelectionDescription table description
 appendFilteringToSelection (MkSelectionDescription columns table filteringParts) filteringContent
@@ -373,7 +411,8 @@ instance {-# OVERLAPPING #-}
   where
   type GetFilters (type2 %% EqualTo columnName Variable) = columnName ': GetFilters type2
   type ToSelectionResult (type2 %% EqualTo columnName Variable) = ToSelectionResult type2
-  type SelectionDescriptionConstructor table (type2 %% EqualTo columnName Variable) columnsSubset = GetColumnTypeByName columnName columnsSubset -> SelectionDescriptionConstructor table type2 columnsSubset
+  type SelectionDescriptionConstructor table (type2 %% EqualTo columnName Variable) columnsSubset
+    = GetColumnTypeByName columnName columnsSubset -> SelectionDescriptionConstructor table type2 columnsSubset
   consructSelectionDescription desc text
     = consructSelectionDescription @table @type2 @columnsSubset
     . appendFilteringToSelection desc
@@ -386,10 +425,11 @@ instance
   where
   type GetFilters (Result selectableData) = '[]
   type ToSelectionResult (Result selectableData) = selectableData
-  type SelectionDescriptionConstructor table (Result selectableData) columnsSubset = SelectionDescription table selectableData
+  type SelectionDescriptionConstructor table (Result selectableData) columnsSubset
+    = SelectionDescription table selectableData
   consructSelectionDescription desc = desc
     { tableName = getTableName @table
-    , renderedColumns = getTableRenderedColumnsNames @table
+    , renderedColumns = T.decodeUtf8 $ renderedSelectableColumns @table @selectableData
     }
 
 
@@ -414,6 +454,7 @@ class GSelectable
   f
   where
   gFromTsvBs :: BS.ByteString -> f p
+  gRenderedSelectableColumns :: BS.ByteString
 
 
 instance
@@ -422,6 +463,7 @@ instance
   where
   gFromTsvBs _ = error "Unreachable"
   {-# INLINE gFromTsvBs #-}
+  gRenderedSelectableColumns = error "Unreachable"
 
 
 instance {-# OVERLAPPING #-}
@@ -430,6 +472,7 @@ instance {-# OVERLAPPING #-}
   where
   gFromTsvBs bs = M1 $ gFromTsvBs @'Nothing @columns bs
   {-# INLINE gFromTsvBs #-}
+  gRenderedSelectableColumns = gRenderedSelectableColumns @'Nothing @columns @f
 
 
 instance {-# OVERLAPPING #-}
@@ -438,6 +481,8 @@ instance {-# OVERLAPPING #-}
   where
   gFromTsvBs = M1 . gFromTsvBs @'Nothing @columns
   {-# INLINE gFromTsvBs #-}
+  gRenderedSelectableColumns = gRenderedSelectableColumns @'Nothing @columns @f
+  {-# INLINE gRenderedSelectableColumns #-}
 
 
 instance {-# OVERLAPPING #-}
@@ -459,12 +504,16 @@ instance {-# OVERLAPPING #-}
     in  gFromTsvBs @derivingState @firstColumnsPart (BS.intercalate "\t" leftWords)
     :*: gFromTsvBs @derivingState @secondColumnsPart (BS.intercalate "\t" rightWords)
   {-# INLINE gFromTsvBs #-}
+  gRenderedSelectableColumns
+    =          gRenderedSelectableColumns @derivingState @firstColumnsPart @left
+    <> ", " <> gRenderedSelectableColumns @derivingState @secondColumnsPart @right
 
 
 instance {-# OVERLAPPING #-}
   ( Deserializable chType
   , FromChType chType outputType
   , columnName ~ GetColumnName column
+  , KnownSymbol columnName
   , chType ~ GetColumnType column
   ) => GSelectable
     'Nothing
@@ -473,6 +522,7 @@ instance {-# OVERLAPPING #-}
   where
   gFromTsvBs = M1 . K1 . fromChType @chType @outputType . deserialize
   {-# INLINE gFromTsvBs #-}
+  gRenderedSelectableColumns = (BS8.pack . symbolVal) (Proxy @columnName)
 
 
 instance
@@ -490,7 +540,8 @@ instance
     '[]
     (S1 (MetaSel (Just columnName) a b f) k)
   where
-  gFromTsvBs = error "Unreachable"
+  gFromTsvBs _ = error "Unreachable"
+  gRenderedSelectableColumns = error "Unreachable"
 
 
 
@@ -557,16 +608,13 @@ type family GoReverse (list :: [a]) (acc :: [a])
   GoReverse (x ': xs) acc = GoReverse xs (x ': acc)
 
 
-
-
 type family GetRepresentationInColumns
-  (names :: [Symbol])
-  (columns :: [Type])
+  (columns :: Type)
+  (names :: Type)
   ::
   [Type]
   where
-  GetRepresentationInColumns '[] columns = TypeError ('Text "Report an issue if you see this message: Validation")
-  GetRepresentationInColumns names columns = (GoGetRepresentationInColumns (GetMinimum names) columns)
+  GetRepresentationInColumns columns names = (GoGetRepresentationInColumns (GetMinimum (GetFilters names)) (GetTableColumns columns))
 
 type family GoGetRepresentationInColumns
   (minimumWithOthers :: (Symbol, [Symbol]))

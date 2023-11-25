@@ -12,7 +12,7 @@
 
 module Example where
 
-import ClickHaskell.DataDsl  (EqualTo, Variable, Result, type(%%), SelectableFrom, InsertableInto, constructSelection, renderSelectQuery)
+import ClickHaskell.DataDsl  (EqualTo, Variable, Result, type(%%), SelectableFrom, InsertableInto(toInsertQueryHeader), constructSelection, renderSelectQuery)
 import ClickHaskell.DbTypes  (Int64, Word32, nilChUUID, toCh, ChDateTime, ChInt32, ChInt64, ChString, ChUUID, LowCardinality, Nullable, Text)
 import ClickHaskell.TableDsl (DefaultColumn, ExpectsFiltrationBy, Table)
 
@@ -61,7 +61,7 @@ dataExample = ExampleData
   }
 
 -- >>> showSelect
--- "SELECT a1,a2,a3,a4,a5,a6,a7 FROM example WHERE a3=0000000042 AND a2='a2' FORMAT TSV"
+-- "SELECT a1, a2, a3, a4, a5, a6, a7 FROM example WHERE a3=0000000042 AND a2='a2'"
 showSelect :: ByteString
 showSelect = renderSelectQuery
   $ constructSelection
@@ -73,9 +73,8 @@ showSelect = renderSelectQuery
     (toCh @Word32 42)
     (toCh @ByteString "a2")
 
-
 -- >>> showSelect2
--- "SELECT a1,a2,a3,a4,a5,a6,a7 FROM example FORMAT TSV"
+-- "SELECT a1, a2, a3, a4, a5, a6, a7 FROM example"
 showSelect2 :: ByteString
 showSelect2 = renderSelectQuery
   $ constructSelection
@@ -83,7 +82,12 @@ showSelect2 = renderSelectQuery
     @(Result ExampleData
     )
 
-
+-- >>> showInsert
+-- "INSERT INTO example (a1, a2, a3, a4, a5, a6, a7)"
+showInsert :: ByteString
+showInsert = toInsertQueryHeader
+  @ExampleTable
+  @ExampleData
 
 
 type SingleFieldTable =

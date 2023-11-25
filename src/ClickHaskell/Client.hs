@@ -15,7 +15,7 @@
 module ClickHaskell.Client where
 
 -- Internal dependencies
-import ClickHaskell.DataDsl (InsertableInto (..), SelectableFrom (..), tsvInsertQueryHeader, renderSelectQuery, SelectionDescription)
+import ClickHaskell.DataDsl (InsertableInto (..), SelectableFrom (..), renderSelectQuery, SelectionDescription)
 
 -- GHC included libraries imports
 import Control.DeepSeq            (NFData)
@@ -39,6 +39,24 @@ import Network.HTTP.Types          as H (Status(..))
 
 
 
+
+data ClientResponse result = MkClientResponse
+  { getResult :: result
+  , profileData :: ProfileData
+  } deriving (Generic)
+deriving instance (Show result) => Show (ClientResponse result)
+deriving instance Functor ClientResponse
+
+
+data ProfileData = MkProfileData
+  { readRows        :: Integer
+  , readBytes       :: Integer
+  , writtenRows     :: Integer
+  , writtenBytes    :: Integer
+  , totalRowsToRead :: Integer
+  , resultRows      :: Integer
+  , resultBytes     :: Integer
+  } deriving (Generic, Show)
 
 -- >>> parseSummary summaryExample
 -- MkProfileData {readRows = 1, readBytes = 78, writtenRows = 1, writtenBytes = 78, totalRowsToRead = 0, resultRows = 1, resultBytes = 78}
@@ -92,33 +110,14 @@ parseSummary
 
 
 
-data ClientResponse result = MkClientResponse
-  { getResult :: result
-  , profileData :: ProfileData
-  } deriving (Generic)
-deriving instance (Show result) => Show (ClientResponse result)
-deriving instance Functor ClientResponse
-
-
-data ProfileData = MkProfileData
-  { readRows        :: Integer
-  , readBytes       :: Integer
-  , writtenRows     :: Integer
-  , writtenBytes    :: Integer
-  , totalRowsToRead :: Integer
-  , resultRows      :: Integer
-  , resultBytes     :: Integer
-  } deriving (Generic, Show)
-
-
-
-
 httpStreamChSelect :: forall table descripion .
   ( SelectableFrom table descripion
   ) => HttpChClient -> SelectionDescription table descripion -> IO (ClientResponse [descripion])
 httpStreamChSelect (HttpChClient man req) descConstructor = do
   resp <- H.httpLbs
-    req{H.requestBody = H.RequestBodyBS (renderSelectQuery descConstructor)}
+    req
+      { H.requestBody = H.RequestBodyBS (renderSelectQuery descConstructor)
+      }
     man
 
   when (H.statusCode (responseStatus resp) /= 200) $
@@ -145,9 +144,9 @@ httpStreamChInsert :: forall locatedTable handlingDataDescripion .
 httpStreamChInsert (HttpChClient man req) schemaList = do
   resp <- H.httpLbs
     req
-      { requestBody = H.requestBodySourceChunked $
-        yield     (encodeUtf8 (tsvInsertQueryHeader @locatedTable @handlingDataDescripion))
-        >> yieldMany (map (toTsvLine @locatedTable) schemaList)
+      { requestBody = H.requestBodySourceChunked
+        $  yield     (toInsertQueryHeader @locatedTable @handlingDataDescripion <> " FORMAT TSV\n")
+        >> yieldMany (toTsvLine @locatedTable @handlingDataDescripion `map` schemaList)
       }
     man
 
