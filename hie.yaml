@@ -1,8 +1,0 @@
-cradle:
-  cabal:
-    - path: "./"
-      component: "lib:ClickHaskell"
-    - path: "./sandbox"
-      component: "lib:sandbox"
-    - path: "./sandbox"
-      component: "executable:sandbox"

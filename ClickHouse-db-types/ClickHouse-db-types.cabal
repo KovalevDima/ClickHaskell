@@ -1,0 +1,75 @@
+Cabal-version: 3.4
+
+
+Name:           ClickHouse-db-types
+Version:        0.0.0.1
+
+Author:         Kovalev Dmitry
+Maintainer:     Kovalev Dmitry
+Category:       ClickHouse
+Synopsis:       ClickHouse database types
+Description:    ClickHouse database types primitives for implementing DSLs
+Homepage:       https://github.com/KovalevDima/ClickHaskell#readme
+Bug-reports:    https://github.com/KovalevDima/ClickHaskell/issues
+License:        BSD-3-Clause
+License-File:   ./LICENSE
+Copyright:      2023 Kovalev Dmitry
+Build-Type:     Simple
+
+
+Flag release
+  Description: Pre-release build options
+  Manual: True
+  Default: False
+
+Flag dev
+  Description: Dump core
+  Manual: True
+  Default: False
+
+
+Source-repository head
+  Type: git
+  Location: https://github.com/KovalevDima/ClickHaskell
+  Subdir: ClickHouse-db-types
+
+
+Library
+  Autogen-Modules:
+    Paths_ClickHouse_db_types
+  Exposed-Modules:
+    ClickHouse.DbTypes
+  Other-Modules:
+    Paths_ClickHouse_db_types
+  HS-Source-Dirs:
+    ./lib
+  GHC-Options:
+    -Wall
+    -fno-warn-type-defaults
+    -Wunused-packages
+
+  if flag(release)
+    GHC-Options:  -Werror
+
+  if flag(dev)
+    GHC-Options: -ddump-to-file -ddump-simpl -dsuppress-type-applications -dsuppress-coercions -dsuppress-idinfo -dsuppress-type-signatures -dsuppress-var-kinds -dsuppress-module-prefixes -dsuppress-uniques
+
+  Build-depends:
+    -- GHC included libraries
+      base >= 4.7 && <5
+    , bytestring < 0.12
+    , text < 2.1
+    , time < 1.13
+
+    -- External dependencies
+    , uuid < 1.4
+    , wide-word < 0.2
+  Default-language: Haskell2010
+  Default-Extensions:
+    FlexibleContexts
+    FlexibleInstances
+    MultiParamTypeClasses
+    TypeApplications
+    TypeFamilies
+    TypeOperators
+    ScopedTypeVariables

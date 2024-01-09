@@ -1,9 +1,7 @@
 {-# LANGUAGE
     AllowAmbiguousTypes
   , DerivingStrategies
-  , FlexibleInstances
   , GeneralizedNewtypeDeriving
-  , MultiParamTypeClasses
 #-}
 
 module ClickHaskell.Buffering where
@@ -19,7 +17,7 @@ import GHC.Num                (Natural)
 -- | Forks buffer flusher with given frequency 
 --
 forkBufferFlusher :: (IsBuffer buffer schemaData)
-  => Int                      -- ^ Flushes frequency
+  => Natural                  -- ^ Flushes frequency
   -> buffer schemaData        -- ^ Buffer with schema specialized data
   -> (SomeException -> IO ()) -- ^ Flush action exception handler
   -> ([schemaData] -> IO ())  -- ^ Flush action
@@ -27,20 +25,18 @@ forkBufferFlusher :: (IsBuffer buffer schemaData)
 forkBufferFlusher freq buffer exceptionHandler flushAction
   = forkIO . forever
   $ do
-  threadDelay freq
+  threadDelay (fromIntegral freq)
   bufferData <- readFromSizedBuffer buffer
   unless (null bufferData)
-    ( handle exceptionHandler
-    $ flushAction bufferData
+    ( handle exceptionHandler (flushAction bufferData)
     )
+{-# NOINLINE forkBufferFlusher #-}
 
-
-newtype BufferSize = BufferSize Natural deriving newtype Num
 
 class IsBuffer buffer schemaData
   where
   writeToSizedBuffer  :: buffer schemaData -> schemaData -> IO ()
-  createSizedBuffer   :: BufferSize -> IO (buffer schemaData)
+  createSizedBuffer   :: Natural -> IO (buffer schemaData)
   readFromSizedBuffer :: buffer schemaData  -> IO [schemaData]
 
 
@@ -48,8 +44,6 @@ type DefaultBuffer = TBQueue
 
 instance IsBuffer DefaultBuffer schemaData
   where
-  createSizedBuffer   (BufferSize size) = newTBQueueIO size
-  writeToSizedBuffer  buffer d          = atomically $ writeTBQueue buffer d
-  {-# NOINLINE writeToSizedBuffer #-}
-  readFromSizedBuffer buffer            = atomically $ flushTBQueue buffer
-  {-# NOINLINE readFromSizedBuffer #-}
+  createSizedBuffer            = newTBQueueIO
+  writeToSizedBuffer  buffer d = atomically $ writeTBQueue buffer d
+  readFromSizedBuffer buffer   = atomically $ flushTBQueue buffer
