@@ -1,0 +1,82 @@
+cabal-version: 3.4
+
+
+name:               dev
+version:            0.0.0.1
+author:             Kovalev Dmitry
+maintainer:         https://github.com/KovalevDima
+description:        Development-related code
+homepage:           https://github.com/KovalevDima/ClickHaskell/dev#readme
+bug-reports:        https://github.com/KovalevDima/ClickHaskell/issues
+License:            BSD-3-Clause
+License-File:       ./LICENSE
+copyright:          2023 Kovalev Dmitry
+build-type:         Simple
+extra-source-files: README.md
+
+source-repository head
+  type: git
+  location: https://github.com/KovalevDima/ClickHaskell
+  subdir: dev
+
+
+library
+  exposed-modules:
+      Examples
+  other-modules:
+      Paths_dev
+  hs-source-dirs:
+      lib
+  ghc-options:
+    -Wall -fno-warn-type-defaults -O2
+    -Wunused-packages
+    -ddump-to-file -ddump-simpl -dsuppress-type-applications -dsuppress-coercions -dsuppress-idinfo -dsuppress-type-signatures -dsuppress-var-kinds -dsuppress-module-prefixes -dsuppress-uniques
+
+  build-depends:
+    -- Internal dependencies
+      ClickHaskell-client
+    , ClickHaskell-operations
+    , ClickHaskell-tables
+    , ClickHouse-db-types
+    
+    -- GHC included libraries
+    , base >=4.7 && <5
+    , bytestring
+  default-language: Haskell2010
+
+executable profiling
+  main-is: Main.hs
+  hs-source-dirs:
+    profiling
+  ghc-options: -O2 -threaded -rtsopts
+  build-depends:
+    -- Internal dependencies
+      ClickHaskell-client
+    , ClickHaskell-operations
+    , dev
+
+    -- GHC included libraries
+    , base
+
+executable de-serialization
+  main-is: Main.hs
+  hs-source-dirs:
+    de-serialization
+  ghc-options: -O2 -threaded -rtsopts
+  build-depends:
+    -- Internal dependencies
+      ClickHaskell-client
+    , ClickHaskell-operations
+    , ClickHaskell-tables
+    , ClickHouse-db-types
+    , dev
+    
+    -- GHC included libraries
+    , base >=4.7 && <5
+    , bytestring
+  
+    -- External dependencies  
+    , http-conduit < 2.4
+    , http-client < 0.8
+    , http-types < 0.13
+  default-language: Haskell2010

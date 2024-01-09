@@ -1,0 +1,75 @@
+Cabal-version: 3.4
+
+
+Name:           ClickHaskell-operations
+Version:        0.0.0.1
+
+Author:         Kovalev Dmitry
+Maintainer:     Kovalev Dmitry
+Category:       ClickHouse
+Synopsis:       ClickHouse operation DSL
+Description:    DSL for describing operations with ClickHouse tables
+Homepage:       https://github.com/KovalevDima/ClickHaskell#readme
+Bug-reports:    https://github.com/KovalevDima/ClickHaskell/issues
+License:        BSD-3-Clause
+License-File:   ./LICENSE
+Copyright:      2023 Kovalev Dmitry
+Build-Type:     Simple
+
+
+Flag release
+  Description: Pre-release build options
+  Manual: True
+  Default: False
+
+Flag dev
+  Description: Dump core
+  Manual: True
+  Default: False
+
+
+Source-repository head
+  Type: git
+  Location: https://github.com/KovalevDima/ClickHaskell
+  Subdir: ClickHaskell-operations
+
+
+Library
+  Autogen-Modules:
+    Paths_ClickHaskell_operations
+  Exposed-Modules:
+    ClickHaskell.Operations
+  Other-Modules:
+    ClickHaskell.Operations.Generics
+    Paths_ClickHaskell_operations
+  HS-Source-Dirs:
+    ./lib
+  GHC-Options:
+    -Wall
+    -fno-warn-type-defaults
+    -Wunused-packages
+
+  if flag(release)
+    GHC-Options:  -Werror
+
+  if flag(dev)
+    GHC-Options: -ddump-to-file -ddump-simpl -dsuppress-type-applications -dsuppress-coercions -dsuppress-idinfo -dsuppress-type-signatures -dsuppress-var-kinds -dsuppress-module-prefixes -dsuppress-uniques
+
+  Build-depends:
+    -- Internal dependencies
+      ClickHouse-db-types < 0.1
+    , ClickHaskell-tables < 0.1
+
+    -- GHC included libraries
+    , base >= 4.7 && <5
+    , bytestring < 0.12
+  Default-language: Haskell2010
+  Default-Extensions:
+    FlexibleContexts
+    FlexibleInstances
+    MultiParamTypeClasses
+    TypeApplications
+    TypeFamilies
+    TypeOperators
+    ScopedTypeVariables
+

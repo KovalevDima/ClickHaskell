@@ -1,3 +1,6 @@
 packages:
-    ./
-    ./sandbox
+    ./ClickHaskell-client
+    ./ClickHaskell-operations
+    ./ClickHaskell-tables
+    ./ClickHouse-db-types
+    ./dev
