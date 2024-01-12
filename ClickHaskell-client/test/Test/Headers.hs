@@ -1,14 +1,24 @@
 {-# LANGUAGE
   OverloadedStrings 
 #-}
-module Test.Headers where
+
+{-# OPTIONS_GHC
+  -Wno-deprecations
+#-}
+
+module Test.Headers
+  ( headersPartingTest
+  ) where
+
 
 import Data.Bool (bool)
 import Data.ByteString (StrictByteString)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, assertBool)
 
-import ClickHaskell.Client (ProfileData, parseSummary, ProfileData(..))
+
+import ClickHaskell.Client (ClickHouseSummary(..), parseJsonSummary)
+
 
 headersPartingTest :: TestTree
 headersPartingTest = testGroup "Headers" summaryHeaderTest
@@ -23,11 +33,11 @@ summaryHeaderTest =
   ]
 
 
-parsedSummary :: ProfileData
-parsedSummary = parseSummary summaryExample
+parsedSummary :: ClickHouseSummary
+parsedSummary = parseJsonSummary summaryExample
 
-expectedParsingResult :: ProfileData
-expectedParsingResult = MkProfileData
+expectedParsingResult :: ClickHouseSummary
+expectedParsingResult = MkClickHouseSummary
   { readRows = 1
   , readBytes = 78
   , writtenRows = 1

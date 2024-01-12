@@ -33,13 +33,13 @@ library
     -ddump-to-file -ddump-simpl -dsuppress-type-applications -dsuppress-coercions -dsuppress-idinfo -dsuppress-type-signatures -dsuppress-var-kinds -dsuppress-module-prefixes -dsuppress-uniques
 
   build-depends:
-    -- Internal dependencies
+    -- Internal
       ClickHaskell-client
-    , ClickHaskell-operations
+    , ClickHaskell-generics
     , ClickHaskell-tables
     , ClickHouse-db-types
     
-    -- GHC included libraries
+    -- GHC included
     , base >=4.7 && <5
     , bytestring
   default-language: Haskell2010
@@ -50,12 +50,12 @@ executable profiling
     profiling
   ghc-options: -O2 -threaded -rtsopts
   build-depends:
-    -- Internal dependencies
+    -- Internal
       ClickHaskell-client
-    , ClickHaskell-operations
+    , ClickHaskell-generics
     , dev
 
-    -- GHC included libraries
+    -- GHC included
     , base
 
 executable de-serialization
@@ -64,18 +64,18 @@ executable de-serialization
     de-serialization
   ghc-options: -O2 -threaded -rtsopts
   build-depends:
-    -- Internal dependencies
+    -- Internal
       ClickHaskell-client
-    , ClickHaskell-operations
+    , ClickHaskell-generics
     , ClickHaskell-tables
     , ClickHouse-db-types
     , dev
     
-    -- GHC included libraries
+    -- GHC included
     , base >=4.7 && <5
     , bytestring
   
-    -- External dependencies  
+    -- External  
     , http-conduit < 2.4
     , http-client < 0.8
     , http-types < 0.13

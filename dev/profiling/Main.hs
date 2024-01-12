@@ -11,14 +11,18 @@ module Main
   ( main
   ) where
 
-import ClickHaskell.Buffering  (forkBufferFlusher, DefaultBuffer, IsBuffer(..))
-import ClickHaskell.Client     (performOperation, ChClient(..), defaultHttpClientSettings, HttpChClient)
-import ClickHaskell.Operations (Writing, ClickHouse)
-import Examples                (ExampleTable, ExampleData, exampleDataSample, exampleCredentials)
 
+-- Internal
+import ClickHaskell.Buffering (forkBufferFlusher, DefaultBuffer, IsBuffer(..))
+import ClickHaskell.Client    (interpretClient, IsChClient(..), HttpChClient, Writing)
+import Examples               (ExampleTable, ExampleData, exampleDataSample, exampleCredentials)
+
+
+-- GHC included
 import Control.Concurrent (threadDelay, forkIO)
 import Control.Monad      (replicateM_)
 import GHC.Natural        (Natural)
+
 
 main :: IO ()
 main = benchExecutable
@@ -28,7 +32,7 @@ bufferSize              = 5_000_000
 rowsNumber              = 100_000
 concurrentBufferWriters = 500
 msBetweenBuffering      = 10
-msPauseBetweenWrites    = 5_000_000
+msPauseBetweenDbWrites  = 5_000_000
 
 
 benchExecutable :: IO ()
@@ -44,14 +48,14 @@ benchExecutable  = do
 
   print "3. Starting buffer flusher"
   !_ <- forkBufferFlusher
-    msPauseBetweenWrites
+    msPauseBetweenDbWrites
     buffer
     print
     ( \dataList
       -> do
       print "Starting writing to database"
-      _ <- performOperation
-        @(Writing ExampleData -> ClickHouse ExampleTable)
+      _ <- interpretClient
+        @(Writing ExampleData -> ExampleTable)
         client
         dataList
       print "Writing completed"

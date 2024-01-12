@@ -40,18 +40,20 @@ module ClickHouse.DbTypes
   , ChUInt64
   , ChUInt128, Word128
 
-  , ChString, Text
-  , ChUUID, nilChUUID
+  , ChString
+  , ChUUID
 
   , Nullable
   , LowCardinality, IsLowCardinalitySupported
   ) where
 
--- External dependencies
-import Data.UUID     as UUID (UUID, fromASCIIBytes, toASCIIBytes, nil, toWords64)
+
+-- External
+import Data.UUID     as UUID (UUID, fromASCIIBytes, toASCIIBytes, toWords64, fromWords64)
 import Data.WideWord (Int128, Word128(Word128))
 
--- GHC included libraries imports
+
+-- GHC included
 import Data.ByteString         as BS (toStrict, StrictByteString)
 import Data.ByteString.Builder as BS (Builder, byteString, toLazyByteString)
 import Data.ByteString.Char8   as BS8 (concatMap, pack, readInt, readInteger, singleton, unpack, replicate, length)
@@ -60,11 +62,16 @@ import Data.Maybe              (fromJust)
 import Data.Int                (Int32, Int16, Int8, Int64)
 import Data.Text               as Text (Text)
 import Data.Text.Encoding      as Text (encodeUtf8)
-import Data.Time               (UTCTime, defaultTimeLocale, parseTimeM, ZonedTime, zonedTimeToUTC)
-import Data.Time.Clock.POSIX   (utcTimeToPOSIXSeconds)
-import Data.String             (IsString)
-import Data.Word               (Word64, Word32, Word16, Word8)
-import GHC.TypeLits            (AppendSymbol, ErrorMessage (..), Symbol, TypeError)
+import Data.Time
+  ( parseTimeM
+  , UTCTime, defaultTimeLocale
+  , ZonedTime, zonedTimeToUTC
+  )
+import Data.Time.Clock.POSIX         (utcTimeToPOSIXSeconds)
+import Data.String                   (IsString)
+import Data.Vector.Primitive.Mutable (Prim)
+import Data.Word                     (Word64, Word32, Word16, Word8)
+import GHC.TypeLits                  (AppendSymbol, ErrorMessage (..), Symbol, TypeError)
 
 
 class
@@ -299,12 +306,10 @@ instance Deserializable ChUUID
 
 instance ToChType ChUUID ChUUID where toChType = id
 instance ToChType ChUUID UUID   where toChType = MkChUUID
+instance ToChType ChUUID Word64 where toChType = MkChUUID . UUID.fromWords64 0 . fromIntegral
 
 instance FromChType ChUUID ChUUID where fromChType = id
 instance FromChType ChUUID UUID   where fromChType (MkChUUID uuid) = uuid
-
-nilChUUID :: ChUUID
-nilChUUID = toChType UUID.nil
 
 
 
@@ -380,7 +385,7 @@ instance
 
 -- | ClickHouse Int8 column type
 newtype ChInt8 = MkChInt8 Int8
-  deriving newtype (Show, Eq, Num, Bounded)
+  deriving newtype (Show, Eq, Num, Bounded, Prim)
 
 instance IsChType ChInt8
   where
@@ -455,11 +460,11 @@ instance IsChType ChInt32
   type ToChTypeName    ChInt32 = "Int32"
   type IsWriteOptional ChInt32 = 'False
 
-instance Serializable ChInt32 
+instance Serializable ChInt32
   where
   serialize = BS.byteString . BS8.pack . show @ChInt32 . coerce
 
-instance Deserializable ChInt32 
+instance Deserializable ChInt32
   where
   deserialize = MkChInt32 . fromIntegral . fst . fromJust . BS8.readInt
 
@@ -482,7 +487,7 @@ instance FromChType ChInt32 Int32   where fromChType (MkChInt32 int32) = int32
 
 -- | ClickHouse Int64 column type
 newtype ChInt64 = MkChInt64 Int64
-  deriving newtype (Show, Eq, Num, Bounded)
+  deriving newtype (Show, Eq, Num, Bounded, Enum)
 
 instance IsChType ChInt64
   where

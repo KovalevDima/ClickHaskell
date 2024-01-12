@@ -55,10 +55,10 @@ Library
     GHC-Options: -ddump-to-file -ddump-simpl -dsuppress-type-applications -dsuppress-coercions -dsuppress-idinfo -dsuppress-type-signatures -dsuppress-var-kinds -dsuppress-module-prefixes -dsuppress-uniques
 
   Build-depends:
-    -- Internal dependencies
+    -- Internal
       ClickHouse-db-types < 0.1
 
-    -- GHC included libraries
+    -- GHC included
     , base >= 4.7 && <5
     , bytestring < 0.12
     , text < 2.1

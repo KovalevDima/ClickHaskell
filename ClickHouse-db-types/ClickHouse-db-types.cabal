@@ -60,6 +60,7 @@ Library
     , bytestring < 0.12
     , text < 2.1
     , time < 1.13
+    , vector
 
     -- External dependencies
     , uuid < 1.4

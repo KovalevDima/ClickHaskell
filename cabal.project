@@ -1,6 +1,6 @@
 packages:
     ./ClickHaskell-client
-    ./ClickHaskell-operations
+    ./ClickHaskell-generics
     ./ClickHaskell-tables
     ./ClickHouse-db-types
     ./dev

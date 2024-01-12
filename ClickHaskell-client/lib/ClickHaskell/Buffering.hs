@@ -6,7 +6,8 @@
 
 module ClickHaskell.Buffering where
 
--- GHC included libraries imports
+
+-- GHC included
 import Control.Concurrent     (ThreadId, forkIO, threadDelay)
 import Control.Concurrent.STM (TBQueue, atomically, flushTBQueue, newTBQueueIO, writeTBQueue)
 import Control.Exception      (SomeException, handle)

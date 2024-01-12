@@ -12,14 +12,26 @@
 
 module Examples where
 
-import ClickHaskell.Client     (performOperation, HttpChClient, ChCredential(..), ChClient(..), ChResponse, setHttpClientTimeout)
-import ClickHaskell.Operations (ReadableFrom, WritableInto, Reading, ClickHouse, Writing, IsOperation(..), renderInsertHeader, renderSelectQuery)
-import ClickHaskell.Tables     (Table, View, Column, Parameter)
-import ClickHouse.DbTypes      (nilChUUID, ChDateTime, ChInt32, ChInt64, ChString, ChUUID, LowCardinality, Nullable, toChType)
 
+-- Internal
+import ClickHaskell.Client
+  ( interpretClient, ChResponse
+  , initClient, setHttpClientTimeout, HttpChClient, ChCredential(..)
+  , Reading, Writing 
+  )
+import ClickHaskell.Generics (WritableInto, ReadableFrom)
+import ClickHaskell.Tables   (Table, Column, View)
+import ClickHouse.DbTypes
+  ( toChType
+  , ChUUID, ChDateTime, ChInt32, ChInt64, ChString
+  , LowCardinality, Nullable
+  )
+
+
+-- GHC included
 import Data.ByteString (StrictByteString)
 import Data.Int        (Int32, Int64)
-import Data.Word       (Word32)
+import Data.Word       (Word32, Word64)
 import GHC.Generics    (Generic)
 
 
@@ -33,8 +45,8 @@ write = do
     Nothing
 
   print "2. Performing client"
-  performOperation
-    @(Writing ExampleData -> ClickHouse ExampleTable)
+  interpretClient
+    @(Writing ExampleData -> ExampleTable)
     client
     [exampleDataSample]
 
@@ -49,8 +61,8 @@ read = do
     (Just $ setHttpClientTimeout 500_000)
 
   print "2. Performing select"
-  performOperation
-    @(Reading ExampleData -> ClickHouse ExampleTable)
+  interpretClient
+    @(Reading ExampleData -> ExampleTable)
     client
 
 
@@ -69,7 +81,6 @@ type ExampleTable =
     , Column "a6" (LowCardinality (Nullable ChString))
     , Column "a7" (LowCardinality ChString)
     ]
-   '[]
 
 type ExampleView =
   View
@@ -82,9 +93,8 @@ type ExampleView =
     , Column "a6" (LowCardinality (Nullable ChString))
     , Column "a7" (LowCardinality ChString)
     ]
-   '[ Parameter "param" ChString
+   '[
     ]
-   '[]
 
 data ExampleData = MkExampleData
   { a1 :: ChInt64
@@ -104,56 +114,18 @@ exampleDataSample :: ExampleData
 exampleDataSample = MkExampleData
   { a1 = toChType (42 :: Int64)
   , a2 = "text"
-  , a4 = nilChUUID
+  , a4 = toChType (0 :: Word64)
   , a3 = 42 
   , a5 = 42
   , a6 = Just "500"
   , a7 = ""
   }
 
-
-
-
-
-
-
-
--- >>> showSelect
--- "SELECT a1, a2, a3, a4, a5, a6, a7 FROM \"example\""
-showSelect :: StrictByteString
-showSelect = renderSelectQuery
-  $ operation
-    @( Reading ExampleData
-    -> ClickHouse ExampleTable
-    )
-
--- >>> showSelectFromView
--- "SELECT a1, a2, a3, a4, a5, a6, a7 FROM \"exampleView\""
-showSelectFromView :: StrictByteString
-showSelectFromView = renderSelectQuery
-  $ operation
-    @( Reading ExampleData
-    -> ClickHouse ExampleView
-    )
-
--- >>> showInsert
--- "INSERT INTO \"example\" (a1, a2, a3, a4, a5, a6, a7)"
-showInsert :: StrictByteString
-showInsert = renderInsertHeader
-  $ operation
-    @( Writing ExampleData
-    -> ClickHouse ExampleTable
-    )
-
-
-
-
 type SingleFieldTable =
   Table
     "example2"
    '[ Column "a1" ChInt64
     ]
-   '[]
 
 newtype SingleFieldRecord = MkSingleFieldRecord {a1 :: Int64}
   deriving (Generic)

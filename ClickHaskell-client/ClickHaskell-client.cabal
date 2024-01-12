@@ -56,17 +56,18 @@ Library
     GHC-Options: -ddump-to-file -ddump-simpl -dsuppress-type-applications -dsuppress-coercions -dsuppress-idinfo -dsuppress-type-signatures -dsuppress-var-kinds -dsuppress-module-prefixes -dsuppress-uniques
 
   Build-depends:
-    -- Internal dependencies
-      ClickHaskell-operations < 0.1
+    -- Internal
+      ClickHaskell-generics < 0.1
+    , ClickHaskell-tables < 0.1
 
-    -- GHC included libraries
+    -- GHC included
     , base >= 4.7 && <5
     , bytestring < 0.12
     , deepseq < 1.5
     , stm < 2.6
     , text < 2.1
 
-    -- External dependencies
+    -- External
     , conduit < 1.4
     , http-conduit < 2.4
     , http-client < 0.8
@@ -88,14 +89,14 @@ Test-Suite spec
     Test.Headers
   Hs-Source-Dirs: test
   Build-depends:
-    -- Internal dependencies
+    -- Internal
       ClickHaskell-client < 0.1
     
-    -- GHC included libraries
+    -- GHC included
     , base >= 4.7 && <5
     , bytestring
 
-    -- External dependencies
+    -- External
     , tasty
     , tasty-hunit
   default-language:   Haskell2010

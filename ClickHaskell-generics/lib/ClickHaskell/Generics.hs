@@ -13,17 +13,22 @@
   , UndecidableSuperClasses
 #-}
 
-module ClickHaskell.Operations.Generics
+module ClickHaskell.Generics
   ( -- * Generic instances
-    GWritable(..)
+    WritableInto(..)
+  , GWritable(..)
+
+  , ReadableFrom(..)
   , GReadable(..)
   ) where
 
+
 -- Internal dependencies
 import ClickHouse.DbTypes  (Serializable(..), Deserializable(..), ToChType(..), FromChType(..))
-import ClickHaskell.Tables (IsColumnDescription(..))
+import ClickHaskell.Tables (IsColumnDescription(..), TableInterpretable(..))
 
--- GHC included libraries imports
+
+-- GHC included
 import Data.ByteString         as BS (split, intercalate, StrictByteString)
 import Data.ByteString.Builder as BS (Builder, byteString)
 import Data.ByteString.Char8   as BS8 (pack)
@@ -32,11 +37,36 @@ import Data.Type.Bool          (If)
 import Data.Type.Ord           (type(>?), type(<=?))
 import Data.Word               (Word8)
 import Data.Kind               (Type)
-import GHC.Generics            (K1(..), M1(..), type (:*:)(..), Rec0, D1, C1, S1, Meta(MetaSel))
+import GHC.Generics            (K1(..), M1(..), type (:*:)(..), Rec0, D1, C1, S1, Meta(MetaSel), Generic (..))
 import GHC.TypeLits            (KnownSymbol, TypeError, Symbol, ErrorMessage(..), symbolVal)
 
 
 -- * Writing
+
+class
+  ( TableInterpretable table
+  ) =>
+  WritableInto table record
+  where
+
+  default toTsvLine
+    ::
+    ( GWritable (ValidateTable table) (GetTableColumns table) (Rep record)
+    , Generic record
+    ) => record -> BS.Builder
+  toTsvLine :: record -> BS.Builder
+  toTsvLine = gToTsvBs @(ValidateTable table) @(GetTableColumns table) . from
+  {-# NOINLINE toTsvLine #-}
+
+  default renderedWritingColumns
+    ::
+    ( GWritable (ValidateTable table) (GetTableColumns table) (Rep record)
+    , Generic record
+    ) => Builder
+  renderedWritingColumns :: Builder
+  renderedWritingColumns = gRenderedInsertableColumns @(ValidateTable table) @(GetTableColumns table) @(Rep record)
+  {-# NOINLINE renderedWritingColumns #-}
+
 
 class GWritable
   (deivingState :: Maybe ErrorMessage)
@@ -177,6 +207,31 @@ instance
 
 -- * Reading
 
+class
+  ( TableInterpretable table
+  ) =>
+  ReadableFrom table record
+  where
+
+  default fromTsvLine
+    ::
+    ( GReadable (ValidateTable table) (GetTableColumns table) (Rep record)
+    , Generic record
+    ) => StrictByteString -> record
+  fromTsvLine :: StrictByteString -> record
+  fromTsvLine = to . gFromTsvBs @(ValidateTable table) @(GetTableColumns table)
+  {-# NOINLINE fromTsvLine #-}
+
+  default renderedReadingColumns
+    ::
+    ( GReadable (ValidateTable table) (GetTableColumns table) (Rep record)
+    , Generic record
+    ) => Builder
+  renderedReadingColumns :: Builder
+  renderedReadingColumns = gRenderedSelectableColumns @(ValidateTable table) @(GetTableColumns table) @(Rep record)
+  {-# NOINLINE renderedReadingColumns #-}
+
+
 class GReadable
   (deivingState :: Maybe ErrorMessage)
   (columns :: [Type])
@@ -282,7 +337,7 @@ instance {-# OVERLAPPING #-}
 -- * Constants
 
 -- |
--- >>> toEnum @Char (fromIntegral tabSymbol)
+-- >>> toEnum @Char tabSymbol
 -- '\t'
 tabSymbol :: Word8
 tabSymbol = 9
@@ -294,7 +349,7 @@ tabSymbol = 9
 
 
 
--- * Generic boilerplate reducers
+-- * Generic helpers
 
 type family (sym1 :: Symbol) `AssumePlacedBefore` (sym2 :: Symbol) :: Maybe ErrorMessage
   where

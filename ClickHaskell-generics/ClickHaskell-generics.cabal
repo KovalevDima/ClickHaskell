@@ -1,7 +1,7 @@
 Cabal-version: 3.4
 
 
-Name:           ClickHaskell-operations
+Name:           ClickHaskell-generics
 Version:        0.0.0.1
 
 Author:         Kovalev Dmitry
@@ -31,17 +31,16 @@ Flag dev
 Source-repository head
   Type: git
   Location: https://github.com/KovalevDima/ClickHaskell
-  Subdir: ClickHaskell-operations
+  Subdir: ClickHaskell-generics
 
 
 Library
   Autogen-Modules:
-    Paths_ClickHaskell_operations
+    Paths_ClickHaskell_generics
   Exposed-Modules:
-    ClickHaskell.Operations
+    ClickHaskell.Generics
   Other-Modules:
-    ClickHaskell.Operations.Generics
-    Paths_ClickHaskell_operations
+    Paths_ClickHaskell_generics
   HS-Source-Dirs:
     ./lib
   GHC-Options:

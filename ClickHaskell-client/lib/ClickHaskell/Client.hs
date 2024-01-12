@@ -1,19 +1,76 @@
 {-# LANGUAGE
     AllowAmbiguousTypes
+  , DataKinds
+  , DefaultSignatures
   , DeriveAnyClass
   , DeriveFunctor
   , DeriveGeneric
+  , DerivingStrategies
   , FunctionalDependencies
+  , GeneralizedNewtypeDeriving
+  , InstanceSigs
+  , NamedFieldPuns
   , OverloadedStrings
+  , PolyKinds
+  , RankNTypes
+  , TypeFamilyDependencies
   , StandaloneDeriving
+  , UndecidableInstances
+  , UndecidableSuperClasses
 #-}
 
-module ClickHaskell.Client where
+{-# OPTIONS_GHC
+  -Wno-missing-methods
+#-}
 
--- Internal dependencies
-import ClickHaskell.Operations (ReadableFrom(..), WritableInto(..), IsOperation(..), ClickHouse, Reading, Writing, renderSelectQuery, renderInsertHeader)
 
--- GHC included libraries imports
+module ClickHaskell.Client
+( -- * Client language parts interpreter
+  ClientInterpretable(..)
+
+-- ** Reading
+, Reading
+
+-- ** Writing
+, Writing
+
+
+
+
+-- * Clients abstraction
+, IsChClient(..)
+, ChCredential(..)
+
+-- ** HTTP ClickHouse client realization
+, HttpChClient(..)
+, HttpChClientSettings
+, setHttpClientTimeout
+
+-- ** HTTP headers and response wrappers
+, ChResponse(..)
+, ClickHouseSummary(..)
+, parseJsonSummary
+
+-- ** HTTP codes handling
+, ChException(..)
+) where
+
+
+-- Internal
+import ClickHaskell.Generics (WritableInto(..), ReadableFrom(..))
+import ClickHaskell.Tables   (TableInterpretable(..), Table, renderTable, View, renderView)
+
+
+-- External
+import Conduit                     (yield, yieldMany)
+import Network.HTTP.Client         as H (httpLbs, newManager, Manager, ManagerSettings(..), Request(..), Response(..), RequestBody(..))
+import Network.HTTP.Client.Conduit as H (defaultManagerSettings, parseRequest, responseTimeoutNone, responseTimeoutMicro)
+import Network.HTTP.Conduit        as H (requestBodySourceChunked)
+import Network.HTTP.Simple         as H (getResponseBody, getResponseHeaders)
+import Network.HTTP.Types          as H (Status(..))
+
+
+-- GHC included
 import Control.DeepSeq            (NFData)
 import Control.Exception          (throw, Exception)
 import Control.Monad              (when)
@@ -28,27 +85,198 @@ import Data.Text                  as T (Text, unpack)
 import Data.Text.Encoding         as T (encodeUtf8, decodeUtf8)
 import GHC.Generics               (Generic)
 
--- External dependencies
-import Conduit                     (yield, yieldMany)
-import Network.HTTP.Client         as H (newManager, Manager, ManagerSettings(..), Request(..), Response(..), httpLbs, RequestBody(..))
-import Network.HTTP.Client.Conduit as H (defaultManagerSettings, parseRequest, responseTimeoutNone, responseTimeoutMicro)
-import Network.HTTP.Conduit        as H (requestBodySourceChunked)
-import Network.HTTP.Simple         as H (getResponseBody, getResponseHeaders)
-import Network.HTTP.Types          as H (Status(..))
+
+-- * Client language parts
+
+class
+  ( IsChClient client
+  ) =>
+  ClientInterpretable description client
+  where
+  type ClientIntepreter description :: Type
+  interpretClient :: client -> ClientIntepreter description
 
 
 
 
+-- ** Reading
+
+data Reading a
+
+
+instance
+  ( ReadableFrom (Table name columns) record 
+  , TableInterpretable (Table name columns)
+  ) =>
+  ClientInterpretable (Reading record -> Table name columns) HttpChClient
+  where
+  type ClientIntepreter (Reading record -> Table name columns) = IO (ChResponse [record])
+  interpretClient (HttpChClient man req) = do
+    resp <- H.httpLbs
+      req{H.requestBody = H.RequestBodyBS . BS.toStrict . BS.toLazyByteString
+        $  "SELECT " <> renderedReadingColumns @(Table name columns) @record
+        <> " FROM " <> renderTable (interpretTable @(Table name columns))
+      }
+      man
+
+    throwOnNon200 resp
+
+    pure $
+      MkChResponse
+        ( map (fromTsvLine @(Table name columns) @record . BS.toStrict)
+        . BSL8.lines . getResponseBody
+        $ resp
+        )
+        (parseSummaryFromHeaders resp)
+
+
+instance
+  ( ReadableFrom (View name columns params) record 
+  , TableInterpretable (View name columns params)
+  ) =>
+  ClientInterpretable (Reading record -> View name columns params) HttpChClient
+  where
+  type ClientIntepreter (Reading record -> View name columns params) = View name columns params -> IO (ChResponse [record])
+  interpretClient (HttpChClient man req) view = do
+    resp <- H.httpLbs
+      req{H.requestBody = H.RequestBodyBS . BS.toStrict . BS.toLazyByteString
+        $  "SELECT " <> renderedReadingColumns @(View name columns params) @record
+        <> " FROM " <> renderView view
+      }
+      man
+
+    throwOnNon200 resp
+
+    pure $
+      MkChResponse
+        ( map (fromTsvLine @(View name columns params) @record . BS.toStrict)
+        . BSL8.lines . getResponseBody
+        $ resp
+        )
+        (parseSummaryFromHeaders resp)
+
+
+
+
+-- ** Writing
+
+data Writing a
+
+instance
+  ( WritableInto (Table name columns) record
+  , TableInterpretable (Table name columns)
+  ) =>
+  ClientInterpretable (Writing record -> Table name columns) HttpChClient
+  where
+  type ClientIntepreter (Writing record -> Table name columns) =  [record] -> IO (ChResponse ())
+
+  interpretClient (HttpChClient man req) schemaList = do
+    resp <- H.httpLbs
+      req
+        { requestBody = H.requestBodySourceChunked
+          $  yield ( BS.toStrict . BS.toLazyByteString
+              $ "INSERT INTO " <> renderTable (interpretTable @(Table name columns))
+              <> " (" <> renderedWritingColumns @(Table name columns) @record <> ")"
+              <> " FORMAT TSV\n"
+            )
+          >> yieldMany (
+            map
+              ( BS.toStrict
+              . BS.toLazyByteString
+              . toTsvLine @(Table name columns) @record
+              )
+              schemaList
+            )
+        }
+      man
+
+    throwOnNon200 resp
+
+    pure $ MkChResponse () (parseSummaryFromHeaders resp)
+
+
+
+
+
+
+
+
+-- * Clients abstraction
+
+{- |
+Clients initialization abstraction for different backends
+-}
+class IsChClient client
+  where
+  type ClientSettings client = settings | settings -> client 
+  initClient :: ChCredential -> Maybe (ClientSettings client -> ClientSettings client) -> IO client
+
+{- | ToDocument
+-}
+data ChCredential = ChCredential
+  { chLogin    :: !Text
+  , chPass     :: !Text
+  , chUrl      :: !Text
+  , chDatabase :: !Text
+  }
+  deriving (Generic, NFData, Show, Eq)
+
+
+
+
+-- ** HTTP ClickHouse client realization
+
+data HttpChClient = HttpChClient H.Manager H.Request
+
+instance IsChClient HttpChClient where
+  type ClientSettings HttpChClient = HttpChClientSettings
+  initClient (ChCredential login pass url databaseName) maybeModifier = do
+    man <- H.newManager $ fromMaybe id maybeModifier defaultHttpChClientSettings
+    req <- H.parseRequest (T.unpack url)
+
+    pure $! HttpChClient
+      man
+      req
+        { H.method         = "POST"
+        , H.requestHeaders =
+          [ ("X-ClickHouse-User", encodeUtf8 login)
+          , ("X-ClickHouse-Key", encodeUtf8 pass)
+          , ("X-ClickHouse-Database", encodeUtf8 databaseName)
+          ]
+          <> H.requestHeaders req
+        }
+
+{- |
+Settings for HttpChClient
+Required for initialization
+Currently is a type synomym 
+-}
+type HttpChClientSettings = H.ManagerSettings
+
+defaultHttpChClientSettings :: HttpChClientSettings
+defaultHttpChClientSettings = H.defaultManagerSettings{managerResponseTimeout = H.responseTimeoutNone}
+
+setHttpClientTimeout :: Int -> HttpChClientSettings -> HttpChClientSettings
+setHttpClientTimeout msTimeout manager = manager{managerResponseTimeout=H.responseTimeoutMicro msTimeout}
+
+
+
+
+
+-- ** HTTP headers and response wrappers
+
+{- |
+Wrapper with info from HTTP header @X-ClickHouse-Summary@
+-}
 data ChResponse result = MkChResponse
   { getResult :: result
-  , profileData :: ProfileData
+  , profileData :: ClickHouseSummary
   } deriving (Generic, Functor)
 deriving instance (Show result) => Show (ChResponse result)
 
-
-
-
-data ProfileData = MkProfileData
+{- | ToDocument
+-}
+data ClickHouseSummary = MkClickHouseSummary
   { readRows        :: Integer
   , readBytes       :: Integer
   , writtenRows     :: Integer
@@ -58,9 +286,31 @@ data ProfileData = MkProfileData
   , resultBytes     :: Integer
   } deriving (Generic, Show, Eq)
 
-parseSummary :: StrictByteString -> ProfileData
-parseSummary
-  = reduce (MkProfileData (-1) (-1) (-1) (-1) (-1) (-1) (-1))
+
+
+{- |
+1. Takes an HTTP Response
+2. Lookups @X-ClickHouse-Summary@ header
+3. Parses it
+-}
+parseSummaryFromHeaders :: Response a -> ClickHouseSummary
+parseSummaryFromHeaders
+  = parseJsonSummary
+  . fromMaybe (error "Can't find response header \"X-ClickHouse-Summary\". Please report an issue")
+  . lookup "X-ClickHouse-Summary" . H.getResponseHeaders
+
+{- |
+ClickHouseSummary JSON parser. Takes raw byte sequence and parses it
+-}
+{-# WARNING
+  parseJsonSummary
+  "Be carefull using this function yourself\n\
+  \ It's export allowed for testing\n\
+  \ Also it's quite unstable\n"
+#-}
+parseJsonSummary :: StrictByteString -> ClickHouseSummary
+parseJsonSummary
+  = reduce (MkClickHouseSummary (-1) (-1) (-1) (-1) (-1) (-1) (-1))
   . repack
   . filter
     (\bs
@@ -72,7 +322,7 @@ parseSummary
     )
   . BS8.split '"'
   where
-  reduce :: ProfileData -> [(StrictByteString, Integer)] -> ProfileData
+  reduce :: ClickHouseSummary -> [(StrictByteString, Integer)] -> ClickHouseSummary
   reduce acc (("read_rows"         , integer):xs) = reduce acc{readRows       =integer} xs
   reduce acc (("read_bytes"        , integer):xs) = reduce acc{readBytes      =integer} xs
   reduce acc (("written_rows"      , integer):xs) = reduce acc{writtenRows    =integer} xs
@@ -94,137 +344,25 @@ parseSummary
         Nothing -> error "Can't parse int at all. Please report an issue"
     ) : repack xs
 
-parseSummaryFromHeaders :: Response a -> ProfileData
-parseSummaryFromHeaders
-  = parseSummary
-  . fromMaybe (error "Can't find response header \"X-ClickHouse-Summary\". Please report an issue")
-  . lookup "X-ClickHouse-Summary" . H.getResponseHeaders
 
 
 
+-- ** HTTP codes handling
 
+{- | ToDocument
+Code: 48. DB::Exception: Received from <host:port>. DB::Exception: Method write is not supported by storage View. (NOT_IMPLEMENTED)
+-}
+newtype ChException = ChException
+  { exceptionMessage :: Text
+  }
+  deriving (Show)
+  deriving anyclass (Exception)
+
+{- | Unexported
+Throws an ChException when got non-200 status code
+-}
 throwOnNon200 :: Response LazyByteString -> IO ()
 throwOnNon200 resp =
   when
     (H.statusCode (responseStatus resp) /= 200)
     (throw . ChException . (T.decodeUtf8 . BS.toStrict . responseBody) $ resp)
-
-
-
-
-class PerformableOperation description client where
-  type ExpectedDbResponse description :: Type
-  type ClientIntepreter description dimension :: Type
-  performOperation :: client -> ClientIntepreter description (ExpectedDbResponse description)
-
-
-instance
-  ( ReadableFrom table resultData
-  ) =>
-  PerformableOperation (Reading resultData -> ClickHouse table) HttpChClient
-  where
-  type ClientIntepreter (Reading resultData -> ClickHouse table) resp = IO resp
-  
-  type ExpectedDbResponse (Reading resultData -> ClickHouse table) = ChResponse [resultData]
-  
-  performOperation (HttpChClient man req) = do
-    resp <- H.httpLbs
-      req{H.requestBody = H.RequestBodyBS
-        ( renderSelectQuery
-        $ operation @(Reading resultData -> ClickHouse table)
-        )
-      }
-      man
-
-    throwOnNon200 resp
-
-    pure $
-      MkChResponse
-        ( map (fromTsvLine @table @resultData . BS.toStrict)
-        . BSL8.lines . getResponseBody
-        $ resp
-        )
-        (parseSummaryFromHeaders resp)
-
-
-instance
-  ( WritableInto table record
-  ) =>
-  PerformableOperation (Writing record -> ClickHouse table) HttpChClient
-  where
-  type ClientIntepreter (Writing record -> ClickHouse table) resp = [record] -> IO resp
-  
-  type ExpectedDbResponse (Writing record -> ClickHouse table) = ChResponse ()
-  
-  performOperation (HttpChClient man req) schemaList = do
-    resp <- H.httpLbs
-      req
-        { requestBody = H.requestBodySourceChunked
-          $  yield (
-            renderInsertHeader
-              (operation @(Writing record -> ClickHouse table))
-            <> " FORMAT TSV\n"
-            )
-          >> yieldMany (
-            map
-              ( BS.toStrict
-              . BS.toLazyByteString
-              . toTsvLine @table @record
-              )
-              schemaList
-            )
-        }
-      man
-
-    throwOnNon200 resp
-
-    pure $ MkChResponse () (parseSummaryFromHeaders resp)
-
-
-
-
-class ChClient backend connectionsManagerSettings | backend -> connectionsManagerSettings
-  where
-  initClient :: ChCredential -> Maybe (connectionsManagerSettings -> connectionsManagerSettings) -> IO backend
-
-newtype ChException = ChException
-  { exceptionMessage :: Text
-  } deriving (Show, Exception)
-
-data ChCredential = ChCredential
-  { chLogin    :: !Text
-  , chPass     :: !Text
-  , chUrl      :: !Text
-  , chDatabase :: !Text
-  }
-  deriving (Generic, NFData, Show, Eq)
-
-
-
-
-data HttpChClient = HttpChClient H.Manager H.Request
-
-type HttpClientSettings = H.ManagerSettings
-
-defaultHttpClientSettings :: HttpClientSettings
-defaultHttpClientSettings = H.defaultManagerSettings{managerResponseTimeout = H.responseTimeoutNone}
-
-setHttpClientTimeout :: Int -> HttpClientSettings -> HttpClientSettings
-setHttpClientTimeout msTimeout manager = manager{managerResponseTimeout=H.responseTimeoutMicro msTimeout}
-
-instance ChClient HttpChClient HttpClientSettings where
-  initClient (ChCredential login pass url databaseName) maybeModifier = do
-    man <- H.newManager $ fromMaybe id maybeModifier H.defaultManagerSettings
-    req <- H.parseRequest (T.unpack url)
-
-    pure $! HttpChClient
-      man
-      req
-        { H.method         = "POST"
-        , H.requestHeaders =
-          [ ("X-ClickHouse-User", encodeUtf8 login)
-          , ("X-ClickHouse-Key", encodeUtf8 pass)
-          , ("X-ClickHouse-Database", encodeUtf8 databaseName)
-          ]
-          <> H.requestHeaders req
-        }

@@ -3,30 +3,35 @@
   , DataKinds
   , InstanceSigs
   , OverloadedStrings
+  , NamedFieldPuns
   , UndecidableInstances
 #-}
 
 {-# OPTIONS_GHC
   -Wno-missing-methods
-#-}
+#-} 
 
 module ClickHaskell.Tables
-  ( IsTable(..)
-  , Table
-  , View, Parameter
+  ( TableInterpretable(..)
+  , Parameter
+
+  , Table, renderTable
+  , View, renderView
 
   , IsColumnDescription(..)
   , Column, ReadOnlyColumn
   ) where
 
--- Internal dependencies
+
+-- Internal
 import ClickHouse.DbTypes (IsChType (..))
 
--- GHC included libraries imports
+
+-- GHC included
 import Data.ByteString.Builder as BS (Builder, byteString)
 import Data.ByteString.Char8   as BS8 (pack)
 import Data.Data               (Proxy (Proxy))
-import Data.Kind               (Type, Constraint)
+import Data.Kind               (Type)
 import Data.Text               as T (Text, pack)
 import Data.Type.Bool          (If)
 import Data.Type.Equality      (type(==))
@@ -35,14 +40,14 @@ import GHC.TypeLits            (ErrorMessage (..), KnownSymbol, Symbol, TypeErro
 
 
 class
-  IsTable table where
+  TableInterpretable table
+  where
   type GetTableName table :: Symbol
   type GetTableColumns table :: [Type]
-  type GetTableSettings table :: [Type]
   type ValidateTable table :: Maybe ErrorMessage
-  type Writable table :: Constraint
 
-  mkTableName :: Builder
+  type TableInterpreter table :: Type
+  interpretTable :: TableInterpreter table
 
 
 instance {-# OVERLAPPABLE #-}
@@ -50,55 +55,95 @@ instance {-# OVERLAPPABLE #-}
     (    'Text "Expected a valid table description, but got:"
     :$$: ShowType something
     )
-  ) => IsTable something
+  ) => TableInterpretable something
 
 
-data Table
+
+
+-- ** Table
+
+newtype Table
   (name :: Symbol)
   (columns :: [Type])
-  (settings :: [Type])
+  = MkTable
+  { tableName :: Builder
+  }
 
+renderTable :: Table name columns -> Builder
+renderTable (MkTable{tableName}) = tableName
+
+instance
+  ( KnownSymbol name
+  , IsValidColumns columns
+  ) => TableInterpretable (Table name columns)
+  where
+  type GetTableName    (Table name _)    = name
+  type GetTableColumns (Table _ columns) = GetColumnsRep columns
+  type ValidateTable   (Table _ columns) = ColumnsValdationResult columns
+
+  type TableInterpreter (Table name columns) = Table name columns
+  interpretTable = MkTable{tableName = "\"" <> (BS.byteString . BS8.pack . symbolVal) (Proxy @name) <> "\""}
+
+
+
+
+-- ** View 
 
 data View
   (name :: Symbol)
   (columns :: [Type])
   (parameters :: [Type])
-  (settings :: [Type])
+  = MkView
+    { viewName :: Builder
+    , parameters :: [Builder]
+    }
 
-data Parameter (name :: Symbol) (chType :: Type)
+renderView :: View name columns parameters -> Builder
+renderView (MkView{viewName, parameters}) = viewName <> renderTableParameters parameters
+
+newtype Parameter (name :: Symbol) (chType :: Type) = MkParameter
+  { renderedParameter :: Builder
+  }
+
+renderTableParameters :: [Builder] -> Builder
+renderTableParameters [] = ""
+renderTableParameters (x:y:z:xs) = "(" <> x <> renderTableParameters (y:z:xs) 
+renderTableParameters (x:[lastParam]) = x <> lastParam <> ")"
+renderTableParameters [x] = "(" <> x <> ")"
 
 
 instance
   ( KnownSymbol name
   , IsValidColumns columns
-  ) => IsTable (Table name columns settings)
+  ) => TableInterpretable (View name columns '[])
   where
-  type GetTableName     (Table name _ _)     = name
-  type GetTableColumns  (Table _ columns _)  = GetColumnsRep columns
-  type GetTableSettings (Table _ _ settings) = settings
-  type ValidateTable    (Table _ columns _)  = ColumnsValdationResult columns
-  type Writable         (Table _ _ _)        = ()
+  type GetTableName    (View name _ _)    = name
+  type GetTableColumns (View _ columns _) = GetColumnsRep columns
+  type ValidateTable   (View _ columns _) = ColumnsValdationResult columns
 
-  mkTableName :: Builder
-  mkTableName =  "\"" <> (BS.byteString . BS8.pack . symbolVal) (Proxy @name) <> "\""
+  type TableInterpreter (View name columns '[]) = View name columns '[]
+  interpretTable =
+    MkView
+      { viewName = "\"" <> (BS.byteString . BS8.pack . symbolVal) (Proxy @name) <> "\""
+      , parameters = []
+      }
 
 
 instance
   ( KnownSymbol name
   , IsValidColumns columns
-  ) => IsTable (View name columns parameters settings)
+  ) => TableInterpretable (View name columns '[Parameter name Type])
   where
-  type GetTableName     (View name _ _ _)     = name
-  type GetTableColumns  (View _ columns _ _)  = GetColumnsRep columns
-  type GetTableSettings (View _ _ _ settings) = settings
-  type ValidateTable    (View _ columns _ _)  = ColumnsValdationResult columns
-  type Writable         (View _ _ _ _)        = TypeError
-    (    'Text "You can only Reading data from View"
-    :$$: 'Text "But you are trying Writing into it"
-    )
+  type GetTableName    (View name _ _)    = name
+  type GetTableColumns (View _ columns _) = GetColumnsRep columns
+  type ValidateTable   (View _ columns _) = ColumnsValdationResult columns
 
-  mkTableName :: Builder
-  mkTableName = "\"" <> (BS.byteString . BS8.pack . symbolVal) (Proxy @name) <> "\""
+  type TableInterpreter (View name columns '[Parameter name Type]) = Parameter name Type -> View name columns '[]
+  interpretTable MkParameter{renderedParameter} =
+    MkView
+      { viewName = "\"" <> (BS.byteString . BS8.pack . symbolVal) (Proxy @name) <> "\""
+      , parameters = [renderedParameter]
+      }
 
 
 
@@ -135,7 +180,7 @@ instance
   type (ColumnsValdationResult (column1 ': column2 ': columns)) =
     If (GetColumnName column1 >? GetColumnName column2)
       ( TypeError
-       (     'Text "Table columns description contains aplabetically unsorted columns."
+       (     'Text "Columns description contains aplabetically unsorted columns."
         :$$: 'Text "Column with name \""         :<>: 'Text (GetColumnName column1) :<>: 'Text "\" "
           :<>: 'Text "should be placed after \"" :<>: 'Text (GetColumnName column2) :<>: 'Text "\""
        ) 

@@ -3,16 +3,18 @@
 ClickHaskell is a set of packages:
 
 ```mermaid
-  graph LR;
-        ClickHaskell-client --> ClickHaskell-operations;
-        ClickHaskell-operations --> ClickHaskell-tables;
-        ClickHaskell-operations --> ClickHouse-db-types;
+  graph TB;
+        ClickHaskell-client --> ClickHaskell-generics;
+        ClickHaskell-generics --> ClickHaskell-tables;
+        ClickHaskell-client --> ClickHaskell-tables;
+        ClickHaskell-generics --> ClickHouse-db-types;
         ClickHaskell-tables --> ClickHouse-db-types;
 ```
 
 ### `ClickHaskell`-prefixed packages provides:
-1. DSL for describing DBMS sematincs
-2. Emdedding abstactions for other DSLs (except `ClickHaskell-client`)
+1. Type validatable DSL client operations over tables
+2. Generic deriving `decoders`, `encoders`, `queries` over tables
+3. Describing `tables`
 
 You can read about each one DSL from its own documentation
 
