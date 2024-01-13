@@ -25,7 +25,7 @@ module ClickHaskell.Generics
 
 -- Internal dependencies
 import ClickHouse.DbTypes  (Serializable(..), Deserializable(..), ToChType(..), FromChType(..))
-import ClickHaskell.Tables (IsColumnDescription(..), TableInterpretable(..))
+import ClickHaskell.Tables (InterpretedColumn(..), TableInterpretable(..))
 
 
 -- GHC included
@@ -51,20 +51,20 @@ class
 
   default toTsvLine
     ::
-    ( GWritable (ValidateTable table) (GetTableColumns table) (Rep record)
+    ( GWritable (ValidatedTable table) (GetTableColumns table) (Rep record)
     , Generic record
     ) => record -> BS.Builder
   toTsvLine :: record -> BS.Builder
-  toTsvLine = gToTsvBs @(ValidateTable table) @(GetTableColumns table) . from
+  toTsvLine = gToTsvBs @(ValidatedTable table) @(GetTableColumns table) . from
   {-# NOINLINE toTsvLine #-}
 
   default renderedWritingColumns
     ::
-    ( GWritable (ValidateTable table) (GetTableColumns table) (Rep record)
+    ( GWritable (ValidatedTable table) (GetTableColumns table) (Rep record)
     , Generic record
     ) => Builder
   renderedWritingColumns :: Builder
-  renderedWritingColumns = gRenderedInsertableColumns @(ValidateTable table) @(GetTableColumns table) @(Rep record)
+  renderedWritingColumns = gRenderedInsertableColumns @(ValidatedTable table) @(GetTableColumns table) @(Rep record)
   {-# NOINLINE renderedWritingColumns #-}
 
 
@@ -155,31 +155,26 @@ instance {-# OVERLAPPING #-}
 instance {-# OVERLAPPING #-}
   ( Serializable chType
   , ToChType chType inputType
-  , columnName ~ GetColumnName column
-  , KnownSymbol columnName
+  , matchedColumnName ~ GetColumnName column
+  , KnownSymbol matchedColumnName
   , chType ~ GetColumnType column
   ) => GWritable 'Nothing '[column]
-    ( S1 (MetaSel (Just columnName) a b f) (Rec0 inputType)
+    ( S1 (MetaSel (Just matchedColumnName) a b f) (Rec0 inputType)
     )
   where
   gToTsvBs = serialize . toChType @chType @inputType . unK1 . unM1
   {-# INLINE gToTsvBs #-}
 
-  gRenderedInsertableColumns = BS.byteString . BS8.pack $ symbolVal (Proxy @columnName)
+  gRenderedInsertableColumns = BS.byteString . BS8.pack $ symbolVal (Proxy @matchedColumnName)
   {-# INLINE gRenderedInsertableColumns #-}
 
 
 instance
-  (GWritable
-    (If (IsColumnWriteOptional anotherColumn)
-      'Nothing
-      ('Just
-        (    'Text "Column with name "
-          :<>: 'Text (GetColumnName anotherColumn)
-          :<>: 'Text " is required for insert."
-        :$$: 'Text "Add it to your insertable type"
-        )
-      )
+  ( GWritable
+    (FirstJustOrNothing
+     '[ WriteOptionalColumn anotherColumn
+      , WritableColumn column
+      ]
     )
     (column ': moreColumns)
     (S1 (MetaSel (Just columnName) a b f) (K1 i inputType))
@@ -204,7 +199,6 @@ instance
 
 
 
-
 -- * Reading
 
 class
@@ -215,20 +209,20 @@ class
 
   default fromTsvLine
     ::
-    ( GReadable (ValidateTable table) (GetTableColumns table) (Rep record)
+    ( GReadable (ValidatedTable table) (GetTableColumns table) (Rep record)
     , Generic record
     ) => StrictByteString -> record
   fromTsvLine :: StrictByteString -> record
-  fromTsvLine = to . gFromTsvBs @(ValidateTable table) @(GetTableColumns table)
+  fromTsvLine = to . gFromTsvBs @(ValidatedTable table) @(GetTableColumns table)
   {-# NOINLINE fromTsvLine #-}
 
   default renderedReadingColumns
     ::
-    ( GReadable (ValidateTable table) (GetTableColumns table) (Rep record)
+    ( GReadable (ValidatedTable table) (GetTableColumns table) (Rep record)
     , Generic record
     ) => Builder
   renderedReadingColumns :: Builder
-  renderedReadingColumns = gRenderedSelectableColumns @(ValidateTable table) @(GetTableColumns table) @(Rep record)
+  renderedReadingColumns = gRenderedSelectableColumns @(ValidatedTable table) @(GetTableColumns table) @(Rep record)
   {-# NOINLINE renderedReadingColumns #-}
 
 
@@ -336,9 +330,10 @@ instance {-# OVERLAPPING #-}
 
 -- * Constants
 
--- |
--- >>> toEnum @Char tabSymbol
--- '\t'
+{- |
+>>> toEnum @Char tabSymbol
+'\t'
+-}
 tabSymbol :: Word8
 tabSymbol = 9
 

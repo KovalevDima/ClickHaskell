@@ -84,7 +84,11 @@ class
   -- type ToChTypeName (Nullable ChUInt32) = \"Nullable(UInt32)\"
   -- @
   type ToChTypeName chType :: Symbol
-  -- | There is only one native ClickHaskell write optional type - Nullable(T)
+  -- |
+  -- There is only one native ClickHaskell write optional type - Nullable(T)
+
+  -- @
+  -- type IsWriteOptional (Nullable)
   type IsWriteOptional chType :: Bool
 
 class
@@ -137,9 +141,10 @@ type NullableTypeName chType = "Nullable(" `AppendSymbol` ToChTypeName chType `A
 
 instance {-# OVERLAPPING #-}
   ( TypeError
-    (    'Text "Nullable(LowCardinality(" :<>: ShowType chType :<>: 'Text ")) is unsupported type in ClickHouse."
-    :$$: 'Text "Use LowCardinality(Nullable(" :<>: ShowType chType :<>: 'Text ")) instead."
+    (    'Text (ToChTypeName (Nullable (LowCardinality chType))) :<>: 'Text " is unsupported type in ClickHouse."
+    :$$: 'Text "Use " :<>: 'Text (ToChTypeName (LowCardinality (Nullable chType))) :<>: 'Text " instead."
     )
+  , IsChType chType
   ) => IsChType (Nullable (LowCardinality chType))
 
 instance
@@ -148,7 +153,7 @@ instance
   IsChType (Nullable chType)
   where
   type ToChTypeName (Nullable chType) = NullableTypeName chType
-  type IsWriteOptional _              = True
+  type IsWriteOptional (Nullable _)   = True
 
 instance
   Deserializable chType
@@ -210,11 +215,11 @@ instance IsLowCardinalitySupported chType => IsLowCardinalitySupported (Nullable
 instance {-# OVERLAPPABLE #-}
   ( IsChType chType
   , TypeError
-    ( 'Text "LowCardinality("  ':<>: ShowType chType  ':<>: 'Text ") is unsupported"
-    ':$$: 'Text "Use one of these types:"
-    ':$$: 'Text "  ChString"
-    ':$$: 'Text "  ChDateTime"
-    ':$$: 'Text "  Nullable(T)"
+    (    'Text "LowCardinality("  ':<>: ShowType chType  ':<>: 'Text ") is unsupported"
+    :$$: 'Text "Use one of these types:"
+    :$$: 'Text "  ChString"
+    :$$: 'Text "  ChDateTime"
+    :$$: 'Text "  Nullable(T)"
     )
   ) => IsLowCardinalitySupported chType
 
@@ -385,7 +390,7 @@ instance
 
 -- | ClickHouse Int8 column type
 newtype ChInt8 = MkChInt8 Int8
-  deriving newtype (Show, Eq, Num, Bounded, Prim)
+  deriving newtype (Show, Eq, Num, Prim, Bounded)
 
 instance IsChType ChInt8
   where
@@ -419,7 +424,7 @@ instance FromChType ChInt8 Int8   where fromChType = coerce
 
 -- | ClickHouse Int16 column type
 newtype ChInt16 = MkChInt16 Int16
-  deriving newtype (Show, Eq, Num, Bounded)
+  deriving newtype (Show, Eq, Num, Prim, Bounded)
 
 instance IsChType ChInt16
   where
@@ -453,7 +458,7 @@ instance FromChType ChInt16 Int16   where fromChType (MkChInt16 int16) = int16
 
 -- | ClickHouse Int32 column type
 newtype ChInt32 = MkChInt32 Int32
-  deriving newtype (Show, Eq, Num, Bounded, Enum)
+  deriving newtype (Show, Eq, Num, Prim, Bounded, Enum)
 
 instance IsChType ChInt32
   where
@@ -487,7 +492,7 @@ instance FromChType ChInt32 Int32   where fromChType (MkChInt32 int32) = int32
 
 -- | ClickHouse Int64 column type
 newtype ChInt64 = MkChInt64 Int64
-  deriving newtype (Show, Eq, Num, Bounded, Enum)
+  deriving newtype (Show, Eq, Num, Prim, Bounded, Enum)
 
 instance IsChType ChInt64
   where
@@ -522,7 +527,7 @@ instance FromChType ChInt64 Int64   where fromChType = coerce
 
 -- | ClickHouse Int128 column type
 newtype ChInt128 = MkChInt128 Int128
-  deriving newtype (Show, Eq, Num, Bounded)
+  deriving newtype (Show, Eq, Num, Prim, Bounded)
 
 instance IsChType ChInt128
   where
@@ -556,7 +561,7 @@ instance FromChType ChInt128 Int128   where fromChType (MkChInt128 int128) = int
 
 -- | ClickHouse UInt8 column type
 newtype ChUInt8 = MkChUInt8 Word8
-  deriving newtype (Show, Eq, Num, Bounded)
+  deriving newtype (Show, Eq, Num, Prim, Bounded)
 
 instance IsChType ChUInt8
   where
@@ -590,7 +595,7 @@ instance FromChType ChUInt8 Word8   where fromChType (MkChUInt8 word8) = word8
 
 -- | ClickHouse UInt16 column type
 newtype ChUInt16 = MkChUInt16 Word16
-  deriving newtype (Show, Eq, Num, Bounded)
+  deriving newtype (Show, Eq, Num, Prim, Bounded)
 
 instance IsChType ChUInt16
   where
@@ -624,7 +629,7 @@ instance FromChType ChUInt16 Word16   where fromChType = coerce
 
 -- | ClickHouse UInt32 column type
 newtype ChUInt32 = MkChUInt32 Word32
-  deriving newtype (Show, Eq, Num, Bounded, Enum)
+  deriving newtype (Show, Eq, Num, Prim, Bounded, Enum)
 
 instance IsChType ChUInt32
   where
@@ -658,7 +663,7 @@ instance FromChType ChUInt32 Word32   where fromChType (MkChUInt32 word32) = wor
 
 -- | ClickHouse UInt64 column type
 newtype ChUInt64 = MkChUInt64 Word64
-  deriving newtype (Show, Eq, Num, Bounded, Enum)
+  deriving newtype (Show, Eq, Num, Prim, Bounded, Enum)
 
 instance IsChType ChUInt64
   where
@@ -692,7 +697,7 @@ instance FromChType ChUInt64 Word64   where fromChType (MkChUInt64 w64) = w64
 
 -- | ClickHouse UInt128 column type
 newtype ChUInt128 = MkChUInt128 Word128
-  deriving newtype (Show, Eq, Num, Bounded, Enum)
+  deriving newtype (Show, Eq, Num, Prim, Bounded, Enum)
 
 instance IsChType ChUInt128
   where
@@ -728,7 +733,7 @@ instance FromChType ChUInt128 Word128   where fromChType (MkChUInt128 w128) = w1
 
 -- | ClickHouse DateTime column type
 newtype ChDateTime = MkChDateTime Word32
-  deriving newtype (Show, Eq, Bounded, Enum)
+  deriving newtype (Show, Eq, Prim, Bounded, Enum)
 
 instance IsChType ChDateTime
   where
@@ -767,7 +772,7 @@ instance FromChType ChDateTime Word32     where fromChType = coerce
 
 
 newtype ChDate = MkChDate Word16
-  deriving newtype (Show, Eq, Bounded, Enum)
+  deriving newtype (Show, Eq, Prim, Bounded, Enum)
 
 instance IsChType ChDate
   where

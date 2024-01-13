@@ -67,7 +67,7 @@ read = do
 
 
 exampleCredentials :: ChCredential
-exampleCredentials = ChCredential "default" "" "http://localhost:8123" "exampleDb"
+exampleCredentials = MkChCredential "default" "" "http://localhost:8123" "exampleDb"
 
 
 type ExampleTable =

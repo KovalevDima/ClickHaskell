@@ -19,10 +19,6 @@
   , UndecidableSuperClasses
 #-}
 
-{-# OPTIONS_GHC
-  -Wno-missing-methods
-#-}
-
 
 module ClickHaskell.Client
 ( -- * Client language parts interpreter
@@ -101,7 +97,7 @@ class
 
 -- ** Reading
 
-data Reading a
+data Reading record
 
 
 instance
@@ -136,7 +132,9 @@ instance
   ) =>
   ClientInterpretable (Reading record -> View name columns params) HttpChClient
   where
-  type ClientIntepreter (Reading record -> View name columns params) = View name columns params -> IO (ChResponse [record])
+  type ClientIntepreter (Reading record -> View name columns params)
+    =  View name columns params
+    -> IO (ChResponse [record])
   interpretClient (HttpChClient man req) view = do
     resp <- H.httpLbs
       req{H.requestBody = H.RequestBodyBS . BS.toStrict . BS.toLazyByteString
@@ -160,7 +158,7 @@ instance
 
 -- ** Writing
 
-data Writing a
+data Writing record
 
 instance
   ( WritableInto (Table name columns) record
@@ -168,8 +166,9 @@ instance
   ) =>
   ClientInterpretable (Writing record -> Table name columns) HttpChClient
   where
-  type ClientIntepreter (Writing record -> Table name columns) =  [record] -> IO (ChResponse ())
-
+  type ClientIntepreter (Writing record -> Table name columns)
+    =  [record]
+    -> IO (ChResponse ())
   interpretClient (HttpChClient man req) schemaList = do
     resp <- H.httpLbs
       req
@@ -213,7 +212,7 @@ class IsChClient client
 
 {- | ToDocument
 -}
-data ChCredential = ChCredential
+data ChCredential = MkChCredential
   { chLogin    :: !Text
   , chPass     :: !Text
   , chUrl      :: !Text
@@ -230,7 +229,7 @@ data HttpChClient = HttpChClient H.Manager H.Request
 
 instance IsChClient HttpChClient where
   type ClientSettings HttpChClient = HttpChClientSettings
-  initClient (ChCredential login pass url databaseName) maybeModifier = do
+  initClient (MkChCredential login pass url databaseName) maybeModifier = do
     man <- H.newManager $ fromMaybe id maybeModifier defaultHttpChClientSettings
     req <- H.parseRequest (T.unpack url)
 
@@ -248,8 +247,10 @@ instance IsChClient HttpChClient where
 
 {- |
 Settings for HttpChClient
+
 Required for initialization
-Currently is a type synomym 
+
+Currently is a type synomym for http-client ManagerSettings
 -}
 type HttpChClientSettings = H.ManagerSettings
 
@@ -350,7 +351,6 @@ parseJsonSummary
 -- ** HTTP codes handling
 
 {- | ToDocument
-Code: 48. DB::Exception: Received from <host:port>. DB::Exception: Method write is not supported by storage View. (NOT_IMPLEMENTED)
 -}
 newtype ChException = ChException
   { exceptionMessage :: Text
