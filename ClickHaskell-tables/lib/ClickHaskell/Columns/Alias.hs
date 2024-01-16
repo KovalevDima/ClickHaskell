@@ -9,7 +9,7 @@ module ClickHaskell.Columns.Alias
 
 -- Internal
 import ClickHouse.DbTypes (IsChType(ToChTypeName))
-import ClickHaskell.Columns.Interpreter (InterpretedColumn(..))
+import ClickHaskell.Columns.Compiler (CompiledColumn(..))
 
 
 -- GHC included
@@ -39,7 +39,7 @@ instance
   ( IsChType columnType
   , KnownSymbol name
   , KnownSymbol (ToChTypeName columnType)
-  ) => InterpretedColumn (AliasColumn name columnType)
+  ) => CompiledColumn (AliasColumn name columnType)
   where
   type GetColumnName (AliasColumn name _) = name
   renderColumnName = T.pack . symbolVal $ Proxy @name
@@ -49,7 +49,7 @@ instance
 
   type WritableColumn (AliasColumn name _) =
     Just
-      (    'Text "You are trying insert Alias column \"" :<>: 'Text name :<>: 'Text "\""
+      (    'Text "You are trying insert into Alias column \"" :<>: 'Text name :<>: 'Text "\""
       :$$: 'Text "You can't do this. Read about Alias columns"
       )
 

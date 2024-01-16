@@ -44,7 +44,7 @@ Library
     ClickHaskell.Columns.Alias
     ClickHaskell.Columns.Column
     ClickHaskell.Columns.Default
-    ClickHaskell.Columns.Interpreter
+    ClickHaskell.Columns.Compiler
     ClickHaskell.Tables.Interpreter
     ClickHaskell.Tables.Table
     ClickHaskell.Tables.View
@@ -68,8 +68,8 @@ Library
 
     -- GHC included
     , base >= 4.7 && <5
-    , bytestring < 0.12
-    , text < 2.1
+    , bytestring < 0.13
+    , text < 2.2
 
   Default-language: Haskell2010
   Default-Extensions:

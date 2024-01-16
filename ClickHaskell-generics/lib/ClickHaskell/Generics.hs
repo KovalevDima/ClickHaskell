@@ -25,7 +25,7 @@ module ClickHaskell.Generics
 
 -- Internal dependencies
 import ClickHouse.DbTypes  (Serializable(..), Deserializable(..), ToChType(..), FromChType(..))
-import ClickHaskell.Tables (InterpretedColumn(..), TableInterpretable(..))
+import ClickHaskell.Tables (CompiledColumn(..), InterpretableTable(..))
 
 
 -- GHC included
@@ -44,7 +44,7 @@ import GHC.TypeLits            (KnownSymbol, TypeError, Symbol, ErrorMessage(..)
 -- * Writing
 
 class
-  ( TableInterpretable table
+  ( InterpretableTable table
   ) =>
   WritableInto table record
   where
@@ -58,14 +58,14 @@ class
   toTsvLine = gToTsvBs @(ValidatedTable table) @(GetTableColumns table) . from
   {-# NOINLINE toTsvLine #-}
 
-  default renderedWritingColumns
+  default writingColumns
     ::
     ( GWritable (ValidatedTable table) (GetTableColumns table) (Rep record)
     , Generic record
     ) => Builder
-  renderedWritingColumns :: Builder
-  renderedWritingColumns = gRenderedInsertableColumns @(ValidatedTable table) @(GetTableColumns table) @(Rep record)
-  {-# NOINLINE renderedWritingColumns #-}
+  writingColumns :: Builder
+  writingColumns = gWritingColumns @(ValidatedTable table) @(GetTableColumns table) @(Rep record)
+  {-# NOINLINE writingColumns #-}
 
 
 class GWritable
@@ -74,7 +74,7 @@ class GWritable
   f
   where
   gToTsvBs :: f p -> Builder
-  gRenderedInsertableColumns :: Builder
+  gWritingColumns :: Builder
 
 
 instance
@@ -93,7 +93,7 @@ instance
     (S1 (MetaSel (Just columnName) a b f) (K1 i inputType))
   where
   gToTsvBs = error "Unreachable"
-  gRenderedInsertableColumns = error "Unreachable"
+  gWritingColumns = error "Unreachable"
 
 
 instance
@@ -101,7 +101,7 @@ instance
   ) => GWritable ('Just errorMsg) columns genericRep
   where
   gToTsvBs _ = error "Unreachable"
-  gRenderedInsertableColumns = error "Unreachable"
+  gWritingColumns = error "Unreachable"
 
 
 instance {-# OVERLAPPING #-}
@@ -111,8 +111,8 @@ instance {-# OVERLAPPING #-}
   gToTsvBs (M1 re) = gToTsvBs @'Nothing @columns re <> "\n"
   {-# INLINE gToTsvBs #-}
 
-  gRenderedInsertableColumns = gRenderedInsertableColumns @'Nothing @columns @f
-  {-# INLINE gRenderedInsertableColumns #-}
+  gWritingColumns = gWritingColumns @'Nothing @columns @f
+  {-# INLINE gWritingColumns #-}
 
 
 instance {-# OVERLAPPING #-}
@@ -123,8 +123,8 @@ instance {-# OVERLAPPING #-}
   gToTsvBs (M1 re) = gToTsvBs @'Nothing @columns re
   {-# INLINE gToTsvBs #-}
 
-  gRenderedInsertableColumns = gRenderedInsertableColumns @'Nothing @columns @f
-  {-# INLINE gRenderedInsertableColumns #-}
+  gWritingColumns = gWritingColumns @'Nothing @columns @f
+  {-# INLINE gWritingColumns #-}
 
 
 instance {-# OVERLAPPING #-}
@@ -145,11 +145,11 @@ instance {-# OVERLAPPING #-}
     <> "\t" <> gToTsvBs @derivingState @secondColumnsPart right
   {-# INLINE gToTsvBs #-}
 
-  gRenderedInsertableColumns
-    =  gRenderedInsertableColumns @derivingState @firstColumnsPart @left
+  gWritingColumns
+    =  gWritingColumns @derivingState @firstColumnsPart @left
     <> ", "
-    <> gRenderedInsertableColumns @derivingState @secondColumnsPart @right
-  {-# INLINE gRenderedInsertableColumns #-}
+    <> gWritingColumns @derivingState @secondColumnsPart @right
+  {-# NOINLINE gWritingColumns #-}
 
 
 instance {-# OVERLAPPING #-}
@@ -165,8 +165,8 @@ instance {-# OVERLAPPING #-}
   gToTsvBs = serialize . toChType @chType @inputType . unK1 . unM1
   {-# INLINE gToTsvBs #-}
 
-  gRenderedInsertableColumns = BS.byteString . BS8.pack $ symbolVal (Proxy @matchedColumnName)
-  {-# INLINE gRenderedInsertableColumns #-}
+  gWritingColumns = BS.byteString . BS8.pack $ symbolVal (Proxy @matchedColumnName)
+  {-# INLINE gWritingColumns #-}
 
 
 instance
@@ -190,8 +190,8 @@ instance
   gToTsvBs = serialize . toChType @(GetColumnType column) @inputType . unK1 . unM1
   {-# INLINE gToTsvBs #-}
 
-  gRenderedInsertableColumns = BS.byteString . BS8.pack $ symbolVal (Proxy @columnName)
-  {-# INLINE gRenderedInsertableColumns #-}
+  gWritingColumns = BS.byteString . BS8.pack $ symbolVal (Proxy @columnName)
+  {-# INLINE gWritingColumns #-}
 
 
 
@@ -202,7 +202,7 @@ instance
 -- * Reading
 
 class
-  ( TableInterpretable table
+  ( InterpretableTable table
   ) =>
   ReadableFrom table record
   where
@@ -216,14 +216,14 @@ class
   fromTsvLine = to . gFromTsvBs @(ValidatedTable table) @(GetTableColumns table)
   {-# NOINLINE fromTsvLine #-}
 
-  default renderedReadingColumns
+  default readingColumns
     ::
     ( GReadable (ValidatedTable table) (GetTableColumns table) (Rep record)
     , Generic record
     ) => Builder
-  renderedReadingColumns :: Builder
-  renderedReadingColumns = gRenderedSelectableColumns @(ValidatedTable table) @(GetTableColumns table) @(Rep record)
-  {-# NOINLINE renderedReadingColumns #-}
+  readingColumns :: Builder
+  readingColumns = gReadingColumns @(ValidatedTable table) @(GetTableColumns table) @(Rep record)
+  {-# NOINLINE readingColumns #-}
 
 
 class GReadable
@@ -232,7 +232,7 @@ class GReadable
   f
   where
   gFromTsvBs :: StrictByteString -> f p
-  gRenderedSelectableColumns :: Builder
+  gReadingColumns :: Builder
 
 
 instance
@@ -250,7 +250,7 @@ instance
     (S1 (MetaSel (Just columnName) a b f) k)
   where
   gFromTsvBs _ = error "Unreachable"
-  gRenderedSelectableColumns = error "Unreachable"
+  gReadingColumns = error "Unreachable"
 
 
 instance
@@ -258,7 +258,7 @@ instance
   ) => GReadable ('Just errorMsg) columns genericRep
   where
   gFromTsvBs _ = error "Unreachable"
-  gRenderedSelectableColumns = error "Unreachable"
+  gReadingColumns = error "Unreachable"
 
 
 instance {-# OVERLAPPING #-}
@@ -267,8 +267,8 @@ instance {-# OVERLAPPING #-}
   where
   gFromTsvBs = M1 . gFromTsvBs @'Nothing @columns
   {-# INLINE gFromTsvBs #-}
-  gRenderedSelectableColumns = gRenderedSelectableColumns @'Nothing @columns @f
-  {-# INLINE gRenderedSelectableColumns #-}
+  gReadingColumns = gReadingColumns @'Nothing @columns @f
+  {-# INLINE gReadingColumns #-}
 
 
 instance {-# OVERLAPPING #-}
@@ -277,8 +277,8 @@ instance {-# OVERLAPPING #-}
   where
   gFromTsvBs = M1 . gFromTsvBs @'Nothing @columns
   {-# INLINE gFromTsvBs #-}
-  gRenderedSelectableColumns = gRenderedSelectableColumns @'Nothing @columns @f
-  {-# INLINE gRenderedSelectableColumns #-}
+  gReadingColumns = gReadingColumns @'Nothing @columns @f
+  {-# INLINE gReadingColumns #-}
 
 
 instance {-# OVERLAPPING #-}
@@ -300,9 +300,9 @@ instance {-# OVERLAPPING #-}
     in  gFromTsvBs @derivingState @firstColumnsPart (BS.intercalate "\t" leftWords)
     :*: gFromTsvBs @derivingState @secondColumnsPart (BS.intercalate "\t" rightWords)
   {-# INLINE gFromTsvBs #-}
-  gRenderedSelectableColumns
-    =          gRenderedSelectableColumns @derivingState @firstColumnsPart @left
-    <> ", " <> gRenderedSelectableColumns @derivingState @secondColumnsPart @right
+  gReadingColumns
+    =          gReadingColumns @derivingState @firstColumnsPart @left
+    <> ", " <> gReadingColumns @derivingState @secondColumnsPart @right
 
 
 instance {-# OVERLAPPING #-}
@@ -318,8 +318,8 @@ instance {-# OVERLAPPING #-}
   where
   gFromTsvBs = M1 . K1 . fromChType @chType @outputType . deserialize
   {-# INLINE gFromTsvBs #-}
-  gRenderedSelectableColumns = (BS.byteString . BS8.pack . symbolVal) (Proxy @columnName)
-  {-# INLINE gRenderedSelectableColumns #-}
+  gReadingColumns = (BS.byteString . BS8.pack . symbolVal) (Proxy @columnName)
+  {-# INLINE gReadingColumns #-}
 
 
 

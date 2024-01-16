@@ -15,12 +15,17 @@ module Examples where
 
 -- Internal
 import ClickHaskell.Client
-  ( interpretClient, ChResponse
+  ( interpretClient, ChResponse, ClickHouseSummary
   , initClient, setHttpClientTimeout, HttpChClient, ChCredential(..)
-  , Reading, Writing 
+  , Reading, Writing
   )
 import ClickHaskell.Generics (WritableInto, ReadableFrom)
-import ClickHaskell.Tables   (Table, Column, View)
+import ClickHaskell.Tables
+  ( interpretTable
+  , Table
+  , View, Parameter, mkParameter
+  , Column
+  )
 import ClickHouse.DbTypes
   ( toChType
   , ChUUID, ChDateTime, ChInt32, ChInt64, ChString
@@ -35,7 +40,7 @@ import Data.Word       (Word32, Word64)
 import GHC.Generics    (Generic)
 
 
-write :: IO (ChResponse ())
+write :: IO ClickHouseSummary
 write = do
 
   print "1. Initializing client"
@@ -44,7 +49,7 @@ write = do
     exampleCredentials
     Nothing
 
-  print "2. Performing client"
+  print "2. Performing writing"
   interpretClient
     @(Writing ExampleData -> ExampleTable)
     client
@@ -60,10 +65,27 @@ read = do
     exampleCredentials
     (Just $ setHttpClientTimeout 500_000)
 
-  print "2. Performing select"
+  print "2. Performing reading"
   interpretClient
-    @(Reading ExampleData -> ExampleTable)
+    @(ExampleTable -> Reading ExampleData)
     client
+
+
+readParametrizedView :: IO (ChResponse [SingleFieldRecord])
+readParametrizedView = do
+
+  print "1. Initializing client"
+  client <- initClient
+    @HttpChClient
+    exampleCredentials
+    (Just $ setHttpClientTimeout 500_000)
+
+  print "2. Performing reading"
+  interpretClient
+    @(Reading SingleFieldRecord -> ExampleView)
+    client
+    (interpretTable @ExampleView (mkParameter ("text" :: ChString)) )
+    
 
 
 exampleCredentials :: ChCredential
@@ -85,15 +107,9 @@ type ExampleTable =
 type ExampleView =
   View
     "exampleView"
-   '[ Column "a1" ChInt64
-    , Column "a2" (LowCardinality ChString)
-    , Column "a3" ChDateTime
-    , Column "a4" ChUUID
-    , Column "a5" ChInt32
-    , Column "a6" (LowCardinality (Nullable ChString))
-    , Column "a7" (LowCardinality ChString)
+   '[ Column "totalA1" ChInt64
     ]
-   '[
+   '[ Parameter "param1" ChString
     ]
 
 data ExampleData = MkExampleData
@@ -104,11 +120,12 @@ data ExampleData = MkExampleData
   , a5 :: Int32
   , a6 :: Nullable ChString
   , a7 :: LowCardinality ChString
-  } deriving (Generic, Show)
+  }
+  deriving (Generic, Show)
 
 instance ReadableFrom ExampleTable ExampleData
 instance WritableInto ExampleTable ExampleData
-instance ReadableFrom ExampleView  ExampleData
+instance ReadableFrom ExampleView  SingleFieldRecord
 
 exampleDataSample :: ExampleData
 exampleDataSample = MkExampleData
@@ -124,11 +141,13 @@ exampleDataSample = MkExampleData
 type SingleFieldTable =
   Table
     "example2"
-   '[ Column "a1" ChInt64
+   '[ Column "totalA1" ChInt64
     ]
 
-newtype SingleFieldRecord = MkSingleFieldRecord {a1 :: Int64}
-  deriving (Generic)
+newtype SingleFieldRecord = MkSingleFieldRecord
+  { totalA1 :: Int64
+  }
+  deriving (Generic, Show)
 
 instance ReadableFrom SingleFieldTable SingleFieldRecord
 instance WritableInto SingleFieldTable SingleFieldRecord

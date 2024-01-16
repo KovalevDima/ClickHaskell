@@ -11,8 +11,7 @@ module ClickHaskell.Tables
 (
 -- * Tables
 -- ** Interpreter
-  TableInterpretable(..)
-, IsValidColumns(..)
+  InterpretableTable(..)
 
 -- ** Table
 , Table, renderTable
@@ -23,8 +22,9 @@ module ClickHaskell.Tables
 
 
 -- * Columns
--- ** Intepreter
-, InterpretedColumn(..)
+-- ** Compiler
+, CompiledColumn(..)
+, CompiledColumns(..)
 
 -- ** Column
 , Column
@@ -36,13 +36,13 @@ module ClickHaskell.Tables
 
 -- Internal
 import ClickHaskell.Columns
-  ( InterpretedColumn(..)
-  , Column
+  ( CompiledColumn(..)
   , AliasColumn
+  , Column
   )
 import ClickHaskell.Tables.Interpreter
-  ( TableInterpretable(..)
-  , IsValidColumns(..)
+  ( InterpretableTable(..)
+  , CompiledColumns(..)
   )
 import ClickHaskell.Tables.Table (Table, renderTable)
 import ClickHaskell.Tables.View
@@ -60,18 +60,18 @@ instance {-# OVERLAPPABLE #-}
     (    'Text "Expected a valid table description. But got:"
     :$$: ShowType something
     )
-  ) => TableInterpretable something
+  ) => InterpretableTable something
 
 instance
   ( TypeError
     (    'Text "Data source should have at least one column"
     :$$: 'Text "But given source without columns"
     )
-  ) => IsValidColumns '[]
+  ) => CompiledColumns '[]
 
 instance {-# OVERLAPPABLE #-}
   ( TypeError
     (    'Text "Expected a column description. But got: "
     :$$: ShowType unsupportedColumnDescription
     )
-  ) => InterpretedColumn unsupportedColumnDescription
+  ) => CompiledColumn unsupportedColumnDescription

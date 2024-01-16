@@ -11,11 +11,8 @@ module ClickHaskell.Tables.Table
 
 -- Internal
 import ClickHaskell.Tables.Interpreter
-  ( TableInterpretable(..)
-  , IsValidColumns
-    ( ColumnsValdationResult
-    , GetColumnsRep
-    )
+  ( InterpretableTable(..)
+  , CompiledColumns(GetColumnsRep,ColumnsCompilationResult)
   )
 
 
@@ -39,13 +36,13 @@ newtype Table
 
 instance
   ( KnownSymbol name
-  , IsValidColumns columns
-  ) => TableInterpretable (Table name columns)
+  , CompiledColumns columns
+  ) => InterpretableTable (Table name columns)
   where
   type GetTableName    (Table name _)    = name
   type GetTableColumns (Table _ columns) = GetColumnsRep columns
-  type ValidatedTable   (Table _ columns) = ColumnsValdationResult columns
-
+  type ValidatedTable   (Table _ columns) = ColumnsCompilationResult columns
+  
   type TableInterpreter (Table name columns) = Table name columns
   interpretTable = MkTable{renderedTableName = "\"" <> (BS.byteString . BS8.pack . symbolVal) (Proxy @name) <> "\""}
 

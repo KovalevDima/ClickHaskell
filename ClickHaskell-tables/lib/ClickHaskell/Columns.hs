@@ -8,7 +8,7 @@
 #-}
 
 module ClickHaskell.Columns
-( InterpretedColumn(..)
+( CompiledColumn(..)
 , Column
 , AliasColumn
 , DefaultableColumn
@@ -19,4 +19,4 @@ module ClickHaskell.Columns
 import ClickHaskell.Columns.Alias (AliasColumn)
 import ClickHaskell.Columns.Column (Column)
 import ClickHaskell.Columns.Default (DefaultableColumn)
-import ClickHaskell.Columns.Interpreter (InterpretedColumn(..))
+import ClickHaskell.Columns.Compiler (CompiledColumn(..))

@@ -21,4 +21,4 @@ You can read about each one DSL from its own documentation
 
 ### `ClickHouse`-prefixed packages provides:
 1. Primitives of `ClickHouse interfaces parts`
-2. Implementation of abstractions over `ClickHouse interfaces parts`
+2. Abstractions over `ClickHouse interfaces parts`

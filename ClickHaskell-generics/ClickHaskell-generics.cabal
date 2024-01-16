@@ -61,7 +61,7 @@ Library
 
     -- GHC included libraries
     , base >= 4.7 && <5
-    , bytestring < 0.12
+    , bytestring < 0.13
   Default-language: Haskell2010
   Default-Extensions:
     FlexibleContexts

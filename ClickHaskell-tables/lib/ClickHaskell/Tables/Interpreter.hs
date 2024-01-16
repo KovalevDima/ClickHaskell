@@ -2,23 +2,18 @@
     AllowAmbiguousTypes
   , DataKinds
   , OverloadedStrings
+  , TypeFamilyDependencies
   , UndecidableInstances
 #-}
 
 module ClickHaskell.Tables.Interpreter
-( TableInterpretable(..)
-
-, IsValidColumns(..)
+( InterpretableTable(..)
+, CompiledColumns(..)
 ) where
 
-
 -- Internal
-import ClickHaskell.Columns
-  ( InterpretedColumn
-    ( GetColumnName
-    , renderColumnName
-    , renderColumnType
-    )
+import ClickHaskell.Columns.Compiler
+  ( CompiledColumn(..)
   )
 
 
@@ -32,7 +27,7 @@ import GHC.TypeLits       (ErrorMessage (..), Symbol, TypeError)
 
 
 class
-  TableInterpretable table
+  InterpretableTable table
   where
   type GetTableName table :: Symbol
   type GetTableColumns table :: [Type]
@@ -44,26 +39,28 @@ class
 
 
 
-class IsValidColumns (columns :: [Type])
+class CompiledColumns (columns :: [Type])
   where
   type GetColumnsRep columns :: [Type]
   getRenederedColumns :: [(Text, Text)]
   
-  type ColumnsValdationResult columns :: Maybe ErrorMessage
+  type ColumnsCompilationResult columns :: Maybe ErrorMessage
 
 
 
 
 instance
-  ( InterpretedColumn column1
-  , InterpretedColumn column2
-  , IsValidColumns (column2 ': columns)
-  ) => IsValidColumns (column1 ': column2 ': columns)
+  ( CompiledColumn column1
+  , CompiledColumn column2
+  , CompiledColumns (column2 ': columns)
+  ) => CompiledColumns (column1 ': column2 ': columns)
   where
   type GetColumnsRep (column1 ': column2 ': columns) = column1 ': GetColumnsRep (column2 ': columns)
-  getRenederedColumns = (renderColumnName @column1, renderColumnType @column2) : getRenederedColumns @(column2 ': columns)
+  getRenederedColumns
+    = (renderColumnName @column1, renderColumnType @column1)
+    : getRenederedColumns @(column2 ': columns)
 
-  type (ColumnsValdationResult (column1 ': column2 ': columns)) =
+  type (ColumnsCompilationResult (column1 ': column2 ': columns)) =
     If (GetColumnName column1 >? GetColumnName column2)
       ( TypeError
         (    'Text "Columns description contains aplabetically unsorted columns"
@@ -72,16 +69,19 @@ instance
         )
       )
       (If (GetColumnName column2 == GetColumnName column1)
-        (TypeError ('Text "There are two columns with identical name: \"" :<>: 'Text (GetColumnName column1) :<>: 'Text "\""))
-        (ColumnsValdationResult (column2 ': columns))
+        (TypeError
+          (    'Text "There are two columns with identical name: \""
+          :<>: 'Text (GetColumnName column1) :<>: 'Text "\"")
+          )
+        (ColumnsCompilationResult (column2 ': columns))
       )
 
 
 instance
-  ( InterpretedColumn column
-  ) => IsValidColumns '[column]
+  ( CompiledColumn column
+  ) => CompiledColumns '[column]
   where
   type GetColumnsRep '[column] = '[column]
   getRenederedColumns = [(renderColumnName @column, renderColumnType @column)]
 
-  type (ColumnsValdationResult '[column]) = 'Nothing
+  type (ColumnsCompilationResult '[column]) = 'Nothing

@@ -9,7 +9,7 @@ module ClickHaskell.Columns.Default
 
 -- Internal
 import ClickHouse.DbTypes (IsChType(ToChTypeName))
-import ClickHaskell.Columns.Interpreter (InterpretedColumn(..))
+import ClickHaskell.Columns.Compiler (CompiledColumn(..))
 
 
 -- GHC included
@@ -33,7 +33,7 @@ instance
   ( IsChType columnType
   , KnownSymbol name
   , KnownSymbol (ToChTypeName columnType)
-  ) => InterpretedColumn (DefaultableColumn name columnType)
+  ) => CompiledColumn (DefaultableColumn name columnType)
   where
   type GetColumnName (DefaultableColumn name _) = name
   renderColumnName = T.pack . symbolVal $ Proxy @name

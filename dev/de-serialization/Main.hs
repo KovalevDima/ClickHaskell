@@ -18,10 +18,16 @@ module Main
 
 -- Internal
 import ClickHouse.DbTypes 
-  ( Deserializable(..), IsChType(..), ToQueryPart(..)
+  ( Deserializable(..), IsChType(..), ToChType(..), ToQueryPart(..)
   , ChInt64, ChInt32, ChUInt32, ChUInt64
+  , ChString
   )
-import ClickHaskell.Client (ClientInterpretable(..), HttpChClient(..), IsChClient(..))
+import ClickHaskell.Client
+  ( ClientInterpretable(..)
+  , HttpChClient(..)
+  , IsChClient(..)
+  , throwOnNon200
+  )
 import Examples (exampleCredentials)
 
 
@@ -31,8 +37,9 @@ import Network.HTTP.Client as H (httpLbs, responseBody, Request(..), RequestBody
 
 -- GHC included
 import Control.Monad (when)
-import Data.ByteString.Lazy    as BS (toStrict)
+import Data.ByteString         as BS (takeWhile, singleton)
 import Data.ByteString.Builder as BS (toLazyByteString)
+import Data.ByteString.Lazy    as BSL (toStrict)
 import Data.Proxy   (Proxy(..))
 import GHC.TypeLits (KnownSymbol, symbolVal)
 
@@ -47,6 +54,7 @@ main = do
   runSerializationTest @ChInt64 client
   runSerializationTest @ChUInt32 client
   runSerializationTest @ChUInt64 client
+  runSerializationTest @ChString client
 
 
 
@@ -59,6 +67,7 @@ runSerializationTest ::
   , Deserializable chType
   , HasTestValues chType
   , KnownSymbol (ToChTypeName chType)
+  , Show chType
   ) =>
   HttpChClient -> IO ()
 runSerializationTest  client = do
@@ -66,10 +75,7 @@ runSerializationTest  client = do
   deserializationResult <- mapM runTest testValues
   
   let dataTypeName = symbolVal (Proxy @(ToChTypeName chType))
-  
-  when (deserializationResult /= testValues)
-    (error $ "Deserialization bug occured on DataType " <> dataTypeName)
-  
+
   putStrLn $ dataTypeName <> ": Ok"
 
 
@@ -80,14 +86,16 @@ data DeSerializationTest chType
 instance
   ( ToQueryPart chType
   , Deserializable chType
+  , Eq chType
+  , Show chType
+  , KnownSymbol (ToChTypeName chType)
   ) =>
   ClientInterpretable (DeSerializationTest chType) HttpChClient
   where
   type ClientIntepreter (DeSerializationTest chType) = chType -> IO chType
   interpretClient (HttpChClient man req) chType = do
-    responseBody
-      <-  BS.toStrict . H.responseBody
-      <$> H.httpLbs
+    resp
+      <- H.httpLbs
         req
           { requestBody
               = H.RequestBodyLBS
@@ -95,9 +103,20 @@ instance
               $ "SELECT " <> toQueryPart chType
           }
         man
-    pure $ deserialize responseBody
 
+    throwOnNon200 resp
 
+    let deserializedChType = deserialize . BS.takeWhile (/= 10) . (BSL.toStrict . H.responseBody) $ resp
+    
+    let dataTypeName = symbolVal (Proxy @(ToChTypeName chType))
+
+    when (chType /= deserializedChType) $
+      error
+        $  "Deserialized value of type " <> dataTypeName <> " unmatched:"
+        <> " Expected: " <> show chType
+        <> ". But got: " <> show deserializedChType <> "."
+
+    pure $ deserializedChType
 
 
 class HasTestValues chType
@@ -107,11 +126,15 @@ class HasTestValues chType
 
   testValues :: [chType]
 
-instance
+instance {-# OVERLAPPABLE #-}
   ( Bounded boundedEnum
   , Enum boundedEnum
   ) =>
   HasTestValues boundedEnum
   where
   testValues :: [boundedEnum]
-  testValues = [pred minBound, minBound, toEnum 0, maxBound, succ maxBound]
+  testValues = [minBound, toEnum 0, maxBound]
+
+instance HasTestValues ChString
+  where
+  testValues = map (toChType . BS.singleton) [1..255]

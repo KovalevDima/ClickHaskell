@@ -1,19 +1,21 @@
 {-# LANGUAGE
     AllowAmbiguousTypes
+  , DataKinds
+  , UndecidableInstances
 #-}
 
-module ClickHaskell.Columns.Interpreter
-( InterpretedColumn(..)
+module ClickHaskell.Columns.Compiler
+( CompiledColumn(..)
 ) where
 
 
 -- GHC included
 import Data.Text (Text)
 import GHC.Base (Symbol, Type)
-import GHC.TypeError (ErrorMessage)
+import GHC.TypeError (ErrorMessage(..))
 
 
-class InterpretedColumn columnDescription where
+class CompiledColumn columnDescription where
   type GetColumnName columnDescription :: Symbol
   renderColumnName :: Text
 

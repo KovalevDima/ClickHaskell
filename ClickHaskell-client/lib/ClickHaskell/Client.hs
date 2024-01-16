@@ -49,12 +49,13 @@ module ClickHaskell.Client
 
 -- ** HTTP codes handling
 , ChException(..)
+, throwOnNon200
 ) where
 
 
 -- Internal
 import ClickHaskell.Generics (WritableInto(..), ReadableFrom(..))
-import ClickHaskell.Tables   (TableInterpretable(..), Table, renderTable, View, renderView)
+import ClickHaskell.Tables   (InterpretableTable(..), Table, renderTable, View, renderView)
 
 
 -- External
@@ -101,16 +102,16 @@ data Reading record
 
 
 instance
-  ( ReadableFrom (Table name columns) record 
-  , TableInterpretable (Table name columns)
+  ( ReadableFrom (Table name columns) record
+  , InterpretableTable (Table name columns)
   ) =>
-  ClientInterpretable (Reading record -> Table name columns) HttpChClient
+  ClientInterpretable (Table name columns -> Reading record) HttpChClient
   where
-  type ClientIntepreter (Reading record -> Table name columns) = IO (ChResponse [record])
+  type ClientIntepreter (Table name columns -> Reading record) = IO (ChResponse [record])
   interpretClient (HttpChClient man req) = do
     resp <- H.httpLbs
       req{H.requestBody = H.RequestBodyBS . BS.toStrict . BS.toLazyByteString
-        $  "SELECT " <> renderedReadingColumns @(Table name columns) @record
+        $  "SELECT " <> readingColumns @(Table name columns) @record
         <> " FROM " <> renderTable (interpretTable @(Table name columns))
       }
       man
@@ -127,18 +128,19 @@ instance
 
 
 instance
-  ( ReadableFrom (View name columns params) record 
-  , TableInterpretable (View name columns params)
+  ( ReadableFrom (View name columns params) record
+  , InterpretableTable (View name columns params)
+  , Show record
   ) =>
   ClientInterpretable (Reading record -> View name columns params) HttpChClient
   where
   type ClientIntepreter (Reading record -> View name columns params)
-    =  View name columns params
+    =  View name columns '[]
     -> IO (ChResponse [record])
   interpretClient (HttpChClient man req) view = do
     resp <- H.httpLbs
       req{H.requestBody = H.RequestBodyBS . BS.toStrict . BS.toLazyByteString
-        $  "SELECT " <> renderedReadingColumns @(View name columns params) @record
+        $  "SELECT " <> readingColumns @(View name columns params) @record
         <> " FROM " <> renderView view
       }
       man
@@ -162,36 +164,35 @@ data Writing record
 
 instance
   ( WritableInto (Table name columns) record
-  , TableInterpretable (Table name columns)
+  , InterpretableTable (Table name columns)
   ) =>
   ClientInterpretable (Writing record -> Table name columns) HttpChClient
   where
   type ClientIntepreter (Writing record -> Table name columns)
-    =  [record]
-    -> IO (ChResponse ())
+    = [record] -> IO ClickHouseSummary
   interpretClient (HttpChClient man req) schemaList = do
     resp <- H.httpLbs
-      req
-        { requestBody = H.requestBodySourceChunked
-          $  yield ( BS.toStrict . BS.toLazyByteString
-              $ "INSERT INTO " <> renderTable (interpretTable @(Table name columns))
-              <> " (" <> renderedWritingColumns @(Table name columns) @record <> ")"
-              <> " FORMAT TSV\n"
+      req{requestBody = H.requestBodySourceChunked $
+        do
+        yield
+          ( BS.toStrict . BS.toLazyByteString
+            $  "INSERT INTO " <> renderTable (interpretTable @(Table name columns))
+            <> " (" <> writingColumns @(Table name columns) @record <> ")"
+            <> " FORMAT TSV\n"
+          )
+        yieldMany
+          ( map
+            ( BS.toStrict . BS.toLazyByteString
+            . toTsvLine @(Table name columns) @record
             )
-          >> yieldMany (
-            map
-              ( BS.toStrict
-              . BS.toLazyByteString
-              . toTsvLine @(Table name columns) @record
-              )
-              schemaList
-            )
-        }
+            schemaList
+          )
+      }
       man
 
     throwOnNon200 resp
 
-    pure $ MkChResponse () (parseSummaryFromHeaders resp)
+    pure (parseSummaryFromHeaders resp)
 
 
 
@@ -207,7 +208,7 @@ Clients initialization abstraction for different backends
 -}
 class IsChClient client
   where
-  type ClientSettings client = settings | settings -> client 
+  type ClientSettings client = settings | settings -> client
   initClient :: ChCredential -> Maybe (ClientSettings client -> ClientSettings client) -> IO client
 
 {- | ToDocument

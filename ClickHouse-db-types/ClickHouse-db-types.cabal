@@ -57,10 +57,10 @@ Library
   Build-depends:
     -- GHC included libraries
       base >= 4.7 && <5
-    , bytestring < 0.12
-    , text < 2.1
+    , bytestring < 0.13
+    , text < 2.2
     , time < 1.13
-    , vector
+    , vector < 0.14
 
     -- External dependencies
     , uuid < 1.4
