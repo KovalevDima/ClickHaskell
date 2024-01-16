@@ -20,10 +20,6 @@
       ];
       perSystem = {self', ...}: {
         haskellProjects.default = {};
-        packages.default = self'.packages.ClickHaskell-client;
-        packages.default = self'.packages.ClickHaskell-generics;
-        packages.default = self'.packages.ClickHaskell-tables;
-        packages.default = self'.packages.ClickHouse-db-types;
       };
     };
 }
