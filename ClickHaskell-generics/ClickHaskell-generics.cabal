@@ -12,7 +12,7 @@ Description:    DSL for describing operations with ClickHouse tables
 Homepage:       https://github.com/KovalevDima/ClickHaskell#readme
 Bug-reports:    https://github.com/KovalevDima/ClickHaskell/issues
 License:        BSD-3-Clause
-License-File:   ./LICENSE
+License-File:   LICENSE
 Copyright:      2023 Kovalev Dmitry
 Build-Type:     Simple
 
