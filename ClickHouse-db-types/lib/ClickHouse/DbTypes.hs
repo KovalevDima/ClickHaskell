@@ -17,6 +17,7 @@
 {-# OPTIONS_GHC
   -Wno-missing-methods
 #-}
+{-# LANGUAGE UnboxedTuples #-}
 
 module ClickHouse.DbTypes
   ( IsChType(ToChTypeName, IsWriteOptional)
@@ -141,8 +142,8 @@ type NullableTypeName chType = "Nullable(" `AppendSymbol` ToChTypeName chType `A
 
 instance {-# OVERLAPPING #-}
   ( TypeError
-    (    'Text (ToChTypeName (Nullable (LowCardinality chType))) :<>: 'Text " is unsupported type in ClickHouse."
-    :$$: 'Text "Use " :<>: 'Text (ToChTypeName (LowCardinality (Nullable chType))) :<>: 'Text " instead."
+    (     'Text (ToChTypeName (Nullable (LowCardinality chType))) ':<>: 'Text " is unsupported type in ClickHouse."
+    ':$$: 'Text "Use " ':<>: 'Text (ToChTypeName (LowCardinality (Nullable chType))) ':<>: 'Text " instead."
     )
   , IsChType chType
   ) => IsChType (Nullable (LowCardinality chType))
@@ -153,7 +154,7 @@ instance
   IsChType (Nullable chType)
   where
   type ToChTypeName (Nullable chType) = NullableTypeName chType
-  type IsWriteOptional (Nullable _)   = True
+  type IsWriteOptional (Nullable _)   = 'True
 
 instance
   Deserializable chType
@@ -215,11 +216,11 @@ instance IsLowCardinalitySupported chType => IsLowCardinalitySupported (Nullable
 instance {-# OVERLAPPABLE #-}
   ( IsChType chType
   , TypeError
-    (    'Text "LowCardinality("  ':<>: ShowType chType  ':<>: 'Text ") is unsupported"
-    :$$: 'Text "Use one of these types:"
-    :$$: 'Text "  ChString"
-    :$$: 'Text "  ChDateTime"
-    :$$: 'Text "  Nullable(T)"
+    (    'Text "LowCardinality("  ':<>: 'ShowType chType  ':<>: 'Text ") is unsupported"
+    ':$$: 'Text "Use one of these types:"
+    ':$$: 'Text "  ChString"
+    ':$$: 'Text "  ChDateTime"
+    ':$$: 'Text "  Nullable(T)"
     )
   ) => IsLowCardinalitySupported chType
 
@@ -257,6 +258,7 @@ instance
 
 instance
   ( IsLowCardinalitySupported chType
+  , IsChType chType
   ) =>
   ToChType chType (LowCardinality chType)
   where
@@ -264,6 +266,7 @@ instance
 
 instance
   ( IsLowCardinalitySupported chType
+  , IsChType chType
   ) =>
   FromChType chType (LowCardinality chType)
   where
@@ -375,8 +378,8 @@ instance FromChType ChString StrictByteString where fromChType (MkChString strin
 instance
   ( TypeError
     (    'Text "You are trying to convert ChString to Text using FromChType convertion mechanism"
-    :$$: 'Text "It could be a bad idea since Text is semantically smaller than ByteString"
-    :$$: 'Text "Decode ByteString manually if you are sure it's always can be decoded or replace it with ByteString"
+    ':$$: 'Text "It could be a bad idea since Text is semantically smaller than ByteString"
+    ':$$: 'Text "Decode ByteString manually if you are sure it's always can be decoded or replace it with ByteString"
     )
   ) =>
   FromChType ChString Text
