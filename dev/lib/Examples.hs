@@ -67,7 +67,7 @@ read = do
 
   print "2. Performing reading"
   interpretClient
-    @(ExampleTable -> Reading ExampleData)
+    @(Reading ExampleData -> ExampleTable)
     client
 
 
@@ -84,7 +84,7 @@ readParametrizedView = do
   interpretClient
     @(Reading SingleFieldRecord -> ExampleView)
     client
-    (interpretTable @ExampleView (mkParameter ("text" :: ChString)) )
+    (interpretTable @ExampleView (mkParameter "text"))
     
 
 

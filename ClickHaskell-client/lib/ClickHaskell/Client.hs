@@ -105,9 +105,9 @@ instance
   ( ReadableFrom (Table name columns) record
   , InterpretableTable (Table name columns)
   ) =>
-  ClientInterpretable (Table name columns -> Reading record) HttpChClient
+  ClientInterpretable (Reading record -> Table name columns) HttpChClient
   where
-  type ClientIntepreter (Table name columns -> Reading record) = IO (ChResponse [record])
+  type ClientIntepreter (Reading record -> Table name columns) = IO (ChResponse [record])
   interpretClient (HttpChClient man req) = do
     resp <- H.httpLbs
       req{H.requestBody = H.RequestBodyBS . BS.toStrict . BS.toLazyByteString

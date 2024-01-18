@@ -33,7 +33,7 @@ class
   type GetTableColumns table :: [Type]
   type ValidatedTable table :: Maybe ErrorMessage
 
-  type TableInterpreter table :: Type
+  type TableInterpreter table = result | result -> table
   interpretTable :: TableInterpreter table
 
 

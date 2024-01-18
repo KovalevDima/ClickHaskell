@@ -32,6 +32,9 @@ module ClickHaskell.Tables
 
 -- ** Alias column 
 , AliasColumn
+
+-- ** Defaultable column
+, DefaultableColumn
 ) where
 
 
@@ -40,6 +43,7 @@ import ClickHaskell.Columns
   ( CompiledColumn(..)
   , AliasColumn
   , Column
+  , DefaultableColumn
   )
 import ClickHaskell.Tables.Interpreter
   ( InterpretableTable(..)
