@@ -31,7 +31,10 @@ class
   where
   type GetTableName table :: Symbol
   type GetTableColumns table :: [Type]
+
   type ValidatedTable table :: Maybe ErrorMessage
+  _validatedTable :: (ValidatedTable table ~ Nothing) => TableInterpreter table
+  _validatedTable = interpretTable
 
   type TableInterpreter table = result | result -> table
   interpretTable :: TableInterpreter table
