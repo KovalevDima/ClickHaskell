@@ -15,7 +15,7 @@ module Examples where
 
 -- Internal
 import ClickHaskell.Client
-  ( interpretClient, ChResponse, ClickHouseSummary
+  ( interpretClient
   , initClient, setHttpClientTimeout, HttpChClient, ChCredential(..)
   , Reading, Writing
   )
@@ -40,7 +40,7 @@ import Data.Word       (Word32, Word64)
 import GHC.Generics    (Generic)
 
 
-write :: IO ClickHouseSummary
+write :: IO ()
 write = do
 
   print "1. Initializing client"
@@ -56,7 +56,7 @@ write = do
     [exampleDataSample]
 
 
-read :: IO (ChResponse [ExampleData])
+read :: IO [ExampleData]
 read = do
 
   print "1. Initializing client"
@@ -71,7 +71,7 @@ read = do
     client
 
 
-readParametrizedView :: IO (ChResponse [SingleFieldRecord])
+readParametrizedView :: IO [SingleFieldRecord]
 readParametrizedView = do
 
   print "1. Initializing client"
@@ -84,8 +84,7 @@ readParametrizedView = do
   interpretClient
     @(Reading SingleFieldRecord -> ExampleView)
     client
-    (interpretTable @ExampleView (mkParameter "text"))
-    
+    (interpretTable @ExampleView (mkParameter "text") (mkParameter "text2"))
 
 
 exampleCredentials :: ChCredential
@@ -110,6 +109,7 @@ type ExampleView =
    '[ Column "totalA1" ChInt64
     ]
    '[ Parameter "param1" ChString
+    , Parameter "param2" ChString
     ]
 
 data ExampleData = MkExampleData

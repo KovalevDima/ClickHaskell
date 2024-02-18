@@ -1,15 +1,11 @@
 {-# LANGUAGE
     DataKinds
-  , DefaultSignatures
-  , DeriveAnyClass
   , DeriveGeneric
   , DerivingStrategies
-  , FunctionalDependencies
   , GeneralizedNewtypeDeriving
   , InstanceSigs
   , LambdaCase
   , OverloadedStrings
-  , PolyKinds
   , StandaloneDeriving
   , UndecidableInstances
   #-}
@@ -17,36 +13,35 @@
 {-# OPTIONS_GHC
   -Wno-missing-methods
 #-}
-{-# LANGUAGE UnboxedTuples #-}
 
 module ClickHouse.DbTypes
-  ( IsChType(ToChTypeName, IsWriteOptional)
-  , ToChType(toChType)
-  , FromChType(fromChType)
-  , Serializable(serialize)
-  , Deserializable(deserialize)
-  , ToQueryPart(toQueryPart)
+( IsChType(ToChTypeName, IsWriteOptional)
+, ToChType(toChType)
+, FromChType(fromChType)
+, Serializable(serialize)
+, Deserializable(deserialize)
+, ToQueryPart(toQueryPart)
 
-  , ChDateTime
+, ChDateTime
 
-  , ChInt8
-  , ChInt16
-  , ChInt32
-  , ChInt64
-  , ChInt128, Int128
+, ChInt8
+, ChInt16
+, ChInt32
+, ChInt64
+, ChInt128, Int128
 
-  , ChUInt8
-  , ChUInt16
-  , ChUInt32
-  , ChUInt64
-  , ChUInt128, Word128
+, ChUInt8
+, ChUInt16
+, ChUInt32
+, ChUInt64
+, ChUInt128, Word128
 
-  , ChString
-  , ChUUID
+, ChString
+, ChUUID
 
-  , Nullable
-  , LowCardinality, IsLowCardinalitySupported
-  ) where
+, Nullable
+, LowCardinality, IsLowCardinalitySupported
+) where
 
 
 -- External
@@ -87,9 +82,10 @@ class
   type ToChTypeName chType :: Symbol
   -- |
   -- There is only one native ClickHaskell write optional type - Nullable(T)
-
+  --
   -- @
-  -- type IsWriteOptional (Nullable)
+  -- type IsWriteOptional (Nullable someChType) = True
+  -- @
   type IsWriteOptional chType :: Bool
 
 class
@@ -377,7 +373,7 @@ instance FromChType ChString ChString         where fromChType = id
 instance FromChType ChString StrictByteString where fromChType (MkChString string) = string
 instance
   ( TypeError
-    (    'Text "You are trying to convert ChString to Text using FromChType convertion mechanism"
+    (     'Text "You are trying to convert ChString to Text using FromChType convertion mechanism"
     ':$$: 'Text "It could be a bad idea since Text is semantically smaller than ByteString"
     ':$$: 'Text "Decode ByteString manually if you are sure it's always can be decoded or replace it with ByteString"
     )

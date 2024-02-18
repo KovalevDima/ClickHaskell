@@ -97,6 +97,8 @@ Test-Suite spec
     , bytestring
 
     -- External
+    , http-client < 0.8
+    , http-conduit < 2.4
     , tasty
     , tasty-hunit
   default-language:   Haskell2010

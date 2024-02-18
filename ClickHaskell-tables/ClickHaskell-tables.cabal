@@ -40,14 +40,8 @@ Library
   Exposed-Modules:
     ClickHaskell.Tables
   Other-Modules:
-    ClickHaskell.Columns
-    ClickHaskell.Columns.Alias
-    ClickHaskell.Columns.Column
-    ClickHaskell.Columns.Default
-    ClickHaskell.Columns.Compiler
-    ClickHaskell.Tables.Interpreter
-    ClickHaskell.Tables.Table
-    ClickHaskell.Tables.View
+    ClickHaskell.Tables.Errors
+    ClickHaskell.Tables.Exports
     Paths_ClickHaskell_tables
   HS-Source-Dirs:
     ./lib

@@ -1,0 +1,25 @@
+cradle:
+  cabal:
+    - path: "./ClickHaskell-client/./lib"
+      component: "lib:ClickHaskell-client"
+
+    - path: "./ClickHaskell-client/test"
+      component: "ClickHaskell-client:test:spec"
+
+    - path: "./ClickHaskell-generics/./lib"
+      component: "lib:ClickHaskell-generics"
+
+    - path: "./ClickHaskell-tables/./lib"
+      component: "lib:ClickHaskell-tables"
+
+    - path: "./ClickHouse-db-types/./lib"
+      component: "lib:ClickHouse-db-types"
+
+    - path: "./dev/lib"
+      component: "lib:dev"
+
+    - path: "./dev/profiling/Main.hs"
+      component: "dev:exe:profiling"
+
+    - path: "./dev/de-serialization/Main.hs"
+      component: "dev:exe:de-serialization"

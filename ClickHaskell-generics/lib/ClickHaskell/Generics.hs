@@ -14,13 +14,14 @@
 #-}
 
 module ClickHaskell.Generics
-  ( -- * Generic instances
-    WritableInto(..)
-  , GWritable(..)
+(
+-- * Generic instances
+  WritableInto(..)
+, GWritable(..)
 
-  , ReadableFrom(..)
-  , GReadable(..)
-  ) where
+, ReadableFrom(..)
+, GReadable(..)
+) where
 
 
 -- Internal dependencies
@@ -45,14 +46,14 @@ import GHC.TypeLits            (KnownSymbol, TypeError, Symbol, ErrorMessage(..)
 
 class
   ( InterpretableTable table
+  , GWritable (ValidatedTable table) (GetTableColumns table) (Rep record)
   ) =>
   WritableInto table record
   where
 
   default toTsvLine
     ::
-    ( GWritable (ValidatedTable table) (GetTableColumns table) (Rep record)
-    , Generic record
+    ( Generic record
     ) => record -> BS.Builder
   toTsvLine :: record -> BS.Builder
   toTsvLine = gToTsvBs @(ValidatedTable table) @(GetTableColumns table) . from
@@ -60,8 +61,7 @@ class
 
   default writingColumns
     ::
-    ( GWritable (ValidatedTable table) (GetTableColumns table) (Rep record)
-    , Generic record
+    ( Generic record
     ) => Builder
   writingColumns :: Builder
   writingColumns = gWritingColumns @(ValidatedTable table) @(GetTableColumns table) @(Rep record)
@@ -203,24 +203,18 @@ instance
 
 class
   ( InterpretableTable table
+  , Generic record
+  , GReadable (ValidatedTable table) (GetTableColumns table) (Rep record)
   ) =>
   ReadableFrom table record
   where
 
-  default fromTsvLine
-    ::
-    ( GReadable (ValidatedTable table) (GetTableColumns table) (Rep record)
-    , Generic record
-    ) => StrictByteString -> record
+  default fromTsvLine :: StrictByteString -> record
   fromTsvLine :: StrictByteString -> record
   fromTsvLine = to . gFromTsvBs @(ValidatedTable table) @(GetTableColumns table)
   {-# NOINLINE fromTsvLine #-}
 
-  default readingColumns
-    ::
-    ( GReadable (ValidatedTable table) (GetTableColumns table) (Rep record)
-    , Generic record
-    ) => Builder
+  default readingColumns :: Builder
   readingColumns :: Builder
   readingColumns = gReadingColumns @(ValidatedTable table) @(GetTableColumns table) @(Rep record)
   {-# NOINLINE readingColumns #-}

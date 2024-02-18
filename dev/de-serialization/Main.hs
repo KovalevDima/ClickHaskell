@@ -93,7 +93,7 @@ instance
   ClientInterpretable (DeSerializationTest chType) HttpChClient
   where
   type ClientIntepreter (DeSerializationTest chType) = chType -> IO chType
-  interpretClient (HttpChClient man req) chType = do
+  interpretClient (MkHttpChClient man req) chType = do
     resp
       <- H.httpLbs
         req
