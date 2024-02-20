@@ -63,7 +63,7 @@ import Data.Time
   , UTCTime, defaultTimeLocale
   , ZonedTime, zonedTimeToUTC
   )
-import Data.Time.Clock.POSIX         (utcTimeToPOSIXSeconds)
+import Data.Time.Clock.POSIX         (utcTimeToPOSIXSeconds, posixSecondsToUTCTime)
 import Data.String                   (IsString)
 import Data.Vector.Primitive.Mutable (Prim)
 import Data.Word                     (Word64, Word32, Word16, Word8)
@@ -762,6 +762,7 @@ instance ToChType ChDateTime ZonedTime  where toChType = MkChDateTime . floor . 
 
 instance FromChType ChDateTime ChDateTime where fromChType = id
 instance FromChType ChDateTime Word32     where fromChType = coerce
+instance FromChType ChDateTime UTCTime    where fromChType (MkChDateTime w32) = posixSecondsToUTCTime (fromIntegral w32)
 
 
 
