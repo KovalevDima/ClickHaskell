@@ -40,8 +40,8 @@ import Data.Word       (Word32, Word64)
 import GHC.Generics    (Generic)
 
 
-write :: IO ()
-write = do
+writing :: IO ()
+writing = do
 
   print "1. Initializing client"
   client <- initClient
@@ -56,8 +56,8 @@ write = do
     [exampleDataSample]
 
 
-read :: IO [ExampleData]
-read = do
+reading :: IO [ExampleData]
+reading = do
 
   print "1. Initializing client"
   client <- initClient
@@ -88,7 +88,7 @@ readParametrizedView = do
 
 
 exampleCredentials :: ChCredential
-exampleCredentials = MkChCredential "default" "" "http://localhost:8123" "exampleDb"
+exampleCredentials = MkChCredential "default" "" "http://localhost:8123" "default"
 
 
 type ExampleTable =
