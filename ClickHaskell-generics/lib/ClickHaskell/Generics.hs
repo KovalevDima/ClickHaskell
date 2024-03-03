@@ -51,18 +51,12 @@ class
   WritableInto table record
   where
 
-  default toTsvLine
-    ::
-    ( Generic record
-    ) => record -> BS.Builder
+  default toTsvLine :: (Generic record) => record -> BS.Builder
   toTsvLine :: record -> BS.Builder
   toTsvLine = gToTsvBs @(ValidatedTable table) @(GetTableColumns table) . from
   {-# NOINLINE toTsvLine #-}
 
-  default writingColumns
-    ::
-    ( Generic record
-    ) => Builder
+  default writingColumns :: Builder
   writingColumns :: Builder
   writingColumns = gWritingColumns @(ValidatedTable table) @(GetTableColumns table) @(Rep record)
   {-# NOINLINE writingColumns #-}
@@ -106,21 +100,9 @@ instance
 
 instance {-# OVERLAPPING #-}
   ( GWritable 'Nothing columns f
-  ) => GWritable 'Nothing columns (D1 c f)
+  ) => GWritable 'Nothing columns (D1 c (C1 c2 f))
   where
-  gToTsvBs (M1 re) = gToTsvBs @'Nothing @columns re <> "\n"
-  {-# INLINE gToTsvBs #-}
-
-  gWritingColumns = gWritingColumns @'Nothing @columns @f
-  {-# INLINE gWritingColumns #-}
-
-
-instance {-# OVERLAPPING #-}
-  ( GWritable 'Nothing columns f
-  ) =>
-  GWritable 'Nothing columns (C1 c f)
-  where
-  gToTsvBs (M1 re) = gToTsvBs @'Nothing @columns re
+  gToTsvBs (M1 (M1 re)) = gToTsvBs @'Nothing @columns re <> "\n"
   {-# INLINE gToTsvBs #-}
 
   gWritingColumns = gWritingColumns @'Nothing @columns @f
@@ -203,18 +185,17 @@ instance
 
 class
   ( InterpretableTable table
-  , Generic record
   , GReadable (ValidatedTable table) (GetTableColumns table) (Rep record)
   ) =>
   ReadableFrom table record
   where
 
-  default fromTsvLine :: StrictByteString -> record
+  default fromTsvLine :: (Generic record) => StrictByteString -> record
   fromTsvLine :: StrictByteString -> record
   fromTsvLine = to . gFromTsvBs @(ValidatedTable table) @(GetTableColumns table)
   {-# NOINLINE fromTsvLine #-}
 
-  default readingColumns :: Builder
+  default readingColumns :: (Generic record) => Builder
   readingColumns :: Builder
   readingColumns = gReadingColumns @(ValidatedTable table) @(GetTableColumns table) @(Rep record)
   {-# NOINLINE readingColumns #-}
@@ -257,19 +238,9 @@ instance
 
 instance {-# OVERLAPPING #-}
   ( GReadable 'Nothing columns f
-  ) => GReadable 'Nothing columns (D1 c f)
+  ) => GReadable 'Nothing columns (D1 c (C1 c2 f))
   where
-  gFromTsvBs = M1 . gFromTsvBs @'Nothing @columns
-  {-# INLINE gFromTsvBs #-}
-  gReadingColumns = gReadingColumns @'Nothing @columns @f
-  {-# INLINE gReadingColumns #-}
-
-
-instance {-# OVERLAPPING #-}
-  ( GReadable 'Nothing columns f
-  ) => GReadable 'Nothing columns (C1 c f)
-  where
-  gFromTsvBs = M1 . gFromTsvBs @'Nothing @columns
+  gFromTsvBs = M1 . M1 . gFromTsvBs @'Nothing @columns
   {-# INLINE gFromTsvBs #-}
   gReadingColumns = gReadingColumns @'Nothing @columns @f
   {-# INLINE gReadingColumns #-}
