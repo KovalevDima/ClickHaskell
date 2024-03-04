@@ -31,8 +31,10 @@
               http_port = 8123;
             };
           };
-      };
-      haskellProjects.default = {};
+        };
+        haskellProjects.default = {
+          autoWire = [ "packages" ];
+        };
     };
   };
 }
