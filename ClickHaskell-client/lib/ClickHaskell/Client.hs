@@ -8,7 +8,6 @@
   , TypeFamilyDependencies
 #-}
 
-
 module ClickHaskell.Client
 (
 -- * Client
@@ -71,10 +70,10 @@ import GHC.Generics               (Generic)
 class
   ( IsChClient client
   ) =>
-  ClientInterpretable description client
+  ClientInterpretable expression client
   where
-  type ClientIntepreter description :: Type
-  interpretClient :: client -> ClientIntepreter description
+  type ClientIntepreter expression :: Type
+  interpretClient :: client -> ClientIntepreter expression
 
 
 
@@ -92,9 +91,9 @@ runnableClient client =
     client
     [exampleDataSample]
 
-data ReadingData
+data ReadingData = MkReadingData
   { column :: Int64
-  }
+  } deriving (Generic)
 
 type MyTable = Table "myTable" '[Column "column" ChInt64]
 @
