@@ -25,7 +25,7 @@
           imports =  [
             inputs.services-flake.processComposeModules.default
           ];
-          services.clickhouse."clickhouse-1" = {
+          services.clickhouse."dev-database" = {
             enable=true;
             extraConfig = {
               http_port = 8123;
