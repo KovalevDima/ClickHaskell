@@ -30,6 +30,13 @@
             extraConfig = {
               http_port = 8123;
             };
+            initialDatabases = [
+              { name = "example";
+                schemas = [
+                  ./dev/clickhouse/example.sql
+                ];
+              }
+            ];
           };
         };
         haskellProjects.default = {
