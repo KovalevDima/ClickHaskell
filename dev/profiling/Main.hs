@@ -19,58 +19,61 @@ import Examples               (ExampleTable, ExampleData, exampleDataSample, exa
 
 
 -- GHC included
-import Control.Concurrent (threadDelay, forkIO)
-import Control.Monad      (replicateM_)
-import GHC.Natural        (Natural)
+import Control.Concurrent (threadDelay, forkIO, killThread)
+import Control.Concurrent.STM (modifyTVar)
+import Control.Monad (replicateM_, forever)
+import Data.IORef (newIORef, atomicModifyIORef)
+import GHC.Conc (newTVarIO, atomically, readTVarIO)
+import GHC.Natural (Natural)
+import Debug.Trace (traceMarkerIO)
 
 
 main :: IO ()
-main = benchExecutable
+main = do
+  insertedCounter <- newTVarIO 0
 
-
-bufferSize              = 5_000_000
-rowsNumber              = 100_000
-concurrentBufferWriters = 500
-msBetweenBuffering      = 10
-msPauseBetweenDbWrites  = 5_000_000
-
-
-benchExecutable :: IO ()
-benchExecutable  = do
-
+  traceMarkerIO "Initialization"
   print "1. Initializing client"
-  client <- initClient @HttpChClient
-    exampleCredentials
-    Nothing
+  client <-
+    initClient
+      @HttpChClient
+      exampleCredentials
+      Nothing
 
   print "2. Creating buffer"
-  buffer <- createSizedBuffer @DefaultBuffer bufferSize
+  buffer <-
+    createSizedBuffer
+      @DefaultBuffer
+      5_000_000
 
   print "3. Starting buffer flusher"
-  !_ <- forkBufferFlusher
-    msPauseBetweenDbWrites
-    buffer
-    print
-    ( \dataList
-      -> do
-      print "Starting writing to database"
-      _ <- interpretClient
-        @(Writing ExampleData -> ExampleTable)
-        client
-        dataList
-      print "Writing completed"
+  writerThread <-
+    forkBufferFlusher
+      5_000_000
+      buffer
+      print
+      (\dataList -> do
+        traceMarkerIO "Writing"
+        interpretClient
+          @(Writing ExampleData -> ExampleTable)
+          client
+          dataList
+        (atomically . modifyTVar insertedCounter) (+ length dataList) 
+      )
+
+  let writingThreads = 2
+  print ("4. Writing to buffer in " <> show writingThreads <> " threads")
+  replicateM_
+    writingThreads
+    (forkIO . forever $ do
+      replicateM_ 1_000 (writeToSizedBuffer buffer exampleDataSample)
+      threadDelay 500_000
     )
 
-  -- Construct or get some data
-  let exampleData = exampleDataSample
-
-  print "4. Writing to buffer"
-  replicateM_ concurrentBufferWriters
-    . (forkIO . replicateM_ rowsNumber)
-    . (\someData -> do
-        writeToSizedBuffer buffer someData
-        threadDelay msBetweenBuffering
-      )
-    $ exampleData
-
   threadDelay 60_000_000
+  traceMarkerIO "Completion"
+  killThread writerThread
+
+  totalInserted <- readTVarIO insertedCounter
+  print $ "5. Writing done. " <> show totalInserted <> " rows was written"
+  threadDelay 1_000_000

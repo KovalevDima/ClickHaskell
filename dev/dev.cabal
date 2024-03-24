@@ -48,7 +48,7 @@ executable profiling
   main-is: Main.hs
   hs-source-dirs:
     profiling
-  ghc-options: -O2 -threaded -rtsopts
+  ghc-options: -O2 -threaded -rtsopts "-with-rtsopts=-A32m -AL256m -p -hy -L250 -l-agu -N"
   build-depends:
     -- Internal
       ClickHaskell-client
@@ -57,6 +57,7 @@ executable profiling
 
     -- GHC included
     , base
+    , stm
 
 executable de-serialization
   main-is: Main.hs

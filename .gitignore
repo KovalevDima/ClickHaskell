@@ -6,6 +6,8 @@ dist-newstyle
 *.pdf
 *.prof
 *.ps
+*.eventlog
+*.eventlog.html
 
 data
 *~

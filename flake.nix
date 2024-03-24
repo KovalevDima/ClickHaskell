@@ -41,6 +41,9 @@
         };
         haskellProjects.default = {
           autoWire = [ "packages" ];
+          devShell.tools = hp: {
+            inherit (hp) eventlog2html;
+          };
         };
     };
   };

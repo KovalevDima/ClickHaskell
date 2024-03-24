@@ -24,11 +24,11 @@ This protocols allows you to:
 1. Perform reading and writing on subsets of columns
 2. Be sure that encoders and decorders compatible with given protocol
 
-# Development
+# Development environment
 
 We are using [Nix flakes](https://nixos.wiki/wiki/Flakes) to set up whole development environment
 
-When you have configured Nix. Enter into your console
+When you have configured Nix. Enter into [nix shell](https://nixos.org/manual/nix/stable/command-ref/new-cli/nix3-develop) and then run
 ```bash
 nix run
 ```
@@ -36,3 +36,19 @@ nix run
 Nix will setup a database with development required schemas for you.
 
 After `dev-database` Health status is `Ready`, you can start to work with database dependent code parts
+
+# Profiling
+
+Setup [development environment](#development-environment) and then run
+
+```bash
+cabal run profiling  --enable-profiling --ghc-options=-fprof-late
+```
+
+Cabal will build binary and start the profiling process
+
+After end of profiling you can visualize the result by running
+
+```bash
+eventlog2html ./profiling.eventlog
+```

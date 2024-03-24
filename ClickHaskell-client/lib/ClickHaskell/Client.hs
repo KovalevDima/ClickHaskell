@@ -55,8 +55,8 @@ import Control.DeepSeq            (NFData)
 import Control.Exception          (throw, Exception)
 import Control.Monad              (when)
 import Data.ByteString            as BS (toStrict)
-import Data.ByteString.Builder    as BS (toLazyByteString)
-import Data.ByteString.Lazy       as BSL (LazyByteString)
+import Data.ByteString.Builder    (toLazyByteString)
+import Data.ByteString.Lazy       (LazyByteString)
 import Data.ByteString.Lazy.Char8 as BSL8 (lines)
 import Data.Kind                  (Type)
 import Data.Maybe                 (fromMaybe)
@@ -110,7 +110,7 @@ instance
   type ClientIntepreter (Reading record -> Table name columns) = IO [record]
   interpretClient (MkHttpChClient man req) = do
     resp <- H.httpLbs
-      req{H.requestBody = H.RequestBodyBS . BS.toStrict . BS.toLazyByteString
+      req{H.requestBody = H.RequestBodyBS . BS.toStrict . toLazyByteString
         $  "SELECT " <> readingColumns @(Table name columns) @record
         <> " FROM " <> renderTable (interpretTable @(Table name columns))
       }
@@ -135,7 +135,7 @@ instance
     = View name columns '[] -> IO [record]
   interpretClient (MkHttpChClient man req) view = do
     resp <- H.httpLbs
-      req{H.requestBody = H.RequestBodyBS . BS.toStrict . BS.toLazyByteString
+      req{H.requestBody = H.RequestBodyBS . BS.toStrict . toLazyByteString
         $  "SELECT " <> readingColumns @(View name columns params) @record
         <> " FROM " <> renderView view
       }
@@ -169,14 +169,14 @@ instance
       req{requestBody = H.requestBodySourceChunked $
         do
         yield
-          ( BS.toStrict . BS.toLazyByteString
+          ( BS.toStrict . toLazyByteString
             $  "INSERT INTO " <> renderTable (interpretTable @(Table name columns))
             <> " (" <> writingColumns @(Table name columns) @record <> ")"
             <> " FORMAT TSV\n"
           )
         yieldMany
           ( map
-            ( BS.toStrict . BS.toLazyByteString
+            ( BS.toStrict . toLazyByteString
             . toTsvLine @(Table name columns) @record
             )
             schemaList

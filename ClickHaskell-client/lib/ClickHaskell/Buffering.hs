@@ -48,3 +48,6 @@ instance IsBuffer DefaultBuffer schemaData
   createSizedBuffer            = newTBQueueIO
   writeToSizedBuffer  buffer d = atomically $ writeTBQueue buffer d
   readFromSizedBuffer buffer   = atomically $ flushTBQueue buffer
+  {-# INLINE createSizedBuffer #-}
+  {-# INLINE writeToSizedBuffer #-}
+  {-# INLINE readFromSizedBuffer #-}
