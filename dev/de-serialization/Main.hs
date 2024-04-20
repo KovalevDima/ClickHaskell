@@ -19,7 +19,7 @@ module Main
 -- Internal
 import ClickHouse.DbTypes 
   ( Deserializable(..), IsChType(..), ToChType(..), ToQueryPart(..)
-  , ChInt64, ChInt32, ChUInt32, ChUInt64
+  , ChUInt64, ChInt64, ChUInt32, ChInt32
   , ChString
   )
 import ClickHaskell.Client
@@ -46,9 +46,11 @@ import GHC.TypeLits (KnownSymbol, symbolVal)
 
 main :: IO ()
 main = do
-  client <- initClient @HttpChClient
-    exampleCredentials
-    Nothing
+  client <-
+    initClient
+      @HttpChClient
+      exampleCredentials
+      Nothing
 
   runSerializationTest @ChInt32 client
   runSerializationTest @ChInt64 client
@@ -68,15 +70,15 @@ runSerializationTest ::
   , HasTestValues chType
   , KnownSymbol (ToChTypeName chType)
   , Show chType
-  ) =>
+  )
+  =>
   HttpChClient -> IO ()
-runSerializationTest  client = do
+runSerializationTest client = do
   let runTest = interpretClient @(DeSerializationTest chType) client
+  
   deserializationResult <- mapM runTest testValues
   
-  let dataTypeName = symbolVal (Proxy @(ToChTypeName chType))
-
-  putStrLn $ dataTypeName <> ": Ok"
+  print (chTypeName @chType <> ": Ok")
 
 
 
@@ -89,7 +91,8 @@ instance
   , Eq chType
   , Show chType
   , KnownSymbol (ToChTypeName chType)
-  ) =>
+  )
+  =>
   ClientInterpretable (DeSerializationTest chType) HttpChClient
   where
   type ClientIntepreter (DeSerializationTest chType) = chType -> IO chType
@@ -108,15 +111,13 @@ instance
 
     let deserializedChType = deserialize . BS.takeWhile (/= 10) . (BSL.toStrict . H.responseBody) $ resp
     
-    let dataTypeName = symbolVal (Proxy @(ToChTypeName chType))
+    (when (chType /= deserializedChType) . error)
+      (  "Deserialized value of type " <> show (chTypeName @chType) <> " unmatched:"
+      <> " Expected: " <> show chType
+      <> ". But got: " <> show deserializedChType <> "."
+      )
 
-    when (chType /= deserializedChType) $
-      error
-        $  "Deserialized value of type " <> dataTypeName <> " unmatched:"
-        <> " Expected: " <> show chType
-        <> ". But got: " <> show deserializedChType <> "."
-
-    pure $ deserializedChType
+    pure deserializedChType
 
 
 class HasTestValues chType
@@ -129,7 +130,8 @@ class HasTestValues chType
 instance {-# OVERLAPPABLE #-}
   ( Bounded boundedEnum
   , Enum boundedEnum
-  ) =>
+  )
+  =>
   HasTestValues boundedEnum
   where
   testValues :: [boundedEnum]

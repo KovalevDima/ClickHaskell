@@ -109,16 +109,17 @@ instance
   where
   type ClientIntepreter (Reading record -> Table name columns) = IO [record]
   interpretClient (MkHttpChClient man req) = do
-    resp <- H.httpLbs
-      req{H.requestBody = H.RequestBodyBS . BS.toStrict . toLazyByteString
-        $  "SELECT " <> readingColumns @(Table name columns) @record
-        <> " FROM " <> renderTable (interpretTable @(Table name columns))
-      }
-      man
+    resp <-
+      H.httpLbs
+        req{H.requestBody = H.RequestBodyBS . BS.toStrict . toLazyByteString
+          $  "SELECT " <> readingColumns @(Table name columns) @record
+          <> " FROM " <> renderTable (interpretTable @(Table name columns))
+        }
+        man
 
     throwOnNon200 resp
 
-    pure $
+    pure
       ( map (fromTsvLine @(Table name columns) @record . BS.toStrict)
       . BSL8.lines . getResponseBody
       $ resp

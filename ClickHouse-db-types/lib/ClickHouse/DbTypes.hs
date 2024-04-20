@@ -1,5 +1,6 @@
 {-# LANGUAGE
-    DataKinds
+    AllowAmbiguousTypes
+  , DataKinds
   , DeriveGeneric
   , DerivingStrategies
   , GeneralizedNewtypeDeriving
@@ -8,14 +9,14 @@
   , OverloadedStrings
   , StandaloneDeriving
   , UndecidableInstances
-  #-}
+#-}
 
 {-# OPTIONS_GHC
   -Wno-missing-methods
 #-}
 
 module ClickHouse.DbTypes
-( IsChType(ToChTypeName, IsWriteOptional)
+( IsChType(ToChTypeName, chTypeName, IsWriteOptional)
 , ToChType(toChType)
 , FromChType(fromChType)
 , Serializable(serialize)
@@ -64,10 +65,11 @@ import Data.Time
   , ZonedTime, zonedTimeToUTC
   )
 import Data.Time.Clock.POSIX         (utcTimeToPOSIXSeconds, posixSecondsToUTCTime)
+import Data.Typeable                 (Proxy(..))
 import Data.String                   (IsString)
 import Data.Vector.Primitive.Mutable (Prim)
 import Data.Word                     (Word64, Word32, Word16, Word8)
-import GHC.TypeLits                  (AppendSymbol, ErrorMessage (..), Symbol, TypeError)
+import GHC.TypeLits                  (AppendSymbol, ErrorMessage (..), Symbol, TypeError, KnownSymbol, symbolVal)
 
 
 class
@@ -80,6 +82,10 @@ class
   -- type ToChTypeName (Nullable ChUInt32) = \"Nullable(UInt32)\"
   -- @
   type ToChTypeName chType :: Symbol
+
+  chTypeName :: KnownSymbol (ToChTypeName chType) => StrictByteString
+  chTypeName = BS8.pack $ symbolVal (Proxy @(ToChTypeName chType))
+
   -- |
   -- There is only one native ClickHaskell write optional type - Nullable(T)
   --
