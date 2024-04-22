@@ -1,28 +1,18 @@
 # ClickHaskell
 
-ClickHaskell is a set of packages:
+ClickHaskell is a set of Haskell libraries which allows you to \
+build integrations with [ClickHouse](https://clickhouse.com/) DBMS
 
-```mermaid
-  graph TB;
-        ClickHaskell-client --> ClickHaskell-generics;
-        ClickHaskell-generics --> ClickHaskell-tables;
-        ClickHaskell-client --> ClickHaskell-tables;
-        ClickHaskell-generics --> ClickHouse-db-types;
-        ClickHaskell-tables --> ClickHouse-db-types;
-```
+ClickHaskell aims to be balanced between lightweightness, composability and simplicity
 
-### `ClickHaskell-client` package
-Provides high level API for communication with database server
+# Design factors
 
-### `ClickHaskell-generics` package
-Provides generation encoders and decoders from records
-
-### `ClickHaskell-tables` package
-Provides API for description database protocols - `Table`s and `Parametrized View`s
-
-This protocols allows you to:
-1. Perform reading and writing on subsets of columns
-2. Be sure that encoders and decorders compatible with given protocol
+1. ClickHouse stores data in a [tables](https://clickhouse.com/docs/en/guides/creating-tables)
+2. ClickHouse has [HTTP interface](https://clickhouse.com/docs/en/interfaces/http) for accessing and manipulating `tables` states
+3. HTTP request [message-body](https://datatracker.ietf.org/doc/html/rfc2616#section-4.3) to a DBMS server consists of a [statement](https://clickhouse.com/docs/en/sql-reference/statements)
+4. There are a few [format](https://clickhouse.com/docs/en/interfaces/formats)s that defines data serialization in `HTTP message body` of request/response 
+5. ClickHaskell should cover only problems related to communication protocol of ClickHouse DBMS 
+6. ClickHaskell should provide safe API that will help the end user think less about the ClickHouse interface
 
 # Development environment
 
