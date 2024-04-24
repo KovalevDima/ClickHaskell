@@ -10,9 +10,9 @@ ClickHaskell aims to be balanced between lightweightness, composability and simp
 1. ClickHouse stores data in a [tables](https://clickhouse.com/docs/en/guides/creating-tables)
 2. ClickHouse has [HTTP interface](https://clickhouse.com/docs/en/interfaces/http) for accessing and manipulating `tables` states
 3. HTTP request [message-body](https://datatracker.ietf.org/doc/html/rfc2616#section-4.3) to a DBMS server consists of a [statement](https://clickhouse.com/docs/en/sql-reference/statements)
-4. There are a few [format](https://clickhouse.com/docs/en/interfaces/formats)s that defines data serialization in `HTTP message body` of request/response 
+4. There are a few [format](https://clickhouse.com/docs/en/interfaces/formats)s that defines data serialization in `statement`
 5. ClickHaskell should cover only problems related to communication protocol of ClickHouse DBMS 
-6. ClickHaskell should provide safe API that will help the end user think less about the ClickHouse interface
+6. ClickHaskell should provide safe API that will help the end user think less about ClickHouse interface
 
 # Development environment
 
