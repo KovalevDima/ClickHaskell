@@ -9,6 +9,10 @@
 #-}
 module ClickHouse.Lock where
 
+-- Internal
+import ClickHaskell.Client (ChCredential(..))
+
+
 -- GHC included libraries
 import Data.Text as T (Text, unpack)
 import Data.ByteString.Lazy.Char8 as BSL8 (putStrLn)
@@ -17,10 +21,33 @@ import Data.ByteString.Lazy.Char8 as BSL8 (putStrLn)
 -- External dependencies
 import Data.Aeson (ToJSON(..), KeyValue((.=)), encode, pairs, (.:), withObject, FromJSON(..))
 import GHC.Generics (Generic)
+import Options.Applicative (Parser, execParser, (<**>), info, fullDesc, progDesc, header, ParserInfo)
+import Options.Applicative.Builder (long, strOption, short, value, showDefault, help)
+import Options.Applicative.Extra (helperWith)
+
+data CliInput = MkCliInput
+  { host :: Maybe Text
+  , port :: Maybe Text
+  }
+
+cli :: ParserInfo ChCredential
+cli = info
+  (cliParser <**> helperWith (long "help" <> help "Show this help text"))
+  (fullDesc
+    <> progDesc "ToDo: Description"
+    <> header "ToDo: Header"
+  )
+
+cliParser :: Parser ChCredential
+cliParser = MkChCredential
+  <$> strOption (long "user" <> short 'u' <> help "username" <> showDefault <> value "default")
+  <*> strOption (long "password" <> help "user password" <> showDefault <> value "")
+  <*> strOption (long "host" <> short 'h' <> help "ClickHouse host" <> showDefault <> value "localhost:8123")
+  <*> strOption (long "database" <> help "database" <> short 'd' <> showDefault <> value "default")
 
 
 runClickHouseLock :: IO ()
-runClickHouseLock = do
+runClickHouseLock = execParser cli >>= \_creds -> do
   BSL8.putStrLn $ encode
     [ Table
       { name="example"

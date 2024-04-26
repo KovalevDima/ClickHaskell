@@ -56,14 +56,16 @@ Library
 
   Build-depends:
     -- Internal
+      ClickHaskell-client
 
     -- GHC included libraries
-      base >= 4.7 && <5
+    , base >= 4.7 && <5
     , bytestring
     , text
 
     -- External dependencies
     , aeson
+    , optparse-applicative
   Default-language: Haskell2010
   Default-Extensions:
 
