@@ -3,4 +3,5 @@ packages:
     ./ClickHaskell-generics
     ./ClickHaskell-tables
     ./ClickHouse-db-types
+    ./ClickHouse-lock
     ./dev

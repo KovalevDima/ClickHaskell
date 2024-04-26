@@ -15,6 +15,12 @@ cradle:
     - path: "./ClickHouse-db-types/./lib"
       component: "lib:ClickHouse-db-types"
 
+    - path: "./ClickHouse-lock/./lib"
+      component: "lib:ClickHouse-lock"
+
+    - path: "./ClickHouse-lock/app/Main.hs"
+      component: "ClickHouse-lock:exe:clickhouse-lock"
+
     - path: "./dev/lib"
       component: "lib:dev"
 

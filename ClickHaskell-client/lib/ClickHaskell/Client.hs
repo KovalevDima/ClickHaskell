@@ -35,7 +35,6 @@ module ClickHaskell.Client
 , throwOnNon200
 ) where
 
-
 -- Internal
 import ClickHaskell.Generics (WritableInto(..), ReadableFrom(..))
 import ClickHaskell.Tables   (InterpretableTable(..), Table, renderTable, View, renderView)

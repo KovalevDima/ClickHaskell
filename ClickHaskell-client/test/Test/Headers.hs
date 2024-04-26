@@ -1,28 +1,31 @@
 {-# LANGUAGE
-    OverloadedStrings
+    DeriveFunctor
+  , DeriveGeneric
+  , OverloadedStrings
   , StandaloneDeriving
 #-}
 
 {-# OPTIONS_GHC
   -Wno-deprecations
 #-}
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE DeriveGeneric #-}
 
 module Test.Headers
   ( headersPartingTest
   ) where
 
+-- External
+import Network.HTTP.Client (Response (..))
+import Network.HTTP.Simple as H (getResponseHeaders)
+import Test.Tasty (TestTree, testGroup)
+import Test.Tasty.HUnit (assertBool, testCase)
 
+
+-- GHC included
 import Data.Bool (bool)
 import Data.ByteString (StrictByteString)
 import Data.ByteString.Char8 as BS8 (notElem, readInteger, split)
 import Data.Maybe (fromMaybe)
 import GHC.Generics (Generic)
-import Network.HTTP.Client (Response (..))
-import Network.HTTP.Simple as H (getResponseHeaders)
-import Test.Tasty (TestTree, testGroup)
-import Test.Tasty.HUnit (assertBool, testCase)
 
 headersPartingTest :: TestTree
 headersPartingTest = testGroup "Headers" summaryHeaderTest
