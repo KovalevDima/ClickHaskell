@@ -57,6 +57,9 @@ Library
   Build-depends:
     -- Internal
       ClickHaskell-client
+    , ClickHaskell-generics
+    , ClickHaskell-tables
+    , ClickHouse-db-types
 
     -- GHC included libraries
     , base >= 4.7 && <5

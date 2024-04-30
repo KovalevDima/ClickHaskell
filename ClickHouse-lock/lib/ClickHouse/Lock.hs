@@ -1,53 +1,103 @@
 {-# LANGUAGE
-    DeriveAnyClass
+    DataKinds
+  , DeriveAnyClass
   , DeriveGeneric
   , DuplicateRecordFields
+  , FlexibleInstances
   , InstanceSigs
+  , MultiParamTypeClasses
   , NamedFieldPuns
+  , NumericUnderscores
   , OverloadedStrings
+  , TypeApplications
   , ScopedTypeVariables
 #-}
+
 module ClickHouse.Lock where
 
 -- Internal
-import ClickHaskell.Client (ChCredential(..))
+import ClickHaskell.Client (ChCredential (..), HttpChClient, Reading, initClient, interpretClient, setHttpClientTimeout)
+import ClickHaskell.Generics (ReadableFrom)
+import ClickHaskell.Tables (Table, Column)
+import ClickHouse.DbTypes (ChString)
 
 
 -- GHC included libraries
-import Data.Text as T (Text, unpack)
+import Control.Applicative ((<|>))
+import Data.ByteString (StrictByteString)
 import Data.ByteString.Lazy.Char8 as BSL8 (putStrLn)
+import Data.Maybe (fromMaybe)
+import Data.Text as T (Text, pack, unpack)
+import System.Environment (lookupEnv)
 
 
 -- External dependencies
-import Data.Aeson (ToJSON(..), KeyValue((.=)), encode, pairs, (.:), withObject, FromJSON(..))
+import Data.Aeson (FromJSON (..), KeyValue ((.=)), ToJSON (..), encode, pairs, withObject, (.:))
 import GHC.Generics (Generic)
-import Options.Applicative (Parser, execParser, (<**>), info, fullDesc, progDesc, header, ParserInfo)
-import Options.Applicative.Builder (long, strOption, short, value, showDefault, help)
+import Options.Applicative (ParserInfo, execParser, fullDesc, header, info, optional, progDesc, (<**>))
+import Options.Applicative.Builder (help, long, short, strOption)
 import Options.Applicative.Extra (helperWith)
 
-data CliInput = MkCliInput
-  { host :: Maybe Text
-  , port :: Maybe Text
-  }
 
-cli :: ParserInfo ChCredential
-cli = info
-  (cliParser <**> helperWith (long "help" <> help "Show this help text"))
+cli :: ParserInfo (Maybe Text, Maybe Text, Maybe Text, Maybe Text)
+cli = info (
+  (,,,)
+    <$> (optional . strOption) (long "user" <> short 'u' <> help "username (default: \"default\")")
+    <*> (optional . strOption) (long "password" <> help "user password (default: \"\")")
+    <*> (optional . strOption) (long "host" <> short 'h' <> help "ClickHouse host (default: \"localhost:8123\"")
+    <*> (optional . strOption) (long "database" <> short 'd' <> help "database (default: \"default\")")
+  <**>
+    helperWith (long "help" <> help "Show this help text")
+  )
   (fullDesc
     <> progDesc "ToDo: Description"
     <> header "ToDo: Header"
   )
 
-cliParser :: Parser ChCredential
-cliParser = MkChCredential
-  <$> strOption (long "user" <> short 'u' <> help "username" <> showDefault <> value "default")
-  <*> strOption (long "password" <> help "user password" <> showDefault <> value "")
-  <*> strOption (long "host" <> short 'h' <> help "ClickHouse host" <> showDefault <> value "localhost:8123")
-  <*> strOption (long "database" <> help "database" <> short 'd' <> showDefault <> value "default")
+type SystemTables =
+  Table
+    "tables"
+   '[ Column "database" ChString
+    , Column "table" ChString
+    ]
 
+data ClickHouseColumns = MkClickHouseColumns
+  { database :: StrictByteString
+  , table :: StrictByteString
+  }
+  deriving (Generic, Show)
+
+instance ReadableFrom SystemTables ClickHouseColumns
 
 runClickHouseLock :: IO ()
-runClickHouseLock = execParser cli >>= \_creds -> do
+runClickHouseLock = do
+  (maybeUserCli, maybePasswordCli, maybeHostCli, maybeDatabaseCli) <- execParser cli
+  maybeUserEnv <- fmap T.pack <$> lookupEnv "CLICKHOUSE_USER"
+  maybePasswordEnv <- fmap T.pack <$> lookupEnv "CLICKHOUSE_PASSWORD"
+  maybeHostEnv <- fmap T.pack <$> lookupEnv "CLICKHOUSE_HOST"
+  maybeDatabaseEnv <- fmap T.pack <$> lookupEnv "CLICKHOUSE_DATABASE"
+
+
+  let chCredential = MkChCredential
+        { chLogin = fromMaybe "default" (maybeUserCli <|> maybeUserEnv)
+        , chPass = fromMaybe "" (maybePasswordCli <|> maybePasswordEnv)
+        , chUrl = fromMaybe "http://localhost:8123" (maybeHostCli <|> maybeHostEnv)
+        , chDatabase = fromMaybe "default" (maybeDatabaseCli <|> maybeDatabaseEnv)
+        }
+
+  client <- initClient
+    @HttpChClient
+    chCredential
+    (Just $ setHttpClientTimeout 500_000)
+
+  res <- interpretClient
+    @(Reading ClickHouseColumns -> SystemTables)
+    client
+
+  print res
+
+example :: IO ()
+example =
   BSL8.putStrLn $ encode
     [ Table
       { name="example"
