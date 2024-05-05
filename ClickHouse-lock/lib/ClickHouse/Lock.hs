@@ -16,7 +16,7 @@
 module ClickHouse.Lock where
 
 -- Internal
-import ClickHaskell.Client (ChCredential (..), HttpChClient, Reading, initClient, interpretClient, setHttpClientTimeout)
+import ClickHaskell.Client (ChCredential (..), HttpChClient, Reading, initClient, interpretClient)
 import ClickHaskell.Generics (ReadableFrom)
 import ClickHaskell.Tables (Table, Column)
 import ClickHouse.DbTypes (ChString)
@@ -25,15 +25,16 @@ import ClickHouse.DbTypes (ChString)
 -- GHC included libraries
 import Control.Applicative ((<|>))
 import Data.ByteString (StrictByteString)
-import Data.ByteString.Lazy.Char8 as BSL8 (putStrLn)
+import Data.ByteString.Lazy as BSL (writeFile)
 import Data.Maybe (fromMaybe)
 import Data.Text as T (Text, pack, unpack)
+import Data.Text.Encoding (decodeUtf8)
+import GHC.Generics (Generic)
 import System.Environment (lookupEnv)
 
 
 -- External dependencies
-import Data.Aeson (FromJSON (..), KeyValue ((.=)), ToJSON (..), encode, pairs, withObject, (.:))
-import GHC.Generics (Generic)
+import Data.Aeson (FromJSON (..), KeyValue ((.=)), ToJSON (..), pairs, withObject, (.:), encode)
 import Options.Applicative (ParserInfo, execParser, fullDesc, header, info, optional, progDesc, (<**>))
 import Options.Applicative.Builder (help, long, short, strOption)
 import Options.Applicative.Extra (helperWith)
@@ -58,11 +59,13 @@ type SystemTables =
   Table
     "tables"
    '[ Column "database" ChString
+    , Column "engine" ChString
     , Column "table" ChString
     ]
 
 data ClickHouseColumns = MkClickHouseColumns
   { database :: StrictByteString
+  , engine :: StrictByteString
   , table :: StrictByteString
   }
   deriving (Generic, Show)
@@ -72,9 +75,9 @@ instance ReadableFrom SystemTables ClickHouseColumns
 runClickHouseLock :: IO ()
 runClickHouseLock = do
   (maybeUserCli, maybePasswordCli, maybeHostCli, maybeDatabaseCli) <- execParser cli
-  maybeUserEnv <- fmap T.pack <$> lookupEnv "CLICKHOUSE_USER"
+  maybeUserEnv     <- fmap T.pack <$> lookupEnv "CLICKHOUSE_USER"
   maybePasswordEnv <- fmap T.pack <$> lookupEnv "CLICKHOUSE_PASSWORD"
-  maybeHostEnv <- fmap T.pack <$> lookupEnv "CLICKHOUSE_HOST"
+  maybeHostEnv     <- fmap T.pack <$> lookupEnv "CLICKHOUSE_HOST"
   maybeDatabaseEnv <- fmap T.pack <$> lookupEnv "CLICKHOUSE_DATABASE"
 
 
@@ -85,40 +88,29 @@ runClickHouseLock = do
         , chDatabase = fromMaybe "default" (maybeDatabaseCli <|> maybeDatabaseEnv)
         }
 
-  client <- initClient
-    @HttpChClient
-    chCredential
-    (Just $ setHttpClientTimeout 500_000)
+  client <-
+    initClient
+      @HttpChClient
+      chCredential
+      Nothing
 
-  res <- interpretClient
-    @(Reading ClickHouseColumns -> SystemTables)
-    client
+  res <-
+    interpretClient
+      @(Reading ClickHouseColumns -> SystemTables)
+      client
 
-  print res
-
-example :: IO ()
-example =
-  BSL8.putStrLn $ encode
-    [ Table
-      { name="example"
-      , columns = 
-        [ MkLockedColumn "column1" "String"
-        , MkLockedColumn "column2" "Int64"
-        ]
-      }
-    , View
-      { name = "exapleView"
-      , columns =
-        [ MkLockedColumn "column1" "String"
-        , MkLockedColumn "column2" "Int64"
-        ]
-      , parameters =
-        [ MkLockedParameter "parameter1" "String"
-        ]
-      }
-    ]
+  BSL.writeFile "clickhouse-lock.json"
+    . encode
+    . map mkLockPart
+    $ res
 
 
+
+
+mkLockPart :: ClickHouseColumns -> LockPart
+mkLockPart MkClickHouseColumns{engine, table} = case engine of
+  "View" -> View{name=decodeUtf8 table, columns=[], parameters=[]} 
+  _      -> Table{name=decodeUtf8 table, columns=[]}
 
 
 data LockPart =
