@@ -40,8 +40,6 @@ Library
   Exposed-Modules:
     ClickHaskell.Tables
   Other-Modules:
-    ClickHaskell.Tables.Errors
-    ClickHaskell.Tables.Exports
     Paths_ClickHaskell_tables
   HS-Source-Dirs:
     ./lib
@@ -63,7 +61,6 @@ Library
     -- GHC included
     , base >= 4.7 && <5
     , bytestring < 0.13
-    , text < 2.2
 
   Default-language: Haskell2010
   Default-Extensions:

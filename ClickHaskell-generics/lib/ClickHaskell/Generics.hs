@@ -55,12 +55,10 @@ class
   default toTsvLine :: (Generic record) => record -> BS.Builder
   toTsvLine :: record -> BS.Builder
   toTsvLine = gToTsvBs @(GetTableColumns table) . from
-  {-# NOINLINE toTsvLine #-}
 
   default writingColumns :: Builder
   writingColumns :: Builder
   writingColumns = gWritingColumns @(GetTableColumns table) @(Rep record)
-  {-# NOINLINE writingColumns #-}
 
 
 class GWritable
@@ -78,8 +76,6 @@ instance {-# OVERLAPPING #-}
   where
   gToTsvBs (M1 (M1 re)) = gToTsvBs @columns re <> "\n"
   gWritingColumns = gWritingColumns @columns @f
-  {-# INLINE gToTsvBs #-}
-  {-# INLINE gWritingColumns #-}
 
 instance {-# OVERLAPPING #-}
   ( GWritable columns (left1 :*: (left2 :*: right))
@@ -89,52 +85,39 @@ instance {-# OVERLAPPING #-}
   where
   gToTsvBs ((left1 :*: left2) :*: right) = gToTsvBs @columns (left1 :*: (left2 :*: right))
   gWritingColumns = gWritingColumns @columns @(left1 :*: (left2 :*: right))
-  {-# INLINE gToTsvBs #-}
-  {-# NOINLINE gWritingColumns #-}
 
 instance
   ( Serializable (GetColumnType column)
   , ToChType (GetColumnType column) inputType
-  , KnownSymbol matchedColumnName
-  , matchedColumnName ~ GetColumnName column
+  , CompiledColumn column
   , GWritable restColumns right
-  , GWritable '[column] ((S1 (MetaSel (Just matchedColumnName) a b f)) (Rec0 inputType))
-  , '(column, restColumns) ~ TakeColumn matchedColumnName columns
+  , GWritable '[column] ((S1 (MetaSel (Just typeName) a b f)) (Rec0 inputType))
+  , '(column, restColumns) ~ TakeColumn typeName columns
   )
   =>
-  GWritable columns ((S1 (MetaSel (Just matchedColumnName) a b f)) (Rec0 inputType) :*: right)
+  GWritable columns ((S1 (MetaSel (Just typeName) a b f)) (Rec0 inputType) :*: right)
   where
-  gToTsvBs (dataType :*: right) = gToTsvBs @'[column] dataType <> gToTsvBs @restColumns right
-  gWritingColumns = gWritingColumns @restColumns @right
+  gToTsvBs (M1 (K1 dataType) :*: right)
+    =  (serialize . toChType @(GetColumnType column)) dataType
+    <> "\t"
+    <> gToTsvBs @restColumns right
+  gWritingColumns = renderColumnName @column <> ", " <> gWritingColumns @restColumns @right
 
-instance {-# OVERLAPPING #-}
-  ( Serializable (GetColumnType column)
+instance
+  ( ThereIsNoWriteRequiredColumns restColumns
+  , Serializable (GetColumnType column)
   , ToChType (GetColumnType column) inputType
-  , KnownSymbol matchedColumnName
-  )
-  =>
-  GWritable '[column] (S1 (MetaSel (Just matchedColumnName) a b f) (Rec0 inputType))
+  , CompiledColumn column
+  , '(column, restColumns) ~ TakeColumn typeName columns
+  ) =>
+  GWritable columns (S1 (MetaSel (Just typeName) a b f) (Rec0 inputType))
   where
   gToTsvBs = serialize . toChType @(GetColumnType column) @inputType . unK1 . unM1
-  gWritingColumns = BS.byteString . BS8.pack $ symbolVal (Proxy @matchedColumnName)
-  {-# INLINE gToTsvBs #-}
-  {-# INLINE gWritingColumns #-}
-
-instance
-  ( '(chosenColumn, restColumns) ~ TakeColumn matchedColumnName (column1 ': column2 ': columns)
-  , ThereIsNoWriteRequiredColumns restColumns
-  , GetColumnName chosenColumn ~ matchedColumnName
-  , Serializable (GetColumnType chosenColumn)
-  , ToChType (GetColumnType chosenColumn) inputType
-  , KnownSymbol matchedColumnName
-  ) =>
-  GWritable (column1 ': column2 ': columns) (S1 (MetaSel (Just matchedColumnName) a b f) (Rec0 inputType))
-  where
-  gToTsvBs = gToTsvBs @'[chosenColumn] @(S1 (MetaSel (Just matchedColumnName) a b f) (Rec0 inputType))
-  gWritingColumns = gWritingColumns @'[chosenColumn] @(S1 (MetaSel (Just matchedColumnName) a b f) (Rec0 inputType))
+  gWritingColumns = renderColumnName @column
 
 
-type family ThereIsNoWriteRequiredColumns (columns :: [Type]) :: Constraint where 
+type family ThereIsNoWriteRequiredColumns (columns :: [Type]) :: Constraint where
+  ThereIsNoWriteRequiredColumns '[] = ()
   ThereIsNoWriteRequiredColumns (column ': columns) =
     If
       (IsWriteOptional column)
@@ -150,13 +133,20 @@ type family
   GoTakeColumn name (columns :: [Type]) (acc :: [Type]) :: (Type, [Type])
   where
   GoTakeColumn name (column ': columns) acc = If (name == GetColumnName column) '(column, acc ++ columns) (GoTakeColumn name columns (column ': acc))
-  GoTakeColumn name '[]                 acc = TypeError ('Text "There is no column \"" :<>: 'Text name :<>: 'Text "\" in table" :$$: 'Text "You can't insert this field")
+  GoTakeColumn name '[]                 acc = TypeError
+    (    'Text "There is no column \"" :<>: 'Text name :<>: 'Text "\" in table"
+    :$$: 'Text "You can't insert this field"
+    )
 
 type family
   (++) (list1 :: [Type]) (list2 :: [Type]) :: [Type]
   where
   (++) '[]            list = list
   (++) (head ': tail) list = tail ++ (head ': list)
+
+
+
+
 
 
 
@@ -173,12 +163,10 @@ class
   default fromTsvLine :: (Generic record) => StrictByteString -> record
   fromTsvLine :: StrictByteString -> record
   fromTsvLine = to . gFromTsvBs @(ValidatedTable table) @(GetTableColumns table)
-  {-# NOINLINE fromTsvLine #-}
 
   default readingColumns :: (Generic record) => Builder
   readingColumns :: Builder
   readingColumns = gReadingColumns @(ValidatedTable table) @(GetTableColumns table) @(Rep record)
-  {-# NOINLINE readingColumns #-}
 
 
 class GReadable
@@ -221,9 +209,7 @@ instance {-# OVERLAPPING #-}
   ) => GReadable 'Nothing columns (D1 c (C1 c2 f))
   where
   gFromTsvBs = M1 . M1 . gFromTsvBs @'Nothing @columns
-  {-# INLINE gFromTsvBs #-}
   gReadingColumns = gReadingColumns @'Nothing @columns @f
-  {-# INLINE gReadingColumns #-}
 
 
 instance {-# OVERLAPPING #-}
@@ -247,26 +233,22 @@ instance {-# OVERLAPPING #-}
     where
     tabSymbol :: Word8
     tabSymbol = 9
-  {-# INLINE gFromTsvBs #-}
   gReadingColumns
     =          gReadingColumns @derivingState @firstColumnsPart @left
     <> ", " <> gReadingColumns @derivingState @secondColumnsPart @right
 
 
 instance {-# OVERLAPPING #-}
-  ( Deserializable chType
-  , FromChType chType outputType
+  ( Deserializable (GetColumnType column)
+  , FromChType (GetColumnType column) outputType
   , KnownSymbol columnName
-  , chType ~ GetColumnType column
   ) => GReadable
     'Nothing
     (column ': xs)
     (S1 (MetaSel (Just columnName) a b f) (K1 i outputType))
   where
-  gFromTsvBs = M1 . K1 . fromChType @chType @outputType . deserialize
-  {-# INLINE gFromTsvBs #-}
+  gFromTsvBs = M1 . K1 . fromChType @(GetColumnType column) @outputType . deserialize
   gReadingColumns = (BS.byteString . BS8.pack . symbolVal) (Proxy @columnName)
-  {-# INLINE gReadingColumns #-}
 
 
 
