@@ -25,7 +25,7 @@ module ClickHaskell.Generics
 
 
 -- Internal dependencies
-import ClickHouse.DbTypes  (Serializable(..), Deserializable(..), ToChType(..), FromChType(..))
+import ClickHouse.DbTypes  (Serializable(..), Deserializable(..), ToChType(..), FromChType(..), IsWriteOptional, IsChType (IsWriteOptional))
 import ClickHaskell.Tables (CompiledColumn(..), InterpretableTable(..))
 
 
@@ -35,9 +35,10 @@ import Data.ByteString.Builder as BS (Builder, byteString)
 import Data.ByteString.Char8   as BS8 (pack)
 import Data.Data               (Proxy(..))
 import Data.Type.Bool          (If)
+import Data.Type.Equality      (type(==))
 import Data.Type.Ord           (type(>?), type(<=?))
 import Data.Word               (Word8)
-import Data.Kind               (Type)
+import Data.Kind               (Type, Constraint)
 import GHC.Generics            (K1(..), M1(..), type (:*:)(..), Rec0, D1, C1, S1, Meta(MetaSel), Generic (..))
 import GHC.TypeLits            (KnownSymbol, TypeError, Symbol, ErrorMessage(..), symbolVal)
 
@@ -46,137 +47,116 @@ import GHC.TypeLits            (KnownSymbol, TypeError, Symbol, ErrorMessage(..)
 
 class
   ( InterpretableTable table
-  , GWritable (ValidatedTable table) (GetTableColumns table) (Rep record)
-  ) =>
+  , GWritable (GetTableColumns table) (Rep record)
+  )
+  =>
   WritableInto table record
   where
-
   default toTsvLine :: (Generic record) => record -> BS.Builder
   toTsvLine :: record -> BS.Builder
-  toTsvLine = gToTsvBs @(ValidatedTable table) @(GetTableColumns table) . from
+  toTsvLine = gToTsvBs @(GetTableColumns table) . from
   {-# NOINLINE toTsvLine #-}
 
   default writingColumns :: Builder
   writingColumns :: Builder
-  writingColumns = gWritingColumns @(ValidatedTable table) @(GetTableColumns table) @(Rep record)
+  writingColumns = gWritingColumns @(GetTableColumns table) @(Rep record)
   {-# NOINLINE writingColumns #-}
 
 
 class GWritable
-  (deivingState :: Maybe ErrorMessage)
   (columns :: [Type])
   f
   where
   gToTsvBs :: f p -> Builder
   gWritingColumns :: Builder
 
-
-instance
-  ( GWritable
-    ('Just
-      (    'Text "There is no column \"" :<>: 'Text columnName :<>: 'Text "\" in table"
-      :$$: 'Text "You can't insert this field"
-      )
-    )
-    '[]
-    (S1 (MetaSel (Just columnName) a b f) (K1 i inputType))
-  ) =>
-  GWritable
-    'Nothing
-    '[]
-    (S1 (MetaSel (Just columnName) a b f) (K1 i inputType))
-  where
-  gToTsvBs = error "Unreachable"
-  gWritingColumns = error "Unreachable"
-
-
-instance
-  ( TypeError errorMsg
-  ) => GWritable ('Just errorMsg) columns genericRep
-  where
-  gToTsvBs _ = error "Unreachable"
-  gWritingColumns = error "Unreachable"
-
-
 instance {-# OVERLAPPING #-}
-  ( GWritable 'Nothing columns f
-  ) => GWritable 'Nothing columns (D1 c (C1 c2 f))
+  ( GWritable columns f
+  )
+  =>
+  GWritable columns (D1 c (C1 c2 f))
   where
-  gToTsvBs (M1 (M1 re)) = gToTsvBs @'Nothing @columns re <> "\n"
+  gToTsvBs (M1 (M1 re)) = gToTsvBs @columns re <> "\n"
+  gWritingColumns = gWritingColumns @columns @f
   {-# INLINE gToTsvBs #-}
-
-  gWritingColumns = gWritingColumns @'Nothing @columns @f
   {-# INLINE gWritingColumns #-}
 
-
 instance {-# OVERLAPPING #-}
-  ( leftCenterTreeElement  ~ GetGenericProductLastSelector left
-  , rightCenterTreeElement ~ GetGenericProductHeadSelector right
-  , derivingState ~ FirstJustOrNothing
-    '[ GetGenericProductHeadSelector left `AssumePlacedBefore` leftCenterTreeElement
-     , leftCenterTreeElement              `AssumePlacedBefore` rightCenterTreeElement
-     , rightCenterTreeElement             `AssumePlacedBefore` GetGenericProductLastSelector right
-     ]
-  , '(firstColumnsPart, secondColumnsPart) ~ SpanByColumnName rightCenterTreeElement columns
-  , GWritable derivingState firstColumnsPart left
-  , GWritable derivingState secondColumnsPart right
-  ) => GWritable 'Nothing columns (left :*: right)
+  ( GWritable columns (left1 :*: (left2 :*: right))
+  )
+  =>
+  GWritable columns ((left1 :*: left2) :*: right)
   where
-  gToTsvBs (left :*: right)
-    =          gToTsvBs @derivingState @firstColumnsPart left
-    <> "\t" <> gToTsvBs @derivingState @secondColumnsPart right
+  gToTsvBs ((left1 :*: left2) :*: right) = gToTsvBs @columns (left1 :*: (left2 :*: right))
+  gWritingColumns = gWritingColumns @columns @(left1 :*: (left2 :*: right))
   {-# INLINE gToTsvBs #-}
-
-  gWritingColumns
-    =  gWritingColumns @derivingState @firstColumnsPart @left
-    <> ", "
-    <> gWritingColumns @derivingState @secondColumnsPart @right
   {-# NOINLINE gWritingColumns #-}
 
+instance
+  ( Serializable (GetColumnType column)
+  , ToChType (GetColumnType column) inputType
+  , KnownSymbol matchedColumnName
+  , matchedColumnName ~ GetColumnName column
+  , GWritable restColumns right
+  , GWritable '[column] ((S1 (MetaSel (Just matchedColumnName) a b f)) (Rec0 inputType))
+  , '(column, restColumns) ~ TakeColumn matchedColumnName columns
+  )
+  =>
+  GWritable columns ((S1 (MetaSel (Just matchedColumnName) a b f)) (Rec0 inputType) :*: right)
+  where
+  gToTsvBs (dataType :*: right) = gToTsvBs @'[column] dataType <> gToTsvBs @restColumns right
+  gWritingColumns = gWritingColumns @restColumns @right
 
 instance {-# OVERLAPPING #-}
-  ( Serializable chType
-  , ToChType chType inputType
-  , matchedColumnName ~ GetColumnName column
-  , KnownSymbol matchedColumnName
-  , chType ~ GetColumnType column
-  ) => GWritable 'Nothing '[column]
-    ( S1 (MetaSel (Just matchedColumnName) a b f) (Rec0 inputType)
-    )
-  where
-  gToTsvBs = serialize . toChType @chType @inputType . unK1 . unM1
-  {-# INLINE gToTsvBs #-}
-
-  gWritingColumns = BS.byteString . BS8.pack $ symbolVal (Proxy @matchedColumnName)
-  {-# INLINE gWritingColumns #-}
-
-
-instance
-  ( GWritable
-    (FirstJustOrNothing
-     '[ WriteOptionalColumn anotherColumn
-      , WritableColumn column
-      ]
-    )
-    (column ': moreColumns)
-    (S1 (MetaSel (Just columnName) a b f) (K1 i inputType))
+  ( Serializable (GetColumnType column)
   , ToChType (GetColumnType column) inputType
-  , Serializable (GetColumnType column)
-  , KnownSymbol columnName
+  , KnownSymbol matchedColumnName
   )
-  => GWritable
-    'Nothing
-    (column ': anotherColumn ': moreColumns)
-    (S1 (MetaSel (Just columnName) a b f) (K1 i inputType))
+  =>
+  GWritable '[column] (S1 (MetaSel (Just matchedColumnName) a b f) (Rec0 inputType))
   where
   gToTsvBs = serialize . toChType @(GetColumnType column) @inputType . unK1 . unM1
+  gWritingColumns = BS.byteString . BS8.pack $ symbolVal (Proxy @matchedColumnName)
   {-# INLINE gToTsvBs #-}
-
-  gWritingColumns = BS.byteString . BS8.pack $ symbolVal (Proxy @columnName)
   {-# INLINE gWritingColumns #-}
 
+instance
+  ( '(chosenColumn, restColumns) ~ TakeColumn matchedColumnName (column1 ': column2 ': columns)
+  , ThereIsNoWriteRequiredColumns restColumns
+  , GetColumnName chosenColumn ~ matchedColumnName
+  , Serializable (GetColumnType chosenColumn)
+  , ToChType (GetColumnType chosenColumn) inputType
+  , KnownSymbol matchedColumnName
+  ) =>
+  GWritable (column1 ': column2 ': columns) (S1 (MetaSel (Just matchedColumnName) a b f) (Rec0 inputType))
+  where
+  gToTsvBs = gToTsvBs @'[chosenColumn] @(S1 (MetaSel (Just matchedColumnName) a b f) (Rec0 inputType))
+  gWritingColumns = gWritingColumns @'[chosenColumn] @(S1 (MetaSel (Just matchedColumnName) a b f) (Rec0 inputType))
 
 
+type family ThereIsNoWriteRequiredColumns (columns :: [Type]) :: Constraint where 
+  ThereIsNoWriteRequiredColumns (column ': columns) =
+    If
+      (IsWriteOptional column)
+      (ThereIsNoWriteRequiredColumns columns)
+      (TypeError ('Text "Column " :<>: 'Text (GetColumnName column) :<>: 'Text " is required for insert but is missing"))
+
+type family
+  TakeColumn (name :: Symbol) (columns :: [Type]) :: (Type, [Type])
+  where
+  TakeColumn name columns = GoTakeColumn name columns '[]
+
+type family
+  GoTakeColumn name (columns :: [Type]) (acc :: [Type]) :: (Type, [Type])
+  where
+  GoTakeColumn name (column ': columns) acc = If (name == GetColumnName column) '(column, acc ++ columns) (GoTakeColumn name columns (column ': acc))
+  GoTakeColumn name '[]                 acc = TypeError ('Text "There is no column \"" :<>: 'Text name :<>: 'Text "\" in table" :$$: 'Text "You can't insert this field")
+
+type family
+  (++) (list1 :: [Type]) (list2 :: [Type]) :: [Type]
+  where
+  (++) '[]            list = list
+  (++) (head ': tail) list = tail ++ (head ': list)
 
 
 
@@ -264,6 +244,9 @@ instance {-# OVERLAPPING #-}
         (leftWords, rightWords) = splitAt (length byteStrings `div` 2) byteStrings
     in  gFromTsvBs @derivingState @firstColumnsPart (BS.intercalate "\t" leftWords)
     :*: gFromTsvBs @derivingState @secondColumnsPart (BS.intercalate "\t" rightWords)
+    where
+    tabSymbol :: Word8
+    tabSymbol = 9
   {-# INLINE gFromTsvBs #-}
   gReadingColumns
     =          gReadingColumns @derivingState @firstColumnsPart @left
@@ -273,7 +256,6 @@ instance {-# OVERLAPPING #-}
 instance {-# OVERLAPPING #-}
   ( Deserializable chType
   , FromChType chType outputType
-  , columnName ~ GetColumnName column
   , KnownSymbol columnName
   , chType ~ GetColumnType column
   ) => GReadable
@@ -288,28 +270,6 @@ instance {-# OVERLAPPING #-}
 
 
 
-
-
-
-
-
--- * Constants
-
-{- |
->>> toEnum @Char tabSymbol
-'\t'
--}
-tabSymbol :: Word8
-tabSymbol = 9
-
-
-
-
-
-
-
-
--- * Generic helpers
 
 type family (sym1 :: Symbol) `AssumePlacedBefore` (sym2 :: Symbol) :: Maybe ErrorMessage
   where
