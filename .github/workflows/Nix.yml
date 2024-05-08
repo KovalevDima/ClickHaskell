@@ -13,7 +13,7 @@ jobs:
         with:
           nix_path: nixpkgs=channel:nixos-unstable
       - name: Run database
-        working-directory: process-compose
+        working-directory: dev
         run: nix run
 
       - run: nix run .#de-serialization
