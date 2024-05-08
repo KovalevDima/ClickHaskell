@@ -30,6 +30,7 @@
           imports = [
             inputs.services-flake.processComposeModules.default
           ];
+          tui = false;
           services.clickhouse."dev-database" = {
             enable = true;
             extraConfig = {
