@@ -30,8 +30,34 @@
           imports = [
             inputs.services-flake.processComposeModules.default
           ];
-          tui = false;
           services.clickhouse."dev-database" = {
+            enable = true;
+            extraConfig = {
+              http_port = 8123;
+            };
+            initialDatabases = [
+              {
+                name = "example";
+                schemas = [
+                  ./dev/clickhouse/example.sql
+                ];
+              }
+            ];
+          };
+        };
+        process-compose."integration-testing" = {
+          imports = [
+            inputs.services-flake.processComposeModules.default
+          ];
+          tui = false;
+          settings.processes.integration-test = {
+            command = "${self'.apps.de-serialization.program}";
+            depends_on.integration-testing-db.condition = "process_healthy";
+            availability = {
+              exit_on_end = true;
+            };
+          };
+          services.clickhouse."integration-testing-db" = {
             enable = true;
             extraConfig = {
               http_port = 8123;
