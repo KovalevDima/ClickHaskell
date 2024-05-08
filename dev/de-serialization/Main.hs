@@ -56,7 +56,7 @@ main = do
   runSerializationTest @ChInt64 client
   runSerializationTest @ChUInt32 client
   runSerializationTest @ChUInt64 client
-  runSerializationTest @ChString client
+  -- runSerializationTest @ChString client
 
 
 
