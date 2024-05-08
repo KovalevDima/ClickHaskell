@@ -46,7 +46,7 @@
           };
         };
         haskellProjects.default = {
-          autoWire = ["packages" "devShells"];
+          autoWire = ["packages" "devShells" "apps"];
           devShell.tools = hp: {
             inherit (hp) eventlog2html;
           };
