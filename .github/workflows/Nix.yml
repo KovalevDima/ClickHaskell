@@ -12,5 +12,8 @@ jobs:
       - uses: cachix/install-nix-action@v22
         with:
           nix_path: nixpkgs=channel:nixos-unstable
-      - run: nix run
-      - run: nix run .#profiling
+      - name: Run database
+        working-directory: process-compose
+        run: nix run
+
+      - run: nix run .#de-serialization
