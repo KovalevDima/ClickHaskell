@@ -11,8 +11,8 @@
   , ScopedTypeVariables
 #-}
 
-module Main 
-  ( main
+module IntegrationTests
+  ( runIntegrationTests
   ) where
 
 
@@ -27,8 +27,8 @@ import ClickHaskell.Client
   , HttpChClient(..)
   , IsChClient(..)
   , throwOnNon200
+  , ChCredential(..)
   )
-import Examples (exampleCredentials)
 
 
 -- External
@@ -40,17 +40,11 @@ import Control.Monad (when)
 import Data.ByteString         as BS (takeWhile, singleton)
 import Data.ByteString.Builder as BS (toLazyByteString)
 import Data.ByteString.Lazy    as BSL (toStrict)
-import Data.Proxy   (Proxy(..))
-import GHC.TypeLits (KnownSymbol, symbolVal)
+import GHC.TypeLits (KnownSymbol)
 
 
-main :: IO ()
-main = do
-  client <-
-    initClient
-      @HttpChClient
-      exampleCredentials
-      Nothing
+runIntegrationTests :: HttpChClient -> IO ()
+runIntegrationTests client = do
 
   runSerializationTest @ChInt32 client
   runSerializationTest @ChInt64 client
@@ -75,9 +69,9 @@ runSerializationTest ::
   HttpChClient -> IO ()
 runSerializationTest client = do
   let runTest = interpretClient @(DeSerializationTest chType) client
-  
+
   deserializationResult <- mapM runTest testValues
-  
+
   print (chTypeName @chType <> ": Ok")
 
 
