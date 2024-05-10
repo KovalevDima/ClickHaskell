@@ -1,5 +1,7 @@
 # ClickHaskell
 
+[![built with nix](https://img.shields.io/badge/Built_With-Nix-5277C3.svg?logo=nixos&labelColor=73C3D5)](https://builtwithnix.org)
+
 ClickHaskell is a set of Haskell libraries which allows you to \
 build integrations with [ClickHouse](https://clickhouse.com/) DBMS
 
