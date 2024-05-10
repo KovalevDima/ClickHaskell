@@ -27,5 +27,8 @@ cradle:
     - path: "./dev/profiling/Main.hs"
       component: "dev:exe:profiling"
 
-    - path: "./dev/de-serialization/Main.hs"
-      component: "dev:exe:de-serialization"
+    - path: "./integration-testing/lib"
+      component: "lib:integration-testing"
+
+    - path: "./integration-testing/app/Main.hs"
+      component: "integration-testing:exe:integration-testing"

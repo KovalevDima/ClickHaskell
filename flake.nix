@@ -51,7 +51,7 @@
           ];
           tui = false;
           settings.processes.integration-test = {
-            command = "${self'.apps.de-serialization.program}";
+            command = "${self'.apps.integration-tests.program}";
             depends_on.integration-testing-db.condition = "process_healthy";
             availability = {
               exit_on_end = true;
@@ -64,9 +64,8 @@
             };
             initialDatabases = [
               {
-                name = "example";
+                name = "default";
                 schemas = [
-                  ./dev/clickhouse/example.sql
                 ];
               }
             ];
