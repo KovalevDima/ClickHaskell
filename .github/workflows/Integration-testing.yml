@@ -12,5 +12,9 @@ jobs:
       - uses: cachix/install-nix-action@v26
         with:
           nix_path: nixpkgs=channel:nixos-unstable
+
+      - name: Build integration tests runner
+        run: nix build .#integration-testing
+  
       - name: Run integration testing
         run: nix run .#integration-testing
