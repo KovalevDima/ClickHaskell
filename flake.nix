@@ -32,9 +32,7 @@
           ];
           services.clickhouse."dev-database" = {
             enable = true;
-            extraConfig = {
-              http_port = 8123;
-            };
+            extraConfig.http_port = 8123;
             initialDatabases = [
               {
                 name = "example";
@@ -52,16 +50,12 @@
           tui = false;
           settings.processes.integration-test = {
             command = "${self'.apps.integration-tests.program}";
+            availability.exit_on_end = true;
             depends_on.integration-testing-db.condition = "process_healthy";
-            availability = {
-              exit_on_end = true;
-            };
           };
           services.clickhouse."integration-testing-db" = {
             enable = true;
-            extraConfig = {
-              http_port = 8123;
-            };
+            extraConfig.http_port = 8123;
             initialDatabases = [
               {
                 name = "default";
