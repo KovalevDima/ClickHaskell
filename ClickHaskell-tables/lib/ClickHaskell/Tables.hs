@@ -358,16 +358,7 @@ instance
 
   type WritableColumn (Column _ _) = Nothing
 
-  type WriteOptionalColumn (Column name columnType) =
-    If (IsWriteOptional columnType)
-      Nothing
-      (Just
-        (    'Text "Column with name "
-          :<>: 'Text name
-          :<>: 'Text " is required for insert."
-        :$$: 'Text "Add it to your insertable type"
-        )
-      )
+  type WriteOptionalColumn (Column name columnType) = IsWriteOptional columnType
 
 
 
@@ -404,7 +395,7 @@ instance
       :$$: 'Text "You can't do this. Read about Alias columns"
       )
 
-  type WriteOptionalColumn (Column name columnType -> Alias) = Nothing
+  type WriteOptionalColumn (Column name columnType -> Alias) = False
 
 
 {- |
@@ -433,7 +424,7 @@ instance
 
   type WritableColumn (Column name columnType -> Default) = Nothing
 
-  type WriteOptionalColumn (Column name columnType -> Default) = Nothing
+  type WriteOptionalColumn (Column name columnType -> Default) = True
 
 
 
@@ -451,7 +442,7 @@ class
   renderColumnType :: Builder
 
   type WritableColumn    columnDescription :: Maybe ErrorMessage
-  type WriteOptionalColumn columnDescription :: Maybe ErrorMessage
+  type WriteOptionalColumn columnDescription :: Bool
 
 
 class CompiledColumns (columns :: [Type])

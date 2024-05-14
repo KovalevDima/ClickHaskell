@@ -25,7 +25,7 @@ module ClickHaskell.Generics
 
 
 -- Internal dependencies
-import ClickHouse.DbTypes  (Serializable(..), Deserializable(..), ToChType(..), FromChType(..), IsWriteOptional, IsChType (IsWriteOptional))
+import ClickHouse.DbTypes  (Serializable(..), Deserializable(..), ToChType(..), FromChType(..))
 import ClickHaskell.Tables (CompiledColumn(..), InterpretableTable(..))
 
 
@@ -120,7 +120,7 @@ type family ThereIsNoWriteRequiredColumns (columns :: [Type]) :: Constraint wher
   ThereIsNoWriteRequiredColumns '[] = ()
   ThereIsNoWriteRequiredColumns (column ': columns) =
     If
-      (IsWriteOptional column)
+      (WriteOptionalColumn column)
       (ThereIsNoWriteRequiredColumns columns)
       (TypeError ('Text "Column " :<>: 'Text (GetColumnName column) :<>: 'Text " is required for insert but is missing"))
 
