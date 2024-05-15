@@ -23,6 +23,7 @@ library
   exposed-modules:
       IntegrationTests
       IntegrationTests.Serialization
+      IntegrationTests.WriteReadEquality
   other-modules:
       Paths_integration_tests
   hs-source-dirs: lib
@@ -34,8 +35,10 @@ library
   build-depends:
     -- Internal
       ClickHaskell-client
+    , ClickHaskell-generics
+    , ClickHaskell-tables
     , ClickHouse-db-types
-    
+
     -- GHC included
     , base >=4.7 && <5
     , bytestring
@@ -53,7 +56,7 @@ executable integration-tests
     -- Internal
       ClickHaskell-client
     , integration-tests
-    
+
     -- GHC included
     , base >=4.7 && <5
   default-language: Haskell2010
