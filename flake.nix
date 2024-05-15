@@ -60,6 +60,7 @@
               {
                 name = "default";
                 schemas = [
+                  ./integration-testing/clickhouse/writeReadEquality.sql
                 ];
               }
             ];
