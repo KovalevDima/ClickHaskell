@@ -1,7 +1,7 @@
 CREATE TABLE writeReadEqualityTable
 (
-    `dateTime` DateTime,
-    `dateTimeNullable` Nullable(DateTime),
+    `dateTime` DateTime('UTC'),
+    `dateTimeNullable` Nullable(DateTime('UTC')),
     `int128` Int128,
     `int128Nullable` Nullable(Int128),
     `int16` Int16,

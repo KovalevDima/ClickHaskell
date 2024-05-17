@@ -87,8 +87,8 @@ runTest client = do
 
   (when (head result /= testData) . error)
     (  testLabel <> "Unequal result.\n"
-    <> "Writed data: " <> show (head result) <> "\n"
-    <> "Readed data: " <> show testData)
+    <> "Writed data: " <> show testData <> "\n"
+    <> "Readed data: " <> show (head result))
 
   print $ testLabel <> "Ok"
 
