@@ -8,5 +8,3 @@ packages:
     ./examples/example-write-read
     ./examples/example-parametrized-view
     ./dev
-
-tests: True

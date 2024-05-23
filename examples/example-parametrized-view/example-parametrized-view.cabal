@@ -18,8 +18,7 @@ source-repository head
   location: https://github.com/GetShopTV/ClickHaskell
   subdir: examples/example-parametrized-view
 
-test-suite example-parametrized-view
-  type:           exitcode-stdio-1.0
+executable example-parametrized-view
   main-is:        README.lhs
   build-depends:
     -- Internal
