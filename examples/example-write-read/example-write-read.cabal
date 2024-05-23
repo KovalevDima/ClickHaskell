@@ -1,0 +1,41 @@
+cabal-version:      3.4
+
+
+name:               example-write-read
+version:            0.0.0.1
+author:             Igor Belousov
+maintainer:         https://github.com/KovalevDima
+description:        An example of using the ClickHaskell library to write and read from a table
+homepage:           https://github.com/GetShopTV/ClickHaskell#readme
+bug-reports:        https://github.com/GetShopTV/ClickHaskell/issues
+license:            BSD-3-Clause
+license-file:       ./LICENSE
+copyright:          2024 Igor Belousov
+build-type:         Simple
+
+source-repository head
+  type: git
+  location: https://github.com/GetShopTV/ClickHaskell
+  subdir: examples/example-write-read
+
+test-suite example-write-read
+  type:           exitcode-stdio-1.0
+  main-is:        README.lhs
+  build-depends:
+    -- Internal
+      ClickHaskell-client
+    , ClickHaskell-generics
+    , ClickHaskell-tables
+    , ClickHouse-db-types
+
+    -- GHC included
+    , base >=4.7 && <5
+    , bytestring
+
+    -- External
+    , http-client < 0.8
+    , markdown-unlit
+  ghc-options:
+    -pgmL markdown-unlit
+    -Wall
+  build-tool-depends: markdown-unlit:markdown-unlit

@@ -37,7 +37,8 @@
               {
                 name = "example";
                 schemas = [
-                  ./dev/clickhouse/example.sql
+                  ./examples/clickhouse/exampleWriteRead.sql
+                  ./examples/clickhouse/exampleViewTable.sql
                 ];
               }
             ];
