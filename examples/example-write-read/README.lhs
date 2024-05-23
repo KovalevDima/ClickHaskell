@@ -4,7 +4,7 @@ An example of writing and reading data from a table in ClickHouse.
 To try out this example in repl: setup [development environment](https://github.com/GetShopTV/ClickHaskell#development-environment) and then run
 
 ```bash
-cabal repl test:example-write-read
+cabal run example-write-read
 ```
 
 ## Code Example

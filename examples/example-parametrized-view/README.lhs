@@ -4,7 +4,7 @@ Example of using a parameterized view.
 To try out this example in repl: setup [development environment](https://github.com/GetShopTV/ClickHaskell#development-environment) and then run
 
 ```bash
-cabal repl test:example-parametrized-view
+cabal run example-parametrized-view
 ```
 
 ## Code Example
