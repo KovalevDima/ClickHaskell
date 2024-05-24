@@ -19,31 +19,6 @@ source-repository head
   location: https://github.com/KovalevDima/ClickHaskell
   subdir: dev
 
-
-library
-  exposed-modules:
-      Examples
-  other-modules:
-      Paths_dev
-  hs-source-dirs:
-      lib
-  ghc-options:
-    -Wall -fno-warn-type-defaults -O2
-    -Wunused-packages
-    -ddump-to-file -ddump-simpl -dsuppress-type-applications -dsuppress-coercions -dsuppress-idinfo -dsuppress-type-signatures -dsuppress-var-kinds -dsuppress-module-prefixes -dsuppress-uniques
-
-  build-depends:
-    -- Internal
-      ClickHaskell-client
-    , ClickHaskell-generics
-    , ClickHaskell-tables
-    , ClickHouse-db-types
-    
-    -- GHC included
-    , base >=4.7 && <5
-    , bytestring
-  default-language: Haskell2010
-
 executable profiling
   main-is: Main.hs
   hs-source-dirs:
@@ -53,8 +28,10 @@ executable profiling
     -- Internal
       ClickHaskell-client
     , ClickHaskell-generics
-    , dev
+    , ClickHaskell-tables
+    , ClickHouse-db-types
 
     -- GHC included
     , base
+    , bytestring
     , stm

@@ -1,4 +1,4 @@
-CREATE TABLE example
+CREATE TABLE exampleWriteRead
 (
     `a1` Int64,
     `a2` LowCardinality(String),
