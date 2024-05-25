@@ -40,6 +40,7 @@ Library
   Exposed-Modules:
     ClickHaskell.Buffering
     ClickHaskell.Client
+    ClickHaskell.ClientV2
   Other-Modules:
     Paths_ClickHaskell_client
   HS-Source-Dirs:
