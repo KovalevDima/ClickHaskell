@@ -36,12 +36,19 @@
             }
           ];
         };
+        extractSqlFromMarkdown = path:
+          builtins.toFile (builtins.baseNameOf path) (
+            lib.strings.concatStrings (
+              builtins.match ".*```sql\n(.*)\n```.*"
+              (builtins.readFile path)
+            )
+          );
       in {
         process-compose."default" = {
           imports = [inputs.services-flake.processComposeModules.default];
           services.clickhouse."dev-database" = wrapDefaultClickHouse [
-            ./examples/clickhouse/exampleWriteRead.sql
-            ./examples/clickhouse/exampleViewTable.sql
+            (extractSqlFromMarkdown ./examples/example-parametrized-view/README.lhs)
+            (extractSqlFromMarkdown ./examples/example-write-read/README.lhs)
           ];
         };
         process-compose."integration-testing" = {
