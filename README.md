@@ -2,10 +2,11 @@
 
 [![built with nix](https://img.shields.io/badge/Built_With-Nix-5277C3.svg?logo=nixos&labelColor=73C3D5)](https://builtwithnix.org)
 
-ClickHaskell is a set of Haskell libraries which allows you to \
-build integrations with [ClickHouse](https://clickhouse.com/) DBMS
+ClickHaskell is a set of Haskell libraries which allows\
+you to build integrations with [ClickHouse](https://clickhouse.com/) DBMS
 
-ClickHaskell aims to be balanced between lightweightness, composability and simplicity
+ClickHaskell aims to be balanced between\
+lightweightness, composability and simplicity
 
 # Design factors
 
@@ -18,29 +19,24 @@ ClickHaskell aims to be balanced between lightweightness, composability and simp
 
 # Development environment
 
-We are using [Nix flakes](https://nixos.wiki/wiki/Flakes) to set up whole development environment
+We are using [Nix flakes](https://nixos.wiki/wiki/Flakes) to set up whole development environment.
 
-When you have configured Nix. Enter into [nix shell](https://nixos.org/manual/nix/stable/command-ref/new-cli/nix3-develop) and then run
+When you have configured Nix. Enter into [nix shell](https://nixos.org/manual/nix/stable/command-ref/new-cli/nix3-develop) and then run:
 ```bash
 nix run
 ```
 
 Nix will setup a database with development required schemas for you.
 
-After `dev-database` Health status is `Ready`, you can start to work with database dependent code parts
+After `dev-database` Health status is `Ready`, you can start to work with database dependent code parts.
 
 # Profiling
 
-Setup [development environment](#development-environment) and then run
-
 ```bash
-cabal run profiling  --enable-profiling --ghc-options=-fprof-late
+nix run .#profiling
 ```
 
-Cabal will build binary and start the profiling process
+will start profiling process.
 
-After end of profiling you can visualize the result by running
-
-```bash
-eventlog2html ./profiling.eventlog
-```
+You should see `profiler.eventlog.html` in the project \
+directory after the profiling process has completed successfully
