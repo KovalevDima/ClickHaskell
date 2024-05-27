@@ -1,7 +1,7 @@
 cabal-version: 3.4
 
 
-name:               dev
+name:               profiler
 version:            0.0.0.1
 author:             Kovalev Dmitry
 maintainer:         https://github.com/KovalevDima
@@ -19,11 +19,10 @@ source-repository head
   location: https://github.com/KovalevDima/ClickHaskell
   subdir: dev
 
-executable profiling
+executable profiler
   main-is: Main.hs
-  hs-source-dirs:
-    profiling
-  ghc-options: -O2 -threaded -rtsopts "-with-rtsopts=-A32m -AL256m -p -hy -L250 -l-agu -N"
+  hs-source-dirs: ./
+  ghc-options: -O2 -threaded -rtsopts "-with-rtsopts=-A32m -AL256m -p -hy -L250 -l-agu -N" -fprof-late
   build-depends:
     -- Internal
       ClickHaskell-client
