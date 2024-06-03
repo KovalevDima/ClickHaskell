@@ -1,7 +1,13 @@
 name: "Build docs"
 on:
-    push:
-      branches: master
+  push:
+    branches: master
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
 jobs:
   build-docs:
     runs-on: ubuntu-latest
@@ -24,9 +30,6 @@ jobs:
 
   deploy-docs:
     needs: build-docs
-    permissions:
-      pages: write
-      id-token: write
     
     environment:
       name: github-pages
