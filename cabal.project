@@ -4,7 +4,8 @@ packages:
     ./ClickHaskell-tables
     ./ClickHouse-db-types
     ./ClickHouse-lock
-    ./examples/example-write-read
-    ./examples/example-parametrized-view
+    ./documentation
+    ./documentation/write-read
+    ./documentation/parametrized-view
     ./integration-testing
     ./profiler

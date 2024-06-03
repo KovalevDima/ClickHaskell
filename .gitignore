@@ -14,3 +14,6 @@ data
 ~*
 /result
 /.direnv
+
+_cache
+_site

@@ -99,6 +99,21 @@
             inherit (hp) eventlog2html;
           };
         };
+        # Build documnetation
+        packages."documentation" = pkgs.stdenv.mkDerivation {
+          name = "documentation";
+          buildInputs = [];
+          src = pkgs.nix-gitignore.gitignoreSourcePure [] ./.;
+
+          buildPhase = ''
+            ${lib.getExe' self'.packages.ClickHaskell-documentation "ClickHaskell-documentation"} build --verbose
+          '';
+
+          installPhase = ''
+            mkdir -p "$out"
+            cp -r ./_site "$out"
+          '';
+        };
       };
     };
 }
