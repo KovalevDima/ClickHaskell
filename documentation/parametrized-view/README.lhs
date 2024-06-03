@@ -1,3 +1,7 @@
+---
+title: Parametrized view
+---
+
 # ClickHaskell: parametrized view example
 
 Example of using a parameterized view.

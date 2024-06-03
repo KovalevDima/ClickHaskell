@@ -36,14 +36,24 @@
             }
           ];
         };
+        extractSqlFromMarkdown = path:
+          builtins.toFile (builtins.baseNameOf path) (
+            lib.strings.concatStrings (
+              builtins.match ".*```sql\n(.*)\n```.*"
+              (builtins.readFile path)
+            )
+          );
       in {
+        # Database wrapper with all schemas initialization
         process-compose."default" = {
           imports = [inputs.services-flake.processComposeModules.default];
           services.clickhouse."dev-database" = wrapDefaultClickHouse [
-            ./examples/clickhouse/exampleWriteRead.sql
-            ./examples/clickhouse/exampleViewTable.sql
+            (extractSqlFromMarkdown ./examples/example-parametrized-view/README.lhs)
+            (extractSqlFromMarkdown ./examples/example-write-read/README.lhs)
+            ./integration-testing/clickhouse/writeReadEquality.sql
           ];
         };
+        # Integration testing wrapper
         process-compose."integration-testing" = {
           imports = [inputs.services-flake.processComposeModules.default];
           tui = false;
@@ -56,11 +66,53 @@
             ./integration-testing/clickhouse/writeReadEquality.sql
           ];
         };
+        # Profiling wrapper
+        process-compose."profiling" = {
+          imports = [inputs.services-flake.processComposeModules.default];
+          services.clickhouse."profiler-db" = wrapDefaultClickHouse [
+            (extractSqlFromMarkdown ./examples/example-write-read/README.lhs)
+          ];
+          settings.processes.profiling = {
+            command = "${self'.apps.profiler.program}";
+            depends_on.profiler-db.condition = "process_healthy";
+          };
+          settings.processes.dump-artifacts = {
+            command = "${lib.getExe' pkgs.haskellPackages.eventlog2html "eventlog2html"} ./profiler.eventlog";
+            availability.exit_on_end = true;
+            depends_on.profiling.condition = "process_completed_successfully";
+          };
+        };
+        # ClickHaskell project itself with Haskell env
         haskellProjects.default = {
           autoWire = ["packages" "devShells" "apps"];
+          settings = {
+            ClickHaskell-generics.libraryProfiling = true;
+            ClickHaskell-tables.libraryProfiling = true;
+            ClickHouse-db-types.libraryProfiling = true;
+            ClickHaskell-client.libraryProfiling = true;
+            profiler = {
+              executableProfiling = true;
+              libraryProfiling = true;
+            };
+          };
           devShell.tools = hp: {
             inherit (hp) eventlog2html;
           };
+        };
+        # Build documnetation
+        packages."documentation" = pkgs.stdenv.mkDerivation {
+          name = "documentation";
+          buildInputs = [];
+          src = pkgs.nix-gitignore.gitignoreSourcePure [] ./.;
+
+          buildPhase = ''
+            ${lib.getExe' self'.packages.ClickHaskell-documentation "ClickHaskell-documentation"} build --verbose
+          '';
+
+          installPhase = ''
+            mkdir -p "$out"
+            cp -r ./_site "$out"
+          '';
         };
       };
     };

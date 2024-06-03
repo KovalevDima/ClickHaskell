@@ -1,3 +1,7 @@
+---
+title: Write and read
+---
+
 # ClickHaskell: write and read example
 
 An example of writing and reading data from a table in ClickHouse.
