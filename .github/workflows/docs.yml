@@ -13,3 +13,11 @@ jobs:
     
       - name: Build integration tests runner
         run: nix build .#documentation
+      
+      - name: Upload a Build Artifact
+        uses: actions/upload-artifact@v4.3.3
+        with:
+          name: docs
+          path: result/_site/
+          overwrite: true
+          if-no-files-found: error
