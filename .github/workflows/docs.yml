@@ -21,12 +21,10 @@ jobs:
         run: nix build .#documentation
       
       - name: Upload a Build Artifact
-        uses: actions/upload-artifact@v4.3.3
+        uses: actions/upload-pages-artifact@v3.0.1
         with:
           name: github-pages
           path: result/_site/
-          overwrite: true
-          if-no-files-found: error
 
   deploy-docs:
     needs: build-docs
