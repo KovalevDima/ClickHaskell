@@ -3,7 +3,7 @@ on:
     push:
       branches: master
 jobs:
-  docs:
+  build-docs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
