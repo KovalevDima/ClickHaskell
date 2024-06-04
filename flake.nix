@@ -56,6 +56,7 @@
         # Integration testing wrapper
         process-compose."integration-testing" = {
           imports = [inputs.services-flake.processComposeModules.default];
+          tui = false;
           settings.processes.integration-test = {
             command = "${self'.apps.integration-tests.program}";
             availability.exit_on_end = true;
