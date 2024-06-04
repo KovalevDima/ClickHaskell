@@ -48,15 +48,14 @@
         process-compose."default" = {
           imports = [inputs.services-flake.processComposeModules.default];
           services.clickhouse."dev-database" = wrapDefaultClickHouse [
-            (extractSqlFromMarkdown ./examples/example-parametrized-view/README.lhs)
-            (extractSqlFromMarkdown ./examples/example-write-read/README.lhs)
+            (extractSqlFromMarkdown ./documentation/parametrized-view/README.lhs)
+            (extractSqlFromMarkdown ./documentation/write-read/README.lhs)
             ./integration-testing/clickhouse/writeReadEquality.sql
           ];
         };
         # Integration testing wrapper
         process-compose."integration-testing" = {
           imports = [inputs.services-flake.processComposeModules.default];
-          tui = false;
           settings.processes.integration-test = {
             command = "${self'.apps.integration-tests.program}";
             availability.exit_on_end = true;
@@ -70,7 +69,7 @@
         process-compose."profiling" = {
           imports = [inputs.services-flake.processComposeModules.default];
           services.clickhouse."profiler-db" = wrapDefaultClickHouse [
-            (extractSqlFromMarkdown ./examples/example-write-read/README.lhs)
+            (extractSqlFromMarkdown ./documentation/write-read/README.lhs)
           ];
           settings.processes.profiling = {
             command = "${self'.apps.profiler.program}";
