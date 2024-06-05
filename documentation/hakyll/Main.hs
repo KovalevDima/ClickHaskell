@@ -20,10 +20,6 @@ main = do
           >>= loadAndApplyTemplate "hakyll/templates/default.html" defaultContext
           >>= relativizeUrls
 
-    match "hakyll/css/default.css" $ do
-      route (constRoute "default.css")
-      compile compressCssCompiler
-
     match "**/*.lhs" $ do
       route $ customRoute ((<.> "html") . takeDirectory . toFilePath)
       compile $

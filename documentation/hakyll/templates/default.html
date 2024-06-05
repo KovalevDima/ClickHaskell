@@ -6,12 +6,43 @@
     <meta http-equiv="x-ua-compatible" content="ie=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>ClickHaskell</title>
-    <link rel="stylesheet" href="/default.css" />
+    <style type="text/css">
+        body {
+            color: rgb(155, 155, 155);
+            background-color: #121212;
+            display: flex;
+        }
+
+        @media (max-width: 700px) {
+            body {
+                flex-direction: column;
+            }
+        }
+        nav a {color: rgb(155, 155, 155);};
+        nav a:link {color: rgb(155, 155, 155);};
+        nav a:hover {color: rgb(155, 155, 155);};
+        nav a:visited {color: rgb(155, 155, 155);};
+    </style>
 </head>
 
 <body>
-    $partial("hakyll/templates/nav.html")$
-
+    <style type="text/css">
+        nav {
+            padding-right: 8px;
+            display: flex;
+            flex-direction: column;
+            min-width: 125px;
+        };
+    </style>
+    <nav>
+        <style type="text/css">
+        </style>
+        <a href="/">ClickHaskell</a>
+        <hr style="width: 100%">
+        <a href="/parametrized-view.html">Parametrized view</a>
+        <a href="/write-read.html">Write and read</a>
+        <hr style="width: 100%">
+    </nav>
     $body$
     <footer>
     </footer>
