@@ -10,7 +10,6 @@ license-file:       LICENSE
 data-files:
   parametrized-view/README.lhs
   write-read/README.lhs
-  hakyll/**/*.css
   hakyll/**/*.html
   hakyll/*.html
 
