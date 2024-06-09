@@ -1,0 +1,77 @@
+cabal-version: 3.4
+
+
+name:               profilers
+version:            0.0.0.1
+author:             Kovalev Dmitry
+maintainer:         https://github.com/KovalevDima
+description:        Development-related code
+homepage:           https://github.com/KovalevDima/ClickHaskell/dev#readme
+bug-reports:        https://github.com/KovalevDima/ClickHaskell/issues
+License:            BSD-3-Clause
+License-File:       ./LICENSE
+copyright:          2023 Kovalev Dmitry
+build-type:         Simple
+extra-source-files: README.md
+
+source-repository head
+  type: git
+  location: https://github.com/KovalevDima/ClickHaskell
+  subdir: dev
+
+executable profiler
+  main-is: Profiler.hs
+  hs-source-dirs: ./
+  ghc-options: -O2 -threaded -rtsopts "-with-rtsopts=-A32m -AL256m -p -hy -L250 -l-agu -N" -fprof-late -main-is Profiler
+  build-depends:
+    -- Internal
+      ClickHaskell-client
+    , ClickHaskell-generics
+    , ClickHaskell-tables
+    , ClickHouse-db-types
+
+    -- GHC included
+    , base
+    , bytestring
+    , stm
+
+    -- External
+    , http-client
+
+executable profiler-v2
+  main-is: ProfilerV2.hs
+  hs-source-dirs: ./
+  ghc-options: -O2 -threaded -rtsopts "-with-rtsopts=-A32m -AL256m -p -hy -L250 -l-agu -N" -fprof-late -main-is ProfilerV2
+  build-depends:
+    -- Internal
+      ClickHaskell-client
+    , ClickHaskell-generics
+    , ClickHaskell-tables
+    , ClickHouse-db-types
+
+    -- GHC included
+    , base
+    , bytestring
+    , stm
+
+    -- External
+    , http-client
+
+executable profiler-v3
+  main-is: ProfilerV3.hs
+  hs-source-dirs: ./
+  ghc-options: -O2 -threaded -rtsopts "-with-rtsopts=-A32m -AL256m -p -hy -L250 -l-agu -N" -fprof-late -main-is ProfilerV3
+  build-depends:
+    -- Internal
+      ClickHaskell-client
+    , ClickHaskell-generics
+    , ClickHaskell-tables
+    , ClickHouse-db-types
+
+    -- GHC included
+    , base
+    , bytestring
+    , stm
+
+    -- External
+    , http-client

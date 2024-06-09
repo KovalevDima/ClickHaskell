@@ -78,7 +78,7 @@
           };
           settings.processes.dump-artifacts = {
             command = "${lib.getExe' pkgs.haskellPackages.eventlog2html "eventlog2html"} ./profiler.eventlog";
-            availability.exit_on_end = true;
+            # availability.exit_on_end = true;
             depends_on.profiling.condition = "process_completed_successfully";
           };
         };
@@ -90,7 +90,7 @@
             ClickHaskell-tables.libraryProfiling = true;
             ClickHouse-db-types.libraryProfiling = true;
             ClickHaskell-client.libraryProfiling = true;
-            profiler = {
+            profilers = {
               executableProfiling = true;
               libraryProfiling = true;
             };
