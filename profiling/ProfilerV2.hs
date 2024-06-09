@@ -18,9 +18,9 @@ module ProfilerV2
 import Network.HTTP.Client (defaultManagerSettings, newManager)
 
 -- Internal
-import ClickHaskell.ClientV2 (insertInto, ChCredential(..), selectFrom)
+import ClickHaskell.ClientV2 (insertInto, ChCredential(..), selectFrom, select)
 import ClickHaskell.Generics  (WritableInto, ReadableFrom)
-import ClickHaskell.Tables    (interpretTable, Table, Column)
+import ClickHaskell.Tables    (interpretTable, Table, Column, GetTableColumns, Columns)
 import ClickHouse.DbTypes
   ( toChType
   , ChUUID, ChDateTime, ChInt32, ChInt64, ChString
@@ -57,19 +57,21 @@ main = do
   
   threadDelay 1_000_000
   traceMarkerIO "Starting writing"
-  insertInto
-    @ExampleTable
-    manager
-    exampleCredentials
-    writingDataQueue
+  -- insertInto
+  --   @ExampleTable
+  --   manager
+  --   exampleCredentials
+  --   writingDataQueue
 
   traceMarkerIO "Starting reading"
   selectedData <-
-    selectFrom
-      @ExampleTable
+    select
+      @(GetTableColumns ExampleTable)
       @ExampleData
       manager
       exampleCredentials
+      "SELECT 42, 'text', toDateTime(0), '00000000-0000-0000-0000-000000000000', 0, '500', ''"
+  print selectedData
 
   traceMarkerIO "Completion"
   print $ "5. Writing done. " <> show totalRows <> " rows was written"
@@ -102,6 +104,18 @@ data ExampleData = MkExampleData
   }
   deriving (Generic, Show)
 
+instance ReadableFrom
+  (Columns
+   '[ Column "a1" ChInt64
+    , Column "a2" (LowCardinality ChString)
+    , Column "a3" ChDateTime
+    , Column "a4" ChUUID
+    , Column "a5" ChInt32
+    , Column "a6" (LowCardinality (Nullable ChString))
+    , Column "a7" (LowCardinality ChString)
+    ]
+  )
+  ExampleData
 instance ReadableFrom ExampleTable ExampleData
 instance WritableInto ExampleTable ExampleData
 

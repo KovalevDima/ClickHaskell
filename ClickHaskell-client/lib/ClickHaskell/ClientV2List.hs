@@ -11,7 +11,7 @@ module ClickHaskell.ClientV2List where
 
 -- Internal
 import ClickHaskell.Generics (WritableInto(..), ReadableFrom(..))
-import ClickHaskell.Tables   (Table)
+import ClickHaskell.Tables   (Table, Columns)
 
 -- External
 import Network.HTTP.Client as H (Request(..), Response(..), RequestBody(..), parseRequest, responseOpen, brConsume, BodyReader, Manager)
@@ -69,6 +69,22 @@ selectFrom manager cred =
     (fromTsvLine @table @record)
     (`responseOpen` manager)
 
+select :: forall columnsWrapper record columns 
+  .
+  ( ReadableFrom columnsWrapper record
+  , columnsWrapper ~ Columns columns
+  )
+  => Manager -> ChCredential -> Builder -> IO [record]
+select manager cred query =
+  selectFromHttpGeneric
+    @Request
+    @(Response BodyReader)
+    @record
+    cred
+    (query <> " FORMAT TSV\n")
+    (fromTsvLine @(Columns columns) @record)
+    (`responseOpen` manager)
+
 
 
 
@@ -97,11 +113,10 @@ instance ImpliesClickHouseHttp H.Request (H.Response BodyReader) where
             writeIORef ibss bss'
             return bs
   }
-  injectReadingToResponse decoder response = do
-    bs <- (brConsume . responseBody) response
-    pure $ decoder $ mconcat bs
 
-  {-# INLINE [0] injectWritingToRequest #-}
+  -- ToDo: This implementation reads whole body before parsing
+  injectReadingToResponse decoder = fmap (decoder . mconcat) . brConsume . responseBody
+
   injectWritingToRequest query dataQueue encoder request = request{
     requestBody = RequestBodyStreamChunked $ \np -> do
       writingData <- newIORef . BL.toChunks . toLazyByteString . mconcat . (query:) . map encoder $ dataQueue
@@ -128,7 +143,6 @@ instance ImpliesClickHouseHttp H.Request (H.Response BodyReader) where
 
 -- ToDo: Move it into internal ClickHaskell-HTTP package
 
-{-# INLINE [0] insertIntoHttpGeneric #-}
 insertIntoHttpGeneric ::
   forall request response record
   .

@@ -11,10 +11,10 @@ module ClickHaskell.ClientV2 where
 
 -- Internal
 import ClickHaskell.Generics (WritableInto(..), ReadableFrom(..))
-import ClickHaskell.Tables   (Table)
+import ClickHaskell.Tables   (Table, Columns)
 
 -- External
-import Network.HTTP.Client as H (Request(..), Response(..), RequestBody(..), parseRequest, responseOpen, brConsume, BodyReader, Manager, brRead)
+import Network.HTTP.Client as H (Request(..), Response(..), RequestBody(..), parseRequest, responseOpen, brConsume, BodyReader, Manager)
 import Network.HTTP.Types  as H (Status(..))
 
 -- GHC included
@@ -53,7 +53,8 @@ insertInto manager cred writingQueue = do
     writingQueue
     (`responseOpen` manager)
 
-selectFrom :: forall table record name columns
+selectFrom ::
+  forall table record name columns
   .
   ( ReadableFrom table record
   , KnownSymbol name
@@ -68,6 +69,23 @@ selectFrom manager cred =
     cred
     ("SELECT " <> readingColumns @table @record <> " FROM " <> (byteString . BS8.pack) (symbolVal $ Proxy @name) <> " FORMAT TSV\n")
     (fromTsvLine @table @record)
+    (`responseOpen` manager)
+
+select ::
+  forall columnsWrapper record columns 
+  .
+  ( ReadableFrom columnsWrapper record
+  , columnsWrapper ~ Columns columns
+  )
+  => Manager -> ChCredential -> Builder -> IO [record]
+select manager cred query =
+  selectFromHttpGeneric
+    @Request
+    @(Response BodyReader)
+    @record
+    cred
+    (query <> " FORMAT TSV\n")
+    (fromTsvLine @(Columns columns) @record)
     (`responseOpen` manager)
 
 
@@ -98,10 +116,9 @@ instance ImpliesClickHouseHttp H.Request (H.Response BodyReader) where
             writeIORef ibss bss'
             return bs
   }
-  injectReadingToResponse decoder response = do
-    bs <- (brRead . responseBody) response
-    print bs
-    pure $ decoder bs
+
+  -- ToDo: This implementation reads whole body before parsing
+  injectReadingToResponse decoder = fmap (decoder . mconcat) . brConsume . responseBody
 
   injectWritingToRequest query dataQueue encoder request = request{
     requestBody = RequestBodyStreamChunked $ \np -> do

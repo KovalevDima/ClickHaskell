@@ -14,6 +14,7 @@ module ClickHaskell.Tables
   InterpretableTable(..)
 
 -- ** Table
+, GetTableColumns
 , Table, renderTable
 
 -- ** View
@@ -22,6 +23,10 @@ module ClickHaskell.Tables
 
 
 -- * Columns
+-- ** HasColumns helper class
+, Columns
+, HasColumns(..)
+
 -- ** Column
 , Column
 
@@ -50,17 +55,13 @@ import GHC.TypeLits            (ErrorMessage (..), Symbol, KnownSymbol, symbolVa
 -- ** Interpreter
 
 class
+  HasColumns table
+  =>
   InterpretableTable table
   where
-  type GetTableName table :: Symbol
-  type GetTableColumns table :: [Type]
 
   type TableInterpreter table = result | result -> table
   interpretTable :: TableInterpreter table
-
-
-
-
 
 
 
@@ -73,18 +74,17 @@ newtype Table
   = MkTable
   { renderedTableName :: Builder
   }
-
+  
+type family GetTableColumns table :: Type where
+  GetTableColumns (Table name columns) = Columns columns
 
 instance
   ( KnownSymbol name
   ) => InterpretableTable (Table name columns)
   where
-  type GetTableName    (Table name _)    = name
-  type GetTableColumns (Table _ columns) = columns
   
   type TableInterpreter (Table name columns) = Table name columns
   interpretTable = MkTable{renderedTableName = (BS.byteString . BS8.pack . symbolVal) (Proxy @name)}
-
 
 
 {- |
@@ -166,9 +166,6 @@ instance
   ( KnownSymbol name
   ) => InterpretableTable (View name columns '[])
   where
-  type GetTableName    (View name _ _)    = name
-  type GetTableColumns (View _ columns _) = columns
-
   type TableInterpreter (View name columns '[]) = View name columns '[]
   interpretTable =
     MkView
@@ -181,9 +178,6 @@ instance
   ( KnownSymbol name
   ) => InterpretableTable (View name columns '[Parameter paramName (chType :: Type)])
   where
-  type GetTableName    (View name _ _)    = name
-  type GetTableColumns (View _ columns _) = columns
-
   type TableInterpreter (View name columns '[Parameter paramName chType]) = Parameter paramName chType -> View name columns '[]
   interpretTable MkParameter{renderedParameter} =
     MkView
@@ -203,8 +197,6 @@ instance
       ]
     )
   where
-  type GetTableName    (View name _ _)    = name
-  type GetTableColumns (View _ columns _) = columns
 
   type TableInterpreter
     ( View
@@ -236,8 +228,6 @@ instance
       ]
     )
   where
-  type GetTableName    (View name _ _)    = name
-  type GetTableColumns (View _ columns _) = columns
 
   type TableInterpreter
     ( View
@@ -272,8 +262,6 @@ instance
       ]
     )
   where
-  type GetTableName    (View name _ _)    = name
-  type GetTableColumns (View _ columns _) = columns
 
   type TableInterpreter
     ( View
@@ -309,6 +297,26 @@ instance
 
 
 -- * Columns
+
+-- ** HasColumns helper class
+
+data Columns (columns :: [Type])
+
+class HasColumns hasColumns where
+  type GetColumns hasColumns :: [Type]
+
+instance HasColumns (View name columns params) where
+  type GetColumns (View _ columns _) = columns
+
+instance HasColumns (Table name columns) where
+  type GetColumns (Table _ columns) = columns
+
+instance HasColumns (Columns columns) where
+  type GetColumns (Columns columns) = columns 
+
+
+
+
 -- ** Column declaration
 
 {- |
