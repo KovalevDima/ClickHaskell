@@ -30,7 +30,6 @@ module ClickHaskell.Tables
 , Default
 
 -- ** Compilers
-, CompiledColumns(..)
 , CompiledColumn(..)
 ) where
 
@@ -44,10 +43,7 @@ import Data.ByteString.Builder as BS (Builder, byteString, stringUtf8)
 import Data.ByteString.Char8   as BS8 (pack)
 import Data.Data               (Proxy (Proxy))
 import Data.Kind               (Type)
-import Data.Type.Bool          (If)
-import Data.Type.Equality      (type(==))
-import Data.Type.Ord           (type(>?))
-import GHC.TypeLits            (ErrorMessage (..), Symbol, TypeError, KnownSymbol, symbolVal)
+import GHC.TypeLits            (ErrorMessage (..), Symbol, KnownSymbol, symbolVal)
 
 
 -- * Tables
@@ -58,10 +54,6 @@ class
   where
   type GetTableName table :: Symbol
   type GetTableColumns table :: [Type]
-
-  type ValidatedTable table :: Maybe ErrorMessage
-  _validatedTable :: (ValidatedTable table ~ Nothing) => TableInterpreter table
-  _validatedTable = interpretTable
 
   type TableInterpreter table = result | result -> table
   interpretTable :: TableInterpreter table
@@ -85,12 +77,10 @@ newtype Table
 
 instance
   ( KnownSymbol name
-  , CompiledColumns columns
   ) => InterpretableTable (Table name columns)
   where
   type GetTableName    (Table name _)    = name
-  type GetTableColumns (Table _ columns) = GetColumnsRep columns
-  type ValidatedTable   (Table _ columns) = ColumnsCompilationResult columns
+  type GetTableColumns (Table _ columns) = columns
   
   type TableInterpreter (Table name columns) = Table name columns
   interpretTable = MkTable{renderedTableName = (BS.byteString . BS8.pack . symbolVal) (Proxy @name)}
@@ -174,12 +164,10 @@ renderTableParameters []             = ""
 
 instance
   ( KnownSymbol name
-  , CompiledColumns columns
   ) => InterpretableTable (View name columns '[])
   where
   type GetTableName    (View name _ _)    = name
-  type GetTableColumns (View _ columns _) = GetColumnsRep columns
-  type ValidatedTable  (View _ columns _) = ColumnsCompilationResult columns
+  type GetTableColumns (View _ columns _) = columns
 
   type TableInterpreter (View name columns '[]) = View name columns '[]
   interpretTable =
@@ -191,12 +179,10 @@ instance
 
 instance
   ( KnownSymbol name
-  , CompiledColumns columns
   ) => InterpretableTable (View name columns '[Parameter paramName (chType :: Type)])
   where
   type GetTableName    (View name _ _)    = name
-  type GetTableColumns (View _ columns _) = GetColumnsRep columns
-  type ValidatedTable  (View _ columns _) = ColumnsCompilationResult columns
+  type GetTableColumns (View _ columns _) = columns
 
   type TableInterpreter (View name columns '[Parameter paramName chType]) = Parameter paramName chType -> View name columns '[]
   interpretTable MkParameter{renderedParameter} =
@@ -208,7 +194,6 @@ instance
 
 instance
   ( KnownSymbol name
-  , CompiledColumns columns
   ) => InterpretableTable 
     ( View
       name
@@ -219,8 +204,7 @@ instance
     )
   where
   type GetTableName    (View name _ _)    = name
-  type GetTableColumns (View _ columns _) = GetColumnsRep columns
-  type ValidatedTable  (View _ columns _) = ColumnsCompilationResult columns
+  type GetTableColumns (View _ columns _) = columns
 
   type TableInterpreter
     ( View
@@ -242,7 +226,6 @@ instance
 
 instance
   ( KnownSymbol name
-  , CompiledColumns columns
   ) => InterpretableTable 
     ( View
       name
@@ -254,8 +237,7 @@ instance
     )
   where
   type GetTableName    (View name _ _)    = name
-  type GetTableColumns (View _ columns _) = GetColumnsRep columns
-  type ValidatedTable  (View _ columns _) = ColumnsCompilationResult columns
+  type GetTableColumns (View _ columns _) = columns
 
   type TableInterpreter
     ( View
@@ -279,7 +261,6 @@ instance
 
 instance
   ( KnownSymbol name
-  , CompiledColumns columns
   ) => InterpretableTable 
     ( View
       name
@@ -292,8 +273,7 @@ instance
     )
   where
   type GetTableName    (View name _ _)    = name
-  type GetTableColumns (View _ columns _) = GetColumnsRep columns
-  type ValidatedTable  (View _ columns _) = ColumnsCompilationResult columns
+  type GetTableColumns (View _ columns _) = columns
 
   type TableInterpreter
     ( View
@@ -443,49 +423,3 @@ class
 
   type WritableColumn    columnDescription :: Maybe ErrorMessage
   type WriteOptionalColumn columnDescription :: Bool
-
-
-class CompiledColumns (columns :: [Type])
-  where
-  type GetColumnsRep columns :: [Type]
-  getRenederedColumns :: [(Builder, Builder)]
-  
-  type ColumnsCompilationResult columns :: Maybe ErrorMessage
-
-
-instance
-  ( CompiledColumn column1
-  , CompiledColumn column2
-  , CompiledColumns (column2 ': columns)
-  ) => CompiledColumns (column1 ': column2 ': columns)
-  where
-  type GetColumnsRep (column1 ': column2 ': columns) = column1 ': GetColumnsRep (column2 ': columns)
-  getRenederedColumns
-    = (renderColumnName @column1, renderColumnType @column1)
-    : getRenederedColumns @(column2 ': columns)
-
-  type (ColumnsCompilationResult (column1 ': column2 ': columns)) =
-    If (GetColumnName column1 >? GetColumnName column2)
-      ( TypeError
-        (    'Text "Columns description contains aplabetically unsorted columns"
-        :$$: 'Text "Column with name \""         :<>: 'Text (GetColumnName column1) :<>: 'Text "\" "
-          :<>: 'Text "should be placed after \"" :<>: 'Text (GetColumnName column2) :<>: 'Text "\""
-        )
-      )
-      (If (GetColumnName column2 == GetColumnName column1)
-        (TypeError
-          (    'Text "There are two columns with identical name: \""
-          :<>: 'Text (GetColumnName column1) :<>: 'Text "\"")
-          )
-        (ColumnsCompilationResult (column2 ': columns))
-      )
-
-
-instance
-  ( CompiledColumn column
-  ) => CompiledColumns '[column]
-  where
-  type GetColumnsRep '[column] = '[column]
-  getRenederedColumns = [(renderColumnName @column, renderColumnType @column)]
-
-  type (ColumnsCompilationResult '[column]) = 'Nothing
