@@ -7,7 +7,7 @@
   , OverloadedStrings
   , TypeFamilyDependencies
 #-}
-module ClickHaskell.ClientV2 where
+module ClickHaskell.ClientV2List where
 
 -- Internal
 import ClickHaskell.Generics (WritableInto(..), ReadableFrom(..))
@@ -28,19 +28,18 @@ import Data.IORef              (newIORef, readIORef, writeIORef)
 import Data.Text               as T (Text, unpack)
 import Data.Text.Encoding      as T (encodeUtf8, decodeUtf8)
 import GHC.Generics            (Generic)
-import Control.Concurrent.STM  (TQueue, atomically, flushTQueue)
 
 
 -- ToDo: Move into ClickHaskell-http-client
 
-insertInto :: forall table record . WritableInto table record => Manager -> ChCredential -> Builder -> TQueue record -> IO ()
+insertInto :: forall table record . WritableInto table record => Manager -> ChCredential -> Builder -> [record] -> IO ()
 insertInto manager cred table writingQueue = do
   insertIntoHttpGeneric
     @Request
     @(Response BodyReader)
     cred
     ("INSERT INTO " <> table <> " (" <> writingColumns @table @record <>  ") FORMAT TSV\n")
-    (toTsvLine @table)
+    (toTsvLine @table @record)
     writingQueue
     (`responseOpen` manager)
 
@@ -88,9 +87,10 @@ instance ImpliesClickHouseHttp H.Request (H.Response BodyReader) where
     print bs
     pure $ decoder bs
 
+  {-# INLINE [0] injectWritingToRequest #-}
   injectWritingToRequest query dataQueue encoder request = request{
     requestBody = RequestBodyStreamChunked $ \np -> do
-      writingData <- newIORef . BL.toChunks . toLazyByteString . mconcat . (query:) . map encoder =<< atomically (flushTQueue dataQueue)
+      writingData <- newIORef . BL.toChunks . toLazyByteString . mconcat . (query:) . map encoder $ dataQueue
       np $ do
         bss <- readIORef writingData
         case bss of
@@ -114,12 +114,13 @@ instance ImpliesClickHouseHttp H.Request (H.Response BodyReader) where
 
 -- ToDo: Move it into internal ClickHaskell-HTTP package
 
+{-# INLINE [0] insertIntoHttpGeneric #-}
 insertIntoHttpGeneric ::
   forall request response record
   .
   ImpliesClickHouseHttp request response
   =>
-  ChCredential -> Builder -> (record -> Builder) -> TQueue record -> (request -> IO response) -> IO ()
+  ChCredential -> Builder -> (record -> Builder) -> [record] -> (request -> IO response) -> IO ()
 insertIntoHttpGeneric credential query encoder records runClient = do
   const (pure ())
     =<< throwOnNon200 @request
@@ -139,14 +140,14 @@ selectFromHttpGeneric ::
   ImpliesClickHouseHttp request response
   =>
   ChCredential -> Builder -> (StrictByteString -> record) -> (request -> IO response) -> IO [record]
-selectFromHttpGeneric credential query decoder runClient =
+selectFromHttpGeneric credential tableCall decoder runClient =
   injectReadingToResponse
     @request
     @response
     (map decoder . BS8.lines)
     =<< throwOnNon200 @request
     =<< runClient (
-      (injectReadingToRequest @request @response query . either throw id)
+      (injectReadingToRequest @request @response tableCall . either throw id)
       (initAuthorizedRequest @request @response credential)
     )
 
@@ -163,7 +164,7 @@ class ImpliesClickHouseHttp request response
   injectReadingToRequest :: Builder -> (request -> request)
   injectReadingToResponse :: (StrictByteString -> [record]) -> (response -> IO [record])
 
-  injectWritingToRequest :: Builder -> TQueue rec -> (rec -> Builder) -> (request -> request)
+  injectWritingToRequest :: Builder -> [rec] -> (rec -> Builder) -> (request -> request)
 
   throwOnNon200 :: response -> IO response
 

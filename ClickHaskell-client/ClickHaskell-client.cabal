@@ -41,6 +41,7 @@ Library
     ClickHaskell.Buffering
     ClickHaskell.Client
     ClickHaskell.ClientV2
+    ClickHaskell.ClientV2List
     ClickHaskell.ClientV3
   Other-Modules:
     Paths_ClickHaskell_client
