@@ -67,7 +67,7 @@
           ];
         };
         # Profiling wrapper
-        process-compose."profiling" = let programName = "profiler-v2"; in {
+        process-compose."profiling" = let programName = "profiler-v2-list"; in {
           imports = [inputs.services-flake.processComposeModules.default];
           services.clickhouse."profiler-db" = wrapDefaultClickHouse [
             (extractSqlFromMarkdown ./documentation/write-read/README.lhs)
@@ -78,7 +78,7 @@
           };
           settings.processes.dump-artifacts = {
             command = "${lib.getExe' pkgs.haskellPackages.eventlog2html "eventlog2html"} ./${programName}.eventlog";
-            availability.exit_on_end = true;
+            # availability.exit_on_end = true;
             depends_on.profiling.condition = "process_completed_successfully";
           };
         };

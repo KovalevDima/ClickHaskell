@@ -11,46 +11,61 @@ module ClickHaskell.ClientV2List where
 
 -- Internal
 import ClickHaskell.Generics (WritableInto(..), ReadableFrom(..))
+import ClickHaskell.Tables   (Table)
 
 -- External
-import Network.HTTP.Client as H (Request(..), Response(..), RequestBody(..), parseRequest, responseOpen, brConsume, BodyReader, Manager, brRead)
+import Network.HTTP.Client as H (Request(..), Response(..), RequestBody(..), parseRequest, responseOpen, brConsume, BodyReader, Manager)
 import Network.HTTP.Types  as H (Status(..))
-
 
 -- GHC included
 import Control.DeepSeq         (NFData)
-import Control.Exception       (throw, Exception, SomeException)
-import Data.ByteString         as BS (empty, StrictByteString)
-import Data.ByteString.Builder (toLazyByteString, Builder)
+import Control.Exception       (Exception, SomeException, throw)
+import Data.ByteString         as BS (StrictByteString, empty)
+import Data.ByteString.Builder (Builder, toLazyByteString,  byteString)
+import Data.ByteString.Char8   as BS8 (lines, pack)
 import Data.ByteString.Lazy    as BL (toChunks)
-import Data.ByteString.Char8   as BS8 (lines)
 import Data.IORef              (newIORef, readIORef, writeIORef)
 import Data.Text               as T (Text, unpack)
-import Data.Text.Encoding      as T (encodeUtf8, decodeUtf8)
+import Data.Text.Encoding      as T (decodeUtf8, encodeUtf8)
+import Data.Typeable           (Proxy(..))
 import GHC.Generics            (Generic)
+import GHC.TypeLits            (KnownSymbol, symbolVal)
 
 
 -- ToDo: Move into ClickHaskell-http-client
 
-insertInto :: forall table record . WritableInto table record => Manager -> ChCredential -> Builder -> [record] -> IO ()
-insertInto manager cred table writingQueue = do
+insertInto ::
+  forall table record name columns
+  .
+  ( WritableInto table record
+  , KnownSymbol name
+  , table ~ Table name columns
+  )
+  => Manager -> ChCredential -> [record] -> IO ()
+insertInto manager cred writingQueue = do
   insertIntoHttpGeneric
     @Request
     @(Response BodyReader)
     cred
-    ("INSERT INTO " <> table <> " (" <> writingColumns @table @record <>  ") FORMAT TSV\n")
+    ("INSERT INTO " <> (byteString . BS8.pack) (symbolVal $ Proxy @name) <> " (" <> writingColumns @table @record <> ") FORMAT TSV\n")
     (toTsvLine @table @record)
     writingQueue
     (`responseOpen` manager)
 
-selectFrom :: forall table record . ReadableFrom table record => Manager -> ChCredential -> Builder -> IO [record]
-selectFrom manager cred table =
+selectFrom :: forall table record name columns
+  .
+  ( ReadableFrom table record
+  , KnownSymbol name
+  , table ~ Table name columns
+  )
+  => Manager -> ChCredential -> IO [record]
+selectFrom manager cred =
   selectFromHttpGeneric
     @Request
     @(Response BodyReader)
     @record
     cred
-    ("SELECT " <> readingColumns @table @record <> " FROM " <> table <> " FORMAT TSV\n")
+    ("SELECT " <> readingColumns @table @record <> " FROM " <> (byteString . BS8.pack) (symbolVal $ Proxy @name) <> " FORMAT TSV\n")
     (fromTsvLine @table @record)
     (`responseOpen` manager)
 
@@ -83,9 +98,8 @@ instance ImpliesClickHouseHttp H.Request (H.Response BodyReader) where
             return bs
   }
   injectReadingToResponse decoder response = do
-    bs <- (brRead . responseBody) response
-    print bs
-    pure $ decoder bs
+    bs <- (brConsume . responseBody) response
+    pure $ decoder $ mconcat bs
 
   {-# INLINE [0] injectWritingToRequest #-}
   injectWritingToRequest query dataQueue encoder request = request{

@@ -18,7 +18,7 @@ module ProfilerV2
 import Network.HTTP.Client (defaultManagerSettings, newManager)
 
 -- Internal
-import ClickHaskell.ClientV2 (insertInto, ChCredential(..))
+import ClickHaskell.ClientV2 (insertInto, ChCredential(..), selectFrom)
 import ClickHaskell.Generics  (WritableInto, ReadableFrom)
 import ClickHaskell.Tables    (interpretTable, Table, Column)
 import ClickHouse.DbTypes
@@ -57,11 +57,19 @@ main = do
   
   threadDelay 1_000_000
   traceMarkerIO "Starting writing"
-  insertInto @ExampleTable
+  insertInto
+    @ExampleTable
     manager
     exampleCredentials
-    "exampleWriteRead"
     writingDataQueue
+
+  traceMarkerIO "Starting reading"
+  selectedData <-
+    selectFrom
+      @ExampleTable
+      @ExampleData
+      manager
+      exampleCredentials
 
   traceMarkerIO "Completion"
   print $ "5. Writing done. " <> show totalRows <> " rows was written"
