@@ -51,6 +51,7 @@ import Data.WideWord (Int128, Word128(Word128))
 
 
 -- GHC included
+import Control.DeepSeq         (NFData)
 import Data.ByteString         as BS (toStrict, StrictByteString)
 import Data.ByteString.Builder as BS (Builder, byteString, toLazyByteString)
 import Data.ByteString.Char8   as BS8 (concatMap, pack, readInt, readInteger, singleton, unpack, replicate, length)
@@ -205,6 +206,7 @@ instance
 newtype LowCardinality chType = MkLowCardinality chType
 deriving instance (Eq chType, IsLowCardinalitySupported chType) => Eq (LowCardinality chType)
 deriving instance (Show chType, IsLowCardinalitySupported chType) => Show (LowCardinality chType)
+deriving instance (NFData chType, IsLowCardinalitySupported chType) => NFData (LowCardinality chType)
 deriving newtype instance IsString (LowCardinality ChString)
 
 class
@@ -299,7 +301,7 @@ instance
 
 -- | ClickHouse UUID column type
 newtype ChUUID = MkChUUID UUID
-  deriving newtype (Show, Eq)
+  deriving newtype (Show, Eq, NFData)
 
 instance IsChType ChUUID
   where
@@ -330,7 +332,7 @@ instance FromChType ChUUID UUID   where fromChType (MkChUUID uuid) = uuid
 
 -- | ClickHouse String column type
 newtype ChString = MkChString StrictByteString
-  deriving newtype (Show, Eq, IsString)
+  deriving newtype (Show, Eq, IsString, NFData)
 
 instance IsChType ChString
   where
@@ -395,7 +397,7 @@ instance
 
 -- | ClickHouse Int8 column type
 newtype ChInt8 = MkChInt8 Int8
-  deriving newtype (Show, Eq, Num, Prim, Bounded)
+  deriving newtype (Show, Eq, Num, Prim, Bounded, NFData)
 
 instance IsChType ChInt8
   where
@@ -429,7 +431,7 @@ instance FromChType ChInt8 Int8   where fromChType = coerce
 
 -- | ClickHouse Int16 column type
 newtype ChInt16 = MkChInt16 Int16
-  deriving newtype (Show, Eq, Num, Prim, Bounded)
+  deriving newtype (Show, Eq, Num, Prim, Bounded, NFData)
 
 instance IsChType ChInt16
   where
@@ -463,7 +465,7 @@ instance FromChType ChInt16 Int16   where fromChType (MkChInt16 int16) = int16
 
 -- | ClickHouse Int32 column type
 newtype ChInt32 = MkChInt32 Int32
-  deriving newtype (Show, Eq, Num, Prim, Bounded, Enum)
+  deriving newtype (Show, Eq, Num, Prim, Bounded, Enum, NFData)
 
 instance IsChType ChInt32
   where
@@ -497,7 +499,7 @@ instance FromChType ChInt32 Int32   where fromChType (MkChInt32 int32) = int32
 
 -- | ClickHouse Int64 column type
 newtype ChInt64 = MkChInt64 Int64
-  deriving newtype (Show, Eq, Num, Prim, Bounded, Enum)
+  deriving newtype (Show, Eq, Num, Prim, Bounded, Enum, NFData)
 
 instance IsChType ChInt64
   where
@@ -532,7 +534,7 @@ instance FromChType ChInt64 Int64   where fromChType = coerce
 
 -- | ClickHouse Int128 column type
 newtype ChInt128 = MkChInt128 Int128
-  deriving newtype (Show, Eq, Num, Prim, Bounded)
+  deriving newtype (Show, Eq, Num, Prim, Bounded, NFData)
 
 instance IsChType ChInt128
   where
@@ -566,7 +568,7 @@ instance FromChType ChInt128 Int128   where fromChType (MkChInt128 int128) = int
 
 -- | ClickHouse UInt8 column type
 newtype ChUInt8 = MkChUInt8 Word8
-  deriving newtype (Show, Eq, Num, Prim, Bounded)
+  deriving newtype (Show, Eq, Num, Prim, Bounded, NFData)
 
 instance IsChType ChUInt8
   where
@@ -600,7 +602,7 @@ instance FromChType ChUInt8 Word8   where fromChType (MkChUInt8 word8) = word8
 
 -- | ClickHouse UInt16 column type
 newtype ChUInt16 = MkChUInt16 Word16
-  deriving newtype (Show, Eq, Num, Prim, Bounded)
+  deriving newtype (Show, Eq, Num, Prim, Bounded, NFData)
 
 instance IsChType ChUInt16
   where
@@ -634,7 +636,7 @@ instance FromChType ChUInt16 Word16   where fromChType = coerce
 
 -- | ClickHouse UInt32 column type
 newtype ChUInt32 = MkChUInt32 Word32
-  deriving newtype (Show, Eq, Num, Prim, Bounded, Enum)
+  deriving newtype (Show, Eq, Num, Prim, Bounded, Enum, NFData)
 
 instance IsChType ChUInt32
   where
@@ -668,7 +670,7 @@ instance FromChType ChUInt32 Word32   where fromChType (MkChUInt32 word32) = wor
 
 -- | ClickHouse UInt64 column type
 newtype ChUInt64 = MkChUInt64 Word64
-  deriving newtype (Show, Eq, Num, Prim, Bounded, Enum)
+  deriving newtype (Show, Eq, Num, Prim, Bounded, Enum, NFData)
 
 instance IsChType ChUInt64
   where
@@ -702,7 +704,7 @@ instance FromChType ChUInt64 Word64   where fromChType (MkChUInt64 w64) = w64
 
 -- | ClickHouse UInt128 column type
 newtype ChUInt128 = MkChUInt128 Word128
-  deriving newtype (Show, Eq, Num, Prim, Bounded, Enum)
+  deriving newtype (Show, Eq, Num, Prim, Bounded, Enum, NFData)
 
 instance IsChType ChUInt128
   where
@@ -738,7 +740,7 @@ instance FromChType ChUInt128 Word128   where fromChType (MkChUInt128 w128) = w1
 
 -- | ClickHouse DateTime column type
 newtype ChDateTime = MkChDateTime Word32
-  deriving newtype (Show, Eq, Prim, Bounded, Enum)
+  deriving newtype (Show, Eq, Prim, Bounded, Enum, NFData)
 
 instance IsChType ChDateTime
   where
@@ -778,7 +780,7 @@ instance FromChType ChDateTime UTCTime    where fromChType (MkChDateTime w32) = 
 
 
 newtype ChDate = MkChDate Word16
-  deriving newtype (Show, Eq, Prim, Bounded, Enum)
+  deriving newtype (Show, Eq, Prim, Bounded, Enum, NFData)
 
 instance IsChType ChDate
   where
