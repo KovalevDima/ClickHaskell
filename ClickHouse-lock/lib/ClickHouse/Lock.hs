@@ -16,9 +16,9 @@
 module ClickHouse.Lock where
 
 -- Internal
-import ClickHaskell.Client (ChCredential (..), HttpChClient, Reading, initClient, interpretClient)
+import ClickHaskell.Client (ChCredential (..), selectFrom)
 import ClickHaskell.Generics (ReadableFrom)
-import ClickHaskell.Tables (Table, Column)
+import ClickHaskell.Tables (Column, Table)
 import ClickHouse.DbTypes (ChString)
 
 
@@ -34,7 +34,8 @@ import System.Environment (lookupEnv)
 
 
 -- External dependencies
-import Data.Aeson (FromJSON (..), KeyValue ((.=)), ToJSON (..), pairs, withObject, (.:), encode)
+import Data.Aeson (FromJSON (..), KeyValue ((.=)), ToJSON (..), encode, pairs, withObject, (.:))
+import Network.HTTP.Client (defaultManagerSettings, newManager)
 import Options.Applicative (ParserInfo, execParser, fullDesc, header, info, optional, progDesc, (<**>))
 import Options.Applicative.Builder (help, long, short, strOption)
 import Options.Applicative.Extra (helperWith)
@@ -81,23 +82,21 @@ runClickHouseLock = do
   maybeDatabaseEnv <- fmap T.pack <$> lookupEnv "CLICKHOUSE_DATABASE"
 
 
-  let chCredential = MkChCredential
+  let chCredentials = MkChCredential
         { chLogin = fromMaybe "default" (maybeUserCli <|> maybeUserEnv)
         , chPass = fromMaybe "" (maybePasswordCli <|> maybePasswordEnv)
         , chUrl = fromMaybe "http://localhost:8123" (maybeHostCli <|> maybeHostEnv)
         , chDatabase = fromMaybe "default" (maybeDatabaseCli <|> maybeDatabaseEnv)
         }
 
-  client <-
-    initClient
-      @HttpChClient
-      chCredential
-      Nothing
+  manager <- newManager defaultManagerSettings
 
   res <-
-    interpretClient
-      @(Reading ClickHouseColumns -> SystemTables)
-      client
+    selectFrom
+      @SystemTables
+      @ClickHouseColumns
+      manager
+      chCredentials
 
   BSL.writeFile "clickhouse-lock.json"
     . encode

@@ -14,22 +14,25 @@ module Profiler
   ( main
   ) where
 
+-- External
+import Network.HTTP.Client (defaultManagerSettings, newManager)
+
 -- Internal
-import ClickHaskell.Client    (interpretClient, IsChClient(..), HttpChClient, Writing, ChCredential(..))
-import ClickHaskell.Generics  (WritableInto, ReadableFrom)
-import ClickHaskell.Tables    (interpretTable, Table, Column)
+import ClickHaskell.Client   (insertInto, ChCredential(..), selectFrom, select)
+import ClickHaskell.Generics (WritableInto, ReadableFrom)
+import ClickHaskell.Tables   (interpretTable, Table, Column, Columns)
 import ClickHouse.DbTypes
   ( toChType
   , ChUUID, ChDateTime, ChInt32, ChInt64, ChString
   , LowCardinality, Nullable
   )
 
-
 -- GHC included
 import Control.Concurrent (forkIO, killThread, threadDelay)
-import Control.Concurrent.STM (modifyTVar, newTQueueIO, writeTQueue, flushTQueue)
+import Control.Concurrent.STM (modifyTVar, newTQueueIO, writeTQueue)
 import Control.Monad (forever, replicateM_)
 import Data.ByteString (StrictByteString)
+import Data.ByteString.Builder (string8)
 import Data.IORef (atomicModifyIORef, newIORef)
 import Data.Int (Int32, Int64)
 import Data.Word (Word32, Word64)
@@ -42,26 +45,32 @@ import GHC.Natural (Natural)
 main :: IO ()
 main = do
   traceMarkerIO "Initialization"
-  client <-
-    initClient
-      @HttpChClient
-      exampleCredentials
-      Nothing
+  manager <- newManager defaultManagerSettings
 
   let totalRows = 1_000_000
-  
+
   threadDelay 1_000_000
   traceMarkerIO "Push data"
   writingDataQueue <- newTQueueIO
-  (replicateM_ totalRows . atomically . writeTQueue writingDataQueue)
-    exampleDataSample
-  
+
+  traceMarkerIO "Starting reading"
+  selectedData <-
+    select
+      @(Columns ExampleColumns)
+      @ExampleData
+      manager
+      exampleCredentials
+      ("SELECT * FROM generateRandom('a1 Int64, a2 Int32, a3 DateTime, a4 UUID, a5 Int32, a6 LowCardinality(Nullable(String)), a7 LowCardinality(String)', 1, 10, 2) LIMIT " <> (string8 . show) 1_000_000)
+
+  mapM_ (atomically . writeTQueue writingDataQueue) selectedData
+
   threadDelay 1_000_000
   traceMarkerIO "Starting writing"
-  interpretClient
-    @(Writing ExampleData -> ExampleTable)
-    client
-    =<< atomically (flushTQueue writingDataQueue)
+  insertInto
+    @ExampleTable
+    manager
+    exampleCredentials
+    writingDataQueue
 
   traceMarkerIO "Completion"
   print $ "5. Writing done. " <> show totalRows <> " rows was written"
@@ -75,7 +84,7 @@ type ExampleTable =
   Table
     "exampleWriteRead"
    '[ Column "a1" ChInt64
-    , Column "a2" (LowCardinality ChString)
+    , Column "a2" ChString
     , Column "a3" ChDateTime
     , Column "a4" ChUUID
     , Column "a5" ChInt32
@@ -94,6 +103,17 @@ data ExampleData = MkExampleData
   }
   deriving (Generic, Show)
 
+type ExampleColumns =
+ '[ Column "a1" ChInt64
+  , Column "a2" (LowCardinality ChString)
+  , Column "a3" ChDateTime
+  , Column "a4" ChUUID
+  , Column "a5" ChInt32
+  , Column "a6" (LowCardinality (Nullable ChString))
+  , Column "a7" (LowCardinality ChString)
+  ]
+
+instance ReadableFrom (Columns ExampleColumns) ExampleData
 instance ReadableFrom ExampleTable ExampleData
 instance WritableInto ExampleTable ExampleData
 

@@ -67,7 +67,7 @@
           ];
         };
         # Profiling wrapper
-        process-compose."profiling" = let programName = "profiler-v2"; in {
+        process-compose."profiling" = let programName = "profiler"; in {
           imports = [inputs.services-flake.processComposeModules.default];
           services.clickhouse."profiler-db" = wrapDefaultClickHouse [
             (extractSqlFromMarkdown ./documentation/write-read/README.lhs)

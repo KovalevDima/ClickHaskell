@@ -30,6 +30,7 @@ executable example-write-read
     -- GHC included
     , base >=4.7 && <5
     , bytestring
+    , stm
 
     -- External
     , http-client < 0.8

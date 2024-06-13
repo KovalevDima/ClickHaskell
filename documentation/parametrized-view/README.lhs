@@ -4,14 +4,9 @@ title: Parametrized view
 
 # ClickHaskell: parametrized view example
 
-Example of using a parameterized view.
-To try out this example in repl: setup [development environment](https://github.com/GetShopTV/ClickHaskell#development-environment) and then run
+Lets imagine we have database with parametrized view `exampleParametrizedView` which takes parameters `{a1MoreThan:Int32}` and `{a1LessThan:Int32}`
 
-```bash
-cabal run example-parametrized-view
-```
-
-## Code Example
+To perform a SELECT from such view you can use this snippet
 
 ```haskell
 {-# LANGUAGE
@@ -24,81 +19,69 @@ cabal run example-parametrized-view
   , TypeApplications
 #-}
 
--- Internal
-import ClickHaskell.Client
-  ( interpretClient, initClient
-  , Reading, HttpChClient, ChCredential(..)
-  )
+import ClickHaskell.Client (ChCredential(..), selectFromTableFunction)
 import ClickHaskell.Generics (ReadableFrom)
-import ClickHaskell.Tables
-  ( interpretTable, mkParameter
-  , View, Parameter, Column
-  )
-import ClickHouse.DbTypes (ChUInt32, ChString)
-
-
--- GHC included
-import Data.ByteString (StrictByteString)
-import GHC.Generics    (Generic)
+import ClickHaskell.Tables (interpretTable, mkParameter, View, Parameter, Column)
+import ClickHouse.DbTypes (ChInt32, ChString)
+import Data.Int (Int32)
+import GHC.Generics (Generic)
+import Network.HTTP.Client (defaultManagerSettings, newManager)
 
 main :: IO ()
 main = do
-  client <-
-    initClient
-      MkChCredential
+  let credential = MkChCredential
         { chLogin = "default"
         , chPass = ""
         , chUrl = "http://localhost:8123"
         , chDatabase = "default"
         }
-      Nothing
-  mapM_ print =<< readParametrizedView client
-
-readParametrizedView :: HttpChClient -> IO [ExampleViewRecord]
-readParametrizedView client = interpretClient
-  @(Reading ExampleViewRecord -> ExampleView)
-  client
-  (interpretTable @ExampleView (mkParameter 2) (mkParameter 6))
+  manager <- newManager defaultManagerSettings
+  mapM_ print
+    =<<
+      selectFromTableFunction
+        @ExampleView
+        @ExampleViewRecord
+        manager
+        credential
+        (interpretTable @ExampleView (mkParameter (-100_000)) (mkParameter 100_000))
 
 type ExampleView =
   View
     "exampleParametrizedView"
-   '[ Column "a3" ChString
+   '[ Column "a1" ChInt32
+    , Column "a2" ChInt32
+    , Column "a3" ChString
     ]
-   '[ Parameter "a1MoreThan" ChUInt32
-    , Parameter "a2LessThan" ChUInt32
+   '[ Parameter "a1MoreThan" ChInt32
+    , Parameter "a1LessThan" ChInt32
     ]
 
 newtype ExampleViewRecord = MkExampleViewRecord
-  { a3 :: StrictByteString 
+  { a1 :: Int32
   }
   deriving (Generic, Show)
 
 instance ReadableFrom ExampleView ExampleViewRecord
 ```
 
-## ClickHouse
+To try out this example in repl: setup [development environment](https://github.com/GetShopTV/ClickHaskell#development-environment) and then run
 
-ClickHouse script used for this example:
+```bash
+cabal run example-parametrized-view
 
+# output
+MkExampleViewRecord {a1 = -23652}
+MkExampleViewRecord {a1 = -82405}
+MkExampleViewRecord {a1 = 92847}
+MkExampleViewRecord {a1 = 6575}
+MkExampleViewRecord {a1 = -80663}
+```
+
+As example view was chosen:
 ```sql
-CREATE TABLE exampleViewTable
-(
-    `a1` UInt32,
-    `a2` UInt32,
-    `a3` String
-)
-ENGINE = MergeTree
-PARTITION BY ()
-ORDER BY ();
-
-CREATE VIEW exampleParametrizedView AS
-SELECT *
-FROM exampleViewTable
-WHERE (a1 > {a1MoreThan:UInt32}) AND  (a2 < {a2LessThan:UInt32});
-
-INSERT INTO exampleViewTable (*) VALUES
-(1, 9, 'a'),
-(3, 7, 'b'),
-(5, 5, 'c');
+CREATE VIEW exampleParametrizedView
+AS SELECT *
+FROM generateRandom('a1 Int32, a2 Int32, a3 String', 1, 10, 2)
+WHERE (a1 > {a1MoreThan:Int32}) AND (a1 < {a1LessThan:Int32})
+LIMIT 5
 ```
