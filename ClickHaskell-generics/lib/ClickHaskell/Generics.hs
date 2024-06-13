@@ -26,7 +26,7 @@ module ClickHaskell.Generics
 
 -- Internal dependencies
 import ClickHouse.DbTypes  (Serializable(..), Deserializable(..), ToChType(..), FromChType(..))
-import ClickHaskell.Tables (CompiledColumn(..), InterpretableTable(..))
+import ClickHaskell.Tables (CompiledColumn(..), InterpretableTable(..), HasColumns(..))
 
 
 -- GHC included
@@ -44,18 +44,18 @@ import GHC.TypeLits            (TypeError, Symbol, ErrorMessage(..))
 
 class
   ( InterpretableTable table
-  , GWritable (GetTableColumns table) (Rep record)
+  , GWritable (GetColumns table) (Rep record)
   )
   =>
   WritableInto table record
   where
   default toTsvLine :: (Generic record) => record -> BS.Builder
   toTsvLine :: record -> BS.Builder
-  toTsvLine = gToTsvBs @(GetTableColumns table) . from
+  toTsvLine = gToTsvBs @(GetColumns table) . from
 
   default writingColumns :: Builder
   writingColumns :: Builder
-  writingColumns = gWritingColumns @(GetTableColumns table) @(Rep record)
+  writingColumns = gWritingColumns @(GetColumns table) @(Rep record)
 
 
 class GWritable
@@ -131,20 +131,19 @@ type family ThereIsNoWriteRequiredColumns (columns :: [Type]) :: Constraint wher
 -- * Reading
 
 class
-  ( InterpretableTable table
-  , GReadable (GetTableColumns table) (Rep record)
+  ( HasColumns table
+  , GReadable (GetColumns table) (Rep record)
   ) =>
   ReadableFrom table record
   where
 
   default fromTsvLine :: (Generic record) => StrictByteString -> record
   fromTsvLine :: StrictByteString -> record
-  fromTsvLine = to . gFromTsvBs @(GetTableColumns table)
+  fromTsvLine = to . gFromTsvBs @(GetColumns table)
 
   default readingColumns :: (Generic record) => Builder
   readingColumns :: Builder
-  readingColumns = gReadingColumns @(GetTableColumns table) @(Rep record)
-
+  readingColumns = gReadingColumns @(GetColumns table) @(Rep record)
 
 class GReadable
   (columns :: [Type])

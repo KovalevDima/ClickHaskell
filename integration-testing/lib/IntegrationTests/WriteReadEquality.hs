@@ -16,17 +16,9 @@ module IntegrationTests.WriteReadEquality
   ) where
 
 -- Internal
-import ClickHaskell.Client
-  ( throwOnNon200
-  , Reading, Writing, IsChClient
-  , ClientInterpretable(..), HttpChClient(..)
-  )
+import ClickHaskell.Client (ChCredential(..), insertInto, runStatement, selectFrom)
 import ClickHaskell.Generics (WritableInto, ReadableFrom)
-import ClickHaskell.Tables
-  (  renderTable
-  , Table, Column
-  , InterpretableTable(..)
-  )
+import ClickHaskell.Tables (Table, Column)
 import ClickHouse.DbTypes
   ( toChType
   , ChInt8, ChInt16, ChInt32, ChInt64, ChInt128
@@ -37,49 +29,44 @@ import ClickHouse.DbTypes
 
 
 -- External
-import Network.HTTP.Client         as H (httpLbs, Request(..), RequestBody(..))
+import Network.HTTP.Client as H (newManager, defaultManagerSettings, Manager)
 
 
 -- GHC included
-import Control.Exception          (bracket)
-import Control.Monad              (when)
-import Data.ByteString            as BS (toStrict)
-import Data.ByteString.Builder    (toLazyByteString)
-import Data.Int                   (Int8, Int16, Int32, Int64)
-import Data.Typeable              (typeOf, Typeable)
-import Data.Word                  (Word8, Word16, Word32, Word64)
-import GHC.Generics               (Generic)
+import Control.Exception      (bracket)
+import Control.Monad          (when)
+import Data.Int               (Int8, Int16, Int32, Int64)
+import Data.Word              (Word8, Word16, Word32, Word64)
+import GHC.Generics           (Generic)
+import Control.Concurrent.STM (newTQueueIO, atomically, writeTQueue)
 
 
-runWriteReadEqualityTest ::
-  ( Typeable client
-  , IsChClient client
-  , ClientInterpretable (Writing TestData -> TestTable) client
-  , ClientInterpretable (Reading TestData -> TestTable) client
-  , ClientInterpretable (Truncate TestTable) client
-  ) => client -> IO ()
-runWriteReadEqualityTest client = bracket
-  (pure client)
-  clearTable
-  runTest
+runWriteReadEqualityTest :: ChCredential -> IO ()
+runWriteReadEqualityTest creds = do
+  bracket
+    (newManager defaultManagerSettings)
+    (\manager -> runStatement manager creds "TRUNCATE writeReadEqualityTable")
+    (\manager -> runTest manager creds)
 
-runTest :: forall client .
-  ( Typeable client
-  , IsChClient client
-  , ClientInterpretable (Writing TestData -> TestTable) client
-  , ClientInterpretable (Reading TestData -> TestTable) client
-  ) => client -> IO ()
-runTest client = do
-  interpretClient
-    @(Writing TestData -> TestTable)
-    client
-    [testData]
+runTest :: Manager -> ChCredential -> IO ()
+runTest manager cred = do
+  queue <- newTQueueIO
+  atomically (writeTQueue queue testData)
+  insertInto
+    @TestTable
+    @TestData
+    manager
+    cred
+    queue
 
-  result <- interpretClient
-    @(Reading TestData -> TestTable)
-    client
+  result <-
+    selectFrom
+      @TestTable
+      @TestData
+      manager
+      cred
 
-  let testLabel = "WriteReadEquality (" <> show (typeOf client) <> "): "
+  let testLabel = "WriteReadEquality: "
   (when (length result /= 1) . error)
     (  testLabel
     <> "Expected single result from reading. "
@@ -91,12 +78,6 @@ runTest client = do
     <> "Readed data: " <> show (head result))
 
   print $ testLabel <> "Ok"
-
-clearTable ::
-  ( IsChClient client
-  , ClientInterpretable (Truncate TestTable) client
-  ) => client -> IO ()
-clearTable = interpretClient @(Truncate TestTable)
 
 
 type TestTable = Table "writeReadEqualityTable"
@@ -190,19 +171,3 @@ testData = MkTestData
   , uuid = toChType (123456789 :: Word64)
   , uuidNullable = Nothing
   }
-
-data Truncate table
-
-instance InterpretableTable (Table name columns) =>
-  ClientInterpretable (Truncate (Table name columns)) HttpChClient
-  where
-  type ClientIntepreter (Truncate (Table name columns)) = IO ()
-  interpretClient (MkHttpChClient man req) = do
-    resp <-
-      H.httpLbs
-        req{H.requestBody = H.RequestBodyBS . BS.toStrict . toLazyByteString
-          $  "TRUNCATE " <> renderTable (interpretTable @(Table name columns))
-        }
-        man
-
-    throwOnNon200 resp

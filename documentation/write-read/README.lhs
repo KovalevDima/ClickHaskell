@@ -19,59 +19,56 @@ cabal run example-write-read
   , DeriveGeneric
   , FlexibleInstances
   , MultiParamTypeClasses
-  , NumericUnderscores
   , OverloadedStrings
   , TypeApplications
 #-}
 
--- Internal
-import ClickHaskell.Client
-  ( interpretClient
-  , Reading, Writing, HttpChClient
-  , IsChClient(..), ChCredential(..)
-  )
+import ClickHaskell.Client (selectFrom, insertInto, ChCredential(..))
 import ClickHaskell.Generics (WritableInto, ReadableFrom)
-import ClickHaskell.Tables   (Table, Column)
+import ClickHaskell.Tables (Table, Column)
 import ClickHouse.DbTypes
   ( toChType
   , ChUUID, ChDateTime, ChInt32, ChInt64, ChString
   , LowCardinality, Nullable
   )
-
-
--- GHC included
+import Control.Concurrent.STM (newTQueueIO, atomically, writeTQueue)
 import Data.ByteString (StrictByteString)
-import Data.Int        (Int32, Int64)
-import Data.Word       (Word32, Word64)
-import GHC.Generics    (Generic)
+import Data.Int (Int32, Int64)
+import Data.Word (Word32, Word64)
+import GHC.Generics (Generic)
+import Network.HTTP.Client (defaultManagerSettings, newManager)
 
 
 main :: IO ()
 main = do
-  client <-
-    initClient
-      MkChCredential
+  let credentials = MkChCredential
         { chLogin = "default"
         , chPass = ""
         , chUrl = "http://localhost:8123"
         , chDatabase = "default"
         }
-      Nothing
-  writing client
-  mapM_ print =<< reading client
 
-writing :: HttpChClient -> IO ()
-writing client = do
-  interpretClient
-    @(Writing ExampleData -> ExampleTable)
-    client
-    [exampleDataSample]
+  manager <- newManager defaultManagerSettings
 
-reading :: HttpChClient -> IO [ExampleData]
-reading client = do
-  interpretClient
-    @(Reading ExampleData -> ExampleTable)
-    client
+  queue <- newTQueueIO
+
+  atomically (writeTQueue queue exampleDataSample)
+
+  insertInto
+    @ExampleTable
+    @ExampleData
+    manager
+    credentials
+    queue
+
+  mapM_ print
+    =<<
+      selectFrom
+        @ExampleTable
+        @ExampleData
+        manager
+        credentials
+
 
 type ExampleTable =
   Table

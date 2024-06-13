@@ -21,35 +21,24 @@ import ClickHouse.DbTypes
   , ChUInt64, ChInt64, ChUInt32, ChInt32
   , ChString
   )
-import ClickHaskell.Client
-  ( ClientInterpretable(..)
-  , HttpChClient(..)
-  , IsChClient(..)
-  , throwOnNon200
-  , ChCredential(..)
-  )
+import ClickHaskell.Client (ChCredential(..), runStatement)
 
 
 -- External
-import Network.HTTP.Client as H (httpLbs, responseBody, Request(..), RequestBody(..))
-
-
--- GHC included
+import Network.HTTP.Client as H (Manager, newManager, defaultManagerSettings)
 import Control.Monad (when)
 import Data.ByteString         as BS (takeWhile, singleton)
-import Data.ByteString.Builder as BS (toLazyByteString)
-import Data.ByteString.Lazy    as BSL (toStrict)
 import GHC.TypeLits (KnownSymbol)
 
 
 
-runSerializationTests :: HttpChClient -> IO ()
+runSerializationTests :: ChCredential -> IO ()
 runSerializationTests client = do
-
-  runSerializationTest @ChInt32 client
-  runSerializationTest @ChInt64 client
-  runSerializationTest @ChUInt32 client
-  runSerializationTest @ChUInt64 client
+  manager <- newManager defaultManagerSettings
+  runSerializationTest @ChInt32 manager client
+  runSerializationTest @ChInt64 manager client
+  runSerializationTest @ChUInt32 manager client
+  runSerializationTest @ChUInt64 manager client
   -- runSerializationTest @ChString client
 
 
@@ -64,59 +53,30 @@ runSerializationTest ::
   , Show chType
   )
   =>
-  HttpChClient -> IO ()
-runSerializationTest client = do
-  let runTest = interpretClient @(DeSerializationTest chType) client
-
-  deserializationResult <- mapM runTest testValues
+  Manager -> ChCredential -> IO ()
+runSerializationTest manager chCred = do
+  mapM_
+      (\chType -> do
+        selectChType <- runStatement manager chCred ("SELECT " <> toQueryPart chType)
+        let deserializedChType = deserialize . BS.takeWhile (/= 10) $ selectChType
+  
+        (when (chType /= deserializedChType) . error)
+          (  "Deserialized value of type " <> show (chTypeName @chType) <> " unmatched:"
+          <> " Expected: " <> show chType
+          <> ". But got: " <> show deserializedChType <> "."
+          )
+        
+      )
+      (testValues :: [chType])
 
   print (chTypeName @chType <> ": Ok")
 
 
 
 
-data DeSerializationTest chType
-
-instance
-  ( ToQueryPart chType
-  , Deserializable chType
-  , Eq chType
-  , Show chType
-  , KnownSymbol (ToChTypeName chType)
-  )
-  =>
-  ClientInterpretable (DeSerializationTest chType) HttpChClient
-  where
-  type ClientIntepreter (DeSerializationTest chType) = chType -> IO chType
-  interpretClient (MkHttpChClient man req) chType = do
-    resp
-      <- H.httpLbs
-        req
-          { requestBody
-              = H.RequestBodyLBS
-              . BS.toLazyByteString
-              $ "SELECT " <> toQueryPart chType
-          }
-        man
-
-    throwOnNon200 resp
-
-    let deserializedChType = deserialize . BS.takeWhile (/= 10) . (BSL.toStrict . H.responseBody) $ resp
-    
-    (when (chType /= deserializedChType) . error)
-      (  "Deserialized value of type " <> show (chTypeName @chType) <> " unmatched:"
-      <> " Expected: " <> show chType
-      <> ". But got: " <> show deserializedChType <> "."
-      )
-
-    pure deserializedChType
-
 
 class HasTestValues chType
   where
-  expectedResult :: [chType]
-  expectedResult = testValues
-
   testValues :: [chType]
 
 instance {-# OVERLAPPABLE #-}

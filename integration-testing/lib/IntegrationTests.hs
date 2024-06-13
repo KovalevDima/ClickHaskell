@@ -18,13 +18,13 @@ module IntegrationTests
 
 -- Internal
 import ClickHaskell.Client
-  ( HttpChClient(..)
+  ( ChCredential
   )
 import IntegrationTests.Serialization (runSerializationTests)
 import IntegrationTests.WriteReadEquality (runWriteReadEqualityTest)
 
 
-runIntegrationTests :: HttpChClient -> IO ()
-runIntegrationTests client = do
-  runSerializationTests client
-  runWriteReadEqualityTest client
+runIntegrationTests :: ChCredential -> IO ()
+runIntegrationTests cred = do
+  runSerializationTests cred
+  runWriteReadEqualityTest cred

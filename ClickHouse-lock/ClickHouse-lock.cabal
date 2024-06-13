@@ -68,6 +68,7 @@ Library
 
     -- External dependencies
     , aeson
+    , http-client
     , optparse-applicative
   Default-language: Haskell2010
   Default-Extensions:

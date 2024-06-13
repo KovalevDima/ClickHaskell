@@ -7,190 +7,207 @@
   , OverloadedStrings
   , TypeFamilyDependencies
 #-}
-
-module ClickHaskell.Client
-(
--- * Client
--- ** Interpreter
-  ClientInterpretable(..)
-
--- ** Reading
-, Reading
-
--- ** Writing
-, Writing
-
-
--- * Initialization
-, IsChClient(..)
-, ChCredential(..)
-
--- ** HTTP client
-, HttpChClient(..)
-, HttpChClientSettings
-, setHttpClientTimeout
-
--- ** HTTP codes handling
-, ChException(..)
-, throwOnNon200
-) where
+module ClickHaskell.Client where
 
 -- Internal
 import ClickHaskell.Generics (WritableInto(..), ReadableFrom(..))
-import ClickHaskell.Tables   (InterpretableTable(..), Table, renderTable, View, renderView)
-
+import ClickHaskell.Tables   (Table, Columns, View, renderView)
 
 -- External
-import Conduit                     (yield, yieldMany)
-import Network.HTTP.Client         as H (httpLbs, newManager, Manager, ManagerSettings(..), Request(..), Response(..), RequestBody(..))
-import Network.HTTP.Client.Conduit as H (defaultManagerSettings, parseRequest, responseTimeoutNone, responseTimeoutMicro)
-import Network.HTTP.Conduit        as H (requestBodySourceChunked)
-import Network.HTTP.Simple         as H (getResponseBody)
-import Network.HTTP.Types          as H (Status(..))
-
+import Network.HTTP.Client as H (Request(..), Response(..), RequestBody(..), parseRequest, responseOpen, brConsume, BodyReader, Manager)
+import Network.HTTP.Types  as H (Status(..))
 
 -- GHC included
-import Control.DeepSeq            (NFData)
-import Control.Exception          (throw, Exception)
-import Control.Monad              (when)
-import Data.ByteString            as BS (toStrict)
-import Data.ByteString.Builder    (toLazyByteString)
-import Data.ByteString.Lazy       (LazyByteString)
-import Data.ByteString.Lazy.Char8 as BSL8 (lines)
-import Data.Kind                  (Type)
-import Data.Maybe                 (fromMaybe)
-import Data.Text                  as T (Text, unpack)
-import Data.Text.Encoding         as T (encodeUtf8, decodeUtf8)
-import GHC.Generics               (Generic)
+import Control.Concurrent.STM  (TQueue, atomically, flushTQueue)
+import Control.DeepSeq         (NFData)
+import Control.Exception       (Exception, SomeException, throw)
+import Data.ByteString         as BS (StrictByteString, empty)
+import Data.ByteString.Builder (Builder, byteString, toLazyByteString)
+import Data.ByteString.Char8   as BS8 (lines, pack)
+import Data.ByteString.Lazy    as BL (toChunks)
+import Data.IORef              (newIORef, readIORef, writeIORef)
+import Data.Text               as T (Text, unpack)
+import Data.Text.Encoding      as T (decodeUtf8, encodeUtf8)
+import Data.Typeable           (Proxy (..))
+import GHC.Generics            (Generic)
+import GHC.TypeLits            (KnownSymbol, symbolVal)
 
 
--- * Client language parts
+-- ToDo: Move into ClickHaskell-http-client
 
-class
-  ( IsChClient client
-  ) =>
-  ClientInterpretable expression client
-  where
-  type ClientIntepreter expression :: Type
-  interpretClient :: client -> ClientIntepreter expression
+insertInto ::
+  forall table record name columns
+  .
+  ( WritableInto table record
+  , KnownSymbol name
+  , table ~ Table name columns
+  )
+  => Manager -> ChCredential -> TQueue record -> IO ()
+insertInto manager cred writingQueue = do
+  insertIntoHttpGeneric
+    @Request
+    @(Response BodyReader)
+    cred
+    ("INSERT INTO " <> (byteString . BS8.pack) (symbolVal $ Proxy @name) <> " (" <> writingColumns @table @record <> ") FORMAT TSV\n")
+    (toTsvLine @table @record)
+    writingQueue
+    (`responseOpen` manager)
 
+selectFrom ::
+  forall table record name columns
+  .
+  ( ReadableFrom table record
+  , KnownSymbol name
+  , table ~ Table name columns
+  )
+  => Manager -> ChCredential -> IO [record]
+selectFrom manager cred =
+  selectFromHttpGeneric
+    @Request
+    @(Response BodyReader)
+    @record
+    cred
+    ("SELECT " <> readingColumns @table @record <> " FROM " <> (byteString . BS8.pack) (symbolVal $ Proxy @name) <> " FORMAT TSV\n")
+    (fromTsvLine @table @record)
+    (`responseOpen` manager)
 
+selectFromTableFunction ::
+  forall tableFunction record name columns parameters
+  .
+  ( ReadableFrom tableFunction record
+  , tableFunction ~ View name columns parameters
+  )
+  => Manager -> ChCredential -> View name columns '[] -> IO [record]
+selectFromTableFunction manager cred tableFuncton =
+  selectFromHttpGeneric
+    @Request
+    @(Response BodyReader)
+    @record
+    cred
+    ("SELECT " <> readingColumns @tableFunction @record <> " FROM " <> renderView tableFuncton <> " FORMAT TSV\n")
+    (fromTsvLine @tableFunction @record)
+    (`responseOpen` manager)
 
+select ::
+  forall columnsWrapper record columns
+  .
+  ( ReadableFrom columnsWrapper record
+  , columnsWrapper ~ Columns columns
+  )
+  => Manager -> ChCredential -> Builder -> IO [record]
+select manager cred query =
+  selectFromHttpGeneric
+    @Request
+    @(Response BodyReader)
+    @record
+    cred
+    (query <> " FORMAT TSV\n")
+    (fromTsvLine @(Columns columns) @record)
+    (`responseOpen` manager)
 
--- ** Reading
+runStatement :: Manager -> ChCredential -> Builder -> IO StrictByteString
+runStatement manager chCred statement =
+  fmap mconcat . brConsume . responseBody
+    =<<
+      responseOpen
+        ( injectStatementToRequest
+            @Request
+            @(Response BodyReader)
+            statement
+            (either throw id $ initAuthorizedRequest @Request @(Response BodyReader) chCred)
+        )
+        manager
 
-{- |
-Declaring reading client operation part.
-
-@
-runnableClient :: HttpChClient -> IO [ReadingData]
-runnableClient client =
-  interpretClient
-    \@(Reading ReadingData -> MyTable)
-    client
-    [exampleDataSample]
-
-data ReadingData = MkReadingData
-  { column :: Int64
-  } deriving (Generic)
-
-type MyTable = Table "myTable" '[Column "column" ChInt64]
-@
--}
-data Reading record
-
-
-instance
-  ( ReadableFrom (Table name columns) record
-  , InterpretableTable (Table name columns)
-  ) =>
-  ClientInterpretable (Reading record -> Table name columns) HttpChClient
-  where
-  type ClientIntepreter (Reading record -> Table name columns) = IO [record]
-  interpretClient (MkHttpChClient man req) = do
-    resp <-
-      H.httpLbs
-        req{H.requestBody = H.RequestBodyBS . BS.toStrict . toLazyByteString
-          $  "SELECT " <> readingColumns @(Table name columns) @record
-          <> " FROM " <> renderTable (interpretTable @(Table name columns))
+instance ImpliesClickHouseHttp H.Request (H.Response BodyReader) where
+  initAuthorizedRequest (MkChCredential login pass url databaseName) = do
+    req <- H.parseRequest (T.unpack url)
+    pure $!
+      req
+        { H.method         = "POST"
+        , H.requestHeaders =
+          [ ("X-ClickHouse-User", encodeUtf8 login)
+          , ("X-ClickHouse-Key", encodeUtf8 pass)
+          , ("X-ClickHouse-Database", encodeUtf8 databaseName)
+          ]
+          <> H.requestHeaders req
         }
-        man
 
-    throwOnNon200 resp
+  injectStatementToRequest query request = request{
+    requestBody = RequestBodyStreamChunked $ \np -> do
+      ibss <- newIORef $ (BL.toChunks . toLazyByteString) query
+      np $ do
+        bss <- readIORef ibss
+        case bss of
+          [] -> return BS.empty
+          bs:bss' -> do
+            writeIORef ibss bss'
+            return bs
+  }
 
-    pure
-      ( map (fromTsvLine @(Table name columns) @record . BS.toStrict)
-      . BSL8.lines . getResponseBody
-      $ resp
+  -- ToDo: This implementation reads whole body before parsing
+  injectReadingToResponse decoder = fmap (decoder . mconcat) . brConsume . responseBody
+
+  injectWritingToRequest query dataQueue encoder request = request{
+    requestBody = RequestBodyStreamChunked $ \np -> do
+      writingData <- newIORef . BL.toChunks . toLazyByteString . mconcat . (query:) . map encoder =<< atomically (flushTQueue dataQueue)
+      np $ do
+        bss <- readIORef writingData
+        case bss of
+          [] -> return BS.empty
+          bs:bss' -> do
+            writeIORef writingData bss'
+            return bs
+  }
+
+  throwOnNon200 resp = do
+    if H.statusCode (responseStatus resp) /= 200
+      then throw . MkChException . T.decodeUtf8 . mconcat =<< (brConsume . responseBody) resp
+      else pure resp
+
+
+
+
+
+
+
+
+-- ToDo: Move it into internal ClickHaskell-HTTP package
+
+insertIntoHttpGeneric ::
+  forall request response record
+  .
+  ImpliesClickHouseHttp request response
+  =>
+  ChCredential -> Builder -> (record -> Builder) -> TQueue record -> (request -> IO response) -> IO ()
+insertIntoHttpGeneric credential query encoder records runClient = do
+  const (pure ())
+    =<< throwOnNon200 @request
+    =<< runClient (
+      injectWritingToRequest
+        @request
+        @response
+        query
+        records
+        encoder
+        (either throw id $ initAuthorizedRequest @request @response credential)
       )
 
-
-instance
-  ( ReadableFrom (View name columns params) record
-  , InterpretableTable (View name columns params)
-  ) =>
-  ClientInterpretable (Reading record -> View name columns params) HttpChClient
-  where
-  type ClientIntepreter (Reading record -> View name columns params)
-    = View name columns '[] -> IO [record]
-  interpretClient (MkHttpChClient man req) view = do
-    resp <- H.httpLbs
-      req{H.requestBody = H.RequestBodyBS . BS.toStrict . toLazyByteString
-        $  "SELECT " <> readingColumns @(View name columns params) @record
-        <> " FROM " <> renderView view
-      }
-      man
-
-    throwOnNon200 resp
-
-    pure
-      ( map (fromTsvLine @(View name columns params) @record . BS.toStrict)
-      . BSL8.lines . getResponseBody
-      $ resp
-      )
-
-
-
-
--- ** Writing
-
-data Writing record
-
-instance
-  ( WritableInto (Table name columns) record
-  , InterpretableTable (Table name columns)
-  ) =>
-  ClientInterpretable (Writing record -> Table name columns) HttpChClient
-  where
-  type ClientIntepreter (Writing record -> Table name columns)
-    = [record] -> IO ()
-  interpretClient (MkHttpChClient man req) schemaList = do
-    resp <- H.httpLbs
-      req{requestBody = H.requestBodySourceChunked $
-        do
-        yield
-          ( BS.toStrict . toLazyByteString
-            $  "INSERT INTO " <> renderTable (interpretTable @(Table name columns))
-            <> " (" <> writingColumns @(Table name columns) @record <> ")"
-            <> " FORMAT TSV\n"
-          )
-        yieldMany
-          ( map
-            ( BS.toStrict . toLazyByteString
-            . toTsvLine @(Table name columns) @record
-            )
-            schemaList
-          )
-      }
-      man
-
-    throwOnNon200 resp
-
-
-
-
-
-
+selectFromHttpGeneric ::
+  forall request response record
+  .
+  ImpliesClickHouseHttp request response
+  =>
+  ChCredential -> Builder -> (StrictByteString -> record) -> (request -> IO response) -> IO [record]
+selectFromHttpGeneric credential query decoder runClient =
+  injectReadingToResponse
+    @request
+    @response
+    (map decoder . BS8.lines)
+    =<< throwOnNon200 @request
+    =<< runClient (
+      (injectStatementToRequest @request @response query . either throw id)
+      (initAuthorizedRequest @request @response credential)
+    )
 
 
 -- * Clients abstraction
@@ -198,10 +215,17 @@ instance
 {- |
 Clients initialization abstraction for different backends
 -}
-class IsChClient client
+class ImpliesClickHouseHttp request response
   where
-  type ClientSettings client = settings | settings -> client
-  initClient :: ChCredential -> Maybe (ClientSettings client -> ClientSettings client) -> IO client
+  initAuthorizedRequest :: ChCredential -> Either SomeException request
+
+  injectStatementToRequest :: Builder -> (request -> request)
+
+  injectReadingToResponse :: (StrictByteString -> [record]) -> (response -> IO [record])
+
+  injectWritingToRequest :: Builder -> TQueue rec -> (rec -> Builder) -> (request -> request)
+
+  throwOnNon200 :: response -> IO response
 
 {- | ToDocument
 -}
@@ -213,51 +237,6 @@ data ChCredential = MkChCredential
   }
   deriving (Generic, NFData, Show, Eq)
 
-
-
-
--- ** HTTP ClickHouse client realization
-
-data HttpChClient = MkHttpChClient H.Manager H.Request
-
-instance IsChClient HttpChClient where
-  type ClientSettings HttpChClient = HttpChClientSettings
-  initClient (MkChCredential login pass url databaseName) maybeModifier = do
-    man <- H.newManager $ fromMaybe id maybeModifier defaultHttpChClientSettings
-    req <- H.parseRequest (T.unpack url)
-
-    pure $! MkHttpChClient
-      man
-      req
-        { H.method         = "POST"
-        , H.requestHeaders =
-          [ ("X-ClickHouse-User", encodeUtf8 login)
-          , ("X-ClickHouse-Key", encodeUtf8 pass)
-          , ("X-ClickHouse-Database", encodeUtf8 databaseName)
-          ]
-          <> H.requestHeaders req
-        }
-
-{- |
-Settings for HttpChClient
-
-Required for initialization
-
-Currently is a type synomym for http-client ManagerSettings
--}
-type HttpChClientSettings = H.ManagerSettings
-
-defaultHttpChClientSettings :: HttpChClientSettings
-defaultHttpChClientSettings = H.defaultManagerSettings{managerResponseTimeout = H.responseTimeoutNone}
-
-setHttpClientTimeout :: Int -> HttpChClientSettings -> HttpChClientSettings
-setHttpClientTimeout msTimeout manager = manager{managerResponseTimeout=H.responseTimeoutMicro msTimeout}
-
-
-
-
--- ** HTTP codes handling
-
 {- | ToDocument
 -}
 newtype ChException = MkChException
@@ -265,13 +244,3 @@ newtype ChException = MkChException
   }
   deriving (Show)
   deriving anyclass (Exception)
-
-{- | Unexported
-
-Throws an ChException when got non-200 status code
--}
-throwOnNon200 :: Response LazyByteString -> IO ()
-throwOnNon200 resp =
-  when
-    (H.statusCode (responseStatus resp) /= 200)
-    (throw . MkChException . (T.decodeUtf8 . BS.toStrict . responseBody) $ resp)

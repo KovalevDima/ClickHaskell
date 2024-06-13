@@ -1,7 +1,7 @@
 cabal-version: 3.4
 
 
-name:               profiler
+name:               profilers
 version:            0.0.0.1
 author:             Kovalev Dmitry
 maintainer:         https://github.com/KovalevDima
@@ -19,10 +19,18 @@ source-repository head
   location: https://github.com/KovalevDima/ClickHaskell
   subdir: dev
 
+Flag dev
+  Description: Dump core
+  Manual: True
+  Default: False
+
 executable profiler
-  main-is: Main.hs
+  main-is: Profiler.hs
   hs-source-dirs: ./
-  ghc-options: -O2 -threaded -rtsopts "-with-rtsopts=-A32m -AL256m -p -hy -L250 -l-agu -N" -fprof-late
+  ghc-options: -O2 -threaded -rtsopts "-with-rtsopts=-A32m -AL256m -p -hy -L250 -l-agu -N" -fprof-late -main-is Profiler
+  if flag(dev)
+    GHC-Options: -ddump-to-file -ddump-simpl -dsuppress-type-applications -dsuppress-coercions -dsuppress-idinfo -dsuppress-type-signatures -dsuppress-var-kinds -dsuppress-module-prefixes -dsuppress-uniques
+
   build-depends:
     -- Internal
       ClickHaskell-client
@@ -34,3 +42,6 @@ executable profiler
     , base
     , bytestring
     , stm
+
+    -- External
+    , http-client

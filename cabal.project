@@ -8,4 +8,4 @@ packages:
     ./documentation/write-read
     ./documentation/parametrized-view
     ./integration-testing
-    ./profiler
+    ./profiling
