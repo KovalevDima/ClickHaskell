@@ -86,7 +86,6 @@
         haskellProjects.default = {
           autoWire = ["packages" "devShells" "apps"];
           settings = {
-            ClickHaskell-generics.libraryProfiling = true;
             ClickHaskell-tables.libraryProfiling = true;
             ClickHaskell-db-types.libraryProfiling = true;
             ClickHaskell-client.libraryProfiling = true;

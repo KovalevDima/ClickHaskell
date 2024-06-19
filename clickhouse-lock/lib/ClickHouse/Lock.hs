@@ -16,8 +16,7 @@
 module ClickHouse.Lock where
 
 -- Internal
-import ClickHaskell.Client (ChCredential (..), selectFrom)
-import ClickHaskell.Generics (ReadableFrom)
+import ClickHaskell.Client (ChCredential (..), ReadableFrom, selectFrom)
 import ClickHaskell.Tables (Column, Table)
 import ClickHaskell.DbTypes (ChString)
 

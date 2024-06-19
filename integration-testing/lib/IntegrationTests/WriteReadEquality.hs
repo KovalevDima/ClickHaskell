@@ -16,8 +16,7 @@ module IntegrationTests.WriteReadEquality
   ) where
 
 -- Internal
-import ClickHaskell.Client (ChCredential(..), insertInto, runStatement, selectFrom)
-import ClickHaskell.Generics (WritableInto, ReadableFrom)
+import ClickHaskell.Client (WritableInto, ReadableFrom, ChCredential(..), insertInto, runStatement, selectFrom)
 import ClickHaskell.Tables (Table, Column)
 import ClickHaskell.DbTypes
   ( toChType

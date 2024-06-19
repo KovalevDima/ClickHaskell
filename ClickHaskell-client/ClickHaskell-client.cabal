@@ -41,6 +41,7 @@ Library
     ClickHaskell.Buffering
     ClickHaskell.Client
   Other-Modules:
+    ClickHaskell.Internal.Generics
     Paths_ClickHaskell_client
   HS-Source-Dirs:
     ./lib
@@ -57,8 +58,8 @@ Library
 
   Build-depends:
     -- Internal
-      ClickHaskell-generics < 0.1
-    , ClickHaskell-tables < 0.1
+      ClickHaskell-tables < 0.1
+    , ClickHaskell-db-types
 
     -- GHC included
     , base >= 4.7 && <5
