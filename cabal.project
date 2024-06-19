@@ -2,8 +2,8 @@ packages:
     ./ClickHaskell-client
     ./ClickHaskell-generics
     ./ClickHaskell-tables
-    ./ClickHouse-db-types
-    ./ClickHouse-lock
+    ./ClickHaskell-db-types
+    ./clickhouse-lock
     ./documentation
     ./documentation/write-read
     ./documentation/parametrized-view

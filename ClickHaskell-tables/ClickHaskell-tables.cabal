@@ -56,7 +56,7 @@ Library
 
   Build-depends:
     -- Internal
-      ClickHouse-db-types < 0.1
+      ClickHaskell-db-types < 0.1
 
     -- GHC included
     , base >= 4.7 && <5

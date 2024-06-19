@@ -1,7 +1,7 @@
 Cabal-version: 3.4
 
 
-Name:           ClickHouse-db-types
+Name:           ClickHaskell-db-types
 Version:        0.0.0.1
 
 Author:         Kovalev Dmitry
@@ -31,7 +31,7 @@ Flag dev
 Source-repository head
   Type: git
   Location: https://github.com/KovalevDima/ClickHaskell
-  Subdir: ClickHouse-db-types
+  Subdir: ClickHaskell-db-types
 
 
 Library

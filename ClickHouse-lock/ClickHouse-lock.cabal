@@ -1,7 +1,7 @@
 Cabal-version: 3.4
 
 
-Name:           ClickHouse-lock
+Name:           clickhouse-lock
 Version:        0.0.0.1
 
 Author:         Kovalev Dmitry
@@ -31,7 +31,7 @@ Flag dev
 Source-repository head
   Type: git
   Location: https://github.com/KovalevDima/ClickHaskell
-  Subdir: ClickHouse-lock
+  Subdir: clickhouse-lock
 
 
 Library
@@ -59,7 +59,7 @@ Library
       ClickHaskell-client
     , ClickHaskell-generics
     , ClickHaskell-tables
-    , ClickHouse-db-types
+    , ClickHaskell-db-types
 
     -- GHC included libraries
     , base >= 4.7 && <5
@@ -81,6 +81,6 @@ executable clickhouse-lock
   ghc-options: -O2 -threaded -rtsopts "-with-rtsopts=-A32m -AL256m -N"
   build-depends:
     -- Internal
-      ClickHouse-lock
+      clickhouse-lock
     -- GHC included
     , base
