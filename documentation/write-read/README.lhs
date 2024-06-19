@@ -49,16 +49,12 @@ main = do
 
   manager <- newManager defaultManagerSettings
 
-  queue <- newTQueueIO
-
-  atomically (writeTQueue queue exampleDataSample)
-
   insertInto
     @ExampleTable
     @ExampleData
     manager
     credentials
-    queue
+    [exampleDataSample]
 
   mapM_ print
     =<<

@@ -46,15 +46,15 @@ insertInto ::
   , KnownSymbol name
   , table ~ Table name columns
   )
-  => Manager -> ChCredential -> TQueue record -> IO ()
-insertInto manager cred writingQueue = do
+  => Manager -> ChCredential -> [record] -> IO ()
+insertInto manager cred writingData = do
   insertIntoHttpGeneric
     @Request
     @(Response BodyReader)
     cred
     ("INSERT INTO " <> (byteString . BS8.pack) (symbolVal $ Proxy @name) <> " (" <> writingColumns @table @record <> ") FORMAT TSV\n")
     (toTsvLine @table @record)
-    writingQueue
+    writingData
     (`responseOpen` manager)
 
 selectFrom ::
@@ -151,9 +151,9 @@ instance ImpliesClickHouseHttp H.Request (H.Response BodyReader) where
   -- ToDo: This implementation reads whole body before parsing
   injectReadingToResponse decoder = fmap (decoder . mconcat) . brConsume . responseBody
 
-  injectWritingToRequest query dataQueue encoder request = request{
+  injectWritingToRequest query dataList encoder request = request{
     requestBody = RequestBodyStreamChunked $ \np -> do
-      writingData <- newIORef . BL.toChunks . toLazyByteString . mconcat . (query:) . map encoder =<< atomically (flushTQueue dataQueue)
+      writingData <- newIORef . BL.toChunks . toLazyByteString . mconcat . (query:) . map encoder $ dataList
       np $ do
         bss <- readIORef writingData
         case bss of
@@ -182,7 +182,7 @@ insertIntoHttpGeneric ::
   .
   ImpliesClickHouseHttp request response
   =>
-  ChCredential -> Builder -> (record -> Builder) -> TQueue record -> (request -> IO response) -> IO ()
+  ChCredential -> Builder -> (record -> Builder) -> [record] -> (request -> IO response) -> IO ()
 insertIntoHttpGeneric credential query encoder records runClient = do
   const (pure ())
     =<< throwOnNon200 @request
@@ -227,7 +227,7 @@ class ImpliesClickHouseHttp request response
 
   injectReadingToResponse :: (StrictByteString -> [record]) -> (response -> IO [record])
 
-  injectWritingToRequest :: Builder -> TQueue rec -> (rec -> Builder) -> (request -> request)
+  injectWritingToRequest :: Builder -> [rec] -> (rec -> Builder) -> (request -> request)
 
   throwOnNon200 :: response -> IO response
 
