@@ -18,8 +18,7 @@ module Profiler
 import Network.HTTP.Client (defaultManagerSettings, newManager)
 
 -- Internal
-import ClickHaskell.Client   (insertInto, ChCredential(..), selectFrom, select)
-import ClickHaskell.Generics (WritableInto, ReadableFrom)
+import ClickHaskell.Client   (WritableInto, ReadableFrom, insertInto, ChCredential(..), selectFrom, select)
 import ClickHaskell.Tables   (interpretTable, Table, Column, Columns)
 import ClickHaskell.DbTypes
   ( toChType

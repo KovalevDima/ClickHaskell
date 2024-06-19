@@ -19,8 +19,7 @@ To perform a SELECT from such view you can use this snippet
   , TypeApplications
 #-}
 
-import ClickHaskell.Client (ChCredential(..), selectFromTableFunction)
-import ClickHaskell.Generics (ReadableFrom)
+import ClickHaskell.Client (ReadableFrom, ChCredential(..), selectFromTableFunction)
 import ClickHaskell.Tables (interpretTable, mkParameter, View, Parameter, Column)
 import ClickHaskell.DbTypes (ChInt32, ChString)
 import Data.Int (Int32)

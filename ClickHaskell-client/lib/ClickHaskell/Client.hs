@@ -7,11 +7,15 @@
   , OverloadedStrings
   , TypeFamilyDependencies
 #-}
-module ClickHaskell.Client where
+module ClickHaskell.Client
+  ( module ClickHaskell.Client
+  , WritableInto(..)
+  , ReadableFrom(..)
+  ) where
 
 -- Internal
-import ClickHaskell.Generics (WritableInto(..), ReadableFrom(..))
-import ClickHaskell.Tables   (Table, Columns, View, renderView)
+import ClickHaskell.Internal.Generics (WritableInto(..), ReadableFrom(..))
+import ClickHaskell.Tables (Table, Columns, View, renderView)
 
 -- External
 import Network.HTTP.Client as H (Request(..), Response(..), RequestBody(..), parseRequest, responseOpen, brConsume, BodyReader, Manager)

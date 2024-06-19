@@ -23,8 +23,7 @@ cabal run example-write-read
   , TypeApplications
 #-}
 
-import ClickHaskell.Client (selectFrom, insertInto, ChCredential(..))
-import ClickHaskell.Generics (WritableInto, ReadableFrom)
+import ClickHaskell.Client (WritableInto, ReadableFrom, selectFrom, insertInto, ChCredential(..))
 import ClickHaskell.Tables (Table, Column)
 import ClickHaskell.DbTypes
   ( toChType

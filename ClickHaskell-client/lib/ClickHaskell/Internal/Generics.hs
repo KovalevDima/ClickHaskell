@@ -13,7 +13,7 @@
   , UndecidableSuperClasses
 #-}
 
-module ClickHaskell.Generics
+module ClickHaskell.Internal.Generics
 (
 -- * Generic instances
   WritableInto(..)
