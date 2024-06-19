@@ -22,7 +22,7 @@ To perform a SELECT from such view you can use this snippet
 import ClickHaskell.Client (ChCredential(..), selectFromTableFunction)
 import ClickHaskell.Generics (ReadableFrom)
 import ClickHaskell.Tables (interpretTable, mkParameter, View, Parameter, Column)
-import ClickHouse.DbTypes (ChInt32, ChString)
+import ClickHaskell.DbTypes (ChInt32, ChString)
 import Data.Int (Int32)
 import GHC.Generics (Generic)
 import Network.HTTP.Client (defaultManagerSettings, newManager)

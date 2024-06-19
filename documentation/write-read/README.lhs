@@ -26,7 +26,7 @@ cabal run example-write-read
 import ClickHaskell.Client (selectFrom, insertInto, ChCredential(..))
 import ClickHaskell.Generics (WritableInto, ReadableFrom)
 import ClickHaskell.Tables (Table, Column)
-import ClickHouse.DbTypes
+import ClickHaskell.DbTypes
   ( toChType
   , ChUUID, ChDateTime, ChInt32, ChInt64, ChString
   , LowCardinality, Nullable

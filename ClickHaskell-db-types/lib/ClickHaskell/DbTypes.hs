@@ -15,7 +15,7 @@
   -Wno-missing-methods
 #-}
 
-module ClickHouse.DbTypes
+module ClickHaskell.DbTypes
 ( IsChType(ToChTypeName, chTypeName, IsWriteOptional)
 , ToChType(toChType)
 , FromChType(fromChType)
@@ -344,7 +344,7 @@ instance Serializable ChString
   serialize (MkChString string) = (BS.byteString . escape) string
 
 escape :: StrictByteString -> StrictByteString
-escape -- [ClickHouse.DbTypes.ToDo.2]: Optimize
+escape -- [ClickHaskell.DbTypes.ToDo.2]: Optimize
   = BS8.concatMap
     (\case
       '\t' -> "\\t"
@@ -361,7 +361,7 @@ instance ToQueryPart ChString
   toQueryPart string =  "'" <> (escapeQuery . serialize) string <> "'"
 
 escapeQuery :: Builder -> Builder
-escapeQuery -- [ClickHouse.DbTypes.ToDo.1]: Optimize
+escapeQuery -- [ClickHaskell.DbTypes.ToDo.1]: Optimize
   = BS.byteString
   . BS8.concatMap
     (\case

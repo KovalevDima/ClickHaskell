@@ -1,4 +1,4 @@
-# ClickHouse-db-types
+# ClickHaskell-db-types
 Library that provides ClickHouse types with its:
 1. (De)serialization
 2. Serialization as query parts

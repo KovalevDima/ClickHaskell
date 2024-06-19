@@ -56,7 +56,7 @@ Library
 
   Build-depends:
     -- Internal dependencies
-      ClickHouse-db-types < 0.1
+      ClickHaskell-db-types < 0.1
     , ClickHaskell-tables < 0.1
 
     -- GHC included libraries

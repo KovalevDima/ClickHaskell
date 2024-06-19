@@ -88,7 +88,7 @@
           settings = {
             ClickHaskell-generics.libraryProfiling = true;
             ClickHaskell-tables.libraryProfiling = true;
-            ClickHouse-db-types.libraryProfiling = true;
+            ClickHaskell-db-types.libraryProfiling = true;
             ClickHaskell-client.libraryProfiling = true;
             profilers = {
               executableProfiling = true;
