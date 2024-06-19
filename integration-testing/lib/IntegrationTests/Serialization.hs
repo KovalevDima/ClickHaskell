@@ -16,7 +16,7 @@ module IntegrationTests.Serialization
 
 
 -- Internal
-import ClickHouse.DbTypes 
+import ClickHaskell.DbTypes 
   ( Deserializable(..), IsChType(..), ToChType(..), ToQueryPart(..)
   , ChUInt64, ChInt64, ChUInt32, ChInt32
   , ChString

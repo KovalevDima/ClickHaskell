@@ -40,7 +40,7 @@ module ClickHaskell.Tables
 
 
 -- Internal
-import ClickHouse.DbTypes (ToQueryPart(..), IsChType(ToChTypeName, IsWriteOptional))
+import ClickHaskell.DbTypes (ToQueryPart(..), IsChType(ToChTypeName, IsWriteOptional))
 
 
 -- GHC included

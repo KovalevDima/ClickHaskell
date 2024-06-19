@@ -19,7 +19,7 @@ module IntegrationTests.WriteReadEquality
 import ClickHaskell.Client (ChCredential(..), insertInto, runStatement, selectFrom)
 import ClickHaskell.Generics (WritableInto, ReadableFrom)
 import ClickHaskell.Tables (Table, Column)
-import ClickHouse.DbTypes
+import ClickHaskell.DbTypes
   ( toChType
   , ChInt8, ChInt16, ChInt32, ChInt64, ChInt128
   , ChUInt8, ChUInt16, ChUInt32, ChUInt64, ChUInt128

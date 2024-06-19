@@ -21,7 +21,7 @@ import Network.HTTP.Client (defaultManagerSettings, newManager)
 import ClickHaskell.Client   (insertInto, ChCredential(..), selectFrom, select)
 import ClickHaskell.Generics (WritableInto, ReadableFrom)
 import ClickHaskell.Tables   (interpretTable, Table, Column, Columns)
-import ClickHouse.DbTypes
+import ClickHaskell.DbTypes
   ( toChType
   , ChUUID, ChDateTime, ChInt32, ChInt64, ChString
   , LowCardinality, Nullable

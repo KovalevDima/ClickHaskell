@@ -19,7 +19,7 @@ module ClickHouse.Lock where
 import ClickHaskell.Client (ChCredential (..), selectFrom)
 import ClickHaskell.Generics (ReadableFrom)
 import ClickHaskell.Tables (Column, Table)
-import ClickHouse.DbTypes (ChString)
+import ClickHaskell.DbTypes (ChString)
 
 
 -- GHC included libraries

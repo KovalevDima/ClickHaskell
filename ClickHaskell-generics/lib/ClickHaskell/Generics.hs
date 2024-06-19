@@ -25,7 +25,7 @@ module ClickHaskell.Generics
 
 
 -- Internal dependencies
-import ClickHouse.DbTypes  (Serializable(..), Deserializable(..), ToChType(..), FromChType(..))
+import ClickHaskell.DbTypes  (Serializable(..), Deserializable(..), ToChType(..), FromChType(..))
 import ClickHaskell.Tables (CompiledColumn(..), InterpretableTable(..), HasColumns(..))
 
 
