@@ -6,6 +6,7 @@
   , DerivingStrategies
   , OverloadedStrings
   , TypeFamilyDependencies
+  , RankNTypes
 #-}
 module ClickHaskell.Client
   ( module ClickHaskell.Client
@@ -18,7 +19,7 @@ import ClickHaskell.Internal.Generics (WritableInto(..), ReadableFrom(..))
 import ClickHaskell.Tables (Table, Columns, View, renderView)
 
 -- External
-import Network.HTTP.Client as H (Request(..), Response(..), RequestBody(..), parseRequest, responseOpen, brConsume, BodyReader, Manager)
+import Network.HTTP.Client as H (Request(..), Response(..), RequestBody(..), parseRequest, withResponse, brConsume, BodyReader, Manager)
 import Network.HTTP.Types  as H (Status(..))
 
 -- GHC included
@@ -55,7 +56,7 @@ insertInto manager cred writingData = do
     ("INSERT INTO " <> (byteString . BS8.pack) (symbolVal $ Proxy @name) <> " (" <> writingColumns @table @record <> ") FORMAT TSV\n")
     (toTsvLine @table @record)
     writingData
-    (`responseOpen` manager)
+    (`withResponse` manager)
 
 selectFrom ::
   forall table record name columns
@@ -73,7 +74,7 @@ selectFrom manager cred =
     cred
     ("SELECT " <> readingColumns @table @record <> " FROM " <> (byteString . BS8.pack) (symbolVal $ Proxy @name) <> " FORMAT TSV\n")
     (fromTsvLine @table @record)
-    (`responseOpen` manager)
+    (`withResponse` manager)
 
 selectFromTableFunction ::
   forall tableFunction record name columns parameters
@@ -90,7 +91,7 @@ selectFromTableFunction manager cred tableFuncton =
     cred
     ("SELECT " <> readingColumns @tableFunction @record <> " FROM " <> renderView tableFuncton <> " FORMAT TSV\n")
     (fromTsvLine @tableFunction @record)
-    (`responseOpen` manager)
+    (`withResponse` manager)
 
 select ::
   forall columnsWrapper record columns
@@ -107,20 +108,15 @@ select manager cred query =
     cred
     (query <> " FORMAT TSV\n")
     (fromTsvLine @(Columns columns) @record)
-    (`responseOpen` manager)
+    (`withResponse` manager)
 
 runStatement :: Manager -> ChCredential -> Builder -> IO StrictByteString
-runStatement manager chCred statement =
-  fmap mconcat . brConsume . responseBody
-    =<<
-      responseOpen
-        ( injectStatementToRequest
-            @Request
-            @(Response BodyReader)
-            statement
-            (either throw id $ initAuthorizedRequest @Request @(Response BodyReader) chCred)
-        )
-        manager
+runStatement manager chCred statement = injectStatementToRequest
+  @Request
+  @(Response BodyReader)
+  statement
+  (either throw id $ initAuthorizedRequest @Request @(Response BodyReader) chCred)
+  `withResponse` manager $ fmap mconcat . brConsume . responseBody
 
 instance ImpliesClickHouseHttp H.Request (H.Response BodyReader) where
   initAuthorizedRequest (MkChCredential login pass url databaseName) = do
@@ -176,42 +172,44 @@ instance ImpliesClickHouseHttp H.Request (H.Response BodyReader) where
 
 
 -- ToDo: Move it into internal ClickHaskell-HTTP package
+insertIntoHttpGeneric
+  :: forall request response record
+  .  ImpliesClickHouseHttp request response
+  => ChCredential
+  -> Builder
+  -> (record -> Builder)
+  -> [record]
+  -> (request -> (forall result. (response -> IO result) -> IO result))
+  -> IO ()
+insertIntoHttpGeneric credential query encoder records runClient = injectWritingToRequest
+  @request
+  @response
+  query
+  records
+  encoder
+  (either throw id $ initAuthorizedRequest @request @response credential)
+  `runClient` \response -> do
+    _ <- throwOnNon200 @request response
+    pure ()
 
-insertIntoHttpGeneric ::
-  forall request response record
-  .
-  ImpliesClickHouseHttp request response
-  =>
-  ChCredential -> Builder -> (record -> Builder) -> [record] -> (request -> IO response) -> IO ()
-insertIntoHttpGeneric credential query encoder records runClient = do
-  const (pure ())
-    =<< throwOnNon200 @request
-    =<< runClient (
-      injectWritingToRequest
-        @request
-        @response
-        query
-        records
-        encoder
-        (either throw id $ initAuthorizedRequest @request @response credential)
-      )
-
-selectFromHttpGeneric ::
-  forall request response record
-  .
-  ImpliesClickHouseHttp request response
-  =>
-  ChCredential -> Builder -> (StrictByteString -> record) -> (request -> IO response) -> IO [record]
+selectFromHttpGeneric
+  :: forall request response record
+  .  ImpliesClickHouseHttp request response
+  => ChCredential
+  -> Builder
+  -> (StrictByteString -> record)
+  -> (request -> (forall result . (response -> IO result) -> IO result))
+  -> IO [record]
 selectFromHttpGeneric credential query decoder runClient =
-  injectReadingToResponse
-    @request
-    @response
-    (map decoder . BS8.lines)
-    =<< throwOnNon200 @request
-    =<< runClient (
-      (injectStatementToRequest @request @response query . either throw id)
-      (initAuthorizedRequest @request @response credential)
-    )
+  (injectStatementToRequest @request @response query . either throw id)
+  (initAuthorizedRequest @request @response credential)
+  `runClient` \response -> do
+    _ <- throwOnNon200 @request response
+    injectReadingToResponse
+      @request
+      @response
+      (map decoder . BS8.lines)
+      response
 
 
 -- * Clients abstraction
