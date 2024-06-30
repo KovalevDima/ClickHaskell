@@ -50,7 +50,6 @@ main = do
 
   threadDelay 1_000_000
   traceMarkerIO "Push data"
-  writingDataQueue <- newTQueueIO
 
   traceMarkerIO "Starting reading"
   selectedData <-
@@ -61,7 +60,6 @@ main = do
       exampleCredentials
       ("SELECT * FROM generateRandom('a1 Int64, a2 Int32, a3 DateTime, a4 UUID, a5 Int32, a6 LowCardinality(Nullable(String)), a7 LowCardinality(String)', 1, 10, 2) LIMIT " <> (string8 . show) 1_000_000)
 
-  mapM_ (atomically . writeTQueue writingDataQueue) selectedData
 
   threadDelay 1_000_000
   traceMarkerIO "Starting writing"
@@ -69,7 +67,7 @@ main = do
     @ExampleTable
     manager
     exampleCredentials
-    writingDataQueue
+    selectedData
 
   traceMarkerIO "Completion"
   print $ "5. Writing done. " <> show totalRows <> " rows was written"

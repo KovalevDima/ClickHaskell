@@ -49,14 +49,12 @@ runWriteReadEqualityTest creds = do
 
 runTest :: Manager -> ChCredential -> IO ()
 runTest manager cred = do
-  queue <- newTQueueIO
-  atomically (writeTQueue queue testData)
   insertInto
     @TestTable
     @TestData
     manager
     cred
-    queue
+    [testData]
 
   result <-
     selectFrom

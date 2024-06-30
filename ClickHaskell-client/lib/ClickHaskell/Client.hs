@@ -35,6 +35,7 @@ import Data.Text               as T (Text, unpack)
 import Data.Text.Encoding      as T (decodeUtf8, encodeUtf8)
 import Data.Typeable           (Proxy (..))
 import GHC.Generics            (Generic)
+import GHC.IO                  (unsafeInterleaveIO)
 import GHC.TypeLits            (KnownSymbol, symbolVal)
 
 
@@ -47,15 +48,15 @@ insertInto ::
   , KnownSymbol name
   , table ~ Table name columns
   )
-  => Manager -> ChCredential -> TQueue record -> IO ()
-insertInto manager cred writingQueue = do
+  => Manager -> ChCredential -> [record] -> IO ()
+insertInto manager cred writingData = do
   insertIntoHttpGeneric
     @Request
     @(Response BodyReader)
     cred
     ("INSERT INTO " <> (byteString . BS8.pack) (symbolVal $ Proxy @name) <> " (" <> writingColumns @table @record <> ") FORMAT TSV\n")
     (toTsvLine @table @record)
-    writingQueue
+    writingData
     (`withResponse` manager)
 
 selectFrom ::
@@ -147,10 +148,10 @@ instance ImpliesClickHouseHttp H.Request (H.Response BodyReader) where
   -- ToDo: This implementation reads whole body before parsing
   injectReadingToResponse decoder = fmap (decoder . mconcat) . brConsume . responseBody
 
-  injectWritingToRequest query dataQueue encoder request = request{
+  injectWritingToRequest query dataList encoder request = request{
     requestBody = RequestBodyStreamChunked $ \np -> do
-      writingData <- newIORef . BL.toChunks . toLazyByteString . mconcat . (query:) . map encoder =<< atomically (flushTQueue dataQueue)
-      np $ do
+      writingData <- newIORef . BL.toChunks . toLazyByteString . mconcat . (query:) . map encoder $ dataList
+      np . unsafeInterleaveIO $ do
         bss <- readIORef writingData
         case bss of
           [] -> return BS.empty
@@ -172,14 +173,13 @@ instance ImpliesClickHouseHttp H.Request (H.Response BodyReader) where
 
 
 -- ToDo: Move it into internal ClickHaskell-HTTP package
-
 insertIntoHttpGeneric
   :: forall request response record
   .  ImpliesClickHouseHttp request response
   => ChCredential
   -> Builder
   -> (record -> Builder)
-  -> TQueue record
+  -> [record]
   -> (request -> (forall result. (response -> IO result) -> IO result))
   -> IO ()
 insertIntoHttpGeneric credential query encoder records runClient = injectWritingToRequest
@@ -226,7 +226,7 @@ class ImpliesClickHouseHttp request response
 
   injectReadingToResponse :: (StrictByteString -> [record]) -> (response -> IO [record])
 
-  injectWritingToRequest :: Builder -> TQueue rec -> (rec -> Builder) -> (request -> request)
+  injectWritingToRequest :: Builder -> [rec] -> (rec -> Builder) -> (request -> request)
 
   throwOnNon200 :: response -> IO response
 
