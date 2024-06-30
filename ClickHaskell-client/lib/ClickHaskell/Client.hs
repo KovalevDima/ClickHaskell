@@ -35,6 +35,7 @@ import Data.Text               as T (Text, unpack)
 import Data.Text.Encoding      as T (decodeUtf8, encodeUtf8)
 import Data.Typeable           (Proxy (..))
 import GHC.Generics            (Generic)
+import GHC.IO                  (unsafeInterleaveIO)
 import GHC.TypeLits            (KnownSymbol, symbolVal)
 
 
@@ -150,7 +151,7 @@ instance ImpliesClickHouseHttp H.Request (H.Response BodyReader) where
   injectWritingToRequest query dataList encoder request = request{
     requestBody = RequestBodyStreamChunked $ \np -> do
       writingData <- newIORef . BL.toChunks . toLazyByteString . mconcat . (query:) . map encoder $ dataList
-      np $ do
+      np . unsafeInterleaveIO $ do
         bss <- readIORef writingData
         case bss of
           [] -> return BS.empty
