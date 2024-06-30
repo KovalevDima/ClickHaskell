@@ -149,9 +149,9 @@ instance ImpliesClickHouseHttp H.Request (H.Response BodyReader) where
   injectReadingToResponse decoder = fmap (decoder . mconcat) . brConsume . responseBody
 
   injectWritingToRequest query dataList encoder request = request{
-    requestBody = RequestBodyStreamChunked $ unsafeInterleaveIO . \np -> do
+    requestBody = RequestBodyStreamChunked $ \np -> do
       writingData <- newIORef . BL.toChunks . toLazyByteString . mconcat . (query:) . map encoder $ dataList
-      np $ do
+      np . unsafeInterleaveIO $ do
         bss <- readIORef writingData
         case bss of
           [] -> return BS.empty
