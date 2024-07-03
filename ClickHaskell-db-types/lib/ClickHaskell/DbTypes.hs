@@ -207,6 +207,8 @@ newtype LowCardinality chType = MkLowCardinality chType
 deriving instance (Eq chType, IsLowCardinalitySupported chType) => Eq (LowCardinality chType)
 deriving instance (Show chType, IsLowCardinalitySupported chType) => Show (LowCardinality chType)
 deriving instance (NFData chType, IsLowCardinalitySupported chType) => NFData (LowCardinality chType)
+deriving newtype instance (Semigroup chType, IsLowCardinalitySupported chType) => Semigroup (LowCardinality chType)
+deriving newtype instance (Monoid chType, IsLowCardinalitySupported chType) => Monoid (LowCardinality chType)
 deriving newtype instance IsString (LowCardinality ChString)
 
 class
@@ -332,7 +334,7 @@ instance FromChType ChUUID UUID   where fromChType (MkChUUID uuid) = uuid
 
 -- | ClickHouse String column type
 newtype ChString = MkChString StrictByteString
-  deriving newtype (Show, Eq, IsString, NFData)
+  deriving newtype (Show, Eq, IsString, NFData, Semigroup, Monoid)
 
 instance IsChType ChString
   where
