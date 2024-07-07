@@ -50,7 +50,7 @@
           imports = [inputs.services-flake.processComposeModules.default];
           services.clickhouse."dev-database" = wrapDefaultClickHouse [
             (extractSqlFromMarkdown ./documentation/parametrized-view/README.lhs)
-            (extractSqlFromMarkdown ./documentation/writing/README.lhs)
+            (extractSqlFromMarkdown ./documentation/writing/Writing.lhs)
             ./integration-testing/clickhouse/writeReadEquality.sql
           ];
         };
@@ -71,7 +71,7 @@
         process-compose."profiling" = let programName = "profiler"; in {
           imports = [inputs.services-flake.processComposeModules.default];
           services.clickhouse."profiler-db" = wrapDefaultClickHouse [
-            (extractSqlFromMarkdown ./documentation/writing/README.lhs)
+            (extractSqlFromMarkdown ./documentation/writing/Writing.lhs)
           ];
           settings.processes.profiling = {
             command = "${self'.apps.${programName}.program}";
