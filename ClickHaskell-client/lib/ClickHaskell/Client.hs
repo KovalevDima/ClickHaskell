@@ -145,7 +145,7 @@ instance ImpliesClickHouseHttp H.Request (H.Response BodyReader) where
   }
 
   -- ToDo: This implementation reads whole body before parsing
-  injectReadingToResponse decoder = fmap (decoder . mconcat) . brConsume . responseBody
+  injectReadingToResponse decoder = fmap (decoder . mconcat) . brConsume . unsafeInterleaveIO . responseBody
 
   injectWritingToRequest query dataList encoder request = request{
     requestBody = RequestBodyStreamChunked $ \np -> do
