@@ -40,7 +40,7 @@
         extractSqlFromMarkdown = path:
           builtins.toFile (builtins.baseNameOf path) (
             lib.strings.concatStrings (
-              builtins.match ".*```sql\n(.*)\n```.*"
+              builtins.match ".*```sql\n(.*);\n```.*"
               (builtins.readFile path)
             )
           );
@@ -50,7 +50,7 @@
           imports = [inputs.services-flake.processComposeModules.default];
           services.clickhouse."dev-database" = wrapDefaultClickHouse [
             (extractSqlFromMarkdown ./documentation/parametrized-view/README.lhs)
-            (extractSqlFromMarkdown ./documentation/write-read/README.lhs)
+            (extractSqlFromMarkdown ./documentation/writing/README.lhs)
             ./integration-testing/clickhouse/writeReadEquality.sql
           ];
         };
@@ -71,7 +71,7 @@
         process-compose."profiling" = let programName = "profiler"; in {
           imports = [inputs.services-flake.processComposeModules.default];
           services.clickhouse."profiler-db" = wrapDefaultClickHouse [
-            (extractSqlFromMarkdown ./documentation/write-read/README.lhs)
+            (extractSqlFromMarkdown ./documentation/writing/README.lhs)
           ];
           settings.processes.profiling = {
             command = "${self'.apps.${programName}.program}";

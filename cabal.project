@@ -4,7 +4,7 @@ packages:
     ./ClickHaskell-db-types
     ./clickhouse-lock
     ./documentation
-    ./documentation/write-read
+    ./documentation/writing
     ./documentation/parametrized-view
     ./integration-testing
     ./profiling

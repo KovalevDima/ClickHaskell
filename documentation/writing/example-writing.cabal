@@ -1,7 +1,7 @@
 cabal-version:      3.4
 
 
-name:               example-write-read
+name:               example-writing
 version:            0.0.0.1
 author:             Igor Belousov
 maintainer:         https://github.com/KovalevDima
@@ -16,10 +16,11 @@ build-type:         Simple
 source-repository head
   type: git
   location: https://github.com/GetShopTV/ClickHaskell
-  subdir: examples/example-write-read
+  subdir: examples/example-writing
 
-executable example-write-read
-  main-is:        README.lhs
+executable example-writing
+  default-language: GHC2021
+  main-is: Writing.lhs
   build-depends:
     -- Internal
       ClickHaskell-client
@@ -37,4 +38,5 @@ executable example-write-read
   ghc-options:
     -pgmL markdown-unlit
     -Wall
+    -main-is Writing
   build-tool-depends: markdown-unlit:markdown-unlit
