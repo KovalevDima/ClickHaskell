@@ -37,7 +37,6 @@ import Control.Monad          (when)
 import Data.Int               (Int8, Int16, Int32, Int64)
 import Data.Word              (Word8, Word16, Word32, Word64)
 import GHC.Generics           (Generic)
-import Control.Concurrent.STM (newTQueueIO, atomically, writeTQueue)
 
 
 runWriteReadEqualityTest :: ChCredential -> IO ()

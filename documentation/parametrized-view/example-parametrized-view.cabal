@@ -19,7 +19,8 @@ source-repository head
   subdir: examples/example-parametrized-view
 
 executable example-parametrized-view
-  main-is:        README.lhs
+  default-language: GHC2021
+  main-is: README.lhs
   build-depends:
     -- Internal
       ClickHaskell-client

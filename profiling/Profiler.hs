@@ -28,7 +28,6 @@ import ClickHaskell.DbTypes
 
 -- GHC included
 import Control.Concurrent (forkIO, killThread, threadDelay)
-import Control.Concurrent.STM (modifyTVar, newTQueueIO, writeTQueue)
 import Control.Monad (forever, replicateM_)
 import Data.ByteString (StrictByteString)
 import Data.ByteString.Builder (string8)

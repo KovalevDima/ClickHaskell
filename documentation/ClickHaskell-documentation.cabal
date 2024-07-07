@@ -9,12 +9,12 @@ license-file:       LICENSE
 
 data-files:
   parametrized-view/README.lhs
-  write-read/README.lhs
+  writing/README.lhs
   hakyll/**/*.html
   hakyll/*.html
 
 executable ClickHaskell-documentation
-  default-language: Haskell2010
+  default-language: GHC2021
   hs-source-dirs: hakyll/
   main-is: Main.hs
   ghc-options: -threaded
