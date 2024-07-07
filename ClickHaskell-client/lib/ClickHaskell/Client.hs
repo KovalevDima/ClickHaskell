@@ -8,6 +8,7 @@
   , TypeFamilyDependencies
   , RankNTypes
 #-}
+{-# LANGUAGE LambdaCase #-}
 module ClickHaskell.Client
   ( module ClickHaskell.Client
   , WritableInto(..)
@@ -30,7 +31,7 @@ import Data.ByteString.Builder    (Builder, byteString, toLazyByteString)
 import Data.ByteString.Char8      as BS8 (pack)
 import Data.ByteString.Lazy       as BSL (toChunks, fromChunks)
 import Data.ByteString.Lazy.Char8 as BSL8 (lines)
-import Data.IORef              (newIORef, readIORef, writeIORef)
+import Data.IORef              (newIORef, readIORef, writeIORef, atomicModifyIORef)
 import Data.Text               as T (Text, unpack)
 import Data.Text.Encoding      as T (decodeUtf8, encodeUtf8)
 import Data.Typeable           (Proxy (..))
@@ -151,13 +152,9 @@ instance ImpliesClickHouseHttp H.Request (H.Response BodyReader) where
   injectWritingToRequest query dataList encoder request = request{
     requestBody = RequestBodyStreamChunked $ \np -> do
       writingData <- newIORef . BSL.toChunks . toLazyByteString . mconcat . (query:) . map encoder $ dataList
-      np $ do
-        bss <- readIORef writingData
-        case bss of
-          [] -> return BS.empty
-          bs:bss' -> do
-            writeIORef writingData bss'
-            return bs
+      np . atomicModifyIORef writingData $ \case
+        [] -> ([], BS.empty)
+        x:xs -> (xs, x)
   }
 
   throwOnNon200 resp = do
