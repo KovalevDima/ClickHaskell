@@ -2,21 +2,21 @@
 title: Parametrized view
 ---
 
-# ClickHaskell: parametrized view example
-
-Lets imagine we have database with parametrized view `exampleParametrizedView` which takes parameters `{a1MoreThan:Int32}` and `{a1LessThan:Int32}`
+Lets imagine we have database with parametrized view `exampleParametrizedView` 
+```sql
+CREATE VIEW exampleParametrizedView
+AS SELECT *
+FROM generateRandom('a1 Int32, a2 Int32, a3 String', 1, 10, 2)
+WHERE (a1 > {a1MoreThan:Int32}) AND (a1 < {a1LessThan:Int32})
+LIMIT 5;
+```
 
 To perform a SELECT from such view you can use this snippet
 
 ```haskell
 {-# LANGUAGE
     DataKinds
-  , DeriveGeneric
-  , FlexibleInstances
-  , MultiParamTypeClasses
-  , NumericUnderscores
   , OverloadedStrings
-  , TypeApplications
 #-}
 
 import ClickHaskell.Client (ReadableFrom, ChCredential(..), selectFromTableFunction)
@@ -74,13 +74,4 @@ MkExampleViewRecord {a1 = -82405}
 MkExampleViewRecord {a1 = 92847}
 MkExampleViewRecord {a1 = 6575}
 MkExampleViewRecord {a1 = -80663}
-```
-
-As example view was chosen:
-```sql
-CREATE VIEW exampleParametrizedView
-AS SELECT *
-FROM generateRandom('a1 Int32, a2 Int32, a3 String', 1, 10, 2)
-WHERE (a1 > {a1MoreThan:Int32}) AND (a1 < {a1LessThan:Int32})
-LIMIT 5
 ```
