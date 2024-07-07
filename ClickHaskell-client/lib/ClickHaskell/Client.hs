@@ -150,7 +150,7 @@ instance ImpliesClickHouseHttp H.Request (H.Response BodyReader) where
   injectWritingToRequest query dataList encoder request = request{
     requestBody = RequestBodyStreamChunked $ \np -> do
       writingData <- newIORef . BL.toChunks . toLazyByteString . mconcat . (query:) . map encoder $ dataList
-      np . unsafeInterleaveIO $ do
+      np $ do
         bss <- readIORef writingData
         case bss of
           [] -> return BS.empty
