@@ -23,7 +23,6 @@ import Network.HTTP.Client as H (Request(..), Response(..), RequestBody(..), par
 import Network.HTTP.Types  as H (Status(..))
 
 -- GHC included
-import Control.Concurrent.STM  (TQueue, atomically, flushTQueue)
 import Control.DeepSeq         (NFData)
 import Control.Exception       (Exception, SomeException, throw)
 import Data.ByteString         as BS (StrictByteString, empty)
