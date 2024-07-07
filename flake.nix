@@ -50,7 +50,7 @@
           imports = [inputs.services-flake.processComposeModules.default];
           services.clickhouse."dev-database" = wrapDefaultClickHouse [
             (extractSqlFromMarkdown ./documentation/parametrized-view/README.lhs)
-            (extractSqlFromMarkdown ./documentation/writing/README.lhs)
+            (extractSqlFromMarkdown ./documentation/writing/Writing.lhs)
             ./integration-testing/clickhouse/writeReadEquality.sql
           ];
         };
