@@ -23,6 +23,7 @@
       perSystem = {
         self',
         pkgs,
+        config,
         lib,
         ...
       }: let
@@ -84,7 +85,7 @@
         };
         # ClickHaskell project itself with Haskell env
         haskellProjects.default = {
-          autoWire = ["packages" "devShells" "apps"];
+          autoWire = ["packages" "apps"];
           settings = {
             ClickHaskell-tables.libraryProfiling = true;
             ClickHaskell-db-types.libraryProfiling = true;
@@ -98,6 +99,15 @@
             inherit (hp) eventlog2html;
           };
         };
+        devShells.default =
+          pkgs.mkShell {
+            inputsFrom = [
+              config.haskellProjects.default.outputs.devShell
+            ];
+            packages = [
+              pkgs.clickhouse
+            ];
+          };
         # Build documnetation
         packages."documentation" = pkgs.stdenv.mkDerivation {
           name = "documentation";
