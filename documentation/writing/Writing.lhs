@@ -36,7 +36,6 @@ module Writing where
 import ClickHaskell.Client (WritableInto, insertInto, ChCredential(..))
 import ClickHaskell.Tables (Table, Column)
 import ClickHaskell.DbTypes
-import Control.Concurrent.STM (newTQueueIO, atomically, writeTQueue)
 import Data.ByteString (StrictByteString)
 import Data.Int (Int32, Int64)
 import Data.Word (Word32, Word64)
@@ -85,26 +84,22 @@ main = do
         , chDatabase = "default"
         }
 
-  manager <- newManager defaultManagerSettings
-
-  queue <- newTQueueIO
-
-  (atomically . writeTQueue queue)
-    MkExampleData
-      { a1 = toChType (42 :: Int64)
-      , a2 = "text"
-      , a4 = toChType (0 :: Word64)
-      , a3 = 42 
-      , a5 = 42
-      , a6 = Just "500"
-      , a7 = ""
-      }
+  manager <- newManager defaultManagerSettings    
 
   insertInto
     @ExampleTable
     @ExampleData
     manager
     credentials
-    queue
+    [ MkExampleData
+        { a1 = toChType (42 :: Int64)
+        , a2 = "text"
+        , a4 = toChType (0 :: Word64)
+        , a3 = 42 
+        , a5 = 42
+        , a6 = Just "500"
+        , a7 = ""
+      }
+    ]
 
 ```

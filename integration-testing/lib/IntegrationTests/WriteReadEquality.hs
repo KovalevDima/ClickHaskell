@@ -37,7 +37,6 @@ import Control.Monad          (when)
 import Data.Int               (Int8, Int16, Int32, Int64)
 import Data.Word              (Word8, Word16, Word32, Word64)
 import GHC.Generics           (Generic)
-import Control.Concurrent.STM (newTQueueIO, atomically, writeTQueue)
 
 
 runWriteReadEqualityTest :: ChCredential -> IO ()
@@ -49,14 +48,12 @@ runWriteReadEqualityTest creds = do
 
 runTest :: Manager -> ChCredential -> IO ()
 runTest manager cred = do
-  queue <- newTQueueIO
-  atomically (writeTQueue queue testData)
   insertInto
     @TestTable
     @TestData
     manager
     cred
-    queue
+    [testData]
 
   result <-
     selectFrom

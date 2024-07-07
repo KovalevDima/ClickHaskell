@@ -8,6 +8,7 @@
   , TypeFamilyDependencies
   , RankNTypes
 #-}
+{-# LANGUAGE LambdaCase #-}
 module ClickHaskell.Client
   ( module ClickHaskell.Client
   , WritableInto(..)
@@ -23,18 +24,19 @@ import Network.HTTP.Client as H (Request(..), Response(..), RequestBody(..), par
 import Network.HTTP.Types  as H (Status(..))
 
 -- GHC included
-import Control.Concurrent.STM  (TQueue, atomically, flushTQueue)
 import Control.DeepSeq         (NFData)
 import Control.Exception       (Exception, SomeException, throw)
-import Data.ByteString         as BS (StrictByteString, empty)
-import Data.ByteString.Builder (Builder, byteString, toLazyByteString)
-import Data.ByteString.Char8   as BS8 (lines, pack)
-import Data.ByteString.Lazy    as BL (toChunks)
-import Data.IORef              (newIORef, readIORef, writeIORef)
+import Data.ByteString            as BS (StrictByteString, empty, toStrict)
+import Data.ByteString.Builder    (Builder, byteString, toLazyByteString)
+import Data.ByteString.Char8      as BS8 (pack)
+import Data.ByteString.Lazy       as BSL (toChunks, fromChunks)
+import Data.ByteString.Lazy.Char8 as BSL8 (lines)
+import Data.IORef              (newIORef, readIORef, writeIORef, atomicModifyIORef)
 import Data.Text               as T (Text, unpack)
 import Data.Text.Encoding      as T (decodeUtf8, encodeUtf8)
 import Data.Typeable           (Proxy (..))
 import GHC.Generics            (Generic)
+import GHC.IO                  (unsafeInterleaveIO)
 import GHC.TypeLits            (KnownSymbol, symbolVal)
 
 
@@ -47,15 +49,15 @@ insertInto ::
   , KnownSymbol name
   , table ~ Table name columns
   )
-  => Manager -> ChCredential -> TQueue record -> IO ()
-insertInto manager cred writingQueue = do
+  => Manager -> ChCredential -> [record] -> IO ()
+insertInto manager cred writingData = do
   insertIntoHttpGeneric
     @Request
     @(Response BodyReader)
     cred
     ("INSERT INTO " <> (byteString . BS8.pack) (symbolVal $ Proxy @name) <> " (" <> writingColumns @table @record <> ") FORMAT TSV\n")
     (toTsvLine @table @record)
-    writingQueue
+    writingData
     (`withResponse` manager)
 
 selectFrom ::
@@ -134,7 +136,7 @@ instance ImpliesClickHouseHttp H.Request (H.Response BodyReader) where
 
   injectStatementToRequest query request = request{
     requestBody = RequestBodyStreamChunked $ \np -> do
-      ibss <- newIORef $ (BL.toChunks . toLazyByteString) query
+      ibss <- newIORef $ (BSL.toChunks . toLazyByteString) query
       np $ do
         bss <- readIORef ibss
         case bss of
@@ -145,18 +147,14 @@ instance ImpliesClickHouseHttp H.Request (H.Response BodyReader) where
   }
 
   -- ToDo: This implementation reads whole body before parsing
-  injectReadingToResponse decoder = fmap (decoder . mconcat) . brConsume . responseBody
+  injectReadingToResponse decoder = fmap (map (decoder . toStrict) . BSL8.lines  . BSL.fromChunks) . brConsume . unsafeInterleaveIO . responseBody
 
-  injectWritingToRequest query dataQueue encoder request = request{
+  injectWritingToRequest query dataList encoder request = request{
     requestBody = RequestBodyStreamChunked $ \np -> do
-      writingData <- newIORef . BL.toChunks . toLazyByteString . mconcat . (query:) . map encoder =<< atomically (flushTQueue dataQueue)
-      np $ do
-        bss <- readIORef writingData
-        case bss of
-          [] -> return BS.empty
-          bs:bss' -> do
-            writeIORef writingData bss'
-            return bs
+      writingData <- newIORef . BSL.toChunks . toLazyByteString . mconcat . (query:) . map encoder $ dataList
+      np . atomicModifyIORef writingData $ \case
+        [] -> ([], BS.empty)
+        x:xs -> (xs, x)
   }
 
   throwOnNon200 resp = do
@@ -172,14 +170,13 @@ instance ImpliesClickHouseHttp H.Request (H.Response BodyReader) where
 
 
 -- ToDo: Move it into internal ClickHaskell-HTTP package
-
 insertIntoHttpGeneric
   :: forall request response record
   .  ImpliesClickHouseHttp request response
   => ChCredential
   -> Builder
   -> (record -> Builder)
-  -> TQueue record
+  -> [record]
   -> (request -> (forall result. (response -> IO result) -> IO result))
   -> IO ()
 insertIntoHttpGeneric credential query encoder records runClient = injectWritingToRequest
@@ -209,7 +206,7 @@ selectFromHttpGeneric credential query decoder runClient =
     injectReadingToResponse
       @request
       @response
-      (map decoder . BS8.lines)
+      decoder
       response
 
 
@@ -224,9 +221,9 @@ class ImpliesClickHouseHttp request response
 
   injectStatementToRequest :: Builder -> (request -> request)
 
-  injectReadingToResponse :: (StrictByteString -> [record]) -> (response -> IO [record])
+  injectReadingToResponse :: (StrictByteString -> record) -> (response -> IO [record])
 
-  injectWritingToRequest :: Builder -> TQueue rec -> (rec -> Builder) -> (request -> request)
+  injectWritingToRequest :: Builder -> [rec] -> (rec -> Builder) -> (request -> request)
 
   throwOnNon200 :: response -> IO response
 
