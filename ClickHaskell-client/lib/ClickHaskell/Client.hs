@@ -25,10 +25,11 @@ import Network.HTTP.Types  as H (Status(..))
 -- GHC included
 import Control.DeepSeq         (NFData)
 import Control.Exception       (Exception, SomeException, throw)
-import Data.ByteString         as BS (StrictByteString, empty)
-import Data.ByteString.Builder (Builder, byteString, toLazyByteString)
-import Data.ByteString.Char8   as BS8 (lines, pack)
-import Data.ByteString.Lazy    as BL (toChunks)
+import Data.ByteString            as BS (StrictByteString, empty, toStrict)
+import Data.ByteString.Builder    (Builder, byteString, toLazyByteString)
+import Data.ByteString.Char8      as BS8 (pack)
+import Data.ByteString.Lazy       as BSL (toChunks, fromChunks)
+import Data.ByteString.Lazy.Char8 as BSL8 (lines)
 import Data.IORef              (newIORef, readIORef, writeIORef)
 import Data.Text               as T (Text, unpack)
 import Data.Text.Encoding      as T (decodeUtf8, encodeUtf8)
@@ -134,7 +135,7 @@ instance ImpliesClickHouseHttp H.Request (H.Response BodyReader) where
 
   injectStatementToRequest query request = request{
     requestBody = RequestBodyStreamChunked $ \np -> do
-      ibss <- newIORef $ (BL.toChunks . toLazyByteString) query
+      ibss <- newIORef $ (BSL.toChunks . toLazyByteString) query
       np $ do
         bss <- readIORef ibss
         case bss of
@@ -145,11 +146,11 @@ instance ImpliesClickHouseHttp H.Request (H.Response BodyReader) where
   }
 
   -- ToDo: This implementation reads whole body before parsing
-  injectReadingToResponse decoder = fmap (decoder . mconcat) . brConsume . unsafeInterleaveIO . responseBody
+  injectReadingToResponse decoder = fmap (map (decoder . toStrict) . BSL8.lines  . BSL.fromChunks) . brConsume . unsafeInterleaveIO . responseBody
 
   injectWritingToRequest query dataList encoder request = request{
     requestBody = RequestBodyStreamChunked $ \np -> do
-      writingData <- newIORef . BL.toChunks . toLazyByteString . mconcat . (query:) . map encoder $ dataList
+      writingData <- newIORef . BSL.toChunks . toLazyByteString . mconcat . (query:) . map encoder $ dataList
       np $ do
         bss <- readIORef writingData
         case bss of
@@ -208,7 +209,7 @@ selectFromHttpGeneric credential query decoder runClient =
     injectReadingToResponse
       @request
       @response
-      (map decoder . BS8.lines)
+      decoder
       response
 
 
@@ -223,7 +224,7 @@ class ImpliesClickHouseHttp request response
 
   injectStatementToRequest :: Builder -> (request -> request)
 
-  injectReadingToResponse :: (StrictByteString -> [record]) -> (response -> IO [record])
+  injectReadingToResponse :: (StrictByteString -> record) -> (response -> IO [record])
 
   injectWritingToRequest :: Builder -> [rec] -> (rec -> Builder) -> (request -> request)
 
