@@ -38,7 +38,6 @@ Library
   Autogen-Modules:
     Paths_ClickHaskell_client
   Exposed-Modules:
-    ClickHaskell.Buffering
     ClickHaskell.Client
   Other-Modules:
     ClickHaskell.Internal.Generics
