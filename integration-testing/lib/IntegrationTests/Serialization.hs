@@ -20,6 +20,7 @@ import ClickHaskell.DbTypes
   ( Deserializable(..), IsChType(..), ToChType(..), ToQueryPart(..)
   , ChUInt64, ChInt64, ChUInt32, ChInt32
   , ChString
+  , ChArray
   )
 import ClickHaskell.Client (ChCredential(..), runStatement)
 
@@ -39,7 +40,8 @@ runSerializationTests client = do
   runSerializationTest @ChInt64 manager client
   runSerializationTest @ChUInt32 manager client
   runSerializationTest @ChUInt64 manager client
-  -- runSerializationTest @ChString client
+  runSerializationTest @ChString manager client
+  -- runSerializationTest @(ChArray ChString) manager client
 
 
 runSerializationTest ::
@@ -92,3 +94,7 @@ instance {-# OVERLAPPABLE #-}
 instance HasTestValues ChString
   where
   testValues = map (toChType . BS.singleton) [1..255]
+
+instance HasTestValues (ChArray ChString)
+  where
+  testValues = [toChType $ map BS.singleton [1..255]]
