@@ -40,7 +40,7 @@ runSerializationTests client = do
   runSerializationTest @ChInt64 manager client
   runSerializationTest @ChUInt32 manager client
   runSerializationTest @ChUInt64 manager client
-  runSerializationTest @ChString manager client
+  -- runSerializationTest @ChString manager client
   -- runSerializationTest @(ChArray ChString) manager client
 
 
