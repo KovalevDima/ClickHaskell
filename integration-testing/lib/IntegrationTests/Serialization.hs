@@ -27,7 +27,8 @@ import ClickHaskell.Client (ChCredential(..), runStatement)
 -- External
 import Network.HTTP.Client as H (Manager, newManager, defaultManagerSettings)
 import Control.Monad (when)
-import Data.ByteString         as BS (takeWhile, singleton)
+import Data.ByteString as BS (singleton)
+import Data.ByteString.Char8 as BS8 (takeWhile)
 import GHC.TypeLits (KnownSymbol)
 
 
@@ -39,7 +40,7 @@ runSerializationTests client = do
   runSerializationTest @ChInt64 manager client
   runSerializationTest @ChUInt32 manager client
   runSerializationTest @ChUInt64 manager client
-  -- runSerializationTest @ChString client
+  runSerializationTest @ChString manager client
 
 
 runSerializationTest ::
@@ -58,7 +59,7 @@ runSerializationTest manager chCred = do
   mapM_
       (\chType -> do
         selectChType <- runStatement manager chCred ("SELECT " <> toQueryPart chType)
-        let deserializedChType = deserialize . BS.takeWhile (/= 10) $ selectChType
+        let deserializedChType = deserialize . BS8.takeWhile (/= '\n') $ selectChType
   
         (when (chType /= deserializedChType) . error)
           (  "Deserialized value of type " <> show (chTypeName @chType) <> " unmatched:"
