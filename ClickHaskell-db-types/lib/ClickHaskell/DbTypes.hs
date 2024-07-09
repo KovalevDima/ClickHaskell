@@ -52,9 +52,9 @@ import Data.WideWord (Int128, Word128(Word128))
 
 -- GHC included
 import Control.DeepSeq         (NFData)
-import Data.ByteString         as BS (toStrict, StrictByteString)
+import Data.ByteString         as BS (toStrict, StrictByteString, take, empty, drop)
 import Data.ByteString.Builder as BS (Builder, byteString, toLazyByteString)
-import Data.ByteString.Char8   as BS8 (concatMap, pack, readInt, readInteger, singleton, unpack, replicate, length)
+import Data.ByteString.Char8   as BS8 (concatMap, pack, readInt, readInteger, singleton, unpack, replicate, length, break)
 import Data.Coerce             (coerce)
 import Data.Maybe              (fromJust)
 import Data.Int                (Int32, Int16, Int8, Int64)
@@ -124,7 +124,7 @@ class
   fromChType :: chType -> outputType
 
 class
-  Serializable chType
+  IsChType chType
   =>
   ToQueryPart chType
   where
@@ -354,22 +354,39 @@ escape -- [ClickHaskell.DbTypes.ToDo.2]: Optimize
 
 instance Deserializable ChString
   where
-  deserialize = MkChString
+  deserialize = MkChString . deescape
+
+-- There are a big trade off between safity and performance
+-- Corner case strings with a lot of escaped symbols would reduce deserialization speed
+-- ToDo: rewrite (de)serialization to work via binary clickhouse formats
+deescape :: StrictByteString -> StrictByteString
+deescape bs = case BS8.break (=='\\') bs of
+  (beforeEscaping, startWithEscaping) ->
+    if BS.empty == startWithEscaping
+    then bs
+    else case BS.take 2 startWithEscaping of
+      "\\b" -> beforeEscaping <> "\b" <> BS.drop 2 startWithEscaping
+      "\\t" -> beforeEscaping <> "\t" <> BS.drop 2 startWithEscaping
+      "\\n" -> beforeEscaping <> "\n" <> BS.drop 2 startWithEscaping
+      "\\f" -> beforeEscaping <> "\f" <> BS.drop 2 startWithEscaping
+      "\\r" -> beforeEscaping <> "\r" <> BS.drop 2 startWithEscaping
+      "\\'" -> beforeEscaping <> "'" <> BS.drop 2 startWithEscaping
+      "\\\\" -> beforeEscaping <> "\\" <> BS.drop 2 startWithEscaping
+      _ -> bs
 
 instance ToQueryPart ChString
   where
-  toQueryPart string =  "'" <> (escapeQuery . serialize) string <> "'"
+  toQueryPart (MkChString string) =  "'" <> escapeQuery string <> "'"
 
-escapeQuery :: Builder -> Builder
+escapeQuery :: StrictByteString -> Builder
 escapeQuery -- [ClickHaskell.DbTypes.ToDo.1]: Optimize
   = BS.byteString
   . BS8.concatMap
     (\case
       '\'' -> "\\\'"
+      '\\' -> "\\\\"
       sym -> BS8.singleton sym
     )
-  . BS.toStrict
-  . BS.toLazyByteString
 
 instance ToChType ChString ChString         where toChType = id
 instance ToChType ChString StrictByteString where toChType = MkChString
