@@ -126,7 +126,7 @@ class
   fromChType :: chType -> outputType
 
 class
-  Serializable chType
+  IsChType chType
   =>
   ToQueryPart chType
   where
