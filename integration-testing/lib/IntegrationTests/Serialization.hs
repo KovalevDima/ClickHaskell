@@ -12,6 +12,7 @@
 #-}
 module IntegrationTests.Serialization
   ( runSerializationTests
+  , HasTestValues(..)
   ) where
 
 
@@ -27,7 +28,7 @@ import ClickHaskell.Client (ChCredential(..), runStatement)
 
 -- External
 import Network.HTTP.Client as H (Manager, newManager, defaultManagerSettings)
-import Control.Monad (when)
+import Control.Monad (when, void)
 import Data.ByteString         as BS (takeWhile, singleton)
 import GHC.TypeLits (KnownSymbol)
 
@@ -41,7 +42,7 @@ runSerializationTests client = do
   runSerializationTest @ChUInt32 manager client
   runSerializationTest @ChUInt64 manager client
   -- runSerializationTest @ChString client
-  -- runSerializationTest @(ChArray ChString) manager client
+  -- runOnlyQuerySerializationTest @(ChArray ChString) manager client
 
 
 runSerializationTest ::
@@ -73,6 +74,25 @@ runSerializationTest manager chCred = do
 
   print (chTypeName @chType <> ": Ok")
 
+runOnlyQuerySerializationTest :: forall chType
+  .
+  ( ToQueryPart chType
+  , Eq chType
+  , Deserializable chType
+  , HasTestValues chType
+  , KnownSymbol (ToChTypeName chType)
+  , Show chType
+  )
+  =>
+  Manager -> ChCredential -> IO ()
+runOnlyQuerySerializationTest manager chCred = do
+  mapM_
+      (\chType -> do
+        void $! runStatement manager chCred ("SELECT " <> toQueryPart chType)  
+      )
+      (testValues :: [chType])
+
+  print (chTypeName @chType <> ": Ok")
 
 
 
