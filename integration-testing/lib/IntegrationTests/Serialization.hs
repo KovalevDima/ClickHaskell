@@ -12,6 +12,7 @@
 #-}
 module IntegrationTests.Serialization
   ( runSerializationTests
+  , HasTestValues(..)
   ) where
 
 
@@ -20,13 +21,14 @@ import ClickHaskell.DbTypes
   ( Deserializable(..), IsChType(..), ToChType(..), ToQueryPart(..)
   , ChUInt64, ChInt64, ChUInt32, ChInt32
   , ChString
+  , ChArray
   )
 import ClickHaskell.Client (ChCredential(..), runStatement)
 
 
 -- External
 import Network.HTTP.Client as H (Manager, newManager, defaultManagerSettings)
-import Control.Monad (when)
+import Control.Monad (void, when)
 import Data.ByteString as BS (singleton)
 import Data.ByteString.Char8 as BS8 (takeWhile)
 import GHC.TypeLits (KnownSymbol)
@@ -41,6 +43,7 @@ runSerializationTests client = do
   runSerializationTest @ChUInt32 manager client
   runSerializationTest @ChUInt64 manager client
   runSerializationTest @ChString manager client
+  runOnlyQuerySerializationTest @(ChArray ChString) manager client
 
 
 runSerializationTest ::
@@ -72,6 +75,25 @@ runSerializationTest manager chCred = do
 
   print (chTypeName @chType <> ": Ok")
 
+runOnlyQuerySerializationTest :: forall chType
+  .
+  ( ToQueryPart chType
+  , Eq chType
+  , Deserializable chType
+  , HasTestValues chType
+  , KnownSymbol (ToChTypeName chType)
+  , Show chType
+  )
+  =>
+  Manager -> ChCredential -> IO ()
+runOnlyQuerySerializationTest manager chCred = do
+  mapM_
+      (\chType -> do
+        void $! runStatement manager chCred ("SELECT " <> toQueryPart chType)  
+      )
+      (testValues :: [chType])
+
+  print (chTypeName @chType <> ": Ok")
 
 
 
@@ -93,3 +115,7 @@ instance {-# OVERLAPPABLE #-}
 instance HasTestValues ChString
   where
   testValues = map (toChType . BS.singleton) [1..255]
+
+instance HasTestValues (ChArray ChString)
+  where
+  testValues = [toChType $ map BS.singleton [1..255]]

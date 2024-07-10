@@ -40,6 +40,7 @@ module ClickHaskell.DbTypes
 , ChString
 , ChUUID
 
+, ChArray
 , Nullable
 , LowCardinality, IsLowCardinalitySupported
 ) where
@@ -67,6 +68,7 @@ import Data.Time
   )
 import Data.Time.Clock.POSIX         (utcTimeToPOSIXSeconds, posixSecondsToUTCTime)
 import Data.Typeable                 (Proxy(..))
+import Data.List                     (uncons)
 import Data.String                   (IsString)
 import Data.Vector.Primitive.Mutable (Prim)
 import Data.Word                     (Word64, Word32, Word16, Word8)
@@ -804,3 +806,29 @@ instance IsChType ChDate
   type ToChTypeName    ChDate = "Date"
   type IsWriteOptional ChDate = 'False
 
+
+
+
+
+
+
+
+newtype ChArray a = MkChArray [a]
+  deriving newtype (Show, Eq, NFData)
+
+instance IsChType chType => IsChType (ChArray chType)
+  where
+  type ToChTypeName    (ChArray chType) = "Array(" `AppendSymbol` ToChTypeName chType `AppendSymbol` ")"
+  type IsWriteOptional (ChArray chType) = 'False
+
+instance Deserializable (ChArray ChString) where
+  deserialize = undefined
+
+instance ToQueryPart chType => ToQueryPart (ChArray chType)
+  where
+  toQueryPart = (\x -> "[" <> x <> "]") . (maybe "" (uncurry (foldr (\ a b -> a <> "," <> b))) . uncons . map (toQueryPart @chType)) . fromChType 
+
+instance IsChType chType => FromChType (ChArray chType) [chType] where fromChType (MkChArray values) = values
+
+instance IsChType chType           => ToChType (ChArray chType) [chType] where toChType = MkChArray
+instance ToChType chType inputType => ToChType (ChArray chType) [inputType] where toChType = MkChArray . map toChType
