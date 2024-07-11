@@ -20,7 +20,7 @@ To perform a SELECT from such view you can use this snippet
 #-}
 
 import ClickHaskell.Client (ReadableFrom, ChCredential(..), selectFromTableFunction)
-import ClickHaskell.Tables (interpretTable, mkParameter, View, Parameter, Column)
+import ClickHaskell.Tables (interpretTable, mkParameter, View, Parameter, Column, PList(..))
 import ClickHaskell.DbTypes (ChInt32, ChString)
 import Data.Int (Int32)
 import GHC.Generics (Generic)
@@ -42,7 +42,7 @@ main = do
         @ExampleViewRecord
         manager
         credential
-        (interpretTable @ExampleView (mkParameter (-100_000)) (mkParameter 100_000))
+        (interpretTable @ExampleView $ (mkParameter (-100_000)) :# (mkParameter 100_000) :# PNil)
 
 type ExampleView =
   View

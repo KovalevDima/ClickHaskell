@@ -5,6 +5,8 @@
   , OverloadedStrings
   , TypeFamilyDependencies
   , UndecidableInstances
+  , GADTs
+  , ScopedTypeVariables
 #-}
 
 module ClickHaskell.Tables
@@ -20,6 +22,7 @@ module ClickHaskell.Tables
 -- ** View
 , View, renderView
 , Parameter, mkParameter
+, PList(..)
 
 
 -- * Columns
@@ -74,7 +77,7 @@ newtype Table
   = MkTable
   { renderedTableName :: Builder
   }
-  
+
 type family GetTableColumns table :: Type where
   GetTableColumns (Table name columns) = Columns columns
 
@@ -82,7 +85,7 @@ instance
   ( KnownSymbol name
   ) => InterpretableTable (Table name columns)
   where
-  
+
   type TableInterpreter (Table name columns) = Table name columns
   interpretTable = MkTable{renderedTableName = (BS.byteString . BS8.pack . symbolVal) (Proxy @name)}
 
@@ -161,132 +164,34 @@ renderTableParameters :: [Builder] -> Builder
 renderTableParameters (parameter:ps) = "(" <> foldr (\p1 p2 -> p1 <> ", " <> p2) parameter ps <> ")"
 renderTableParameters []             = ""
 
+data PList (ps :: [Type]) where
+  PNil :: PList '[]
+  (:#) :: (p ~ Parameter chName chType, ToParameterList ps) => p -> PList ps -> PList (p ': ps)
+infixr 5 :#
+
+class ToParameterList (params :: [Type]) where
+  toParameterList :: PList params -> [Builder]
+
+instance ToParameterList '[] where
+  toParameterList PNil = []
+
+instance
+  ( p ~ Parameter chName chType
+  , ToParameterList ps
+  ) => ToParameterList (p ': ps)
+  where
+  toParameterList (MkParameter{renderedParameter} :# ps) = renderedParameter  : toParameterList ps
 
 instance
   ( KnownSymbol name
-  ) => InterpretableTable (View name columns '[])
+  , ToParameterList params
+  ) => InterpretableTable (View name columns params)
   where
-  type TableInterpreter (View name columns '[]) = View name columns '[]
-  interpretTable =
+  type TableInterpreter (View name columns params) = PList params -> View name columns '[]
+  interpretTable params =
     MkView
       { viewName = (BS.byteString . BS8.pack . symbolVal @name) Proxy
-      , inpterpretedParameters = []
-      }
-
-
-instance
-  ( KnownSymbol name
-  ) => InterpretableTable (View name columns '[Parameter paramName (chType :: Type)])
-  where
-  type TableInterpreter (View name columns '[Parameter paramName chType]) = Parameter paramName chType -> View name columns '[]
-  interpretTable MkParameter{renderedParameter} =
-    MkView
-      { viewName = (BS.byteString . BS8.pack . symbolVal @name) Proxy
-      , inpterpretedParameters = [renderedParameter]
-      }
-
-
-instance
-  ( KnownSymbol name
-  ) => InterpretableTable 
-    ( View
-      name
-      columns
-     '[ Parameter paramName chType
-      , Parameter paramName2 chType2
-      ]
-    )
-  where
-
-  type TableInterpreter
-    ( View
-      name
-      columns
-     '[ Parameter paramName chType
-      , Parameter paramName2 chType2
-      ]
-    ) 
-    =  Parameter paramName chType
-    -> Parameter paramName2 chType2
-    -> View name columns '[]
-  interpretTable parameter1 parameter2 =
-    MkView
-      { viewName = (BS.byteString . BS8.pack . symbolVal @name) Proxy
-      , inpterpretedParameters = [renderedParameter parameter1, renderedParameter parameter2]
-      }
-
-
-instance
-  ( KnownSymbol name
-  ) => InterpretableTable 
-    ( View
-      name
-      columns
-     '[ Parameter paramName chType
-      , Parameter paramName2 chType2
-      , Parameter paramName3 chType3
-      ]
-    )
-  where
-
-  type TableInterpreter
-    ( View
-      name
-      columns
-     '[ Parameter paramName chType
-      , Parameter paramName2 chType2
-      , Parameter paramName3 chType3
-      ]
-    )
-    =  Parameter paramName chType
-    -> Parameter paramName2 chType2
-    -> Parameter paramName3 chType3
-    -> View name columns '[]
-  interpretTable parameter1 parameter2 parameter3 =
-    MkView
-      { viewName = (BS.byteString . BS8.pack . symbolVal @name) Proxy
-      , inpterpretedParameters = [renderedParameter parameter1, renderedParameter parameter2, renderedParameter parameter3]
-      }
-
-
-instance
-  ( KnownSymbol name
-  ) => InterpretableTable 
-    ( View
-      name
-      columns
-     '[ Parameter paramName chType
-      , Parameter paramName2 chType2
-      , Parameter paramName3 chType3
-      , Parameter paramName4 chType4
-      ]
-    )
-  where
-
-  type TableInterpreter
-    ( View
-      name
-      columns
-     '[ Parameter paramName chType
-      , Parameter paramName2 chType2
-      , Parameter paramName3 chType3
-      , Parameter paramName4 chType4
-      ]
-    )
-    =  Parameter paramName chType
-    -> Parameter paramName2 chType2
-    -> Parameter paramName3 chType3
-    -> Parameter paramName4 chType4
-    -> View name columns '[]
-  interpretTable parameter1 parameter2 parameter3 parameter4 =
-    MkView
-      { viewName = (BS.byteString . BS8.pack . symbolVal @name) Proxy
-      , inpterpretedParameters =
-        [ renderedParameter parameter1
-        , renderedParameter parameter2
-        , renderedParameter parameter3
-        , renderedParameter parameter4
-        ]
+      , inpterpretedParameters = toParameterList params
       }
 
 
@@ -312,7 +217,7 @@ instance HasColumns (Table name columns) where
   type GetColumns (Table _ columns) = columns
 
 instance HasColumns (Columns columns) where
-  type GetColumns (Columns columns) = columns 
+  type GetColumns (Columns columns) = columns
 
 
 
@@ -342,7 +247,7 @@ instance
   renderColumnName = (stringUtf8 . symbolVal @name) Proxy
 
   type GetColumnType (Column name columnType) = columnType
-  renderColumnType = (stringUtf8 . symbolVal @(ToChTypeName columnType)) Proxy 
+  renderColumnType = (stringUtf8 . symbolVal @(ToChTypeName columnType)) Proxy
 
   type WritableColumn (Column _ _) = Nothing
 
