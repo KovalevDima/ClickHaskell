@@ -25,8 +25,8 @@ module ClickHaskell.Internal.Generics
 
 
 -- Internal dependencies
-import ClickHaskell.DbTypes  (Serializable(..), Deserializable(..), ToChType(..), FromChType(..))
-import ClickHaskell.Tables (CompiledColumn(..), InterpretableTable(..), HasColumns(..))
+import ClickHaskell.DbTypes (Serializable(..), Deserializable(..), ToChType(..), FromChType(..))
+import ClickHaskell.Tables (CompiledColumn(..), HasColumns(..))
 
 
 -- GHC included
@@ -43,7 +43,7 @@ import GHC.TypeLits            (TypeError, Symbol, ErrorMessage(..))
 -- * Writing
 
 class
-  ( InterpretableTable table
+  ( HasColumns table
   , GWritable (GetColumns table) (Rep record)
   )
   =>
