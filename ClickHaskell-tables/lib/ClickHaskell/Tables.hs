@@ -14,8 +14,7 @@ module ClickHaskell.Tables
   InterpretableTable(..)
 
 -- ** Table
-, GetTableColumns
-, Table, renderTable
+, Table
 
 -- ** View
 , View, renderView
@@ -68,36 +67,9 @@ class
 
 -- ** Table
 
-newtype Table
+data Table
   (name :: Symbol)
   (columns :: [Type])
-  = MkTable
-  { renderedTableName :: Builder
-  }
-  
-type family GetTableColumns table :: Type where
-  GetTableColumns (Table name columns) = Columns columns
-
-instance
-  ( KnownSymbol name
-  ) => InterpretableTable (Table name columns)
-  where
-  
-  type TableInterpreter (Table name columns) = Table name columns
-  interpretTable = MkTable{renderedTableName = (BS.byteString . BS8.pack . symbolVal) (Proxy @name)}
-
-
-{- |
-Takes evaluated Table and renders it
-
->>> renderTable MkTable{renderedTableName="myTableName"}
-"myTableName"
-
->>> renderTable MkTable{renderedTableName="\"space seperated name\""}
-"\"space seperated name\""
--}
-renderTable :: Table name columns -> Builder
-renderTable (MkTable{renderedTableName}) = renderedTableName
 
 
 
