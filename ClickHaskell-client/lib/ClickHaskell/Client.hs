@@ -17,7 +17,7 @@ module ClickHaskell.Client
 
 -- Internal
 import ClickHaskell.Internal.Generics (WritableInto(..), ReadableFrom(..))
-import ClickHaskell.Tables (Table, Columns, View, renderView)
+import ClickHaskell.Tables (Table, Columns, View, ParametersInterpreter, parameters)
 
 -- External
 import Network.HTTP.Client as H (Request(..), Response(..), RequestBody(..), parseRequest, withResponse, brConsume, BodyReader, Manager)
@@ -82,16 +82,19 @@ selectFromTableFunction ::
   forall tableFunction record name columns parameters
   .
   ( ReadableFrom tableFunction record
+  , KnownSymbol name
   , tableFunction ~ View name columns parameters
   )
-  => Manager -> ChCredential -> View name columns '[] -> IO [record]
-selectFromTableFunction manager cred tableFuncton =
+  => Manager -> ChCredential -> (ParametersInterpreter '[] -> ParametersInterpreter parameters) -> IO [record]
+selectFromTableFunction manager cred interpreter =
   selectFromHttpGeneric
     @Request
     @(Response BodyReader)
     @record
     cred
-    ("SELECT " <> readingColumns @tableFunction @record <> " FROM " <> renderView tableFuncton <> " FORMAT TSV\n")
+    ( "SELECT " <> readingColumns @tableFunction @record <>
+      " FROM " <> (byteString . BS8.pack . symbolVal @name) Proxy <> parameters interpreter <>
+      " FORMAT TSV\n")
     (fromTsvLine @tableFunction @record)
     (`withResponse` manager)
 

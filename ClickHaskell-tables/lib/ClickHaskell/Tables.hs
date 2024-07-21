@@ -1,6 +1,7 @@
 {-# LANGUAGE
     AllowAmbiguousTypes
   , DataKinds
+  , InstanceSigs
   , NamedFieldPuns
   , OverloadedStrings
   , TypeFamilyDependencies
@@ -11,17 +12,17 @@
 
 module ClickHaskell.Tables
 (
--- * Tables
--- ** Interpreter
-  InterpretableTable(..)
+-- * Specs
+  Table
+, View
 
--- ** Table
-, Table
+, parameter
+, Parameter
 
--- ** View
-, View, renderView
-, Parameter, mkParameter
-, PList(..)
+, parameters
+, ParametersInterpreter(..)
+
+, InterpretableParameters(..)
 
 
 -- * Columns
@@ -42,7 +43,7 @@ module ClickHaskell.Tables
 
 
 -- Internal
-import ClickHaskell.DbTypes (ToQueryPart(..), IsChType(ToChTypeName, IsWriteOptional))
+import ClickHaskell.DbTypes (ToQueryPart(..), IsChType(ToChTypeName, IsWriteOptional), ToChType, toChType)
 
 
 -- GHC included
@@ -53,118 +54,79 @@ import Data.Kind               (Type)
 import GHC.TypeLits            (ErrorMessage (..), Symbol, KnownSymbol, symbolVal)
 
 
--- * Tables
--- ** Interpreter
-
-class
-  HasColumns table
-  =>
-  InterpretableTable table
-  where
-
-  type TableInterpreter table = result | result -> table
-  interpretTable :: TableInterpreter table
-
-
-
-
--- ** Table
+-- * Specs
 
 data Table
   (name :: Symbol)
   (columns :: [Type])
 
-
-
-
-
-
-
-
--- ** View
-
 data View
   (name :: Symbol)
   (columns :: [Type])
   (parameters :: [Type])
-  = MkView
-    { viewName :: Builder
-    , inpterpretedParameters :: [Builder]
+
+data Parameter (name :: Symbol) (chType :: Type)
+
+
+-- >>> parameters (parameter @"a3" @ChString ("a3Val" :: ByteString) . parameter @"a2" @ChString ("a2Val" :: ByteString))
+-- "(a2='a2Val', a3='a3Val')"
+parameters :: forall params . (ParametersInterpreter '[] -> ParametersInterpreter params) -> Builder
+parameters interpreter = renderParameters $ interpreter (MkParametersInterpreter [])
+
+parameter
+  :: forall name chType parameters userType
+  . (InterpretableParameters parameters, ToChType chType userType, KnownSymbol name, ToQueryPart chType)
+  => userType -> ParametersInterpreter parameters -> WithPassedParameter (Parameter name chType) parameters
+parameter = interpretParameter
+
+renderParameters :: ParametersInterpreter parameters -> Builder
+renderParameters (MkParametersInterpreter (param:ps)) = "(" <> foldr (\p1 p2 -> p1 <> ", " <> p2) param ps <> ")"
+renderParameters (MkParametersInterpreter [])         = ""
+
+
+
+
+newtype ParametersInterpreter (parameters :: [Type]) =
+  MkParametersInterpreter
+    { evaluatedParameters :: [Builder]
     }
 
+class InterpretableParameters (ps :: [Type]) where
+  type WithPassedParameter p ps = withPassedParameter | withPassedParameter -> ps p
+  interpretParameter
+    :: forall name chType userType
+    . (ToChType chType userType, KnownSymbol name, ToQueryPart chType)
+    => userType -> (ParametersInterpreter ps -> WithPassedParameter (Parameter name chType) ps)
 
+instance InterpretableParameters '[]
+  where
+  type WithPassedParameter p '[] = ParametersInterpreter '[p]
+  interpretParameter
+    :: forall name userType chType
+    . (ToChType chType userType, KnownSymbol name, ToQueryPart chType)
+    => userType -> ParametersInterpreter '[] -> WithPassedParameter (Parameter name chType) '[]
+  interpretParameter userType _ = MkParametersInterpreter [renderParameter @name @chType userType]
 
+instance InterpretableParameters (x ': xs)
+  where
+  type WithPassedParameter p (x ': xs) = ParametersInterpreter (p ': (x ': xs))
+  interpretParameter
+    :: forall name userType chType
+    . (ToChType chType userType, KnownSymbol name, ToQueryPart chType)
+    => userType -> ParametersInterpreter (x : xs) -> WithPassedParameter (Parameter name chType) (x : xs)
+  interpretParameter userType (MkParametersInterpreter evaluatedParameters) =
+    MkParametersInterpreter $ renderParameter @name @chType userType : evaluatedParameters 
 
-newtype Parameter (name :: Symbol) (chType :: Type) =
-  MkParameter
-    { renderedParameter :: Builder
-    }
-
-
-mkParameter ::
-  forall name chType
+renderParameter ::
+  forall name chType userType
   .
   ( KnownSymbol name
+  , ToChType chType userType
   , ToQueryPart chType
-  ) =>
-  chType -> Parameter name chType
-mkParameter chType =
-  MkParameter
-    { renderedParameter = (BS.byteString . BS8.pack . symbolVal @name) Proxy <> "=" <> toQueryPart chType
-    }
-
-
-{- |
-Takes evaluated View and renders it
-
->>> let {param1="param1=['1']"; param2="param2=['2']"}
-
->>> renderView MkView{viewName="viewExample", inpterpretedParameters=[]}
-"viewExample"
-
->>> renderView MkView{viewName="viewExample2", inpterpretedParameters=[param1]}
-"viewExample2(param1=['1'])"
-
->>> renderView MkView{viewName="viewExample3", inpterpretedParameters=[param1, param2]}
-"viewExample3(param2=['2'], param1=['1'])"
--}
-renderView :: View name columns parameters -> Builder
-renderView (MkView{viewName, inpterpretedParameters}) = viewName <> renderTableParameters inpterpretedParameters
-
-
-renderTableParameters :: [Builder] -> Builder
-renderTableParameters (parameter:ps) = "(" <> foldr (\p1 p2 -> p1 <> ", " <> p2) parameter ps <> ")"
-renderTableParameters []             = ""
-
-data PList (ps :: [Type]) where
-  PNil :: PList '[]
-  (:#) :: (p ~ Parameter chName chType, ToParameterList ps) => p -> PList ps -> PList (p ': ps)
-infixr 5 :#
-
-class ToParameterList (params :: [Type]) where
-  toParameterList :: PList params -> [Builder]
-
-instance ToParameterList '[] where
-  toParameterList PNil = []
-
-instance
-  ( p ~ Parameter chName chType
-  , ToParameterList ps
-  ) => ToParameterList (p ': ps)
-  where
-  toParameterList (MkParameter{renderedParameter} :# ps) = renderedParameter  : toParameterList ps
-
-instance
-  ( KnownSymbol name
-  , ToParameterList params
-  ) => InterpretableTable (View name columns params)
-  where
-  type TableInterpreter (View name columns params) = PList params -> View name columns '[]
-  interpretTable params =
-    MkView
-      { viewName = (BS.byteString . BS8.pack . symbolVal @name) Proxy
-      , inpterpretedParameters = toParameterList params
-      }
+  )
+  =>
+  userType -> Builder
+renderParameter chType = (BS.byteString . BS8.pack . symbolVal @name) Proxy <> "=" <> toQueryPart (toChType @chType chType)
 
 
 

@@ -53,8 +53,8 @@ import Data.WideWord (Int128, Word128(Word128))
 
 -- GHC included
 import Control.DeepSeq         (NFData)
-import Data.ByteString         as BS (toStrict, StrictByteString, take, empty, drop)
-import Data.ByteString.Builder as BS (Builder, byteString, toLazyByteString)
+import Data.ByteString         as BS (StrictByteString, take, empty, drop)
+import Data.ByteString.Builder as BS (Builder, byteString)
 import Data.ByteString.Char8   as BS8 (concatMap, pack, readInt, readInteger, singleton, unpack, replicate, length, break)
 import Data.Coerce             (coerce)
 import Data.Maybe              (fromJust)

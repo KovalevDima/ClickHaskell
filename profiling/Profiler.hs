@@ -19,7 +19,7 @@ import Network.HTTP.Client (defaultManagerSettings, newManager)
 
 -- Internal
 import ClickHaskell.Client   (WritableInto, ReadableFrom, insertInto, ChCredential(..), selectFrom, select)
-import ClickHaskell.Tables   (interpretTable, Table, Column, Columns)
+import ClickHaskell.Tables   (Table, Column, Columns)
 import ClickHaskell.DbTypes
   ( toChType
   , ChUUID, ChDateTime, ChInt32, ChInt64, ChString
