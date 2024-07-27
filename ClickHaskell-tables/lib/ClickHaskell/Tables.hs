@@ -68,6 +68,7 @@ data View
 data Parameter (name :: Symbol) (chType :: Type)
 
 
+-- |
 -- >>> parameters (parameter @"a3" @ChString ("a3Val" :: ByteString) . parameter @"a2" @ChString ("a2Val" :: ByteString))
 -- "(a2='a2Val', a3='a3Val')"
 parameters :: forall params . (ParametersInterpreter '[] -> ParametersInterpreter params) -> Builder
@@ -77,7 +78,7 @@ parameter
   :: forall name chType parameters userType
   . (InterpretableParameters parameters, ToChType chType userType, KnownSymbol name, ToQueryPart chType)
   => userType -> ParametersInterpreter parameters -> WithPassedParameter (Parameter name chType) parameters
-parameter = interpretParameter
+parameter = interpretParameter . toChType
 
 renderParameters :: ParametersInterpreter parameters -> Builder
 renderParameters (MkParametersInterpreter (param:ps)) = "(" <> foldr (\p1 p2 -> p1 <> ", " <> p2) param ps <> ")"
@@ -94,39 +95,38 @@ newtype ParametersInterpreter (parameters :: [Type]) =
 class InterpretableParameters (ps :: [Type]) where
   type WithPassedParameter p ps = withPassedParameter | withPassedParameter -> ps p
   interpretParameter
-    :: forall name chType userType
-    . (ToChType chType userType, KnownSymbol name, ToQueryPart chType)
-    => userType -> (ParametersInterpreter ps -> WithPassedParameter (Parameter name chType) ps)
+    :: forall name chType
+    . (KnownSymbol name, ToQueryPart chType)
+    => chType -> (ParametersInterpreter ps -> WithPassedParameter (Parameter name chType) ps)
 
 instance InterpretableParameters '[]
   where
   type WithPassedParameter p '[] = ParametersInterpreter '[p]
   interpretParameter
-    :: forall name userType chType
-    . (ToChType chType userType, KnownSymbol name, ToQueryPart chType)
-    => userType -> ParametersInterpreter '[] -> WithPassedParameter (Parameter name chType) '[]
+    :: forall name chType
+    . (KnownSymbol name, ToQueryPart chType)
+    => chType -> ParametersInterpreter '[] -> WithPassedParameter (Parameter name chType) '[]
   interpretParameter userType _ = MkParametersInterpreter [renderParameter @name @chType userType]
 
 instance InterpretableParameters (x ': xs)
   where
   type WithPassedParameter p (x ': xs) = ParametersInterpreter (p ': (x ': xs))
   interpretParameter
-    :: forall name userType chType
-    . (ToChType chType userType, KnownSymbol name, ToQueryPart chType)
-    => userType -> ParametersInterpreter (x : xs) -> WithPassedParameter (Parameter name chType) (x : xs)
-  interpretParameter userType (MkParametersInterpreter evaluatedParameters) =
-    MkParametersInterpreter $ renderParameter @name @chType userType : evaluatedParameters 
+    :: forall name chType
+    . (KnownSymbol name, ToQueryPart chType)
+    => chType -> ParametersInterpreter (x : xs) -> WithPassedParameter (Parameter name chType) (x : xs)
+  interpretParameter chType (MkParametersInterpreter evaluatedParameters) =
+    MkParametersInterpreter $ renderParameter @name @chType chType : evaluatedParameters 
 
 renderParameter ::
-  forall name chType userType
+  forall name chType
   .
   ( KnownSymbol name
-  , ToChType chType userType
   , ToQueryPart chType
   )
   =>
-  userType -> Builder
-renderParameter chType = (BS.byteString . BS8.pack . symbolVal @name) Proxy <> "=" <> toQueryPart (toChType @chType chType)
+  chType -> Builder
+renderParameter chType = (BS.byteString . BS8.pack . symbolVal @name) Proxy <> "=" <> toQueryPart chType
 
 
 
