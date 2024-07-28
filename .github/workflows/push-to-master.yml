@@ -54,6 +54,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Fetch repo
+        uses: actions/checkout@v4
+
       - name: Check if docs sources changed
         uses: dorny/paths-filter@v3
         id: docsChanges
