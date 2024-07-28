@@ -5,7 +5,7 @@ on:
     branches: [master]
 
 jobs:
-  handle-PR:
+  handle-pull-request-to-master:
     runs-on: ubuntu-latest
 
     steps:
