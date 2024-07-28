@@ -20,11 +20,11 @@
     },
     "haskell-flake": {
       "locked": {
-        "lastModified": 1720321328,
-        "narHash": "sha256-U1vZkKOy7bB/qMRwS8cz4c8sy68Jq8yzRMV4G40U3Us=",
+        "lastModified": 1721530802,
+        "narHash": "sha256-eUMmQKXjt4WQq+IBscftg/Y9bXWiOYhasfeH5Yb9Psc=",
         "owner": "srid",
         "repo": "haskell-flake",
-        "rev": "a1506861ce09cca2d233d014fd03dd97ed03e3b9",
+        "rev": "f8f38ecd259338167cc0c85fd541479297a315af",
         "type": "github"
       },
       "original": {
@@ -35,15 +35,16 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1720618814,
-        "narHash": "sha256-khV4Cvz30n8XZrXQLRPqP1+UfhY7W8fbUu5wuAL/ILU=",
+        "lastModified": 1722125775,
+        "narHash": "sha256-ms34DhPOG5NfTDjorsRTWvrf1qq8YOQVSzxnqw/lgOE=",
         "owner": "nixos",
         "repo": "nixpkgs",
-        "rev": "9eec214c4bf133ae418152b034c2b8a4f3c81813",
+        "rev": "78da531a488eb9c7b6c3bcae654c84bb9f8b8590",
         "type": "github"
       },
       "original": {
         "owner": "nixos",
+        "ref": "haskell-updates",
         "repo": "nixpkgs",
         "type": "github"
       }
@@ -86,11 +87,11 @@
     },
     "services-flake": {
       "locked": {
-        "lastModified": 1720560105,
-        "narHash": "sha256-sv6DbDQ0gYvGatAQTUeb2GR1IvIAmQxW5OXBLrBwEKc=",
+        "lastModified": 1722126638,
+        "narHash": "sha256-JhIWZGuyhJgOaslkIA4HvLyDcp7KKZZIEXlOJNU9X4U=",
         "owner": "juspay",
         "repo": "services-flake",
-        "rev": "340d1a94cc5770c9fd921371f5c642367dc2e4d0",
+        "rev": "cc57527f4161a2765e966ecb90f25a65b950fb25",
         "type": "github"
       },
       "original": {
