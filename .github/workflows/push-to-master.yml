@@ -10,19 +10,23 @@ permissions:
   id-token: write
 
 jobs:
-  setup:
+  handle-commit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: cachix/install-nix-action@v26
+      - name: Fetch repo
+        uses: actions/checkout@v4
+
+      - name: Install nix
+        uses: cachix/install-nix-action@v26
         with:
           nix_path: nixpkgs=channel:nixos-unstable
 
-  build-docs:
-    runs-on: ubuntu-latest
-    needs: [setup]
+      - name: Build integration tests
+        run: nix build .#integration-testing
 
-    steps:
+      - name: Run integration tests
+        run: nix run .#integration-testing
+
       - name: Build documntation
         run: nix build .#documentation
 
@@ -32,20 +36,23 @@ jobs:
           name: github-pages
           path: result/_site/
 
-  tests:
-    needs: [setup]
-    runs-on: ubuntu-latest
+      - name: Check if docs sources changed
+        uses: dorny/paths-filter@v3
+        id: docsChanges
+        with:
+          filters: |
+            isSourceChanged:
+              - 'documentation/**'
 
-    steps:
-      - name: Build integration tests runner
-        run: nix build .#integration-testing
-
-      - name: Run integration testing
-        run: nix run .#integration-testing
+      - name: Deploy to GitHub Pages
+        if: steps.docsChanges.outputs.isSourceChanged == 'true'
+        id: deployment
+        uses: actions/deploy-pages@v4.0.5
 
   deploy-docs:
-    needs: [setup, build-docs]
+    needs: [handle-commit]
     runs-on: ubuntu-latest
+    if: steps.docsChanges.outputs.isSourceChanged == 'true'
 
     steps:
       - name: Deploy to GitHub Pages
