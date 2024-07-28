@@ -1,0 +1,64 @@
+name: "Docs"
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  handle-push-to-master:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch repo
+        uses: actions/checkout@v4
+
+      - name: Install nix
+        uses: cachix/install-nix-action@v26
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+
+      - name: Build integration tests
+        run: nix build .#integration-testing
+
+      - name: Run integration tests
+        run: nix run .#integration-testing
+
+      - name: Build documntation
+        run: nix build .#documentation
+
+      - name: Upload a Build Artifact
+        uses: actions/upload-pages-artifact@v3.0.1
+        with:
+          name: github-pages
+          path: result/_site/
+
+      - name: Check if docs sources changed
+        uses: dorny/paths-filter@v3
+        id: docsChanges
+        with:
+          filters: |
+            isSourceChanged:
+              - 'documentation/**'
+
+      - name: Deploy to GitHub Pages
+        if: steps.docsChanges.outputs.isSourceChanged == 'true'
+        id: deployment
+        uses: actions/deploy-pages@v4.0.5
+
+  deploy-docs:
+    needs: [handle-commit]
+    runs-on: ubuntu-latest
+    if: steps.docsChanges.outputs.isSourceChanged == 'true'
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4.0.5
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
