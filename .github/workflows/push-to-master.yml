@@ -49,25 +49,18 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4.0.5
 
+    outputs:
+        isDeployRequired:
+          ${{ steps.docsChanges.outputs.isSourceChanged }}
+
   deploy-docs:
     needs: [handle-push-to-master]
     runs-on: ubuntu-latest
+    if: needs.handle-push-to-master.outputs.isDeployRequired == 'true'
 
     steps:
-      - name: Fetch repo
-        uses: actions/checkout@v4
-
-      - name: Check if docs sources changed
-        uses: dorny/paths-filter@v3
-        id: docsChanges
-        with:
-          filters: |
-            isSourceChanged:
-              - 'documentation/**'
-
       - name: Deploy to GitHub Pages
         id: deployment
-        if: steps.docsChanges.outputs.isSourceChanged == 'true'
         uses: actions/deploy-pages@v4.0.5
 
     environment:
