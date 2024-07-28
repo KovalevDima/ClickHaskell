@@ -20,7 +20,7 @@ jobs:
 
   build-docs:
     runs-on: ubuntu-latest
-    needs: setup
+    needs: [setup]
 
     steps:
       - name: Build documntation
@@ -33,7 +33,7 @@ jobs:
           path: result/_site/
 
   tests:
-    needs: setup
+    needs: [setup]
     runs-on: ubuntu-latest
 
     steps:
@@ -44,7 +44,7 @@ jobs:
         run: nix run .#integration-testing
 
   deploy-docs:
-    needs: build-docs
+    needs: [setup, build-docs]
     runs-on: ubuntu-latest
 
     steps:
