@@ -43,7 +43,7 @@ main = do
         manager
         credential
         ( parameter @"a1MoreThan" @ChInt32 ((-100_000) :: Int32)
-        . parameter @"a1LessThan" @ChInt32 ((-100_000) :: Int32)
+        . parameter @"a1LessThan" @ChInt32 ((100_000) :: Int32)
         )
 
 type ExampleView =

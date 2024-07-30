@@ -23,7 +23,7 @@ module ClickHaskell.Tables
 , ParametersInterpreter(..)
 
 , InterpretableParameters(..)
-
+, CheckParameters
 
 -- * Columns
 -- ** HasColumns helper class
@@ -50,9 +50,10 @@ import ClickHaskell.DbTypes (ToQueryPart(..), IsChType(ToChTypeName, IsWriteOpti
 import Data.ByteString.Builder as BS (Builder, byteString, stringUtf8)
 import Data.ByteString.Char8   as BS8 (pack)
 import Data.Data               (Proxy (Proxy))
-import Data.Kind               (Type)
-import GHC.TypeLits            (ErrorMessage (..), Symbol, KnownSymbol, symbolVal)
-
+import Data.Kind               (Type, Constraint)
+import GHC.TypeLits            (TypeError, ErrorMessage (..), Symbol, KnownSymbol, symbolVal)
+import Data.Type.Bool          (If)
+import Data.Type.Equality      (type(==))
 
 -- * Specs
 
@@ -76,7 +77,7 @@ parameters interpreter = renderParameters $ interpreter (MkParametersInterpreter
 
 parameter
   :: forall name chType parameters userType
-  . (InterpretableParameters parameters, ToChType chType userType, KnownSymbol name, ToQueryPart chType)
+  . ( InterpretableParameters parameters, ToChType chType userType, KnownSymbol name, ToQueryPart chType)
   => userType -> ParametersInterpreter parameters -> WithPassedParameter (Parameter name chType) parameters
 parameter = interpretParameter . toChType
 
@@ -116,7 +117,7 @@ instance InterpretableParameters (x ': xs)
     . (KnownSymbol name, ToQueryPart chType)
     => chType -> ParametersInterpreter (x : xs) -> WithPassedParameter (Parameter name chType) (x : xs)
   interpretParameter chType (MkParametersInterpreter evaluatedParameters) =
-    MkParametersInterpreter $ renderParameter @name @chType chType : evaluatedParameters 
+    MkParametersInterpreter $ renderParameter @name @chType chType : evaluatedParameters
 
 renderParameter ::
   forall name chType
@@ -128,7 +129,60 @@ renderParameter ::
   chType -> Builder
 renderParameter chType = (BS.byteString . BS8.pack . symbolVal @name) Proxy <> "=" <> toQueryPart chType
 
+class GetParameterInfo p where
+  type GetParameterName p :: Symbol
+  type GetParameterType p :: Type
 
+instance GetParameterInfo (Parameter name chType) where
+  type GetParameterName (Parameter name chType) = name
+  type GetParameterType (Parameter name chType) = chType
+
+type family CheckParameters
+  (tableFunctionParams :: [Type])
+  (passedParams :: [Type])
+  :: Constraint
+  where
+  CheckParameters tfs ps = (CheckDuplicates ps, GoCheckParameters tfs ps '[] True)
+
+type family CheckDuplicates
+  (passedParams :: [Type])
+  :: Constraint
+  where
+  CheckDuplicates '[] = ()
+  CheckDuplicates (p ': ps) = (CheckParamDuplicates p ps, CheckDuplicates ps)
+
+type family CheckParamDuplicates
+  (param :: Type)
+  (passedParams :: [Type])
+  :: Constraint
+  where
+  CheckParamDuplicates _ '[] = ()
+  CheckParamDuplicates p' (p ': ps) = If
+    (GetParameterName p' == GetParameterName p)
+    (TypeError ('Text "Duplicated parameter \"" :<>: 'Text (GetParameterName p) :<>: 'Text "\" in passed parameters"))
+    (CheckParamDuplicates p' ps)
+
+type family GoCheckParameters
+  (tableFunctionParams :: [Type])
+  (passedParams :: [Type])
+  (acc :: [Type])
+  (firstRound :: Bool)
+  :: Constraint
+  where
+  GoCheckParameters '[] '[] '[] _ = ()
+  GoCheckParameters (p ': _) '[] '[] _ = TypeError
+    ('Text "Missing  \"" :<>: 'Text (GetParameterName p) :<>: 'Text "\" in passed parameters.")
+  GoCheckParameters '[] (p ': _) _ _ = TypeError
+    ('Text "More parameters passed than used in the view")
+  GoCheckParameters '[] '[] (p ': _) _ = TypeError
+    ('Text "More parameters passed than used in the view")
+  GoCheckParameters (p ': ps) '[] (p' ': ps') False = TypeError
+    ('Text "Missing  \"" :<>: 'Text (GetParameterName p) :<>: 'Text "\" in passed parameters")
+  GoCheckParameters (p ': ps) '[] (p' ': ps') True = GoCheckParameters (p ': ps) (p' ': ps') '[] False
+  GoCheckParameters (p ': ps) (p' ': ps') acc b = If
+    (GetParameterName p == GetParameterName p')
+    (GoCheckParameters ps ps' acc True)
+    (GoCheckParameters (p ': ps) ps' (p' ': acc) b)
 
 
 
@@ -270,3 +324,4 @@ class
 
   type WritableColumn    columnDescription :: Maybe ErrorMessage
   type WriteOptionalColumn columnDescription :: Bool
+

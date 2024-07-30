@@ -17,7 +17,7 @@ module ClickHaskell.Client
 
 -- Internal
 import ClickHaskell.Internal.Generics (WritableInto(..), ReadableFrom(..))
-import ClickHaskell.Tables (Table, Columns, View, ParametersInterpreter, parameters)
+import ClickHaskell.Tables (Table, Columns, View, ParametersInterpreter, CheckParameters, parameters)
 
 -- External
 import Network.HTTP.Client as H (Request(..), Response(..), RequestBody(..), parseRequest, withResponse, brConsume, BodyReader, Manager)
@@ -79,13 +79,14 @@ selectFrom manager cred =
     (`withResponse` manager)
 
 selectFromTableFunction ::
-  forall tableFunction record name columns parameters
+  forall tableFunction record name columns parameters passedParameters
   .
   ( ReadableFrom tableFunction record
   , KnownSymbol name
   , tableFunction ~ View name columns parameters
+  , CheckParameters parameters passedParameters
   )
-  => Manager -> ChCredential -> (ParametersInterpreter '[] -> ParametersInterpreter parameters) -> IO [record]
+  => Manager -> ChCredential -> (ParametersInterpreter '[] -> ParametersInterpreter passedParameters) -> IO [record]
 selectFromTableFunction manager cred interpreter =
   selectFromHttpGeneric
     @Request
