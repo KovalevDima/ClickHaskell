@@ -1,25 +1,29 @@
 {-# LANGUAGE
     AllowAmbiguousTypes
   , DataKinds
+  , InstanceSigs
   , NamedFieldPuns
   , OverloadedStrings
   , TypeFamilyDependencies
   , UndecidableInstances
+  , GADTs
+  , ScopedTypeVariables
 #-}
 
 module ClickHaskell.Tables
 (
--- * Tables
--- ** Interpreter
-  InterpretableTable(..)
+-- * Specs
+  Table
+, View
 
--- ** Table
-, Table
+, parameter
+, Parameter
 
--- ** View
-, View, renderView
-, Parameter, mkParameter
+, parameters
+, ParametersInterpreter(..)
 
+, InterpretableParameters(..)
+, CheckParameters
 
 -- * Columns
 -- ** HasColumns helper class
@@ -39,229 +43,146 @@ module ClickHaskell.Tables
 
 
 -- Internal
-import ClickHaskell.DbTypes (ToQueryPart(..), IsChType(ToChTypeName, IsWriteOptional))
+import ClickHaskell.DbTypes (ToQueryPart(..), IsChType(ToChTypeName, IsWriteOptional), ToChType, toChType)
 
 
 -- GHC included
 import Data.ByteString.Builder as BS (Builder, byteString, stringUtf8)
 import Data.ByteString.Char8   as BS8 (pack)
 import Data.Data               (Proxy (Proxy))
-import Data.Kind               (Type)
-import GHC.TypeLits            (ErrorMessage (..), Symbol, KnownSymbol, symbolVal)
+import Data.Kind               (Type, Constraint)
+import GHC.TypeLits            (TypeError, ErrorMessage (..), Symbol, KnownSymbol, symbolVal)
+import Data.Type.Bool          (If)
+import Data.Type.Equality      (type(==))
 
-
--- * Tables
--- ** Interpreter
-
-class
-  HasColumns table
-  =>
-  InterpretableTable table
-  where
-
-  type TableInterpreter table = result | result -> table
-  interpretTable :: TableInterpreter table
-
-
-
-
--- ** Table
+-- * Specs
 
 data Table
   (name :: Symbol)
   (columns :: [Type])
 
-
-
-
-
-
-
-
--- ** View
-
 data View
   (name :: Symbol)
   (columns :: [Type])
   (parameters :: [Type])
-  = MkView
-    { viewName :: Builder
-    , inpterpretedParameters :: [Builder]
+
+data Parameter (name :: Symbol) (chType :: Type)
+
+
+-- |
+-- >>> parameters (parameter @"a3" @ChString ("a3Val" :: ByteString) . parameter @"a2" @ChString ("a2Val" :: ByteString))
+-- "(a2='a2Val', a3='a3Val')"
+parameters :: forall params . (ParametersInterpreter '[] -> ParametersInterpreter params) -> Builder
+parameters interpreter = renderParameters $ interpreter (MkParametersInterpreter [])
+
+parameter
+  :: forall name chType parameters userType
+  . ( InterpretableParameters parameters, ToChType chType userType, KnownSymbol name, ToQueryPart chType)
+  => userType -> ParametersInterpreter parameters -> WithPassedParameter (Parameter name chType) parameters
+parameter = interpretParameter . toChType
+
+renderParameters :: ParametersInterpreter parameters -> Builder
+renderParameters (MkParametersInterpreter (param:ps)) = "(" <> foldr (\p1 p2 -> p1 <> ", " <> p2) param ps <> ")"
+renderParameters (MkParametersInterpreter [])         = ""
+
+
+
+
+newtype ParametersInterpreter (parameters :: [Type]) =
+  MkParametersInterpreter
+    { evaluatedParameters :: [Builder]
     }
 
+class InterpretableParameters (ps :: [Type]) where
+  type WithPassedParameter p ps = withPassedParameter | withPassedParameter -> ps p
+  interpretParameter
+    :: forall name chType
+    . (KnownSymbol name, ToQueryPart chType)
+    => chType -> (ParametersInterpreter ps -> WithPassedParameter (Parameter name chType) ps)
 
+instance InterpretableParameters '[]
+  where
+  type WithPassedParameter p '[] = ParametersInterpreter '[p]
+  interpretParameter
+    :: forall name chType
+    . (KnownSymbol name, ToQueryPart chType)
+    => chType -> ParametersInterpreter '[] -> WithPassedParameter (Parameter name chType) '[]
+  interpretParameter userType _ = MkParametersInterpreter [renderParameter @name @chType userType]
 
+instance InterpretableParameters (x ': xs)
+  where
+  type WithPassedParameter p (x ': xs) = ParametersInterpreter (p ': (x ': xs))
+  interpretParameter
+    :: forall name chType
+    . (KnownSymbol name, ToQueryPart chType)
+    => chType -> ParametersInterpreter (x : xs) -> WithPassedParameter (Parameter name chType) (x : xs)
+  interpretParameter chType (MkParametersInterpreter evaluatedParameters) =
+    MkParametersInterpreter $ renderParameter @name @chType chType : evaluatedParameters
 
-newtype Parameter (name :: Symbol) (chType :: Type) =
-  MkParameter
-    { renderedParameter :: Builder
-    }
-
-
-mkParameter ::
+renderParameter ::
   forall name chType
   .
   ( KnownSymbol name
   , ToQueryPart chType
-  ) =>
-  chType -> Parameter name chType
-mkParameter chType =
-  MkParameter
-    { renderedParameter = (BS.byteString . BS8.pack . symbolVal @name) Proxy <> "=" <> toQueryPart chType
-    }
+  )
+  =>
+  chType -> Builder
+renderParameter chType = (BS.byteString . BS8.pack . symbolVal @name) Proxy <> "=" <> toQueryPart chType
 
+class GetParameterInfo p where
+  type GetParameterName p :: Symbol
+  type GetParameterType p :: Type
 
-{- |
-Takes evaluated View and renders it
+instance GetParameterInfo (Parameter name chType) where
+  type GetParameterName (Parameter name chType) = name
+  type GetParameterType (Parameter name chType) = chType
 
->>> let {param1="param1=['1']"; param2="param2=['2']"}
-
->>> renderView MkView{viewName="viewExample", inpterpretedParameters=[]}
-"viewExample"
-
->>> renderView MkView{viewName="viewExample2", inpterpretedParameters=[param1]}
-"viewExample2(param1=['1'])"
-
->>> renderView MkView{viewName="viewExample3", inpterpretedParameters=[param1, param2]}
-"viewExample3(param2=['2'], param1=['1'])"
--}
-renderView :: View name columns parameters -> Builder
-renderView (MkView{viewName, inpterpretedParameters}) = viewName <> renderTableParameters inpterpretedParameters
-
-
-renderTableParameters :: [Builder] -> Builder
-renderTableParameters (parameter:ps) = "(" <> foldr (\p1 p2 -> p1 <> ", " <> p2) parameter ps <> ")"
-renderTableParameters []             = ""
-
-
-instance
-  ( KnownSymbol name
-  ) => InterpretableTable (View name columns '[])
+type family CheckParameters
+  (tableFunctionParams :: [Type])
+  (passedParams :: [Type])
+  :: Constraint
   where
-  type TableInterpreter (View name columns '[]) = View name columns '[]
-  interpretTable =
-    MkView
-      { viewName = (BS.byteString . BS8.pack . symbolVal @name) Proxy
-      , inpterpretedParameters = []
-      }
+  CheckParameters tfs ps = (CheckDuplicates ps, GoCheckParameters tfs ps '[] True)
 
-
-instance
-  ( KnownSymbol name
-  ) => InterpretableTable (View name columns '[Parameter paramName (chType :: Type)])
+type family CheckDuplicates
+  (passedParams :: [Type])
+  :: Constraint
   where
-  type TableInterpreter (View name columns '[Parameter paramName chType]) = Parameter paramName chType -> View name columns '[]
-  interpretTable MkParameter{renderedParameter} =
-    MkView
-      { viewName = (BS.byteString . BS8.pack . symbolVal @name) Proxy
-      , inpterpretedParameters = [renderedParameter]
-      }
+  CheckDuplicates '[] = ()
+  CheckDuplicates (p ': ps) = (CheckParamDuplicates p ps, CheckDuplicates ps)
 
-
-instance
-  ( KnownSymbol name
-  ) => InterpretableTable 
-    ( View
-      name
-      columns
-     '[ Parameter paramName chType
-      , Parameter paramName2 chType2
-      ]
-    )
+type family CheckParamDuplicates
+  (param :: Type)
+  (passedParams :: [Type])
+  :: Constraint
   where
+  CheckParamDuplicates _ '[] = ()
+  CheckParamDuplicates p' (p ': ps) = If
+    (GetParameterName p' == GetParameterName p)
+    (TypeError ('Text "Duplicated parameter \"" :<>: 'Text (GetParameterName p) :<>: 'Text "\" in passed parameters"))
+    (CheckParamDuplicates p' ps)
 
-  type TableInterpreter
-    ( View
-      name
-      columns
-     '[ Parameter paramName chType
-      , Parameter paramName2 chType2
-      ]
-    ) 
-    =  Parameter paramName chType
-    -> Parameter paramName2 chType2
-    -> View name columns '[]
-  interpretTable parameter1 parameter2 =
-    MkView
-      { viewName = (BS.byteString . BS8.pack . symbolVal @name) Proxy
-      , inpterpretedParameters = [renderedParameter parameter1, renderedParameter parameter2]
-      }
-
-
-instance
-  ( KnownSymbol name
-  ) => InterpretableTable 
-    ( View
-      name
-      columns
-     '[ Parameter paramName chType
-      , Parameter paramName2 chType2
-      , Parameter paramName3 chType3
-      ]
-    )
+type family GoCheckParameters
+  (tableFunctionParams :: [Type])
+  (passedParams :: [Type])
+  (acc :: [Type])
+  (firstRound :: Bool)
+  :: Constraint
   where
-
-  type TableInterpreter
-    ( View
-      name
-      columns
-     '[ Parameter paramName chType
-      , Parameter paramName2 chType2
-      , Parameter paramName3 chType3
-      ]
-    )
-    =  Parameter paramName chType
-    -> Parameter paramName2 chType2
-    -> Parameter paramName3 chType3
-    -> View name columns '[]
-  interpretTable parameter1 parameter2 parameter3 =
-    MkView
-      { viewName = (BS.byteString . BS8.pack . symbolVal @name) Proxy
-      , inpterpretedParameters = [renderedParameter parameter1, renderedParameter parameter2, renderedParameter parameter3]
-      }
-
-
-instance
-  ( KnownSymbol name
-  ) => InterpretableTable 
-    ( View
-      name
-      columns
-     '[ Parameter paramName chType
-      , Parameter paramName2 chType2
-      , Parameter paramName3 chType3
-      , Parameter paramName4 chType4
-      ]
-    )
-  where
-
-  type TableInterpreter
-    ( View
-      name
-      columns
-     '[ Parameter paramName chType
-      , Parameter paramName2 chType2
-      , Parameter paramName3 chType3
-      , Parameter paramName4 chType4
-      ]
-    )
-    =  Parameter paramName chType
-    -> Parameter paramName2 chType2
-    -> Parameter paramName3 chType3
-    -> Parameter paramName4 chType4
-    -> View name columns '[]
-  interpretTable parameter1 parameter2 parameter3 parameter4 =
-    MkView
-      { viewName = (BS.byteString . BS8.pack . symbolVal @name) Proxy
-      , inpterpretedParameters =
-        [ renderedParameter parameter1
-        , renderedParameter parameter2
-        , renderedParameter parameter3
-        , renderedParameter parameter4
-        ]
-      }
-
-
+  GoCheckParameters '[] '[] '[] _ = ()
+  GoCheckParameters (p ': _) '[] '[] _ = TypeError
+    ('Text "Missing  \"" :<>: 'Text (GetParameterName p) :<>: 'Text "\" in passed parameters.")
+  GoCheckParameters '[] (p ': _) _ _ = TypeError
+    ('Text "More parameters passed than used in the view")
+  GoCheckParameters '[] '[] (p ': _) _ = TypeError
+    ('Text "More parameters passed than used in the view")
+  GoCheckParameters (p ': ps) '[] (p' ': ps') False = TypeError
+    ('Text "Missing  \"" :<>: 'Text (GetParameterName p) :<>: 'Text "\" in passed parameters")
+  GoCheckParameters (p ': ps) '[] (p' ': ps') True = GoCheckParameters (p ': ps) (p' ': ps') '[] False
+  GoCheckParameters (p ': ps) (p' ': ps') acc b = If
+    (GetParameterName p == GetParameterName p')
+    (GoCheckParameters ps ps' acc True)
+    (GoCheckParameters (p ': ps) ps' (p' ': acc) b)
 
 
 
@@ -284,7 +205,7 @@ instance HasColumns (Table name columns) where
   type GetColumns (Table _ columns) = columns
 
 instance HasColumns (Columns columns) where
-  type GetColumns (Columns columns) = columns 
+  type GetColumns (Columns columns) = columns
 
 
 
@@ -314,7 +235,7 @@ instance
   renderColumnName = (stringUtf8 . symbolVal @name) Proxy
 
   type GetColumnType (Column name columnType) = columnType
-  renderColumnType = (stringUtf8 . symbolVal @(ToChTypeName columnType)) Proxy 
+  renderColumnType = (stringUtf8 . symbolVal @(ToChTypeName columnType)) Proxy
 
   type WritableColumn (Column _ _) = Nothing
 
@@ -403,3 +324,4 @@ class
 
   type WritableColumn    columnDescription :: Maybe ErrorMessage
   type WriteOptionalColumn columnDescription :: Bool
+
