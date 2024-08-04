@@ -1,7 +1,7 @@
 Cabal-version: 3.4
 
 
-Name:           ClickHaskell-client
+Name:           ClickHaskell-http-client
 Version:        0.0.0.1
 
 Author:         Kovalev Dmitry
@@ -36,12 +36,11 @@ Source-repository head
 
 Library
   Autogen-Modules:
-    Paths_ClickHaskell_client
+    Paths_ClickHaskell_http_client
   Exposed-Modules:
     ClickHaskell.Client
   Other-Modules:
-    ClickHaskell.Internal.Generics
-    Paths_ClickHaskell_client
+    Paths_ClickHaskell_http_client
   HS-Source-Dirs:
     ./lib
   GHC-Options:
@@ -57,14 +56,11 @@ Library
 
   Build-depends:
     -- Internal
-      ClickHaskell-tables < 0.1
-    , ClickHaskell-db-types
+      ClickHaskell
 
     -- GHC included
     , base >= 4.7 && <5
     , bytestring < 0.13
-    , deepseq < 1.6
-    , stm < 2.6
     , text < 2.2
 
     -- External

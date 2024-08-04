@@ -4,38 +4,49 @@
   , DeriveAnyClass
   , DeriveGeneric
   , DerivingStrategies
+  , LambdaCase
   , OverloadedStrings
   , TypeFamilyDependencies
   , RankNTypes
 #-}
-{-# LANGUAGE LambdaCase #-}
+{-# OPTIONS_GHC
+  -Wno-orphans
+#-}
 module ClickHaskell.Client
-  ( module ClickHaskell.Client
+  ( select
+  , selectFrom
+  , selectFromTableFunction
+
+  , insertInto
+
+  , runStatement
+
   , WritableInto(..)
   , ReadableFrom(..)
+
+  , ChCredential(..)
   ) where
 
 -- Internal
 import ClickHaskell.Internal.Generics (WritableInto(..), ReadableFrom(..))
 import ClickHaskell.Tables (Table, Columns, View, ParametersInterpreter, CheckParameters, parameters)
+import ClickHaskell.HTTP (ImpliesClickHouseHttp(..), ChCredential(..), ChException(..), insertIntoHttpGeneric, selectFromHttpGeneric)
 
 -- External
 import Network.HTTP.Client as H (Request(..), Response(..), RequestBody(..), parseRequest, withResponse, brConsume, BodyReader, Manager)
 import Network.HTTP.Types  as H (Status(..))
 
 -- GHC included
-import Control.DeepSeq         (NFData)
-import Control.Exception       (Exception, SomeException, throw)
+import Control.Exception       (throw)
 import Data.ByteString            as BS (StrictByteString, empty, toStrict)
 import Data.ByteString.Builder    (Builder, byteString, toLazyByteString)
 import Data.ByteString.Char8      as BS8 (pack)
 import Data.ByteString.Lazy       as BSL (toChunks, fromChunks)
 import Data.ByteString.Lazy.Char8 as BSL8 (lines)
 import Data.IORef              (newIORef, readIORef, writeIORef, atomicModifyIORef)
-import Data.Text               as T (Text, unpack)
+import Data.Text               as T (unpack)
 import Data.Text.Encoding      as T (decodeUtf8, encodeUtf8)
 import Data.Typeable           (Proxy (..))
-import GHC.Generics            (Generic)
 import GHC.IO                  (unsafeInterleaveIO)
 import GHC.TypeLits            (KnownSymbol, symbolVal)
 
@@ -165,86 +176,3 @@ instance ImpliesClickHouseHttp H.Request (H.Response BodyReader) where
     if H.statusCode (responseStatus resp) /= 200
       then throw . MkChException . T.decodeUtf8 . mconcat =<< (brConsume . responseBody) resp
       else pure resp
-
-
-
-
-
-
-
-
--- ToDo: Move it into internal ClickHaskell-HTTP package
-insertIntoHttpGeneric
-  :: forall request response record
-  .  ImpliesClickHouseHttp request response
-  => ChCredential
-  -> Builder
-  -> (record -> Builder)
-  -> [record]
-  -> (request -> (forall result. (response -> IO result) -> IO result))
-  -> IO ()
-insertIntoHttpGeneric credential query encoder records runClient = injectWritingToRequest
-  @request
-  @response
-  query
-  records
-  encoder
-  (either throw id $ initAuthorizedRequest @request @response credential)
-  `runClient` \response -> do
-    _ <- throwOnNon200 @request response
-    pure ()
-
-selectFromHttpGeneric
-  :: forall request response record
-  .  ImpliesClickHouseHttp request response
-  => ChCredential
-  -> Builder
-  -> (StrictByteString -> record)
-  -> (request -> (forall result . (response -> IO result) -> IO result))
-  -> IO [record]
-selectFromHttpGeneric credential query decoder runClient =
-  (injectStatementToRequest @request @response query . either throw id)
-  (initAuthorizedRequest @request @response credential)
-  `runClient` \response -> do
-    _ <- throwOnNon200 @request response
-    injectReadingToResponse
-      @request
-      @response
-      decoder
-      response
-
-
--- * Clients abstraction
-
-{- |
-Clients initialization abstraction for different backends
--}
-class ImpliesClickHouseHttp request response
-  where
-  initAuthorizedRequest :: ChCredential -> Either SomeException request
-
-  injectStatementToRequest :: Builder -> (request -> request)
-
-  injectReadingToResponse :: (StrictByteString -> record) -> (response -> IO [record])
-
-  injectWritingToRequest :: Builder -> [rec] -> (rec -> Builder) -> (request -> request)
-
-  throwOnNon200 :: response -> IO response
-
-{- | ToDocument
--}
-data ChCredential = MkChCredential
-  { chLogin    :: !Text
-  , chPass     :: !Text
-  , chUrl      :: !Text
-  , chDatabase :: !Text
-  }
-  deriving (Generic, NFData, Show, Eq)
-
-{- | ToDocument
--}
-newtype ChException = MkChException
-  { exceptionMessage :: Text
-  }
-  deriving (Show)
-  deriving anyclass (Exception)

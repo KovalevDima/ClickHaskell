@@ -33,9 +33,8 @@ executable profiler
 
   build-depends:
     -- Internal
-      ClickHaskell-client
-    , ClickHaskell-tables
-    , ClickHaskell-db-types
+      ClickHaskell
+    , ClickHaskell-http-client
 
     -- GHC included
     , base
