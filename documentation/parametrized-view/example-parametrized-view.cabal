@@ -23,9 +23,8 @@ executable example-parametrized-view
   main-is: README.lhs
   build-depends:
     -- Internal
-      ClickHaskell-client
-    , ClickHaskell-tables
-    , ClickHaskell-db-types
+      ClickHaskell
+    , ClickHaskell-http-client
 
     -- GHC included
     , base >=4.7 && <5

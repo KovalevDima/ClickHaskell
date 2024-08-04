@@ -1,7 +1,6 @@
 packages:
-    ./ClickHaskell-client
-    ./ClickHaskell-tables
-    ./ClickHaskell-db-types
+    ./ClickHaskell
+    ./ClickHaskell-http-client
     ./clickhouse-lock
     ./documentation
     ./documentation/writing

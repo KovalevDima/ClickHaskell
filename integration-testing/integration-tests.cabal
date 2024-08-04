@@ -34,9 +34,8 @@ library
 
   build-depends:
     -- Internal
-      ClickHaskell-client
-    , ClickHaskell-tables
-    , ClickHaskell-db-types
+      ClickHaskell
+    , ClickHaskell-http-client
 
     -- GHC included
     , base >=4.7 && <5
@@ -53,7 +52,7 @@ executable integration-tests
   ghc-options: -O2 -threaded -rtsopts
   build-depends:
     -- Internal
-      ClickHaskell-client
+      ClickHaskell-http-client
     , integration-tests
 
     -- GHC included
