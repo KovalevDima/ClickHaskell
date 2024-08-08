@@ -4,6 +4,7 @@
   , InstanceSigs
   , NamedFieldPuns
   , OverloadedStrings
+  , PolyKinds
   , TypeFamilyDependencies
   , UndecidableInstances
   , GADTs
@@ -27,7 +28,6 @@ module ClickHaskell.Tables
 
 -- * Columns
 -- ** HasColumns helper class
-, Columns
 , HasColumns(..)
 
 -- ** Column
@@ -193,9 +193,7 @@ type family GoCheckParameters
 
 -- ** HasColumns helper class
 
-data Columns (columns :: [Type])
-
-class HasColumns hasColumns where
+class HasColumns (hasColumns :: k) where
   type GetColumns hasColumns :: [Type]
 
 instance HasColumns (View name columns params) where
@@ -204,8 +202,8 @@ instance HasColumns (View name columns params) where
 instance HasColumns (Table name columns) where
   type GetColumns (Table _ columns) = columns
 
-instance HasColumns (Columns columns) where
-  type GetColumns (Columns columns) = columns
+instance HasColumns (columns :: [Type]) where
+  type GetColumns columns = columns
 
 
 

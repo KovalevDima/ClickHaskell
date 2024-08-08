@@ -29,7 +29,7 @@ module ClickHaskell.Client
 
 -- Internal
 import ClickHaskell.Internal.Generics (WritableInto(..), ReadableFrom(..))
-import ClickHaskell.Tables (Table, Columns, View, ParametersInterpreter, CheckParameters, parameters)
+import ClickHaskell.Tables (Table, View, ParametersInterpreter, CheckParameters, parameters)
 import ClickHaskell.HTTP (ImpliesClickHouseHttp(..), ChCredential(..), ChException(..), insertIntoHttpGeneric, selectFromHttpGeneric)
 
 -- External
@@ -44,6 +44,7 @@ import Data.ByteString.Char8      as BS8 (pack)
 import Data.ByteString.Lazy       as BSL (toChunks, fromChunks)
 import Data.ByteString.Lazy.Char8 as BSL8 (lines)
 import Data.IORef              (newIORef, readIORef, writeIORef, atomicModifyIORef)
+import Data.Kind               (Type)
 import Data.Text               as T (unpack)
 import Data.Text.Encoding      as T (decodeUtf8, encodeUtf8)
 import Data.Typeable           (Proxy (..))
@@ -111,11 +112,9 @@ selectFromTableFunction manager cred interpreter =
     (`withResponse` manager)
 
 select ::
-  forall columnsWrapper record columns
+  forall (columns :: [Type]) record
   .
-  ( ReadableFrom columnsWrapper record
-  , columnsWrapper ~ Columns columns
-  )
+  ReadableFrom columns record
   => Manager -> ChCredential -> Builder -> IO [record]
 select manager cred query =
   selectFromHttpGeneric
@@ -124,7 +123,7 @@ select manager cred query =
     @record
     cred
     (query <> " FORMAT TSV\n")
-    (fromTsvLine @(Columns columns) @record)
+    (fromTsvLine @columns @record)
     (`withResponse` manager)
 
 runStatement :: Manager -> ChCredential -> Builder -> IO StrictByteString
