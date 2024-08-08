@@ -18,8 +18,8 @@ module Profiler
 import Network.HTTP.Client (defaultManagerSettings, newManager)
 
 -- Internal
-import ClickHaskell.Client   (WritableInto, ReadableFrom, insertInto, ChCredential(..), selectFrom, select)
-import ClickHaskell.Tables   (Table, Column, Columns)
+import ClickHaskell.Client (WritableInto, ReadableFrom, insertInto, select, ChCredential(..))
+import ClickHaskell.Tables (Table, Column)
 import ClickHaskell.DbTypes
   ( toChType
   , ChUUID, ChDateTime, ChInt32, ChInt64, ChString
@@ -53,7 +53,7 @@ main = do
   traceMarkerIO "Starting reading"
   selectedData <-
     select
-      @(Columns ExampleColumns)
+      @ExampleColumns
       @ExampleData
       manager
       exampleCredentials
@@ -76,17 +76,7 @@ exampleCredentials :: ChCredential
 exampleCredentials = MkChCredential "default" "" "http://localhost:8123" "default"
 
 
-type ExampleTable =
-  Table
-    "exampleWriteRead"
-   '[ Column "a1" ChInt64
-    , Column "a2" ChString
-    , Column "a3" ChDateTime
-    , Column "a4" ChUUID
-    , Column "a5" ChInt32
-    , Column "a6" (LowCardinality (Nullable ChString))
-    , Column "a7" (LowCardinality ChString)
-    ]
+type ExampleTable = Table "exampleWriteRead" ExampleColumns
 
 data ExampleData = MkExampleData
   { a1 :: ChInt64
@@ -109,17 +99,5 @@ type ExampleColumns =
   , Column "a7" (LowCardinality ChString)
   ]
 
-instance ReadableFrom (Columns ExampleColumns) ExampleData
-instance ReadableFrom ExampleTable ExampleData
+instance ReadableFrom ExampleColumns ExampleData
 instance WritableInto ExampleTable ExampleData
-
-exampleDataSample :: ExampleData
-exampleDataSample = MkExampleData
-  { a1 = toChType (42 :: Int64)
-  , a2 = "text"
-  , a4 = toChType (0 :: Word64)
-  , a3 = 42
-  , a5 = 42
-  , a6 = Just "500"
-  , a7 = ""
-  }

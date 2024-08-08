@@ -65,18 +65,16 @@ class GWritable
   gToTsvBs :: f p -> Builder
   gWritingColumns :: Builder
 
-instance {-# OVERLAPPING #-}
-  ( GWritable columns f
-  )
+instance
+  GWritable columns f
   =>
   GWritable columns (D1 c (C1 c2 f))
   where
   gToTsvBs (M1 (M1 re)) = gToTsvBs @columns re <> "\n"
   gWritingColumns = gWritingColumns @columns @f
 
-instance {-# OVERLAPPING #-}
-  ( GWritable columns (left1 :*: (left2 :*: right))
-  )
+instance
+  GWritable columns (left1 :*: (left2 :*: right))
   =>
   GWritable columns ((left1 :*: left2) :*: right)
   where
@@ -131,19 +129,19 @@ type family ThereIsNoWriteRequiredColumns (columns :: [Type]) :: Constraint wher
 -- * Reading
 
 class
-  ( HasColumns table
-  , GReadable (GetColumns table) (Rep record)
+  ( HasColumns hasColumns
+  , GReadable (GetColumns hasColumns) (Rep record)
   ) =>
-  ReadableFrom table record
+  ReadableFrom hasColumns record
   where
 
   default fromTsvLine :: (Generic record) => StrictByteString -> record
   fromTsvLine :: StrictByteString -> record
-  fromTsvLine = to . gFromTsvBs @(GetColumns table)
+  fromTsvLine = to . gFromTsvBs @(GetColumns hasColumns)
 
   default readingColumns :: (Generic record) => Builder
   readingColumns :: Builder
-  readingColumns = gReadingColumns @(GetColumns table) @(Rep record)
+  readingColumns = gReadingColumns @(GetColumns hasColumns) @(Rep record)
 
 class GReadable
   (columns :: [Type])
@@ -152,24 +150,26 @@ class GReadable
   gFromTsvBs :: StrictByteString -> f p
   gReadingColumns :: Builder
 
-instance {-# OVERLAPPING #-}
-  ( GReadable columns f
-  ) => GReadable columns (D1 c (C1 c2 f))
+instance
+  GReadable columns f
+  =>
+  GReadable columns (D1 c (C1 c2 f))
   where
   gFromTsvBs = M1 . M1 . gFromTsvBs @columns
   gReadingColumns = gReadingColumns @columns @f
 
 
-instance {-# OVERLAPPING #-}
-  ( GReadable columns (left1 :*: (left2 :*: right))
-  ) => GReadable columns ((left1 :*: left2) :*: right)
+instance
+  GReadable columns (left1 :*: (left2 :*: right))
+  =>
+  GReadable columns ((left1 :*: left2) :*: right)
   where
   gFromTsvBs bs =
     let (left1 :*: (left2 :*: right)) = gFromTsvBs @columns bs
     in ((left1 :*: left2) :*: right)
   gReadingColumns = gReadingColumns @columns @(left1 :*: (left2 :*: right))
 
-instance {-# OVERLAPPING #-}
+instance
   ( CompiledColumn column
   , '(column, restColumns) ~ TakeColumn selectorName columns
   , FromChType (GetColumnType column) inputType
@@ -183,7 +183,7 @@ instance {-# OVERLAPPING #-}
     (M1 . K1 . fromChType @(GetColumnType column) . deserialize $ beforeTab) :*: gFromTsvBs @restColumns @right (BS.drop 1 afterTab)
   gReadingColumns = renderColumnName @column <> ", " <> gReadingColumns @restColumns @right
 
-instance {-# OVERLAPPING #-}
+instance
   ( CompiledColumn column
   , '(column, restColumns) ~ TakeColumn selectorName columns
   , Deserializable (GetColumnType column)
