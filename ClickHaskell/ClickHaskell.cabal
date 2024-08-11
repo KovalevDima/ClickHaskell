@@ -41,6 +41,7 @@ Library
     ClickHaskell.DbTypes
     ClickHaskell.HTTP
     ClickHaskell.Internal.Generics
+    ClickHaskell.Lock
     ClickHaskell.Tables
   Other-Modules:
     Paths_ClickHaskell

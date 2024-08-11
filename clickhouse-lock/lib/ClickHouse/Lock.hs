@@ -3,9 +3,7 @@
   , DeriveAnyClass
   , DeriveGeneric
   , DuplicateRecordFields
-  , FlexibleInstances
   , InstanceSigs
-  , MultiParamTypeClasses
   , NamedFieldPuns
   , NumericUnderscores
   , OverloadedStrings
@@ -13,21 +11,27 @@
   , ScopedTypeVariables
 #-}
 
+{-# OPTIONS_GHC
+  -Wno-orphans
+#-}
+
 module ClickHouse.Lock where
 
 -- Internal
-import ClickHaskell.Client (ChCredential (..), ReadableFrom, selectFrom)
-import ClickHaskell.Tables (Column, Table)
+import ClickHaskell.Client (ChCredential (..), ReadableFrom, select)
 import ClickHaskell.DbTypes (ChString)
+import ClickHaskell.Lock (LockPart (..), LockedColumn (..), LockedParameter (..))
+import ClickHaskell.Tables (Column)
 
 
 -- GHC included libraries
 import Control.Applicative ((<|>))
 import Data.ByteString (StrictByteString)
+import Data.ByteString.Builder (byteString)
 import Data.ByteString.Lazy as BSL (writeFile)
 import Data.Maybe (fromMaybe)
 import Data.Text as T (Text, pack, unpack)
-import Data.Text.Encoding (decodeUtf8)
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import GHC.Generics (Generic)
 import System.Environment (lookupEnv)
 
@@ -55,47 +59,55 @@ cli = info (
     <> header "ToDo: Header"
   )
 
-type SystemTables =
-  Table
-    "tables"
-   '[ Column "database" ChString
-    , Column "engine" ChString
-    , Column "table" ChString
-    ]
+type TablesColumns =
+ '[ Column "database" ChString
+  , Column "engine" ChString
+  , Column "table" ChString
+  ]
 
 data ClickHouseColumns = MkClickHouseColumns
   { database :: StrictByteString
   , engine :: StrictByteString
   , table :: StrictByteString
   }
-  deriving (Generic, Show)
-
-instance ReadableFrom SystemTables ClickHouseColumns
+  deriving (Generic, ReadableFrom TablesColumns)
 
 runClickHouseLock :: IO ()
 runClickHouseLock = do
-  (maybeUserCli, maybePasswordCli, maybeHostCli, maybeDatabaseCli) <- execParser cli
-  maybeUserEnv     <- fmap T.pack <$> lookupEnv "CLICKHOUSE_USER"
-  maybePasswordEnv <- fmap T.pack <$> lookupEnv "CLICKHOUSE_PASSWORD"
-  maybeHostEnv     <- fmap T.pack <$> lookupEnv "CLICKHOUSE_HOST"
-  maybeDatabaseEnv <- fmap T.pack <$> lookupEnv "CLICKHOUSE_DATABASE"
+  (maybeCliUser, maybeCliPassword, maybeCliHost, maybeCliDatabase) <- execParser cli
+  maybeEnvUser     <- fmap T.pack <$> lookupEnv "CLICKHOUSE_USER"
+  maybeEnvPassword <- fmap T.pack <$> lookupEnv "CLICKHOUSE_PASSWORD"
+  maybeEnvHost     <- fmap T.pack <$> lookupEnv "CLICKHOUSE_HOST"
+  maybeEnvDatabase <- fmap T.pack <$> lookupEnv "CLICKHOUSE_DATABASE"
 
 
-  let chCredentials = MkChCredential
-        { chLogin = fromMaybe "default" (maybeUserCli <|> maybeUserEnv)
-        , chPass = fromMaybe "" (maybePasswordCli <|> maybePasswordEnv)
-        , chUrl = fromMaybe "http://localhost:8123" (maybeHostCli <|> maybeHostEnv)
-        , chDatabase = fromMaybe "default" (maybeDatabaseCli <|> maybeDatabaseEnv)
+  let mDatabase = maybeCliDatabase <|> maybeEnvDatabase
+      mHost     = maybeCliHost     <|> maybeEnvHost
+      mPassword = maybeCliPassword <|> maybeEnvPassword
+      mUser     = maybeCliUser     <|> maybeEnvUser
+      chCredentials = MkChCredential
+        { chLogin    = fromMaybe "default" mUser
+        , chPass     = fromMaybe "" mPassword
+        , chUrl      = fromMaybe "http://localhost:8123" mHost
+        , chDatabase = fromMaybe "default" mDatabase
         }
 
   manager <- newManager defaultManagerSettings
 
   res <-
-    selectFrom
-      @SystemTables
+    select
+      @TablesColumns
       @ClickHouseColumns
       manager
       chCredentials
+      (
+        " SELECT database, engine, table \
+        \ FROM system.tables " <> fromMaybe ""
+          ( (\dbName -> " WHERE database = '" <> dbName <> "'")
+          . byteString . encodeUtf8
+          <$> mDatabase
+          )
+      )
 
   BSL.writeFile "clickhouse-lock.json"
     . encode
@@ -107,22 +119,11 @@ runClickHouseLock = do
 
 mkLockPart :: ClickHouseColumns -> LockPart
 mkLockPart MkClickHouseColumns{engine, table} = case engine of
-  "View" -> View{name=decodeUtf8 table, columns=[], parameters=[]} 
+  "View" -> View{name=decodeUtf8 table, columns=[], parameters=[]}
   _      -> Table{name=decodeUtf8 table, columns=[]}
 
 
-data LockPart =
-  Table
-    { name :: Text
-    , columns :: [LockedColumn]
-    }
-  |
-  View
-    { name :: Text
-    , columns :: [LockedColumn]
-    , parameters :: [LockedParameter]
-    }
-  deriving (Generic)
+
 
 instance ToJSON LockPart where
   toEncoding Table{name, columns} =
@@ -153,14 +154,6 @@ instance FromJSON LockPart where
       unsupportedType -> fail ("unsupported lock part type: " <> T.unpack unsupportedType)
 
 
-
-
-data LockedColumn = MkLockedColumn
-  { name :: Text
-  , columnType :: Text
-  }
-  deriving (Generic)
-
 instance FromJSON LockedColumn where
   parseJSON = withObject "LockedColumn" $ \v -> do
     MkLockedColumn
@@ -174,14 +167,6 @@ instance ToJSON LockedColumn where
       <> "type" .= columnType
       )
 
-
-
-
-data LockedParameter = MkLockedParameter
-  { name :: Text
-  , parameterType :: Text
-  }
-  deriving (Generic)
 
 instance FromJSON LockedParameter where
   parseJSON = withObject "LockerParameter" $ \v -> do
