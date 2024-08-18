@@ -47,7 +47,7 @@ Library
   Other-Modules:
     Paths_ClickHaskell
   HS-Source-Dirs:
-    ./lib
+    ./
   GHC-Options:
     -Wall
     -fno-warn-type-defaults

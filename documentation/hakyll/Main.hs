@@ -12,11 +12,10 @@ main = do
   Encoding.setLocaleEncoding Encoding.utf8
 
   hakyllWith configuration $ do
-    match "hakyll/index.html" $ do
+    match "README.md" $ do
       route (constRoute "index.html")
       compile $
-        getResourceBody
-          >>= applyAsTemplate defaultContext
+        pandocCompiler
           >>= loadAndApplyTemplate "hakyll/templates/default.html" defaultContext
           >>= relativizeUrls
 
