@@ -172,6 +172,7 @@ escape -- [ClickHaskell.DbTypes.ToDo.2]: Optimize
     (\case
       '\t' -> "\\t"
       '\n' -> "\\n"
+      '\\' -> "\\\\"
       sym -> BS8.singleton sym
     )
 
