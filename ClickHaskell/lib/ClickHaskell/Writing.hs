@@ -38,7 +38,12 @@ import ClickHaskell.Tables (CompiledColumn(..), HasColumns(..), TakeColumn)
 
 -- GHC included
 import Data.ByteString         (StrictByteString)
-import Data.ByteString.Builder as BS (Builder, byteString)
+import Data.ByteString.Builder as BS
+  ( Builder, byteString
+  , int8Dec, int16Dec, int32Dec, int64Dec
+  , word8Dec, word16Dec, word32Dec, word64Dec
+  , integerDec
+  )
 import Data.ByteString.Char8   as BS8 (concatMap, length, pack, replicate, singleton)
 import Data.Kind (Constraint, Type)
 import Data.Type.Bool (If)
@@ -172,43 +177,43 @@ escape -- [ClickHaskell.DbTypes.ToDo.2]: Optimize
 
 instance Serializable ChInt8
   where
-  serialize = BS.byteString . BS8.pack . show @ChInt8
+  serialize = BS.int8Dec . fromChType
 
 instance Serializable ChInt16
   where
-  serialize = BS.byteString . BS8.pack . show @ChInt16 
+  serialize = BS.int16Dec . fromChType 
 
 instance Serializable ChInt32
   where
-  serialize = BS.byteString . BS8.pack . show @ChInt32
+  serialize = BS.int32Dec . fromChType
 
 instance Serializable ChInt64
   where
-  serialize = BS.byteString . BS8.pack . show @ChInt64
+  serialize = BS.int64Dec . fromChType
 
 instance Serializable ChInt128
   where
-  serialize = BS.byteString . BS8.pack . show @ChInt128
+  serialize = BS.integerDec . toInteger
 
 instance Serializable ChUInt8
   where
-  serialize = BS.byteString. BS8.pack . show @ChUInt8
+  serialize = BS.word8Dec . fromChType
 
 instance Serializable ChUInt16
   where
-  serialize = BS.byteString . BS8.pack . show @ChUInt16
+  serialize = BS.word16Dec . fromChType
 
 instance Serializable ChUInt32
   where
-  serialize = BS.byteString . BS8.pack . show . fromChType @ChUInt32 @Word32
+  serialize = BS.word32Dec . fromChType
 
 instance Serializable ChUInt64
   where
-  serialize = BS.byteString . BS8.pack . show @ChUInt64
+  serialize = BS.word64Dec . fromChType
 
 instance Serializable ChUInt128
   where
-  serialize = BS.byteString . BS8.pack . show @ChUInt128
+  serialize = BS.integerDec . toInteger
 
 instance Serializable ChDateTime where
   serialize chDateTime

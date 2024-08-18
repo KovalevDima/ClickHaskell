@@ -430,7 +430,7 @@ instance FromChType ChInt64 Int64   where fromChType = coerce
 
 -- | ClickHouse Int128 column type
 newtype ChInt128 = MkChInt128 Int128
-  deriving newtype (Show, Eq, Num, Prim, Bounded, NFData)
+  deriving newtype (Show, Eq, Num, Prim, Ord, Real, Enum, Integral, Bounded, NFData)
 
 instance IsChType ChInt128
   where
@@ -560,7 +560,7 @@ instance FromChType ChUInt64 Word64   where fromChType (MkChUInt64 w64) = w64
 
 -- | ClickHouse UInt128 column type
 newtype ChUInt128 = MkChUInt128 Word128
-  deriving newtype (Show, Eq, Num, Prim, Bounded, Enum, NFData)
+  deriving newtype (Show, Eq, Num, Prim, Bounded, Enum, Ord, Real, Integral, NFData)
 
 instance IsChType ChUInt128
   where
