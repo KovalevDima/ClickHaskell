@@ -30,6 +30,9 @@ module ClickHaskell.Tables
 -- ** HasColumns helper class
 , HasColumns(..)
 
+-- ** Take column from list of columns
+, TakeColumn
+
 -- ** Column
 , Column
 
@@ -43,7 +46,7 @@ module ClickHaskell.Tables
 
 
 -- Internal
-import ClickHaskell.DbTypes (ToQueryPart(..), IsChType(ToChTypeName, IsWriteOptional), ToChType, toChType)
+import ClickHaskell.DbTypes (ToQueryPart(..), IsChType(ToChTypeName, IsWriteOptional), ToChType, toChType, chTypeName)
 
 
 -- GHC included
@@ -72,7 +75,7 @@ data Parameter (name :: Symbol) (chType :: Type)
 -- |
 -- >>> parameters (parameter @"a3" @ChString ("a3Val" :: ByteString) . parameter @"a2" @ChString ("a2Val" :: ByteString))
 -- "(a2='a2Val', a3='a3Val')"
-parameters :: forall params . (ParametersInterpreter '[] -> ParametersInterpreter params) -> Builder
+parameters :: forall (params :: [Type]) . (ParametersInterpreter '[] -> ParametersInterpreter params) -> Builder
 parameters interpreter = renderParameters $ interpreter (MkParametersInterpreter [])
 
 parameter
@@ -208,6 +211,31 @@ instance HasColumns (columns :: [Type]) where
 
 
 
+-- ** Take column by name from list of columns
+
+type family
+  TakeColumn (name :: Symbol) (columns :: [Type]) :: (Type, [Type])
+  where
+  TakeColumn name columns = GoTakeColumn name columns '[]
+
+type family
+  GoTakeColumn name (columns :: [Type]) (acc :: [Type]) :: (Type, [Type])
+  where
+  GoTakeColumn name (column ': columns) acc = If (name == GetColumnName column) '(column, acc ++ columns) (GoTakeColumn name columns (column ': acc))
+  GoTakeColumn name '[]                 acc = TypeError
+    (    'Text "There is no column \"" :<>: 'Text name :<>: 'Text "\" in table"
+    :$$: 'Text "You can't use this field"
+    )
+
+type family
+  (++) (list1 :: [Type]) (list2 :: [Type]) :: [Type]
+  where
+  (++) '[]            list = list
+  (++) (head ': tail) list = tail ++ (head ': list)
+
+
+
+
 -- ** Column declaration
 
 {- |
@@ -233,7 +261,7 @@ instance
   renderColumnName = (stringUtf8 . symbolVal @name) Proxy
 
   type GetColumnType (Column name columnType) = columnType
-  renderColumnType = (stringUtf8 . symbolVal @(ToChTypeName columnType)) Proxy
+  renderColumnType = chTypeName @columnType
 
   type WritableColumn (Column _ _) = Nothing
 
