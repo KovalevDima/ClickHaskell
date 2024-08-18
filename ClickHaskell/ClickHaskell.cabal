@@ -40,7 +40,8 @@ Library
   Exposed-Modules:
     ClickHaskell.DbTypes
     ClickHaskell.HTTP
-    ClickHaskell.Internal.Generics
+    ClickHaskell.Reading
+    ClickHaskell.Writing
     ClickHaskell.Lock
     ClickHaskell.Tables
   Other-Modules:

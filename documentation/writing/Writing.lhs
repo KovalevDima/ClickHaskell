@@ -11,7 +11,7 @@ CREATE TABLE exampleWriteRead
     `a2` LowCardinality(String),
     `a3` DateTime,
     `a4` UUID,
-    `a5` Int64,
+    `a5` Int32,
     `a6` LowCardinality(Nullable(String)),
     `a7` LowCardinality(String)
 )

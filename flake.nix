@@ -95,7 +95,7 @@
             };
           };
           devShell.tools = hp: {
-            inherit (hp) eventlog2html;
+            inherit (hp) eventlog2html graphmod;
           };
         };
         devShells.default =

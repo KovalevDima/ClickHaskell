@@ -19,8 +19,6 @@ module ClickHaskell.DbTypes
 ( IsChType(ToChTypeName, chTypeName, IsWriteOptional)
 , ToChType(toChType)
 , FromChType(fromChType)
-, Serializable(serialize)
-, Deserializable(deserialize)
 , ToQueryPart(toQueryPart)
 
 , ChDateTime
@@ -47,23 +45,21 @@ module ClickHaskell.DbTypes
 
 
 -- External
-import Data.UUID     as UUID (UUID, fromASCIIBytes, toASCIIBytes, toWords64, fromWords64)
+import Data.UUID     as UUID (UUID, toWords64, fromWords64)
 import Data.WideWord (Int128, Word128(Word128))
 
 
 -- GHC included
 import Control.DeepSeq         (NFData)
-import Data.ByteString         as BS (StrictByteString, take, empty, drop)
+import Data.ByteString         as BS (StrictByteString)
 import Data.ByteString.Builder as BS (Builder, byteString)
-import Data.ByteString.Char8   as BS8 (concatMap, pack, readInt, readInteger, singleton, unpack, replicate, length, break)
+import Data.ByteString.Char8   as BS8 (concatMap, pack, singleton, length, replicate)
 import Data.Coerce             (coerce)
-import Data.Maybe              (fromJust)
 import Data.Int                (Int32, Int16, Int8, Int64)
 import Data.Text               as Text (Text)
 import Data.Text.Encoding      as Text (encodeUtf8)
 import Data.Time
-  ( parseTimeM
-  , UTCTime, defaultTimeLocale
+  ( UTCTime
   , ZonedTime, zonedTimeToUTC
   )
 import Data.Time.Clock.POSIX         (utcTimeToPOSIXSeconds, posixSecondsToUTCTime)
@@ -86,8 +82,8 @@ class
   -- @
   type ToChTypeName chType :: Symbol
 
-  chTypeName :: KnownSymbol (ToChTypeName chType) => StrictByteString
-  chTypeName = BS8.pack $ symbolVal (Proxy @(ToChTypeName chType))
+  chTypeName :: KnownSymbol (ToChTypeName chType) => Builder
+  chTypeName = byteString . BS8.pack . symbolVal @(ToChTypeName chType) $ Proxy
 
   -- |
   -- There is only one native ClickHaskell write optional type - Nullable(T)
@@ -97,19 +93,6 @@ class
   -- @
   type IsWriteOptional chType :: Bool
 
-class
-  IsChType chType
-  =>
-  Serializable chType
-  where
-  serialize :: chType -> Builder
-
-class
-  IsChType chType
-  =>
-  Deserializable chType
-  where
-  deserialize :: StrictByteString -> chType
 
 class
   IsChType chType
@@ -160,21 +143,6 @@ instance
   where
   type ToChTypeName (Nullable chType) = NullableTypeName chType
   type IsWriteOptional (Nullable _)   = 'True
-
-instance
-  Deserializable chType
-  =>
-  Deserializable (Nullable chType)
-  where
-  deserialize "\\N" = Nothing
-  deserialize someTypeBs = Just (deserialize someTypeBs)
-
-instance
-  Serializable chType
-  =>
-  Serializable (Nullable chType)
-  where
-  serialize = maybe "\\N" serialize
 
 instance
   ToQueryPart chType
@@ -239,22 +207,6 @@ instance
   type IsWriteOptional (LowCardinality chType) = IsWriteOptional chType
 
 instance
-  ( Serializable chType
-  , IsLowCardinalitySupported chType
-  ) =>
-  Serializable (LowCardinality chType)
-  where
-  serialize (MkLowCardinality value) = serialize value
-
-instance
-  ( Deserializable chType
-  , IsLowCardinalitySupported chType
-  ) =>
-  Deserializable (LowCardinality chType)
-  where
-  deserialize = MkLowCardinality . deserialize
-
-instance
   ( ToChType inputType chType
   , IsLowCardinalitySupported inputType
   ) =>
@@ -310,14 +262,6 @@ instance IsChType ChUUID
   type ToChTypeName    ChUUID = "UUID"
   type IsWriteOptional ChUUID = 'False
 
-instance Serializable ChUUID
-  where
-  serialize (MkChUUID uuid) = (BS.byteString . UUID.toASCIIBytes) uuid
-
-instance Deserializable ChUUID
-  where
-  deserialize = MkChUUID . fromJust . UUID.fromASCIIBytes
-
 instance ToChType ChUUID ChUUID where toChType = id
 instance ToChType ChUUID UUID   where toChType = MkChUUID
 instance ToChType ChUUID Word64 where toChType = MkChUUID . UUID.fromWords64 0 . fromIntegral
@@ -340,41 +284,6 @@ instance IsChType ChString
   where
   type ToChTypeName    ChString = "String"
   type IsWriteOptional ChString = 'False
-
-instance Serializable ChString
-  where
-  serialize (MkChString string) = (BS.byteString . escape) string
-
-escape :: StrictByteString -> StrictByteString
-escape -- [ClickHaskell.DbTypes.ToDo.2]: Optimize
-  = BS8.concatMap
-    (\case
-      '\t' -> "\\t"
-      '\n' -> "\\n"
-      sym -> BS8.singleton sym
-    )
-
-instance Deserializable ChString
-  where
-  deserialize = MkChString . deescape
-
--- There are a big trade off between safity and performance
--- Corner case strings with a lot of escaped symbols would reduce deserialization speed
--- ToDo: rewrite (de)serialization to work via binary clickhouse formats
-deescape :: StrictByteString -> StrictByteString
-deescape bs = case BS8.break (=='\\') bs of
-  (beforeEscaping, startWithEscaping) ->
-    if BS.empty == startWithEscaping
-    then bs
-    else case BS.take 2 startWithEscaping of
-      "\\b" -> beforeEscaping <> "\b" <> BS.drop 2 startWithEscaping
-      "\\t" -> beforeEscaping <> "\t" <> BS.drop 2 startWithEscaping
-      "\\n" -> beforeEscaping <> "\n" <> BS.drop 2 startWithEscaping
-      "\\f" -> beforeEscaping <> "\f" <> BS.drop 2 startWithEscaping
-      "\\r" -> beforeEscaping <> "\r" <> BS.drop 2 startWithEscaping
-      "\\'" -> beforeEscaping <> "'" <> BS.drop 2 startWithEscaping
-      "\\\\" -> beforeEscaping <> "\\" <> BS.drop 2 startWithEscaping
-      _ -> bs
 
 instance ToQueryPart ChString
   where
@@ -423,17 +332,9 @@ instance IsChType ChInt8
   type ToChTypeName    ChInt8 = "Int8"
   type IsWriteOptional ChInt8 = 'False
 
-instance Serializable ChInt8
-  where
-  serialize = BS.byteString . BS8.pack . show @ChInt8 . coerce
-
-instance Deserializable ChInt8
-  where
-  deserialize = MkChInt8 . fromIntegral . fst . fromJust . BS8.readInt
-
 instance ToQueryPart ChInt8
   where
-  toQueryPart = serialize
+  toQueryPart = BS.byteString . BS8.pack . show
 
 instance ToChType ChInt8 ChInt8 where toChType = id
 instance ToChType ChInt8 Int8   where toChType = MkChInt8
@@ -457,17 +358,9 @@ instance IsChType ChInt16
   type ToChTypeName    ChInt16 = "Int16"
   type IsWriteOptional ChInt16 = 'False
 
-instance Serializable ChInt16
-  where
-  serialize = BS.byteString . BS8.pack . show @Int16 . coerce
-
-instance Deserializable ChInt16
-  where
-  deserialize  = MkChInt16 . fromIntegral . fst . fromJust . BS8.readInt
-
 instance ToQueryPart ChInt16
   where
-  toQueryPart = serialize
+  toQueryPart = BS.byteString . BS8.pack . show
 
 instance ToChType ChInt16 ChInt16 where toChType = id
 instance ToChType ChInt16 Int16   where toChType = MkChInt16
@@ -491,17 +384,9 @@ instance IsChType ChInt32
   type ToChTypeName    ChInt32 = "Int32"
   type IsWriteOptional ChInt32 = 'False
 
-instance Serializable ChInt32
-  where
-  serialize = BS.byteString . BS8.pack . show @ChInt32 . coerce
-
-instance Deserializable ChInt32
-  where
-  deserialize = MkChInt32 . fromIntegral . fst . fromJust . BS8.readInt
-
 instance ToQueryPart ChInt32
   where
-  toQueryPart = serialize
+  toQueryPart = BS.byteString . BS8.pack . show
 
 instance ToChType ChInt32 ChInt32 where toChType = id
 instance ToChType ChInt32 Int32   where toChType = MkChInt32
@@ -525,17 +410,9 @@ instance IsChType ChInt64
   type ToChTypeName    ChInt64 = "Int64"
   type IsWriteOptional ChInt64 = 'False
 
-instance Serializable ChInt64
-  where
-  serialize = BS.byteString . BS8.pack . show @Int64 . coerce
-
-instance Deserializable ChInt64
-  where
-  deserialize = MkChInt64 . fromInteger . fst . fromJust . BS8.readInteger
-
 instance ToQueryPart ChInt64
   where
-  toQueryPart = serialize
+  toQueryPart = BS.byteString . BS8.pack . show
 
 instance ToChType ChInt64 ChInt64 where toChType = id
 instance ToChType ChInt64 Int64   where toChType = MkChInt64 . fromIntegral
@@ -553,24 +430,16 @@ instance FromChType ChInt64 Int64   where fromChType = coerce
 
 -- | ClickHouse Int128 column type
 newtype ChInt128 = MkChInt128 Int128
-  deriving newtype (Show, Eq, Num, Prim, Bounded, NFData)
+  deriving newtype (Show, Eq, Num, Prim, Ord, Real, Enum, Integral, Bounded, NFData)
 
 instance IsChType ChInt128
   where
   type ToChTypeName    ChInt128 = "Int128"
   type IsWriteOptional ChInt128 = 'False
 
-instance Serializable ChInt128
-  where
-  serialize = BS.byteString . BS8.pack . show @ChInt128 . coerce
-
-instance Deserializable ChInt128
-  where
-  deserialize = MkChInt128 . fromInteger . fst . fromJust . BS8.readInteger
-
 instance ToQueryPart ChInt128
   where
-  toQueryPart = serialize
+  toQueryPart = BS.byteString . BS8.pack . show
 
 instance ToChType ChInt128 ChInt128 where toChType = id
 instance ToChType ChInt128 Int128   where toChType = MkChInt128 . fromIntegral
@@ -594,17 +463,9 @@ instance IsChType ChUInt8
   type ToChTypeName    ChUInt8 = "UInt8"
   type IsWriteOptional ChUInt8 = 'False
 
-instance Serializable ChUInt8
-  where
-  serialize = BS.byteString. BS8.pack . show @ChUInt8 . coerce
-
-instance Deserializable ChUInt8
-  where
-  deserialize = MkChUInt8 . fromIntegral . fst . fromJust . BS8.readInt
-
 instance ToQueryPart ChUInt8
   where
-  toQueryPart = serialize
+  toQueryPart = BS.byteString . BS8.pack . show
 
 instance ToChType ChUInt8 ChUInt8 where toChType = id
 instance ToChType ChUInt8 Word8   where toChType = MkChUInt8
@@ -628,17 +489,9 @@ instance IsChType ChUInt16
   type ToChTypeName    ChUInt16 = "UInt16"
   type IsWriteOptional ChUInt16 = 'False
 
-instance Serializable ChUInt16
-  where
-  serialize = BS.byteString . BS8.pack . show @ChUInt16 . coerce
-
-instance Deserializable ChUInt16
-  where
-  deserialize = MkChUInt16 . fromIntegral . fst . fromJust . BS8.readInt
-
 instance ToQueryPart ChUInt16
   where
-  toQueryPart = serialize
+  toQueryPart = BS.byteString . BS8.pack . show
 
 instance ToChType ChUInt16 ChUInt16 where toChType = id
 instance ToChType ChUInt16 Word16   where toChType = coerce
@@ -662,17 +515,9 @@ instance IsChType ChUInt32
   type ToChTypeName    ChUInt32 = "UInt32"
   type IsWriteOptional ChUInt32 = 'False
 
-instance Serializable ChUInt32
-  where
-  serialize (MkChUInt32 word32) = (BS.byteString . BS8.pack . show) word32
-
-instance Deserializable ChUInt32
-  where
-  deserialize = MkChUInt32 . fromIntegral . fst . fromJust . BS8.readInt
-
 instance ToQueryPart ChUInt32
   where
-  toQueryPart = serialize
+  toQueryPart = BS.byteString . BS8.pack . show
 
 instance ToChType ChUInt32 ChUInt32 where toChType = id
 instance ToChType ChUInt32 Word32   where toChType = MkChUInt32
@@ -696,17 +541,9 @@ instance IsChType ChUInt64
   type ToChTypeName    ChUInt64 = "UInt64"
   type IsWriteOptional ChUInt64 = 'False
 
-instance Serializable ChUInt64
-  where
-  serialize = BS.byteString . BS8.pack . show @ChUInt64 . coerce
-
-instance Deserializable ChUInt64
-  where
-  deserialize = MkChUInt64 . fromIntegral . fst . fromJust . BS8.readInteger
-
 instance ToQueryPart ChUInt64
   where
-  toQueryPart = serialize
+  toQueryPart = BS.byteString . BS8.pack . show
 
 instance ToChType ChUInt64 ChUInt64 where toChType = id
 instance ToChType ChUInt64 Word64   where toChType = MkChUInt64
@@ -723,24 +560,16 @@ instance FromChType ChUInt64 Word64   where fromChType (MkChUInt64 w64) = w64
 
 -- | ClickHouse UInt128 column type
 newtype ChUInt128 = MkChUInt128 Word128
-  deriving newtype (Show, Eq, Num, Prim, Bounded, Enum, NFData)
+  deriving newtype (Show, Eq, Num, Prim, Bounded, Enum, Ord, Real, Integral, NFData)
 
 instance IsChType ChUInt128
   where
   type ToChTypeName    ChUInt128 = "UInt128"
   type IsWriteOptional ChUInt128 = 'False
 
-instance Serializable ChUInt128
-  where
-  serialize = BS.byteString . BS8.pack . show @ChUInt128 . coerce
-
-instance Deserializable ChUInt128
-  where
-  deserialize = MkChUInt128 . fromIntegral . fst . fromJust . BS8.readInteger
-
 instance ToQueryPart ChUInt128
   where
-  toQueryPart = serialize
+  toQueryPart = BS.byteString . BS8.pack . show
 
 instance ToChType ChUInt128 ChUInt128 where toChType = id
 instance ToChType ChUInt128 Word128   where toChType = MkChUInt128
@@ -766,21 +595,10 @@ instance IsChType ChDateTime
   type ToChTypeName    ChDateTime = "DateTime"
   type IsWriteOptional ChDateTime = 'False
 
-instance Serializable ChDateTime where
-  serialize (MkChDateTime w32)
-    = let time = BS8.pack $ show w32
-    in BS.byteString (BS8.replicate (10 - BS8.length time) '0' <> time)
-
-instance Deserializable ChDateTime where
-  deserialize
-    = MkChDateTime . fromInteger
-    . floor . utcTimeToPOSIXSeconds
-    . fromJust . parseTimeM False defaultTimeLocale "%Y-%m-%d %H:%M:%S"
-    . BS8.unpack
-
 instance ToQueryPart ChDateTime
   where
-  toQueryPart = serialize
+  toQueryPart chDateTime = let time = BS8.pack . show . fromChType @ChDateTime @Word32 $ chDateTime
+    in BS.byteString (BS8.replicate (10 - BS8.length time) '0' <> time)
 
 instance ToChType ChDateTime ChDateTime where toChType = id
 instance ToChType ChDateTime Word32     where toChType = MkChDateTime
@@ -821,12 +639,14 @@ instance IsChType chType => IsChType (ChArray chType)
   type ToChTypeName    (ChArray chType) = "Array(" `AppendSymbol` ToChTypeName chType `AppendSymbol` ")"
   type IsWriteOptional (ChArray chType) = 'False
 
-instance Deserializable (ChArray ChString) where
-  deserialize = undefined
-
 instance ToQueryPart chType => ToQueryPart (ChArray chType)
   where
-  toQueryPart = (\x -> "[" <> x <> "]") . (maybe "" (uncurry (foldr (\ a b -> a <> "," <> b))) . uncons . map (toQueryPart @chType)) . fromChType 
+  toQueryPart
+    = (\x -> "[" <> x <> "]")
+    . (maybe "" (uncurry (foldr (\ a b -> a <> "," <> b)))
+    . uncons
+    . map (toQueryPart @chType))
+    . fromChType 
 
 instance IsChType chType => FromChType (ChArray chType) [chType] where fromChType (MkChArray values) = values
 

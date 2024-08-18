@@ -18,12 +18,13 @@ module IntegrationTests.Serialization
 
 -- Internal
 import ClickHaskell.DbTypes 
-  ( Deserializable(..), IsChType(..), ToChType(..), ToQueryPart(..)
+  ( IsChType(..), ToChType(..), ToQueryPart(..)
   , ChUInt64, ChInt64, ChUInt32, ChInt32
   , ChString
   , ChArray
   )
 import ClickHaskell.Client (ChCredential(..), runStatement)
+import ClickHaskell.Reading (Deserializable(..))
 
 
 -- External
@@ -79,7 +80,6 @@ runOnlyQuerySerializationTest :: forall chType
   .
   ( ToQueryPart chType
   , Eq chType
-  , Deserializable chType
   , HasTestValues chType
   , KnownSymbol (ToChTypeName chType)
   , Show chType

@@ -28,7 +28,8 @@ module ClickHaskell.Client
   ) where
 
 -- Internal
-import ClickHaskell.Internal.Generics (WritableInto(..), ReadableFrom(..))
+import ClickHaskell.Writing (WritableInto(..))
+import ClickHaskell.Reading (ReadableFrom(..))
 import ClickHaskell.Tables (Table, View, ParametersInterpreter, CheckParameters, parameters)
 import ClickHaskell.HTTP (ImpliesClickHouseHttp(..), ChCredential(..), ChException(..), insertIntoHttpGeneric, selectFromHttpGeneric)
 
