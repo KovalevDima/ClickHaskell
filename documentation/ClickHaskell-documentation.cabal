@@ -11,7 +11,7 @@ data-files:
   parametrized-view/README.lhs
   writing/Writing.lhs
   hakyll/**/*.html
-  hakyll/*.html
+  README.md
 
 executable ClickHaskell-documentation
   default-language: GHC2021
