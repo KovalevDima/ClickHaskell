@@ -15,7 +15,7 @@
   -Wno-orphans
 #-}
 
-module ClickHouse.Lock where
+module ClickHouseLock where
 
 -- Internal
 import ClickHaskell.Client (ChCredential (..), ReadableFrom, select)
@@ -43,6 +43,8 @@ import Options.Applicative (ParserInfo, execParser, fullDesc, header, info, opti
 import Options.Applicative.Builder (help, long, short, strOption)
 import Options.Applicative.Extra (helperWith)
 
+main :: IO ()
+main = runClickHouseLock
 
 cli :: ParserInfo (Maybe Text, Maybe Text, Maybe Text, Maybe Text)
 cli = info (

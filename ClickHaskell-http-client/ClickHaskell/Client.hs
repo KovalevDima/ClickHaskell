@@ -9,9 +9,11 @@
   , TypeFamilyDependencies
   , RankNTypes
 #-}
+
 {-# OPTIONS_GHC
   -Wno-orphans
 #-}
+
 module ClickHaskell.Client
   ( select
   , selectFrom
