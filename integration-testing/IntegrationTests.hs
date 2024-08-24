@@ -12,16 +12,25 @@
 #-}
 
 module IntegrationTests
-  ( runIntegrationTests
+  ( main
   ) where
-
 
 -- Internal
 import ClickHaskell.Client
-  ( ChCredential
+  ( ChCredential(..)
   )
 import IntegrationTests.Serialization (runSerializationTests)
 import IntegrationTests.WriteReadEquality (runWriteReadEqualityTest)
+
+main :: IO ()
+main =
+  runIntegrationTests
+    MkChCredential
+      { chLogin="default"
+      , chPass=""
+      , chUrl="http://localhost:8123"
+      , chDatabase="default"
+      }
 
 
 runIntegrationTests :: ChCredential -> IO ()
