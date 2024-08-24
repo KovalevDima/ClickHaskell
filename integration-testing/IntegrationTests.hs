@@ -1,39 +1,23 @@
 {-# LANGUAGE
-    AllowAmbiguousTypes
-  , FlexibleContexts
-  , FlexibleInstances
-  , InstanceSigs
-  , MultiParamTypeClasses
-  , OverloadedStrings
-  , TypeFamilies
-  , TypeApplications
-  , UndecidableInstances
-  , ScopedTypeVariables
+  OverloadedStrings
 #-}
 
 module IntegrationTests
   ( main
   ) where
 
--- Internal
-import ClickHaskell.Client
-  ( ChCredential(..)
-  )
+import ClickHaskell.Client (ChCredential(..))
 import IntegrationTests.Serialization (runSerializationTests)
 import IntegrationTests.WriteReadEquality (runWriteReadEqualityTest)
 
 main :: IO ()
-main =
-  runIntegrationTests
-    MkChCredential
-      { chLogin="default"
-      , chPass=""
-      , chUrl="http://localhost:8123"
-      , chDatabase="default"
-      }
-
-
-runIntegrationTests :: ChCredential -> IO ()
-runIntegrationTests cred = do
+main = do
+  let cred =
+        MkChCredential
+          { chLogin="default"
+          , chPass=""
+          , chUrl="http://localhost:8123"
+          , chDatabase="default"
+          }
   runSerializationTests cred
   runWriteReadEqualityTest cred
