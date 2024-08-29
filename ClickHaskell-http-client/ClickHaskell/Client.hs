@@ -17,6 +17,7 @@
 module ClickHaskell.Client
   ( select
   , selectFrom
+  , selectFromView
   , selectFromTableFunction
 
   , insertInto
@@ -93,6 +94,28 @@ selectFrom manager cred =
     (fromTsvLine @table @record)
     (`withResponse` manager)
 
+selectFromView ::
+  forall tableFunction record name columns parameters passedParameters
+  .
+  ( ReadableFrom tableFunction record
+  , KnownSymbol name
+  , tableFunction ~ View name columns parameters
+  , CheckParameters parameters passedParameters
+  )
+  => Manager -> ChCredential -> (ParametersInterpreter '[] -> ParametersInterpreter passedParameters) -> IO [record]
+selectFromView manager cred interpreter =
+  selectFromHttpGeneric
+    @Request
+    @(Response BodyReader)
+    @record
+    cred
+    ( "SELECT " <> readingColumns @tableFunction @record <>
+      " FROM " <> (byteString . BS8.pack . symbolVal @name) Proxy <> parameters interpreter <>
+      " FORMAT TSV\n")
+    (fromTsvLine @tableFunction @record)
+    (`withResponse` manager)
+
+{-# DEPRECATED selectFromTableFunction "selectFromTableFunction would be deleted soon due wrong naming. Use selectFromView instead" #-}
 selectFromTableFunction ::
   forall tableFunction record name columns parameters passedParameters
   .
