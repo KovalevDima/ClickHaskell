@@ -19,7 +19,7 @@ To perform a SELECT from such view you can use this snippet
   , OverloadedStrings
 #-}
 
-import ClickHaskell.Client (ReadableFrom, ChCredential(..), selectFromTableFunction)
+import ClickHaskell.Client (ReadableFrom, ChCredential(..), selectFromView)
 import ClickHaskell.Tables (parameter, View, Parameter, Column)
 import ClickHaskell.DbTypes (ChInt32, ChString)
 import Data.Int (Int32)
@@ -37,7 +37,7 @@ main = do
   manager <- newManager defaultManagerSettings
   mapM_ print
     =<<
-      selectFromTableFunction
+      selectFromView
         @ExampleView
         @ExampleViewRecord
         manager
