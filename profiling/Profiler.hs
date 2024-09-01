@@ -1,18 +1,14 @@
 {-# LANGUAGE
-    BangPatterns
-  , DataKinds
+    DataKinds
+  , DeriveAnyClass
   , DeriveGeneric
-  , GeneralizedNewtypeDeriving
+  , DerivingStrategies
   , NumericUnderscores
   , OverloadedStrings
   , TypeApplications
-  , MultiParamTypeClasses
-  , FlexibleInstances
 #-}
 
-module Profiler
-  ( main
-  ) where
+module Profiler (main) where
 
 -- External
 import Network.HTTP.Client (defaultManagerSettings, newManager)
@@ -50,13 +46,15 @@ main = do
   threadDelay 1_000_000
   traceMarkerIO "Push data"
 
+  let credentials = MkChCredential "default" "" "http://localhost:8123" "default"
+
   traceMarkerIO "Starting reading"
   selectedData <-
     select
       @ExampleColumns
       @ExampleData
       manager
-      exampleCredentials
+      credentials
       ("SELECT * FROM generateRandom('\
       \a1 Int64, \
       \a2 LowCardinality(String), \
@@ -65,26 +63,19 @@ main = do
       \a5 Int32, \
       \a6 LowCardinality(Nullable(String)), \
       \a7 LowCardinality(String)\
-      \', 1, 10, 2) LIMIT " <> (string8 . show) 1_000_000)
-
+      \', 1, 10, 2) LIMIT " <> (string8 . show) totalRows)
 
   threadDelay 1_000_000
   traceMarkerIO "Starting writing"
   insertInto
-    @ExampleTable
+    @(Table "exampleWriteRead" ExampleColumns)
     manager
-    exampleCredentials
+    credentials
     selectedData
 
   traceMarkerIO "Completion"
   print $ "5. Writing done. " <> show totalRows <> " rows was written"
   threadDelay 1_000_000
-
-exampleCredentials :: ChCredential
-exampleCredentials = MkChCredential "default" "" "http://localhost:8123" "default"
-
-
-type ExampleTable = Table "exampleWriteRead" ExampleColumns
 
 data ExampleData = MkExampleData
   { a1 :: ChInt64
@@ -95,7 +86,8 @@ data ExampleData = MkExampleData
   , a6 :: Nullable ChString
   , a7 :: LowCardinality ChString
   }
-  deriving (Generic, Show)
+  deriving (Generic)
+  deriving anyclass (ReadableFrom ExampleColumns, WritableInto (Table "exampleWriteRead" ExampleColumns))
 
 type ExampleColumns =
  '[ Column "a1" ChInt64
@@ -106,6 +98,3 @@ type ExampleColumns =
   , Column "a6" (LowCardinality (Nullable ChString))
   , Column "a7" (LowCardinality ChString)
   ]
-
-instance ReadableFrom ExampleColumns ExampleData
-instance WritableInto ExampleTable ExampleData
