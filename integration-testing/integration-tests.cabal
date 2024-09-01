@@ -18,33 +18,6 @@ source-repository head
   location: https://github.com/KovalevDima/ClickHaskell
   subdir: integration-testing
 
-
-library
-  exposed-modules:
-      IntegrationTests.Serialization
-      IntegrationTests.WriteReadEquality
-  other-modules:
-      Paths_integration_tests
-  hs-source-dirs: .
-  ghc-options:
-    -Wall -fno-warn-type-defaults -O2
-    -Wunused-packages
-    -ddump-to-file -ddump-simpl -dsuppress-type-applications -dsuppress-coercions -dsuppress-idinfo -dsuppress-type-signatures -dsuppress-var-kinds -dsuppress-module-prefixes -dsuppress-uniques
-
-  build-depends:
-    -- Internal
-      ClickHaskell
-    , ClickHaskell-http-client
-
-    -- GHC included
-    , base >=4.7 && <5
-    , bytestring
-
-    -- External
-    , http-client < 0.8
-  default-language: Haskell2010
-
-
 executable integration-tests
   main-is: IntegrationTests.hs
   hs-source-dirs: .
@@ -53,7 +26,6 @@ executable integration-tests
     -- Internal
       ClickHaskell
     , ClickHaskell-http-client
-    , integration-tests
 
     -- GHC included
     , base >=4.7 && <5
@@ -61,4 +33,8 @@ executable integration-tests
 
     -- External
     , http-client < 0.8
+  other-modules:
+      Paths_integration_tests
+      IntegrationTests.Serialization
+      IntegrationTests.WriteReadEquality
   default-language: Haskell2010
