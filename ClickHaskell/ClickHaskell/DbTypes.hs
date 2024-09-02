@@ -209,7 +209,8 @@ instance
 instance
   ( ToChType inputType chType
   , IsLowCardinalitySupported inputType
-  ) =>
+  )
+  =>
   ToChType (LowCardinality inputType) chType
   where
   toChType = MkLowCardinality . toChType
@@ -217,7 +218,8 @@ instance
 instance
   ( IsLowCardinalitySupported chType
   , IsChType chType
-  ) =>
+  )
+  =>
   ToChType chType (LowCardinality chType)
   where
   toChType (MkLowCardinality value) = value
@@ -225,7 +227,8 @@ instance
 instance
   ( IsLowCardinalitySupported chType
   , IsChType chType
-  ) =>
+  )
+  =>
   FromChType chType (LowCardinality chType)
   where
   fromChType = MkLowCardinality
@@ -233,7 +236,8 @@ instance
 instance
   ( FromChType chType outputType
   , IsLowCardinalitySupported chType
-  ) =>
+  )
+  =>
   FromChType (LowCardinality chType) outputType
   where
   fromChType (MkLowCardinality value) = fromChType value
@@ -241,7 +245,8 @@ instance
 instance
   ( ToQueryPart chType
   , IsLowCardinalitySupported chType
-  ) =>
+  )
+  =>
   ToQueryPart (LowCardinality chType)
   where
   toQueryPart (MkLowCardinality chType) = toQueryPart chType
