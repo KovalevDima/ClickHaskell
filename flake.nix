@@ -45,6 +45,8 @@
             )
           );
       in {
+        extractDist = pkg: "${pkgs.haskell.lib.sdistTarball pkg}/${pkg.name}.tar.gz";
+        extractDocs = pkg: "${pkgs.haskell.lib.documentationTarball pkg}/${pkg.name}-docs.tar.gz";
         # Database wrapper with all schemas initialization
         process-compose."default" = {
           imports = [inputs.services-flake.processComposeModules.default];
@@ -68,7 +70,9 @@
           ];
         };
         # Profiling wrapper
-        process-compose."profiling" = let programName = "profiler"; in {
+        process-compose."profiling" = let
+          programName = "profiler";
+        in {
           imports = [inputs.services-flake.processComposeModules.default];
           services.clickhouse."profiler-db" = wrapDefaultClickHouse [
             (extractSqlFromMarkdown ./documentation/writing/Writing.lhs)
@@ -87,8 +91,14 @@
         haskellProjects.default = {
           autoWire = ["packages" "apps"];
           settings = {
-            ClickHaskell.libraryProfiling = true;
-            ClickHaskell-http-client.libraryProfiling = true;
+            ClickHaskell = {
+              libraryProfiling = true;
+              haddock = true;
+            };
+            ClickHaskell-http-client = {
+              libraryProfiling = true;
+              haddock = true;
+            };
             profilers = {
               executableProfiling = true;
               libraryProfiling = true;
@@ -98,15 +108,14 @@
             inherit (hp) eventlog2html graphmod;
           };
         };
-        devShells.default =
-          pkgs.mkShell {
-            inputsFrom = [
-              config.haskellProjects.default.outputs.devShell
-            ];
-            packages = [
-              pkgs.clickhouse
-            ];
-          };
+        devShells.default = pkgs.mkShell {
+          inputsFrom = [
+            config.haskellProjects.default.outputs.devShell
+          ];
+          packages = [
+            pkgs.clickhouse
+          ];
+        };
         # Build documnetation
         packages."documentation" = pkgs.stdenv.mkDerivation {
           name = "documentation";
@@ -122,6 +131,20 @@
             cp -r ./_site "$out"
           '';
         };
+        packages."ClickHaskell-dist" =
+          pkgs.runCommand "ClickHaskell-dist" {} ''
+            mkdir $out
+            mkdir -m 777 $out/packages $out/docs
+            cp -r ${extractDist self'.packages.ClickHaskell} $out/packages
+            cp -r ${extractDocs self'.packages.ClickHaskell} $out/docs
+        '';
+        packages."ClickHaskell-http-client-dist" =
+          pkgs.runCommand "ClickHaskell-http-client-dist" {} ''
+            mkdir $out
+            mkdir -m 777 $out/packages $out/docs
+            cp -r ${extractDist self'.packages.ClickHaskell-http-client} $out/packages
+            cp -r ${extractDocs self'.packages.ClickHaskell-http-client} $out/docs
+        '';
       };
     };
 }

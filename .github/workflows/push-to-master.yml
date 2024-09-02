@@ -38,25 +38,50 @@ jobs:
 
       - name: Check if docs sources changed
         uses: dorny/paths-filter@v3
-        id: docsChanges
+        id: srcChanges
         with:
           filters: |
-            isSourceChanged:
+            isChangedDocs:
               - 'documentation/**'
+            isChangedClickHaskell:
+              - 'ClickHaskell/**'
+            isChangedClickHaskellHttpClient:
+              - 'ClickHaskell-http-client/**'
 
-      - name: Deploy to GitHub Pages
-        if: steps.docsChanges.outputs.isSourceChanged == 'true'
-        id: deployment
-        uses: actions/deploy-pages@v4.0.5
+      - name: Build ClickHaskell-dist
+        if: steps.isChangedClickHaskell.outputs.isSourceChanged == 'true'
+        run: nix build .#ClickHaskell-dist
+      
+      - name: Deploy ClickHaskell release candidate
+        if: steps.isChangedClickHaskell.outputs.isSourceChanged == 'true'
+        uses: haskell-actions/hackage-publish@v1
+        with:
+          hackageToken: ${{ secrets.HACKAGE_AUTH_TOKEN }}
+          packagesPath: result/packages
+          docsPath: result/docs
+          publish: false
+
+      - name: Build ClickHaskell-http-client-dist
+        if: steps.isChangedClickHaskellHttpClient.outputs.isSourceChanged == 'true'
+        run: nix build .#ClickHaskell-http-client-dist
+      
+      - name: Deploy ClickHaskell-http-client release candidate
+        if: steps.isChangedClickHaskellHttpClient.outputs.isSourceChanged == 'true'
+        uses: haskell-actions/hackage-publish@v1
+        with:
+          hackageToken: ${{ secrets.HACKAGE_AUTH_TOKEN }}
+          packagesPath: result/packages
+          docsPath: result/docs
+          publish: false
 
     outputs:
-        isDeployRequired:
-          ${{ steps.docsChanges.outputs.isSourceChanged }}
+      isDeployRequiredDocs:
+        ${{ steps.srcChanges.outputs.isChangedDocs }}
 
   deploy-docs:
     needs: [handle-push-to-master]
     runs-on: ubuntu-latest
-    if: needs.handle-push-to-master.outputs.isDeployRequired == 'true'
+    if: needs.handle-push-to-master.outputs.isDeployRequiredDocs == 'true'
 
     steps:
       - name: Deploy to GitHub Pages
