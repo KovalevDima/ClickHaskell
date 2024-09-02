@@ -44,11 +44,6 @@ jobs:
             isSourceChanged:
               - 'documentation/**'
 
-      - name: Deploy to GitHub Pages
-        if: steps.docsChanges.outputs.isSourceChanged == 'true'
-        id: deployment
-        uses: actions/deploy-pages@v4.0.5
-
     outputs:
         isDeployRequired:
           ${{ steps.docsChanges.outputs.isSourceChanged }}

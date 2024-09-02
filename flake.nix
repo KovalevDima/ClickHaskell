@@ -68,7 +68,9 @@
           ];
         };
         # Profiling wrapper
-        process-compose."profiling" = let programName = "profiler"; in {
+        process-compose."profiling" = let
+          programName = "profiler";
+        in {
           imports = [inputs.services-flake.processComposeModules.default];
           services.clickhouse."profiler-db" = wrapDefaultClickHouse [
             (extractSqlFromMarkdown ./documentation/writing/Writing.lhs)
@@ -87,8 +89,14 @@
         haskellProjects.default = {
           autoWire = ["packages" "apps"];
           settings = {
-            ClickHaskell.libraryProfiling = true;
-            ClickHaskell-http-client.libraryProfiling = true;
+            ClickHaskell = {
+              libraryProfiling = true;
+              haddock = true;
+            };
+            ClickHaskell-http-client = {
+              libraryProfiling = true;
+              haddock = true;
+            };
             profilers = {
               executableProfiling = true;
               libraryProfiling = true;
@@ -98,15 +106,14 @@
             inherit (hp) eventlog2html graphmod;
           };
         };
-        devShells.default =
-          pkgs.mkShell {
-            inputsFrom = [
-              config.haskellProjects.default.outputs.devShell
-            ];
-            packages = [
-              pkgs.clickhouse
-            ];
-          };
+        devShells.default = pkgs.mkShell {
+          inputsFrom = [
+            config.haskellProjects.default.outputs.devShell
+          ];
+          packages = [
+            pkgs.clickhouse
+          ];
+        };
         # Build documnetation
         packages."documentation" = pkgs.stdenv.mkDerivation {
           name = "documentation";
@@ -122,6 +129,26 @@
             cp -r ./_site "$out"
           '';
         };
+        packages."packages-dist" =
+          pkgs.symlinkJoin {
+            name = "packages-dist";
+            paths = builtins.map (x: pkgs.haskell.lib.sdistTarball x)
+              [ self'.packages.ClickHaskell
+                self'.packages.ClickHaskell-http-client
+              ];
+          };
+        packages."docs-dist" = pkgs.symlinkJoin {
+            name = "docs-dist";
+            paths = builtins.map (x: pkgs.haskell.lib.documentationTarball x)
+              [ self'.packages.ClickHaskell
+                self'.packages.ClickHaskell-http-client
+              ];
+        };
+        packages."hackage-dist" = pkgs.runCommand "hackage-dist" {} ''
+          mkdir -p $out/packages
+          cp  -r ${pkgs.haskell.lib.sdistTarball self'.packages.ClickHaskell}/ $out/packages
+          cp  -r ${pkgs.haskell.lib.sdistTarball self'.packages.ClickHaskell-http-client}/ $out/packages
+        '';
       };
     };
 }
