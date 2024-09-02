@@ -57,7 +57,16 @@ Library
     GHC-Options:  -Werror
 
   if flag(dev)
-    GHC-Options: -ddump-to-file -ddump-simpl -dsuppress-type-applications -dsuppress-coercions -dsuppress-idinfo -dsuppress-type-signatures -dsuppress-var-kinds -dsuppress-module-prefixes -dsuppress-uniques
+    GHC-Options:
+      -ddump-to-file
+      -ddump-simpl
+      -dsuppress-type-applications
+      -dsuppress-coercions
+      -dsuppress-idinfo
+      -dsuppress-type-signatures
+      -dsuppress-var-kinds
+      -dsuppress-module-prefixes
+      -dsuppress-uniques
 
   Build-depends:
     -- GHC included libraries
