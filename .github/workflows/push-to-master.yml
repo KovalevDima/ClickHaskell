@@ -49,11 +49,11 @@ jobs:
               - 'ClickHaskell-http-client/**'
 
       - name: Build ClickHaskell-dist
-        if: steps.isChangedClickHaskell.outputs.isSourceChanged == 'true'
+        if: steps.srcChanges.outputs.isChangedClickHaskell == 'true'
         run: nix build .#ClickHaskell-dist
       
       - name: Deploy ClickHaskell release candidate
-        if: steps.isChangedClickHaskell.outputs.isSourceChanged == 'true'
+        if: steps.srcChanges.outputs.isChangedClickHaskell == 'true'
         uses: haskell-actions/hackage-publish@v1
         with:
           hackageToken: ${{ secrets.HACKAGE_AUTH_TOKEN }}
@@ -62,11 +62,11 @@ jobs:
           publish: false
 
       - name: Build ClickHaskell-http-client-dist
-        if: steps.isChangedClickHaskellHttpClient.outputs.isSourceChanged == 'true'
+        if: steps.srcChanges.outputs.isChangedClickHaskellHttpClient == 'true'
         run: nix build .#ClickHaskell-http-client-dist
       
       - name: Deploy ClickHaskell-http-client release candidate
-        if: steps.isChangedClickHaskellHttpClient.outputs.isSourceChanged == 'true'
+        if: steps.srcChanges.outputs.isChangedClickHaskellHttpClient == 'true'
         uses: haskell-actions/hackage-publish@v1
         with:
           hackageToken: ${{ secrets.HACKAGE_AUTH_TOKEN }}
