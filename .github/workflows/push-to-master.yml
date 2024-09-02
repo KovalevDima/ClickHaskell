@@ -56,7 +56,7 @@ jobs:
         if: steps.srcChanges.outputs.isChangedClickHaskell == 'true'
         uses: haskell-actions/hackage-publish@v1
         with:
-          hackageToken: ${{ secrets.HACKAGE_AUTH_TOKEN }}
+          hackageToken: ${{ secrets.HACKAGE_API_KEY }}
           packagesPath: result/packages
           docsPath: result/docs
           publish: false
@@ -69,7 +69,7 @@ jobs:
         if: steps.srcChanges.outputs.isChangedClickHaskellHttpClient == 'true'
         uses: haskell-actions/hackage-publish@v1
         with:
-          hackageToken: ${{ secrets.HACKAGE_AUTH_TOKEN }}
+          hackageToken: ${{ secrets.HACKAGE_API_KEY }}
           packagesPath: result/packages
           docsPath: result/docs
           publish: false
