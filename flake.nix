@@ -45,6 +45,8 @@
             )
           );
       in {
+        extractDist = pkg: "${pkgs.haskell.lib.sdistTarball pkg}/${pkg.name}.tar.gz";
+        extractDocs = pkg: "${pkgs.haskell.lib.documentationTarball pkg}/${pkg.name}-docs.tar.gz";
         # Database wrapper with all schemas initialization
         process-compose."default" = {
           imports = [inputs.services-flake.processComposeModules.default];
@@ -129,25 +131,19 @@
             cp -r ./_site "$out"
           '';
         };
-        packages."packages-dist" =
-          pkgs.symlinkJoin {
-            name = "packages-dist";
-            paths = builtins.map (x: pkgs.haskell.lib.sdistTarball x)
-              [ self'.packages.ClickHaskell
-                self'.packages.ClickHaskell-http-client
-              ];
-          };
-        packages."docs-dist" = pkgs.symlinkJoin {
-            name = "docs-dist";
-            paths = builtins.map (x: pkgs.haskell.lib.documentationTarball x)
-              [ self'.packages.ClickHaskell
-                self'.packages.ClickHaskell-http-client
-              ];
-        };
-        packages."hackage-dist" = pkgs.runCommand "hackage-dist" {} ''
-          mkdir -p $out/packages
-          cp  -r ${pkgs.haskell.lib.sdistTarball self'.packages.ClickHaskell}/ $out/packages
-          cp  -r ${pkgs.haskell.lib.sdistTarball self'.packages.ClickHaskell-http-client}/ $out/packages
+        packages."ClickHaskell-dist" =
+          pkgs.runCommand "ClickHaskell-dist" {} ''
+            mkdir $out
+            mkdir -m 777 $out/packages $out/docs
+            cp -r ${extractDist self'.packages.ClickHaskell} $out/packages
+            cp -r ${extractDocs self'.packages.ClickHaskell} $out/docs
+        '';
+        packages."ClickHaskell-http-client-dist" =
+          pkgs.runCommand "ClickHaskell-http-client-dist" {} ''
+            mkdir $out
+            mkdir -m 777 $out/packages $out/docs
+            cp -r ${extractDist self'.packages.ClickHaskell-http-client} $out/packages
+            cp -r ${extractDocs self'.packages.ClickHaskell-http-client} $out/docs
         '';
       };
     };
