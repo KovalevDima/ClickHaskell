@@ -44,9 +44,9 @@
               (builtins.readFile path)
             )
           );
-      in {
         extractDist = pkg: "${pkgs.haskell.lib.sdistTarball pkg}/${pkg.name}.tar.gz";
         extractDocs = pkg: "${pkgs.haskell.lib.documentationTarball pkg}/${pkg.name}-docs.tar.gz";
+      in {
         # Database wrapper with all schemas initialization
         process-compose."default" = {
           imports = [inputs.services-flake.processComposeModules.default];
