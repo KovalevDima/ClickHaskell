@@ -104,4 +104,5 @@ f :: IO ()
 f = do
   let storable = maxBound - 256 :: Word64
   ptr8 <- asPtrWord8 storable
-  forM_  [0 .. sizeOf storable - 1] (\index -> print @Word8 =<< peekByteOff ptr8 index) 
+  forM_  [0 .. sizeOf storable - 1] (\index ->  do
+    print @Word8 =<< peekByteOff ptr8 index) 
