@@ -1,19 +1,25 @@
-{-# LANGUAGE DeriveGeneric, OverloadedStrings, DeriveAnyClass, NamedFieldPuns, NumericUnderscores #-}
+{-# LANGUAGE DeriveGeneric, OverloadedStrings, DeriveAnyClass, NamedFieldPuns, NumericUnderscores #-} 
 module ClickHaskell.Native where
 
+-- Internal dependencies
+import ClickHaskell.DbTypes
+
+-- GHC included
 import Control.Exception (Exception, SomeException, bracketOnError, catch, finally, throw)
-import Data.ByteString.Internal
+import Control.Monad (foldM)
+import Data.ByteString.Builder (Builder, toLazyByteString, word8)
+import Data.ByteString.Char8 as BS8 (toStrict, unpack)
+import Data.ByteString.Internal (accursedUnutterablePerformIO)
 import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Text as Text (Text, unpack)
-import Data.Word 
-import Foreign (Ptr, nullPtr, Storable (..), Bits (shiftL), shiftR, plusPtr, malloc)
+import Data.Word (Word16, Word32, Word64, Word8)
+import Foreign (Bits (..), Ptr, Storable (..), malloc, shiftR)
 import GHC.Generics (Generic)
 import Network.Socket
 import System.Timeout (timeout)
 
-import ClickHaskell.DbTypes
-import Data.Foldable (forM_)
-import Control.Monad (foldM)
+-- External
+import Network.Socket.ByteString (recv, send)
 
 openNativeConnection :: ChCredential -> IO (Socket, SockAddr)
 openNativeConnection MkChCredential{chHost, chPort} = do
@@ -99,10 +105,42 @@ asPtrWord8 storableBits = do
     pointer
     [0 .. sizeOf storableBits - 1]
 
+dev :: IO ()
+dev = do
+  (sock, _sockAddr) <- openNativeConnection devCredential
+  sendHello sock
 
-f :: IO ()
-f = do
-  let storable = maxBound - 256 :: Word64
-  ptr8 <- asPtrWord8 storable
-  forM_  [0 .. sizeOf storable - 1] (\index ->  do
-    print @Word8 =<< peekByteOff ptr8 index) 
+
+{-# SPECIALIZE leb128 :: Word8 -> Builder #-}
+{-# SPECIALIZE leb128 :: Word16 -> Builder #-}
+{-# SPECIALIZE leb128 :: Word32 -> Builder #-}
+{-# SPECIALIZE leb128 :: Word64 -> Builder #-}
+leb128 :: (Bits a, Num a, Integral a) => a -> Builder
+leb128 = go
+  where
+    go i
+      | i <= 127
+      = word8 (fromIntegral i :: Word8)
+      | otherwise =
+        -- bit 7 (8th bit) indicates more to come.
+        word8 (setBit (fromIntegral i) 7) <> go (i `unsafeShiftR` 7)
+
+
+sendHello :: Socket -> IO ()
+sendHello sock = do
+  _sentSize <- send sock
+    (toStrict . toLazyByteString . mconcat $
+      [ leb128 @Word8 0            -- Hello packet code
+      , leb128 @Word8 5, "hello"   -- Client name: "Hello"
+      , leb128 @Word8 0            -- Major version: 0
+      , leb128 @Word8 1            -- Minor version: 0
+      , leb128 @Word16 55_255      -- Protocol version
+      , leb128 @Word8 7, "default" -- Database name: "default"
+      , leb128 @Word8 7, "default" -- User name: "default"
+      , leb128 @Word8 0, ""        -- Password: ""
+      ]
+    )
+  bs <- recv sock 1  
+  case bs of
+    "\NUL" -> print bs
+    _ -> error $ "Got unknown packet code: " <> BS8.unpack bs  
