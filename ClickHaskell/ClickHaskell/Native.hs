@@ -118,12 +118,9 @@ dev = do
 leb128 :: (Bits a, Num a, Integral a) => a -> Builder
 leb128 = go
   where
-    go i
-      | i <= 127
-      = word8 (fromIntegral i :: Word8)
-      | otherwise =
-        -- bit 7 (8th bit) indicates more to come.
-        word8 (setBit (fromIntegral i) 7) <> go (i `unsafeShiftR` 7)
+  go i
+    | i <= 127  = word8 (fromIntegral i :: Word8)
+    | otherwise = word8 (0x80 .&. (fromIntegral i .|. 0x7F)) <> go (i `unsafeShiftR` 7)
 
 
 sendHello :: Socket -> IO ()
@@ -140,7 +137,5 @@ sendHello sock = do
       , leb128 @Word8 0, ""        -- Password: ""
       ]
     )
-  bs <- recv sock 1  
-  case bs of
-    "\NUL" -> print bs
-    _ -> error $ "Got unknown packet code: " <> BS8.unpack bs  
+  bs <- recv sock 4096
+  print bs
