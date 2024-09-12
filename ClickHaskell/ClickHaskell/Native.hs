@@ -6,23 +6,22 @@ import ClickHaskell.DbTypes
 
 -- GHC included
 import Control.Exception (Exception, SomeException, bracketOnError, catch, finally, throw)
-import Control.Monad (foldM)
 import Data.ByteString.Builder (Builder, toLazyByteString, word8)
-import Data.ByteString.Char8 as BS8 (toStrict, unpack)
-import Data.ByteString.Internal (accursedUnutterablePerformIO)
+import Data.ByteString.Char8 as BS8 (toStrict)
 import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Text as Text (Text, unpack)
 import Data.Word (Word16, Word32, Word64, Word8)
-import Foreign (Bits (..), Ptr, Storable (..), malloc, shiftR)
+import Foreign (Bits (..), Ptr)
 import GHC.Generics (Generic)
 import Network.Socket
 import System.Timeout (timeout)
 
 -- External
 import Network.Socket.ByteString (recv, send)
+import Data.Text.Encoding (encodeUtf8Builder)
 
 openNativeConnection :: ChCredential -> IO (Socket, SockAddr)
-openNativeConnection MkChCredential{chHost, chPort} = do
+openNativeConnection MkChCredential{chHost} = do
   AddrInfo
     { addrFamily
     , addrSocketType
@@ -35,7 +34,7 @@ openNativeConnection MkChCredential{chHost, chPort} = do
     getAddrInfo
       (Just defaultHints{addrFlags = [AI_ADDRCONFIG], addrSocketType = Stream})
       (Just $ Text.unpack chHost)
-      (Just $ Text.unpack chPort)
+      (Just "tcp")
 
   (fromMaybe (throw EstablishTimeout) <$>) . timeout 3_000_000 $
     bracketOnError
@@ -60,8 +59,7 @@ devCredential = MkChCredential
   { chLogin = "default"
   , chPass = ""
   , chDatabase = "default"
-  , chHost = "localhost"
-  , chPort = "9000"
+  , chHost = "localhost:9000"
   }
 
 
@@ -70,7 +68,6 @@ data ChCredential = MkChCredential
   , chPass     :: Text
   , chDatabase :: Text
   , chHost     :: Text
-  , chPort     :: Text
   }
   deriving (Generic, Show, Eq)
 
@@ -86,55 +83,41 @@ class
 
 class Serializable chType
   where
-  serialize :: chType -> Ptr Word8
+  serialize :: chType -> Builder
 
 instance Serializable ChUInt64 where
-  serialize = accursedUnutterablePerformIO . asPtrWord8 . fromChType @ChUInt64 @Word64
-
-asPtrWord8 :: (Storable a, Bits a, Integral a) => a -> IO (Ptr Word8)
-asPtrWord8 storableBits = do
-  pointer <- malloc
-  foldM
-    (\ptr index -> do
-      pokeElemOff
-        ptr
-        index
-        (fromIntegral $ storableBits `shiftR` (8 * index))
-      pure ptr
-    )
-    pointer
-    [0 .. sizeOf storableBits - 1]
+  serialize = vlq128 . fromChType @ChUInt64 @Word64
 
 dev :: IO ()
 dev = do
   (sock, _sockAddr) <- openNativeConnection devCredential
-  sendHello sock
+  sendHello devCredential sock
 
 
-{-# SPECIALIZE leb128 :: Word8 -> Builder #-}
-{-# SPECIALIZE leb128 :: Word16 -> Builder #-}
-{-# SPECIALIZE leb128 :: Word32 -> Builder #-}
-{-# SPECIALIZE leb128 :: Word64 -> Builder #-}
-leb128 :: (Bits a, Num a, Integral a) => a -> Builder
-leb128 = go
+{-# SPECIALIZE vlq128 :: Word8 -> Builder #-}
+{-# SPECIALIZE vlq128 :: Word16 -> Builder #-}
+{-# SPECIALIZE vlq128 :: Word32 -> Builder #-}
+{-# SPECIALIZE vlq128 :: Word64 -> Builder #-}
+vlq128 :: (Bits a, Num a, Integral a) => a -> Builder
+vlq128 = go
   where
   go i
     | i <= 127  = word8 (fromIntegral i :: Word8)
     | otherwise = word8 (0x80 .&. (fromIntegral i .|. 0x7F)) <> go (i `unsafeShiftR` 7)
 
 
-sendHello :: Socket -> IO ()
-sendHello sock = do
+sendHello :: ChCredential -> Socket -> IO ()
+sendHello MkChCredential{chDatabase, chLogin, chPass} sock = do
   _sentSize <- send sock
     (toStrict . toLazyByteString . mconcat $
-      [ leb128 @Word8 0            -- Hello packet code
-      , leb128 @Word8 5, "hello"   -- Client name: "Hello"
-      , leb128 @Word8 0            -- Major version: 0
-      , leb128 @Word8 1            -- Minor version: 0
-      , leb128 @Word16 55_255      -- Protocol version
-      , leb128 @Word8 7, "default" -- Database name: "default"
-      , leb128 @Word8 7, "default" -- User name: "default"
-      , leb128 @Word8 0, ""        -- Password: ""
+      [ vlq128 @Word8 0            -- Hello packet code
+      , vlq128 @Word8 5, "hello"   -- Client name: "Hello"
+      , vlq128 @Word8 0            -- Major version: 0
+      , vlq128 @Word8 1            -- Minor version: 0
+      , vlq128 @Word16 55_255      -- Protocol version
+      , vlq128 @Word8 7, encodeUtf8Builder chDatabase -- Database name: "default"
+      , vlq128 @Word8 7, encodeUtf8Builder chLogin -- User name: "default"
+      , vlq128 @Word8 0, encodeUtf8Builder chPass        -- Password: ""
       ]
     )
   bs <- recv sock 4096
