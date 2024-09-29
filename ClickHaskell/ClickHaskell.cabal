@@ -43,6 +43,8 @@ Library
     ClickHaskell.Reading
     ClickHaskell.Writing
     ClickHaskell.Native
+    ClickHaskell.Native.Packets
+    ClickHaskell.Native.Serialization
     ClickHaskell.Lock
     ClickHaskell.Tables
   Other-Modules:
