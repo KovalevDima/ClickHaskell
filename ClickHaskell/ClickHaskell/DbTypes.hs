@@ -383,7 +383,7 @@ instance FromChType ChInt16 Int16   where fromChType (MkChInt16 int16) = int16
 
 -- | ClickHouse Int32 column type
 newtype ChInt32 = MkChInt32 Int32
-  deriving newtype (Show, Eq, Num, Prim, Bits, Enum, Ord, Real, Integral, NFData)
+  deriving newtype (Show, Eq, Num, Prim, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
 
 instance IsChType ChInt32
   where
