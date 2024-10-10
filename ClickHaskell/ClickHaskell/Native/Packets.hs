@@ -3,20 +3,20 @@ module ClickHaskell.Native.Packets where
 
 -- Internal dependencies
 import ClickHaskell.DbTypes
-import ClickHaskell.Native.Serialization (Serializable(..))
+import ClickHaskell.Native.Serialization (Serializable(..), vlq128)
 import Paths_ClickHaskell (version)
 
 -- GHC included
 import Control.Monad (void)
 import Data.ByteString.Builder as BS (Builder, toLazyByteString)
-import Data.ByteString.Char8 as BS8 (toStrict)
+import Data.ByteString.Char8 as BS8 (toStrict, head)
 import Data.Text as Text (Text)
 import Data.Version (Version (..))
 import GHC.Generics (Generic)
 
 -- External
 import Network.Socket (HostName, ServiceName, Socket)
-import Network.Socket.ByteString (recv, send)
+import Network.Socket.ByteString (send, recv)
 
 -- * Auth data
 
@@ -30,17 +30,48 @@ data ChCredential = MkChCredential
   deriving (Generic, Show, Eq)
 
 
+-- * Server packet
+
+data ServerPacketType
+  = HelloResponse
+  | DataResponse
+  | Exception
+  | Progress
+  | Pong
+  | EndOfStream
+  | ProfileInfo
+  | Totals
+  | Extremes
+  | TablesStatusResponse
+  | Log
+  | TableColumns
+  | UUIDs
+  | ReadTaskRequest
+  | ProfileEvents
+  deriving (Enum)
+
+determinePacket :: Socket -> IO (Maybe ServerPacketType)
+determinePacket sock = do
+  headByte <- fromEnum . BS8.head <$> recv sock 1
+  pure $
+    if headByte < 15
+    then Just (toEnum headByte)
+    else Nothing
 
 
--- * Hello packet
+
+
+-- * Client packets
+
+-- ** Hello packet
 
 sendHelloPacket :: Socket -> ChCredential -> IO ()
 sendHelloPacket sock MkChCredential{chDatabase, chLogin, chPass} = do
   let helloPacketCode = serialize @ChUInt8 0
       clientName      = serialize @ChString "ClickHaskell"
-      majorVersion    = serialize @ChUInt16 (fromIntegral $ versionBranch version !! 0)
-      minorVersion    = serialize @ChUInt16 (fromIntegral $ versionBranch version !! 1)
-      protocolVersion = serialize @ChUInt16 55_255
+      majorVersion    = vlq128 @ChUInt16 (fromIntegral $ versionBranch version !! 0)
+      minorVersion    = vlq128 @ChUInt16 (fromIntegral $ versionBranch version !! 1)
+      protocolVersion = vlq128 @ChUInt16 54_460
       database        = serialize @ChString (toChType chDatabase)
       login           = serialize @ChString (toChType chLogin)
       password        = serialize @ChString (toChType chPass)
@@ -50,74 +81,109 @@ sendHelloPacket sock MkChCredential{chDatabase, chLogin, chPass} = do
     , protocolVersion
     , database, login, password
     ]
-  bs <- recv sock 4096
-  print bs
 
 
 
 
--- * Query
+-- ** Query packet
+
 
 sendQueryPacket :: Socket -> ChCredential -> ChString -> IO ()
 sendQueryPacket sock creds query = do
-  let queryId           = serialize @ChString "id"
+  let queryPacketCode   = serialize @ChUInt8 1
+      queryId           = serialize @ChString "1ff-a123"
+      clientInfo        = mkClientInfo creds
+      settings          = serialize @ChString "" -- No settings
       interserverSecret = serialize @ChString ""
-      stage             = serialize @ChUInt16 2
-      compression       = serialize @ChUInt16 0
+      stage             = vlq128 @ChUInt8 2
+      compression       = vlq128 @ChUInt8 0
       body              = serialize @ChString query
-  _sentSize <- send sock
-    (toStrict . toLazyByteString . mconcat $
-      [queryId]
-      <> clientInfo creds
-      <> settings
-      <>
-        [ interserverSecret
-        , stage
-        , compression
-        , body
-        ]
-    )
-  bs <- recv sock 4096
-  print bs
+      parameters        = serialize @ChString "" -- No parameters
+  (void . send sock . toStrict . toLazyByteString . mconcat)
+    $  [ queryPacketCode
+       , queryId
+       ]
+    <> clientInfo
+    <> [settings]
+    <> [interserverSecret]
+    <> [stage, compression, body]
+    <> [parameters]
 
-
-clientInfo :: ChCredential -> [Builder]
-clientInfo MkChCredential{chLogin} =
+mkClientInfo :: ChCredential -> [Builder]
+mkClientInfo MkChCredential{chLogin} =
   let queryKind                  = serialize @ChUInt8 1
       initialUser                = serialize @ChString (toChType chLogin)
       initialQueryId             = serialize @ChString ""
       initialAddress             = serialize @ChString "initialAdress"
-      initialQueryStartTime      = serialize @ChUInt64 0
-      interfaceType              = serialize @ChUInt8 1
-      osUser                     = serialize @ChString "example"
+      initialTime                = serialize @ChInt64 0
+      interfaceType              = serialize @ChUInt8 1 -- [tcp - 1, http - 2]
+      osUser                     = serialize @ChString ""
       hostname                   = serialize @ChString "localhost"
       clientName                 = serialize @ChString "ClickHaskell"
-      majorVersion               = serialize @ChUInt16 (fromIntegral $ versionBranch version !! 0)
-      minorVersion               = serialize @ChUInt16 (fromIntegral $ versionBranch version !! 1)
-      protocolVersion            = serialize @ChUInt16 55_255
+      majorVersion               = vlq128 @ChUInt16 (fromIntegral $ versionBranch version !! 0)
+      minorVersion               = vlq128 @ChUInt16 (fromIntegral $ versionBranch version !! 1)
+      protocolVersion            = vlq128 @ChUInt16 54_485
       quotaKey                   = serialize @ChString ""
-      distrubutedDepth           = serialize @ChUInt16 0
-      versionPatch               = serialize @ChUInt16 0
+      distrubutedDepth           = vlq128 @ChUInt16 0
+      versionPatch               = vlq128 @ChUInt16 0
       openTelemetry              = serialize @ChUInt8 0
-      collaborateWithInitiator   = serialize @ChUInt16 0
-      countParticipatingReplicas = serialize @ChUInt16 0
-      numberOfCurrentReplica     = serialize @ChUInt16 0
+      collaborateWithInitiator   = vlq128 @ChUInt16 0
+      countParticipatingReplicas = vlq128 @ChUInt16 0
+      numberOfCurrentReplica     = vlq128 @ChUInt16 0
   in
     [ queryKind
-    , initialUser, initialQueryId, initialAddress, initialQueryStartTime, interfaceType
+    , initialUser
+    , initialQueryId
+    , initialAddress
+    , initialTime
+    , interfaceType
     , osUser, hostname
     , clientName
-    , majorVersion, minorVersion
+    , majorVersion
+    , minorVersion
     , protocolVersion
-    , quotaKey, distrubutedDepth
+    , quotaKey
+    , distrubutedDepth
     , versionPatch, openTelemetry
     , collaborateWithInitiator
-    , countParticipatingReplicas, numberOfCurrentReplica
+    , countParticipatingReplicas
+    , numberOfCurrentReplica
     ]
 
-settings :: [Builder]
-settings =
-  let settingsFlag = serialize @ChUInt16 0x01
+
+
+
+
+-- ** Data packet
+
+sendDataPacket :: Socket -> IO ()
+sendDataPacket sock =
+  let dataPacketCode = serialize @ChUInt8 2
+      columns        = serialize @ChString ""
+      blockInfo      = mkBlockInfo
+      columnsCount   = vlq128 @ChUInt64 0
+      rowsCount      = vlq128 @ChUInt64 0
   in
-  [ settingsFlag
+  (void . send sock . toStrict . toLazyByteString . mconcat)
+    $  [dataPacketCode, columns]
+    <> blockInfo
+    <> [columnsCount, rowsCount]
+
+mkBlockInfo :: [Builder]
+mkBlockInfo =
+  [ serialize @ChUInt8 1 -- [Scalar - 1, Data - 2]
+  , serialize @ChUInt8 0
+  , vlq128 @ChUInt16 2
+  , serialize @ChInt32 (-1)
+  , vlq128 @ChUInt16 0
   ]
+
+
+
+
+-- ** Ping packet
+
+sendPingPacket :: Socket -> IO ()
+sendPingPacket sock =
+  (void . send sock)
+    (toStrict . toLazyByteString $ serialize @ChUInt8 4)
