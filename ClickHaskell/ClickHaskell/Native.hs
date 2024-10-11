@@ -70,7 +70,6 @@ dev = do
   print "Ping packet readed. Sending query"
 
   sendQueryPacket sock devCredential "SELECT 5;"
-  sendPingPacket sock
   sendDataPacket sock
   print =<< recv sock 4096
 
