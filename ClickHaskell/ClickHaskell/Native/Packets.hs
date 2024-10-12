@@ -3,7 +3,7 @@ module ClickHaskell.Native.Packets where
 
 -- Internal dependencies
 import ClickHaskell.DbTypes
-import ClickHaskell.Native.Serialization (Serializable(..), vlq128)
+import ClickHaskell.Native.Serialization (Serializable(..), putUVarInt)
 import Paths_ClickHaskell (version)
 
 -- GHC included
@@ -69,9 +69,9 @@ sendHelloPacket :: Socket -> ChCredential -> IO ()
 sendHelloPacket sock MkChCredential{chDatabase, chLogin, chPass} = do
   let helloPacketCode = serialize @ChUInt8 0
       clientName      = serialize @ChString "ClickHaskell"
-      majorVersion    = vlq128 @ChUInt16 (fromIntegral $ versionBranch version !! 0)
-      minorVersion    = vlq128 @ChUInt16 (fromIntegral $ versionBranch version !! 1)
-      protocolVersion = vlq128 @ChUInt16 54_460
+      majorVersion    = putUVarInt @ChUInt16 (fromIntegral $ versionBranch version !! 0)
+      minorVersion    = putUVarInt @ChUInt16 (fromIntegral $ versionBranch version !! 1)
+      protocolVersion = putUVarInt @ChUInt16 54_460
       database        = serialize @ChString (toChType chDatabase)
       login           = serialize @ChString (toChType chLogin)
       password        = serialize @ChString (toChType chPass)
@@ -95,8 +95,8 @@ sendQueryPacket sock creds query = do
       clientInfo        = mkClientInfo creds
       settings          = serialize @ChString "" -- No settings
       interserverSecret = serialize @ChString ""
-      stage             = vlq128 @ChUInt8 2
-      compression       = vlq128 @ChUInt8 0
+      stage             = putUVarInt @ChUInt8 2
+      compression       = putUVarInt @ChUInt8 0
       body              = serialize @ChString query
       parameters        = serialize @ChString "" -- No parameters
   (void . send sock . toStrict . toLazyByteString . mconcat)
@@ -120,16 +120,16 @@ mkClientInfo MkChCredential{chLogin} =
       osUser                     = serialize @ChString ""
       hostname                   = serialize @ChString "localhost"
       clientName                 = serialize @ChString "ClickHaskell"
-      majorVersion               = vlq128 @ChUInt16 (fromIntegral $ versionBranch version !! 0)
-      minorVersion               = vlq128 @ChUInt16 (fromIntegral $ versionBranch version !! 1)
-      protocolVersion            = vlq128 @ChUInt16 54_485
+      majorVersion               = putUVarInt @ChUInt16 (fromIntegral $ versionBranch version !! 0)
+      minorVersion               = putUVarInt @ChUInt16 (fromIntegral $ versionBranch version !! 1)
+      protocolVersion            = putUVarInt @ChUInt16 54_485
       quotaKey                   = serialize @ChString ""
-      distrubutedDepth           = vlq128 @ChUInt16 0
-      versionPatch               = vlq128 @ChUInt16 0
+      distrubutedDepth           = putUVarInt @ChUInt16 0
+      versionPatch               = putUVarInt @ChUInt16 0
       openTelemetry              = serialize @ChUInt8 0
-      collaborateWithInitiator   = vlq128 @ChUInt16 0
-      countParticipatingReplicas = vlq128 @ChUInt16 0
-      numberOfCurrentReplica     = vlq128 @ChUInt16 0
+      collaborateWithInitiator   = putUVarInt @ChUInt16 0
+      countParticipatingReplicas = putUVarInt @ChUInt16 0
+      numberOfCurrentReplica     = putUVarInt @ChUInt16 0
   in
     [ queryKind
     , initialUser
@@ -161,8 +161,8 @@ sendDataPacket sock =
   let dataPacketCode = serialize @ChUInt8 2
       columns        = serialize @ChString ""
       blockInfo      = mkBlockInfo
-      columnsCount   = vlq128 @ChUInt64 0
-      rowsCount      = vlq128 @ChUInt64 0
+      columnsCount   = putUVarInt @ChUInt64 0
+      rowsCount      = putUVarInt @ChUInt64 0
   in
   (void . send sock . toStrict . toLazyByteString . mconcat)
     $  [dataPacketCode, columns]
@@ -173,9 +173,9 @@ mkBlockInfo :: [Builder]
 mkBlockInfo =
   [ serialize @ChUInt8 1 -- [Scalar - 1, Data - 2]
   , serialize @ChUInt8 0
-  , vlq128 @ChUInt16 2
+  , putUVarInt @ChUInt16 2
   , serialize @ChInt32 (-1)
-  , vlq128 @ChUInt16 0
+  , putUVarInt @ChUInt16 0
   ]
 
 

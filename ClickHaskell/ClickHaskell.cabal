@@ -45,6 +45,7 @@ Library
     ClickHaskell.Native
     ClickHaskell.Native.Packets
     ClickHaskell.Native.Serialization
+    ClickHaskell.Native.Versioning
     ClickHaskell.Lock
     ClickHaskell.Tables
   Other-Modules:

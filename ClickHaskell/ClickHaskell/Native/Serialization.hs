@@ -13,12 +13,12 @@ import Data.Bits (Bits (..))
 import Data.WideWord (Int128(..))
 import Foreign (Ptr)
 
-{-# SPECIALIZE vlq128 :: ChUInt8 -> Builder #-}
-{-# SPECIALIZE vlq128 :: ChUInt16 -> Builder #-}
-{-# SPECIALIZE vlq128 :: ChUInt32 -> Builder #-}
-{-# SPECIALIZE vlq128 :: ChUInt64 -> Builder #-}
-vlq128 :: (Bits a, Num a, Integral a) => a -> Builder
-vlq128 = go
+{-# SPECIALIZE putUVarInt :: ChUInt8 -> Builder #-}
+{-# SPECIALIZE putUVarInt :: ChUInt16 -> Builder #-}
+{-# SPECIALIZE putUVarInt :: ChUInt32 -> Builder #-}
+{-# SPECIALIZE putUVarInt :: ChUInt64 -> Builder #-}
+putUVarInt :: (Bits a, Num a, Integral a) => a -> Builder
+putUVarInt = go
   where
   go i
     | i <= 127  = word8 (fromIntegral i :: Word8)
@@ -35,16 +35,16 @@ instance Serializable ChUInt8 where
   serialize = word8 . fromChType @ChUInt8 @Word8
 
 instance Serializable ChUInt16 where
-  serialize = vlq128 . fromChType @ChUInt16 @Word16
+  serialize = putUVarInt . fromChType @ChUInt16 @Word16
 
 instance Serializable ChUInt32 where
-  serialize = vlq128 . fromChType @ChUInt32 @Word32
+  serialize = putUVarInt . fromChType @ChUInt32 @Word32
 
 instance Serializable ChUInt64 where
-  serialize = vlq128 . fromChType @ChUInt64 @Word64
+  serialize = putUVarInt . fromChType @ChUInt64 @Word64
 
 instance Serializable ChUInt128 where
-  serialize = vlq128 . fromChType @ChUInt128 @Word128
+  serialize = putUVarInt . fromChType @ChUInt128 @Word128
 
 instance Serializable ChInt8 where
   serialize = int8 . fromChType @ChInt8 @Int8
