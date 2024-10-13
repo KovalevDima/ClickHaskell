@@ -77,12 +77,13 @@ Library
       base >= 4.7 && <5
     , bytestring < 0.13
     , deepseq < 1.6
-    , network
     , text < 2.2
     , time < 1.13
     , vector < 0.14
+    , template-haskell < 2.22
 
     -- External dependencies
+    , network
     , uuid < 1.4
     , wide-word < 0.2
   Default-language: Haskell2010

@@ -61,17 +61,32 @@ openNativeConnection MkChCredential{chHost, chPort} = do
 dev :: IO ()
 dev = do
   (sock, _sockAddr) <- openNativeConnection devCredential
+  putStrLn "🎬"
+
+  putStrLn "Hello packet sending💬: 1/1"
   sendHelloPacket sock devCredential
-  print =<< recv sock 4096
-  print "Hello packet readed. Sending ping"
 
+  putStrLn "Hello packet reading👂: 1/1"
+  print =<< recv sock 4096
+
+
+  putStrLn "Ping packet sending💬: 1/1"
   sendPingPacket sock
-  print =<< recv sock 4096
-  print "Ping packet readed. Sending query"
 
-  sendQueryPacket sock devCredential "SELECT 5;"
-  sendDataPacket sock
+  putStrLn "Ping packet reading👂: 1/1"
   print =<< recv sock 4096
+
+
+  putStrLn "Query packet sending💬: 1/2"
+  sendQueryPacket sock 54_460 devCredential "SELECT 'hello, world!';"
+
+  putStrLn "Query packet sending💬: 2/2"
+  sendDataPacket sock 54_460 "" False
+
+  putStrLn "Query packet reading👂: 1/1"
+  print =<< recv sock 4096
+
+  putStrLn "🎬"
 
 devCredential :: ChCredential
 devCredential = MkChCredential

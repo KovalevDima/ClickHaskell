@@ -1,9 +1,17 @@
-{-# LANGUAGE DeriveGeneric, OverloadedStrings, NamedFieldPuns, NumericUnderscores #-}
+{-# LANGUAGE
+    DeriveGeneric
+  , OverloadedStrings
+  , NamedFieldPuns
+  , NumericUnderscores
+  , TemplateHaskell
+#-}
+
 module ClickHaskell.Native.Packets where
 
 -- Internal dependencies
 import ClickHaskell.DbTypes
 import ClickHaskell.Native.Serialization (Serializable(..), putUVarInt)
+import ClickHaskell.Native.Versioning
 import Paths_ClickHaskell (version)
 
 -- GHC included
@@ -11,8 +19,9 @@ import Control.Monad (void)
 import Data.ByteString.Builder as BS (Builder, toLazyByteString)
 import Data.ByteString.Char8 as BS8 (toStrict, head)
 import Data.Text as Text (Text)
-import Data.Version (Version (..))
+import Data.Version (Version (..), showVersion)
 import GHC.Generics (Generic)
+import Language.Haskell.TH.Syntax (lift)
 
 -- External
 import Network.Socket (HostName, ServiceName, Socket)
@@ -29,8 +38,17 @@ data ChCredential = MkChCredential
   }
   deriving (Generic, Show, Eq)
 
+clientMajorVersion, clientMinorVersion :: ChUInt16
+clientMajorVersion = fromIntegral $(lift (versionBranch version !! 0))
+clientMinorVersion = fromIntegral $(lift (versionBranch version !! 1))
 
--- * Server packet
+clientNameAndVersion :: ChString
+clientNameAndVersion = $(lift ("ClickHaskell-" <> showVersion version))
+
+
+
+
+-- * Server packets
 
 data ServerPacketType
   = HelloResponse
@@ -61,25 +79,42 @@ determinePacket sock = do
 
 
 
--- * Client packets
+-- * Client packets handling
+
+
+data ClientPacketType
+  = Hello
+  | Query
+  | Data
+  | Cancel
+  | Ping
+  | TablesStatusRequest
+  | KeepAlive
+  | Scalar
+  | IgnoredPartUUIDs
+  | ReadTaskResponse
+  | MergeTreeReadTaskResponse
+  | SSHChallengeRequest
+  | SSHChallengeResponse
+  deriving (Enum)
+
+clientPackerCode :: ClientPacketType -> ChUInt16
+clientPackerCode = fromIntegral . fromEnum
+
 
 -- ** Hello packet
 
 sendHelloPacket :: Socket -> ChCredential -> IO ()
-sendHelloPacket sock MkChCredential{chDatabase, chLogin, chPass} = do
-  let helloPacketCode = serialize @ChUInt8 0
-      clientName      = serialize @ChString "ClickHaskell"
-      majorVersion    = putUVarInt @ChUInt16 (fromIntegral $ versionBranch version !! 0)
-      minorVersion    = putUVarInt @ChUInt16 (fromIntegral $ versionBranch version !! 1)
-      protocolVersion = putUVarInt @ChUInt16 54_460
-      database        = serialize @ChString (toChType chDatabase)
-      login           = serialize @ChString (toChType chLogin)
-      password        = serialize @ChString (toChType chPass)
+sendHelloPacket sock MkChCredential{chDatabase, chLogin, chPass}  = do
   void . send sock . toStrict . toLazyByteString . mconcat $
-    [ helloPacketCode
-    , clientName, majorVersion, minorVersion
-    , protocolVersion
-    , database, login, password
+    [ putUVarInt @ChUInt16 (clientPackerCode Hello)
+    , serialize @ChString clientNameAndVersion
+    , putUVarInt @ChUInt16 clientMajorVersion
+    , putUVarInt @ChUInt16 clientMinorVersion
+    , putUVarInt @ChUInt16 54_460
+    , serialize @ChString (toChType chDatabase)
+    , serialize @ChString (toChType chLogin)
+    , serialize @ChString (toChType chPass)
     ]
 
 
@@ -87,95 +122,98 @@ sendHelloPacket sock MkChCredential{chDatabase, chLogin, chPass} = do
 
 -- ** Query packet
 
+data QueryStage
+  = FetchColumns
+  | WithMergeableState
+  | Complete
+  | WithMergeableStateAfterAggregation
+  | WithMergeableStateAfterAggregationAndLimit
+  deriving (Enum)
 
-sendQueryPacket :: Socket -> ChCredential -> ChString -> IO ()
-sendQueryPacket sock creds query = do
-  let queryPacketCode   = serialize @ChUInt8 1
-      queryId           = serialize @ChString "1ff-a123"
-      clientInfo        = mkClientInfo creds
-      settings          = serialize @ChString "" -- No settings
-      interserverSecret = serialize @ChString ""
-      stage             = putUVarInt @ChUInt8 2
-      compression       = putUVarInt @ChUInt8 0
-      body              = serialize @ChString query
-      parameters        = serialize @ChString "" -- No parameters
+queryStageCode :: QueryStage -> ChUInt16
+queryStageCode = fromIntegral . fromEnum
+
+
+sendQueryPacket :: Socket -> ProtocolRevision -> ChCredential -> ChString -> IO ()
+sendQueryPacket sock serverRevision creds  query = do
   (void . send sock . toStrict . toLazyByteString . mconcat)
-    $  [ queryPacketCode
-       , queryId
-       ]
-    <> clientInfo
-    <> [settings]
-    <> [interserverSecret]
-    <> [stage, compression, body]
-    <> [parameters]
-
-mkClientInfo :: ChCredential -> [Builder]
-mkClientInfo MkChCredential{chLogin} =
-  let queryKind                  = serialize @ChUInt8 1
-      initialUser                = serialize @ChString (toChType chLogin)
-      initialQueryId             = serialize @ChString ""
-      initialAddress             = serialize @ChString "initialAdress"
-      initialTime                = serialize @ChInt64 0
-      interfaceType              = serialize @ChUInt8 1 -- [tcp - 1, http - 2]
-      osUser                     = serialize @ChString ""
-      hostname                   = serialize @ChString "localhost"
-      clientName                 = serialize @ChString "ClickHaskell"
-      majorVersion               = putUVarInt @ChUInt16 (fromIntegral $ versionBranch version !! 0)
-      minorVersion               = putUVarInt @ChUInt16 (fromIntegral $ versionBranch version !! 1)
-      protocolVersion            = putUVarInt @ChUInt16 54_485
-      quotaKey                   = serialize @ChString ""
-      distrubutedDepth           = putUVarInt @ChUInt16 0
-      versionPatch               = putUVarInt @ChUInt16 0
-      openTelemetry              = serialize @ChUInt8 0
-      collaborateWithInitiator   = putUVarInt @ChUInt16 0
-      countParticipatingReplicas = putUVarInt @ChUInt16 0
-      numberOfCurrentReplica     = putUVarInt @ChUInt16 0
-  in
-    [ queryKind
-    , initialUser
-    , initialQueryId
-    , initialAddress
-    , initialTime
-    , interfaceType
-    , osUser, hostname
-    , clientName
-    , majorVersion
-    , minorVersion
-    , protocolVersion
-    , quotaKey
-    , distrubutedDepth
-    , versionPatch, openTelemetry
-    , collaborateWithInitiator
-    , countParticipatingReplicas
-    , numberOfCurrentReplica
+    [ putUVarInt (clientPackerCode Query)
+    , serialize @ChString "1ff-a123" -- queryId
+    , if serverRevision >= _DBMS_MIN_REVISION_WITH_CLIENT_INFO
+      then mkClientInfo creds serverRevision
+      else ""
+    , serialize @ChString "" -- settings
+    , if serverRevision >= _DBMS_MIN_REVISION_WITH_INTERSERVER_SECRET
+      then serialize @ChString "" -- interserver secret
+      else "" 
+    , putUVarInt (queryStageCode Complete) 
+    , putUVarInt @ChUInt8 0 -- compression
+    , serialize @ChString query
+    , if serverRevision >= _DBMS_MIN_PROTOCOL_VERSION_WITH_PARAMETERS
+      then serialize @ChString "" -- parameters
+      else ""
     ]
 
+mkClientInfo :: ChCredential -> ProtocolRevision -> Builder
+mkClientInfo MkChCredential{chLogin} revision =
+  mconcat
+    [ serialize @ChUInt8 1 -- query kind
+    , serialize @ChString (toChType chLogin)
+    , serialize @ChString "" -- initial query id
+    , serialize @ChString "initialAdress" -- initial address
+    , if revision >= _DBMS_MIN_PROTOCOL_VERSION_WITH_INITIAL_QUERY_START_TIME
+      then serialize @ChInt64 0
+      else "" -- initial time
+    , serialize @ChUInt8 1 -- interface type [tcp - 1, http - 2]
+    , serialize @ChString "" -- OS user
+    , serialize @ChString "localhost" -- hostname
+    , serialize @ChString clientNameAndVersion
+    , putUVarInt @ChUInt16 clientMajorVersion
+    , putUVarInt @ChUInt16 clientMinorVersion
+    , putUVarInt @ChUInt16 revision
+    , if revision >= _DBMS_MIN_REVISION_WITH_QUOTA_KEY_IN_CLIENT_INFO
+      then serialize @ChString "" -- quota key
+      else ""
+    , if revision >= _DBMS_MIN_PROTOCOL_VERSION_WITH_DISTRIBUTED_DEPTH
+      then putUVarInt @ChUInt16 0 -- distrubutedDepth
+      else ""
+    , if revision >= _DBMS_MIN_REVISION_WITH_VERSION_PATCH
+      then putUVarInt @ChUInt16 0 -- version patch
+      else ""
+    , if revision >= _DBMS_MIN_REVISION_WITH_OPENTELEMETRY
+      then serialize @ChUInt8 0 -- open telemetry
+      else ""
+    , if revision >= _DBMS_MIN_REVISION_WITH_PARALLEL_REPLICAS
+      then putUVarInt @ChUInt16 0 -- collaborateWith initiator
+        <> putUVarInt @ChUInt16 0 -- count participating replicas
+        <> putUVarInt @ChUInt16 0 -- number of current replica
+      else ""
+    ]
 
 
 
 
 -- ** Data packet
 
-sendDataPacket :: Socket -> IO ()
-sendDataPacket sock =
-  let dataPacketCode = serialize @ChUInt8 2
-      columns        = serialize @ChString ""
-      blockInfo      = mkBlockInfo
-      columnsCount   = putUVarInt @ChUInt64 0
-      rowsCount      = putUVarInt @ChUInt64 0
-  in
-  (void . send sock . toStrict . toLazyByteString . mconcat)
-    $  [dataPacketCode, columns]
-    <> blockInfo
-    <> [columnsCount, rowsCount]
+type IsScalar = Bool
+type DataName = ChString
 
-mkBlockInfo :: [Builder]
-mkBlockInfo =
-  [ serialize @ChUInt8 1 -- [Scalar - 1, Data - 2]
-  , serialize @ChUInt8 0
-  , putUVarInt @ChUInt16 2
-  , serialize @ChInt32 (-1)
-  , putUVarInt @ChUInt16 0
+
+sendDataPacket :: Socket -> ProtocolRevision -> DataName -> IsScalar -> IO ()
+sendDataPacket sock serverRevision dataName isScalar =
+  (void . send sock . toStrict . toLazyByteString . mconcat)
+    [ if isScalar
+      then putUVarInt @ChUInt16 (clientPackerCode Scalar)
+      else putUVarInt @ChUInt16 (clientPackerCode Data)
+    , serialize @ChString dataName
+    , mkBlockInfo serverRevision
+    , putUVarInt @ChUInt64 0 -- columnsCount
+    , putUVarInt @ChUInt64 0 -- rowsCount
+    ]
+
+mkBlockInfo :: ProtocolRevision -> Builder
+mkBlockInfo _serverRevision = mconcat
+  [ putUVarInt @ChUInt16 0
   ]
 
 

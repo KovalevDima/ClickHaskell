@@ -13,16 +13,19 @@ import Data.Bits (Bits (..))
 import Data.WideWord (Int128(..))
 import Foreign (Ptr)
 
-{-# SPECIALIZE putUVarInt :: ChUInt8 -> Builder #-}
-{-# SPECIALIZE putUVarInt :: ChUInt16 -> Builder #-}
-{-# SPECIALIZE putUVarInt :: ChUInt32 -> Builder #-}
-{-# SPECIALIZE putUVarInt :: ChUInt64 -> Builder #-}
+{- |
+  Unsigned variable-length quantity encoding
+-}
 putUVarInt :: (Bits a, Num a, Integral a) => a -> Builder
 putUVarInt = go
   where
   go i
     | i <= 127  = word8 (fromIntegral i :: Word8)
     | otherwise = word8 (0x80 .&. (fromIntegral i .|. 0x7F)) <> go (i `unsafeShiftR` 7)
+{-# SPECIALIZE putUVarInt :: ChUInt8 -> Builder #-}
+{-# SPECIALIZE putUVarInt :: ChUInt16 -> Builder #-}
+{-# SPECIALIZE putUVarInt :: ChUInt32 -> Builder #-}
+{-# SPECIALIZE putUVarInt :: ChUInt64 -> Builder #-}
 
 
 
@@ -59,7 +62,9 @@ instance Serializable ChInt64 where
   serialize = int64LE . fromChType @ChInt64 @Int64
 
 instance Serializable ChInt128 where
-  serialize = (\w128 -> word64LE (int128Hi64 w128) <> word64LE (int128Lo64 w128)) . fromChType @ChInt128 @Int128
+  serialize
+    = (\int128 -> word64LE (int128Hi64 int128) <> word64LE (int128Lo64 int128))
+    . fromChType @ChInt128 @Int128
 
 instance Serializable ChString where
   serialize str
