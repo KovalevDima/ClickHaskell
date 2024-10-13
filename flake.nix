@@ -1,7 +1,7 @@
 {
   description = "ClickHaskell";
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/haskell-updates";
+    nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
     flake-parts.url = "github:hercules-ci/flake-parts";
     haskell-flake.url = "github:srid/haskell-flake";
     process-compose-flake.url = "github:Platonic-Systems/process-compose-flake";
