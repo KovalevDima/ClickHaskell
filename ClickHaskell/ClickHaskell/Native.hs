@@ -7,16 +7,18 @@
 module ClickHaskell.Native where
 
 -- Internal dependencies
-import ClickHaskell.Native.Packets (sendHelloPacket, sendQueryPacket, ChCredential(..), sendPingPacket, sendDataPacket)
+import ClickHaskell.Native.Packets (mkHelloPacket, mkQueryPacket, ChCredential(..), mkPingPacket, mkDataPacket)
 
 -- GHC included
 import Control.Exception (Exception, SomeException, bracketOnError, catch, finally, throw)
 import Data.Maybe (fromMaybe, listToMaybe)
 import Network.Socket
+import Data.ByteString.Builder (toLazyByteString)
+import Data.ByteString (toStrict)
 import System.Timeout (timeout)
 
 -- External
-import Network.Socket.ByteString (recv)
+import Network.Socket.ByteString (recv, send)
 
 
 data ConnectionError
@@ -63,27 +65,29 @@ dev = do
   (sock, _sockAddr) <- openNativeConnection devCredential
   putStrLn "🎬"
 
-  putStrLn "Hello packet sending💬: 1/1"
-  sendHelloPacket sock devCredential
+  putStrLn "Hello packet sending💬"
+  _ <- (send sock . toStrict . toLazyByteString)
+    (mkHelloPacket devCredential)
 
-  putStrLn "Hello packet reading👂: 1/1"
+  putStrLn "Hello packet reading👂"
   print =<< recv sock 4096
 
 
-  putStrLn "Ping packet sending💬: 1/1"
-  sendPingPacket sock
+  putStrLn "Ping packet sending💬"
+  _ <- (send sock . toStrict . toLazyByteString)
+    mkPingPacket
 
-  putStrLn "Ping packet reading👂: 1/1"
+  putStrLn "Ping packet reading👂"
   print =<< recv sock 4096
 
 
-  putStrLn "Query packet sending💬: 1/2"
-  sendQueryPacket sock 54_460 devCredential "SELECT 'hello, world!';"
+  putStrLn "Query packet sending💬"
+  _ <- (send sock . toStrict . toLazyByteString)
+    (  mkQueryPacket 54_429 devCredential "SELECT 'hello, world!';"
+    <> mkDataPacket 54_429 "" False
+    )
 
-  putStrLn "Query packet sending💬: 2/2"
-  sendDataPacket sock 54_460 "" False
-
-  putStrLn "Query packet reading👂: 1/1"
+  putStrLn "Query packet reading👂"
   print =<< recv sock 4096
 
   putStrLn "🎬"

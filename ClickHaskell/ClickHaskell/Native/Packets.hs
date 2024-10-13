@@ -15,9 +15,8 @@ import ClickHaskell.Native.Versioning
 import Paths_ClickHaskell (version)
 
 -- GHC included
-import Control.Monad (void)
-import Data.ByteString.Builder as BS (Builder, toLazyByteString)
-import Data.ByteString.Char8 as BS8 (toStrict, head)
+import Data.ByteString.Builder as BS (Builder)
+import Data.ByteString.Char8 as BS8 ( head)
 import Data.Text as Text (Text)
 import Data.Version (Version (..), showVersion)
 import GHC.Generics (Generic)
@@ -25,7 +24,7 @@ import Language.Haskell.TH.Syntax (lift)
 
 -- External
 import Network.Socket (HostName, ServiceName, Socket)
-import Network.Socket.ByteString (send, recv)
+import Network.Socket.ByteString (recv)
 
 -- * Auth data
 
@@ -104,9 +103,9 @@ clientPackerCode = fromIntegral . fromEnum
 
 -- ** Hello packet
 
-sendHelloPacket :: Socket -> ChCredential -> IO ()
-sendHelloPacket sock MkChCredential{chDatabase, chLogin, chPass}  = do
-  void . send sock . toStrict . toLazyByteString . mconcat $
+mkHelloPacket :: ChCredential -> Builder
+mkHelloPacket MkChCredential{chDatabase, chLogin, chPass}  = do
+  mconcat
     [ putUVarInt @ChUInt16 (clientPackerCode Hello)
     , serialize @ChString clientNameAndVersion
     , putUVarInt @ChUInt16 clientMajorVersion
@@ -134,11 +133,21 @@ queryStageCode :: QueryStage -> ChUInt16
 queryStageCode = fromIntegral . fromEnum
 
 
-sendQueryPacket :: Socket -> ProtocolRevision -> ChCredential -> ChString -> IO ()
-sendQueryPacket sock serverRevision creds  query = do
-  (void . send sock . toStrict . toLazyByteString . mconcat)
+data Flags
+  = IMPORTANT
+  | CUSTOM
+  | OBSOLETE
+
+flagCode :: Flags -> ChUInt64
+flagCode IMPORTANT = 0x01
+flagCode CUSTOM    = 0x02
+flagCode OBSOLETE  = 0x04
+
+mkQueryPacket :: ProtocolRevision -> ChCredential -> ChString -> Builder
+mkQueryPacket serverRevision creds  query = do
+  mconcat
     [ putUVarInt (clientPackerCode Query)
-    , serialize @ChString "1ff-a123" -- queryId
+    , serialize @ChString "" -- queryId
     , if serverRevision >= _DBMS_MIN_REVISION_WITH_CLIENT_INFO
       then mkClientInfo creds serverRevision
       else ""
@@ -154,10 +163,19 @@ sendQueryPacket sock serverRevision creds  query = do
       else ""
     ]
 
+data QueryKind
+  = NoQuery
+  | InitialQuery
+  | SecondaryQuery
+  deriving (Enum)
+
+queryKindCode :: QueryKind -> ChUInt8
+queryKindCode = fromIntegral . fromEnum
+
 mkClientInfo :: ChCredential -> ProtocolRevision -> Builder
 mkClientInfo MkChCredential{chLogin} revision =
   mconcat
-    [ serialize @ChUInt8 1 -- query kind
+    [ serialize @ChUInt8 (queryKindCode InitialQuery)
     , serialize @ChString (toChType chLogin)
     , serialize @ChString "" -- initial query id
     , serialize @ChString "initialAdress" -- initial address
@@ -199,9 +217,9 @@ type IsScalar = Bool
 type DataName = ChString
 
 
-sendDataPacket :: Socket -> ProtocolRevision -> DataName -> IsScalar -> IO ()
-sendDataPacket sock serverRevision dataName isScalar =
-  (void . send sock . toStrict . toLazyByteString . mconcat)
+mkDataPacket :: ProtocolRevision -> DataName -> IsScalar -> Builder
+mkDataPacket serverRevision dataName isScalar =
+  mconcat
     [ if isScalar
       then putUVarInt @ChUInt16 (clientPackerCode Scalar)
       else putUVarInt @ChUInt16 (clientPackerCode Data)
@@ -221,7 +239,5 @@ mkBlockInfo _serverRevision = mconcat
 
 -- ** Ping packet
 
-sendPingPacket :: Socket -> IO ()
-sendPingPacket sock =
-  (void . send sock)
-    (toStrict . toLazyByteString $ serialize @ChUInt8 4)
+mkPingPacket :: Builder
+mkPingPacket = serialize @ChUInt8 4
