@@ -64,7 +64,7 @@ dev = do
   (sock, _sockAddr) <- openNativeConnection devCredential
 
   putStrLn "Hello packet sending💬"
-  _ <- (sendAll sock . toLazyByteString)
+  (sendAll sock . toLazyByteString)
     (mkHelloPacket 54467 devCredential)
 
   putStrLn "Hello packet reading👂"
@@ -72,14 +72,14 @@ dev = do
 
 
   putStrLn "Ping packet sending💬"
-  _ <- (sendAll sock . toLazyByteString)
+  (sendAll sock . toLazyByteString)
     mkPingPacket
   putStrLn "Ping packet reading👂"
   print =<< recv sock 4096
 
 
   putStrLn "Query packet sending💬"
-  _ <- (sendAll sock . toLazyByteString)
+  (sendAll sock . toLazyByteString)
     (  mkQueryPacket 54467 devCredential "SELECT 5"
     <> mkDataPacket "" False
     )

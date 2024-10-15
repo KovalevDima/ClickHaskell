@@ -165,7 +165,6 @@ mkQueryPacket serverRevision creds query = do
     , if serverRevision >= _DBMS_MIN_PROTOCOL_VERSION_WITH_PARAMETERS
       then serialize @ChString "" -- parameters
       else ""
-    , "\0"
     ]
 
 data QueryKind
@@ -252,4 +251,4 @@ mkBlockInfo = let
 -- ** Ping packet
 
 mkPingPacket :: Builder
-mkPingPacket = uVarInt (clientPacketCode Ping) <> "\0"
+mkPingPacket = uVarInt (clientPacketCode Ping)
