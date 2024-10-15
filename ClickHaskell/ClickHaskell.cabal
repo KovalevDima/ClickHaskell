@@ -2,7 +2,7 @@ Cabal-version: 3.4
 
 
 Name:           ClickHaskell
-Version:        0.0.0.1
+Version:        1.0.0
 
 Author:         Kovalev Dmitry
 Maintainer:     Kovalev Dmitry

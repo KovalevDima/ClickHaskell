@@ -14,11 +14,10 @@ import Control.Exception (Exception, SomeException, bracketOnError, catch, final
 import Data.Maybe (fromMaybe, listToMaybe)
 import Network.Socket
 import Data.ByteString.Builder (toLazyByteString)
-import Data.ByteString (toStrict)
 import System.Timeout (timeout)
 
 -- External
-import Network.Socket.ByteString (recv, send)
+import Network.Socket.ByteString.Lazy (recv, sendAll)
 
 
 data ConnectionError
@@ -63,40 +62,36 @@ openNativeConnection MkChCredential{chHost, chPort} = do
 dev :: IO ()
 dev = do
   (sock, _sockAddr) <- openNativeConnection devCredential
-  putStrLn "🎬"
 
   putStrLn "Hello packet sending💬"
-  _ <- (send sock . toStrict . toLazyByteString)
-    (mkHelloPacket devCredential)
+  _ <- (sendAll sock . toLazyByteString)
+    (mkHelloPacket 54467 devCredential)
 
   putStrLn "Hello packet reading👂"
   print =<< recv sock 4096
 
 
   putStrLn "Ping packet sending💬"
-  _ <- (send sock . toStrict . toLazyByteString)
+  _ <- (sendAll sock . toLazyByteString)
     mkPingPacket
-
   putStrLn "Ping packet reading👂"
   print =<< recv sock 4096
 
 
   putStrLn "Query packet sending💬"
-  _ <- (send sock . toStrict . toLazyByteString)
-    (  mkQueryPacket 54_429 devCredential "SELECT 'hello, world!';"
-    <> mkDataPacket 54_429 "" False
+  _ <- (sendAll sock . toLazyByteString)
+    (  mkQueryPacket 54467 devCredential "SELECT 5"
+    <> mkDataPacket "" False
     )
 
   putStrLn "Query packet reading👂"
   print =<< recv sock 4096
 
-  putStrLn "🎬"
-
 devCredential :: ChCredential
 devCredential = MkChCredential
   { chLogin = "default"
   , chPass = ""
-  , chDatabase = "default"
+  , chDatabase = ""
   , chHost = "localhost"
   , chPort = "9000"
   }

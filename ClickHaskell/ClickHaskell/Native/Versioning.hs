@@ -1,8 +1,8 @@
 module ClickHaskell.Native.Versioning where
 
-import ClickHaskell.DbTypes (ChUInt16)
+import ClickHaskell.DbTypes (ChUInt64)
 
-type ProtocolRevision = ChUInt16
+type ProtocolRevision = ChUInt64
 
 _DBMS_MIN_REVISION_WITH_CLIENT_INFO :: ProtocolRevision
 _DBMS_MIN_REVISION_WITH_CLIENT_INFO = 54032;
