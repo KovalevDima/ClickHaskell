@@ -63,28 +63,17 @@ dev :: IO ()
 dev = do
   (sock, _sockAddr) <- openNativeConnection devCredential
 
-  putStrLn "Hello packet sending💬"
-  (sendAll sock . toLazyByteString)
-    (mkHelloPacket 54467 devCredential)
-
-  putStrLn "Hello packet reading👂"
+  (sendAll sock . toLazyByteString) (mkHelloPacket 54467 devCredential)
+  (sendAll sock . toLazyByteString) "\0"
   print =<< recv sock 4096
 
-
-  putStrLn "Ping packet sending💬"
-  (sendAll sock . toLazyByteString)
-    mkPingPacket
-  putStrLn "Ping packet reading👂"
+  (sendAll sock . toLazyByteString) mkPingPacket
   print =<< recv sock 4096
 
-
-  putStrLn "Query packet sending💬"
   (sendAll sock . toLazyByteString)
-    (  mkQueryPacket 54467 devCredential "SELECT 5"
+    (  mkQueryPacket 54467 devCredential "CREATE VIEW hello AS SELECT 5"
     <> mkDataPacket "" False
     )
-
-  putStrLn "Query packet reading👂"
   print =<< recv sock 4096
 
 devCredential :: ChCredential

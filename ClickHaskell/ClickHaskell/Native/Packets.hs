@@ -81,7 +81,6 @@ determinePacket sock = do
 
 -- * Client packets handling
 
-
 data ClientPacketType
   = Hello
   | Query
@@ -115,7 +114,6 @@ mkHelloPacket clientRevision MkChCredential{chDatabase, chLogin, chPass}  = do
     , serialize @ChString (toChType chDatabase)
     , serialize @ChString (toChType chLogin)
     , serialize @ChString (toChType chPass)
-    , "\0"
     ]
 
 
