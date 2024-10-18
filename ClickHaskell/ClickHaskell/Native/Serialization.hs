@@ -41,9 +41,7 @@ instance Serializable ChInt8 where serialize = int8 . fromChType
 instance Serializable ChInt16 where serialize = int16LE . fromChType
 instance Serializable ChInt32 where serialize = int32LE . fromChType
 instance Serializable ChInt64 where serialize = int64LE . fromChType
-
 instance Serializable ChInt128 where serialize = (\(Int128 hi lo) -> word64LE hi <> word64LE lo) . fromChType
-
 instance Serializable ChString where
   serialize str
     =  (uVarInt @ChUInt64 . fromIntegral . BS.length . fromChType) str
@@ -52,7 +50,4 @@ instance Serializable ChString where
 
 
 
-class
-  Deserializable chType
-  where
-  deserialize :: Ptr Word8 -> chType
+class Deserializable chType where deserialize :: Ptr Word8 -> chType

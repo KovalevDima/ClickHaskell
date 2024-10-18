@@ -17,6 +17,11 @@ import ClickHaskell.Native.Packets
   , mkDataPacket
   , ChCredential(..)
   )
+import ClickHaskell.Native.Versioning
+--  ( afterRevision
+--  , DBMS_MIN_PROTOCOL_VERSION_WITH_CHUNKED_PACKETS
+--  , latestSupportedRevision
+--  )
 
 -- GHC included
 import Data.ByteString.Builder (toLazyByteString)
@@ -29,15 +34,16 @@ dev :: IO ()
 dev = do
   sock <- openNativeConnection devCredential
 
-  (sendAll sock . toLazyByteString) (mkHelloPacket 54467 devCredential)
-  (sendAll sock . toLazyByteString) "\0"
+  (sendAll sock . toLazyByteString) (mkHelloPacket latestSupportedRevision devCredential)
+  afterRevision @DBMS_MIN_PROTOCOL_VERSION_WITH_ADDENDUM latestSupportedRevision
+    (sendAll sock . toLazyByteString) "\0"
   print =<< recv sock 4096
 
   (sendAll sock . toLazyByteString) mkPingPacket
   print =<< recv sock 4096
 
   (sendAll sock . toLazyByteString)
-    (  mkQueryPacket 54467 devCredential "SELECT 5"
+    (  mkQueryPacket latestSupportedRevision devCredential "SELECT 5"
     <> mkDataPacket "" False
     )
   print =<< recv sock 4096

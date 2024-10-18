@@ -26,7 +26,9 @@ import Language.Haskell.TH.Syntax (lift)
 import Network.Socket (HostName, ServiceName, Socket)
 import Network.Socket.ByteString (recv)
 
--- * Auth data
+-- * Protocol parts
+
+-- ** Auth data
 
 data ChCredential = MkChCredential
   { chLogin    :: Text
@@ -45,10 +47,7 @@ clientPatchVersion = fromIntegral $(lift (versionBranch version !! 2))
 clientNameAndVersion :: ChString
 clientNameAndVersion = $(lift ("ClickHaskell-" <> showVersion version))
 
-
-
-
--- * Server packets
+-- ** Server packets
 
 data ServerPacketType
   = HelloResponse
@@ -76,11 +75,6 @@ determineServerPacket sock = do
     then Just (toEnum headByte)
     else Nothing
 
-
-
-
--- * Client packets handling
-
 data ClientPacketType
   = Hello
   | Query
@@ -100,6 +94,10 @@ data ClientPacketType
 clientPacketCode :: ClientPacketType -> ChUInt64
 clientPacketCode = fromIntegral . fromEnum
 
+
+
+
+-- * Client packets handling
 
 -- ** Hello packet
 
@@ -150,19 +148,16 @@ mkQueryPacket serverRevision creds query = do
   mconcat
     [ uVarInt (clientPacketCode Query)
     , serialize @ChString "c6d51fce-a5ad-455d-bfc7-88974c4c2f9d" -- queryId
-    , if serverRevision >= _DBMS_MIN_REVISION_WITH_CLIENT_INFO
-      then mkClientInfo creds serverRevision
-      else ""
+    , afterRevision @DBMS_MIN_REVISION_WITH_CLIENT_INFO serverRevision
+        (mkClientInfo creds serverRevision)
     , serialize @ChString "" -- settings
-    , if serverRevision >= _DBMS_MIN_REVISION_WITH_INTERSERVER_SECRET
-      then serialize @ChString "" -- interserver secret
-      else "" 
+    , afterRevision @DBMS_MIN_REVISION_WITH_INTERSERVER_SECRET serverRevision
+        (serialize @ChString "") -- interserver secret 
     , uVarInt (queryStageCode Complete) 
     , uVarInt @ChUInt8 0 -- compression
     , serialize @ChString query
-    , if serverRevision >= _DBMS_MIN_PROTOCOL_VERSION_WITH_PARAMETERS
-      then serialize @ChString "" -- parameters
-      else ""
+    , afterRevision @DBMS_MIN_PROTOCOL_VERSION_WITH_PARAMETERS serverRevision
+        (serialize @ChString "") -- parameters
     ]
 
 data QueryKind
@@ -181,9 +176,8 @@ mkClientInfo MkChCredential{{-chLogin-}} revision =
     , serialize @ChString "" -- (toChType chLogin) -- initial user
     , serialize @ChString "c6d51fce-a5ad-455d-bfc7-88974c4c2f9d" -- initial query id
     , serialize @ChString "0.0.0.0:0" -- initial address
-    , if revision >= _DBMS_MIN_PROTOCOL_VERSION_WITH_INITIAL_QUERY_START_TIME
-      then serialize @ChInt64 0
-      else "" -- initial time
+    , afterRevision @DBMS_MIN_PROTOCOL_VERSION_WITH_INITIAL_QUERY_START_TIME revision
+        (serialize @ChInt64 0) -- initial time
     , serialize @ChUInt8 1 -- interface type [tcp - 1, http - 2]
     , serialize @ChString "dmitry" -- OS user
     , serialize @ChString "desktop" -- hostname
@@ -191,23 +185,19 @@ mkClientInfo MkChCredential{{-chLogin-}} revision =
     , uVarInt @ChUInt64 clientMajorVersion
     , uVarInt @ChUInt64 clientMinorVersion
     , uVarInt @ChUInt64 revision
-    , if revision >= _DBMS_MIN_REVISION_WITH_QUOTA_KEY_IN_CLIENT_INFO
-      then serialize @ChString "" -- quota key
-      else ""
-    , if revision >= _DBMS_MIN_PROTOCOL_VERSION_WITH_DISTRIBUTED_DEPTH
-      then uVarInt @ChUInt16 0 -- distrubutedDepth
-      else ""
-    , if revision >= _DBMS_MIN_REVISION_WITH_VERSION_PATCH
-      then uVarInt @ChUInt16 7 -- version patch
-      else ""
-    , if revision >= _DBMS_MIN_REVISION_WITH_OPENTELEMETRY
-      then serialize @ChUInt8 0 -- open telemetry
-      else ""
-    , if revision >= _DBMS_MIN_REVISION_WITH_PARALLEL_REPLICAS
-      then uVarInt @ChUInt16 0 -- collaborateWith initiator
+    , afterRevision @DBMS_MIN_REVISION_WITH_QUOTA_KEY_IN_CLIENT_INFO revision
+        (serialize @ChString "") -- quota key
+    , afterRevision @DBMS_MIN_PROTOCOL_VERSION_WITH_DISTRIBUTED_DEPTH revision
+        (uVarInt @ChUInt16 0) -- distrubutedDepth
+    , afterRevision @DBMS_MIN_REVISION_WITH_VERSION_PATCH revision
+        (uVarInt @ChUInt16 7) -- version patch
+    , afterRevision @DBMS_MIN_REVISION_WITH_OPENTELEMETRY revision
+        (serialize @ChUInt8 0) -- open telemetry
+    , afterRevision @DBMS_MIN_REVISION_WITH_PARALLEL_REPLICAS revision
+        (  uVarInt @ChUInt16 0 -- collaborateWith initiator
         <> uVarInt @ChUInt16 0 -- count participating replicas
         <> uVarInt @ChUInt16 0 -- number of current replica
-      else ""
+        )
     ]
 
 
