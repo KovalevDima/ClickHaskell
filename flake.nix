@@ -1,7 +1,7 @@
 {
   description = "ClickHaskell";
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/haskell-updates";
+    nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
     flake-parts.url = "github:hercules-ci/flake-parts";
     haskell-flake.url = "github:srid/haskell-flake";
     process-compose-flake.url = "github:Platonic-Systems/process-compose-flake";
@@ -59,7 +59,7 @@
         # Integration testing wrapper
         process-compose."integration-testing" = {
           imports = [inputs.services-flake.processComposeModules.default];
-          tui = false; # GitHub Actions doesn't work with TUI. Don't enable it
+          cli.up.tui = false; # GitHub Actions doesn't work with TUI. Don't enable it
           settings.processes.integration-test = {
             command = "${self'.apps.integration-tests.program}";
             availability.exit_on_end = true;
