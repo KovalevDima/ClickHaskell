@@ -38,8 +38,8 @@ Library
   Autogen-Modules:
     Paths_ClickHaskell
   Exposed-Modules:
+    ClickHaskell
     ClickHaskell.DbTypes
-    ClickHaskell.HTTP
     ClickHaskell.Reading
     ClickHaskell.Writing
     ClickHaskell.Native

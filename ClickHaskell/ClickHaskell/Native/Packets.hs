@@ -68,8 +68,8 @@ data ServerPacketType
   | ProfileEvents
   deriving (Enum)
 
-determinePacket :: Socket -> IO (Maybe ServerPacketType)
-determinePacket sock = do
+determineServerPacket :: Socket -> IO (Maybe ServerPacketType)
+determineServerPacket sock = do
   headByte <- fromEnum . BS8.head <$> recv sock 1
   pure $
     if headByte < 15
@@ -226,21 +226,15 @@ mkDataPacket dataName isScalar =
       then uVarInt (clientPacketCode Scalar)
       else uVarInt (clientPacketCode Data)
     , serialize @ChString dataName
-    , mkBlockInfo
-    , uVarInt @ChUInt64 0 -- columnsCount
-    , uVarInt @ChUInt64 0 -- rowsCount
-    ]
-
-mkBlockInfo :: Builder
-mkBlockInfo = let
-  isOverflows = 0
-  bucketNum = -1
-  in mconcat
-    [ uVarInt @ChUInt16 1
-    , serialize @ChUInt8 isOverflows
-    , uVarInt @ChUInt16 2
-    , serialize @ChInt32 bucketNum
-    , uVarInt @ChUInt16 0 
+    , mconcat -- block info
+      [ uVarInt @ChUInt16 1
+      , serialize @ChUInt8 0 -- is overflows
+      , uVarInt @ChUInt16 2
+      , serialize @ChInt32 (-1) -- bucket num
+      , uVarInt @ChUInt16 0 
+      ]
+    , uVarInt @ChUInt64 0 -- columns count
+    , uVarInt @ChUInt64 0 -- rows count
     ]
 
 
@@ -249,4 +243,5 @@ mkBlockInfo = let
 -- ** Ping packet
 
 mkPingPacket :: Builder
-mkPingPacket = uVarInt (clientPacketCode Ping)
+mkPingPacket =
+  uVarInt (clientPacketCode Ping)

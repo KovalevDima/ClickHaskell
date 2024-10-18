@@ -1,31 +1,31 @@
 {-# LANGUAGE 
-    OverloadedStrings
-  , DeriveAnyClass
+    DeriveAnyClass
   , NamedFieldPuns
   , NumericUnderscores
 #-}
-module ClickHaskell.Native where
+module ClickHaskell.Native
+  ( ChCredential(..)
+  , openNativeConnection
+  ) where
 
 -- Internal dependencies
-import ClickHaskell.Native.Packets (mkHelloPacket, mkQueryPacket, ChCredential(..), mkPingPacket, mkDataPacket)
+import ClickHaskell.Native.Packets (ChCredential(..))
 
 -- GHC included
 import Control.Exception (Exception, SomeException, bracketOnError, catch, finally, throw)
 import Data.Maybe (fromMaybe, listToMaybe)
 import Network.Socket
-import Data.ByteString.Builder (toLazyByteString)
 import System.Timeout (timeout)
-
--- External
-import Network.Socket.ByteString.Lazy (recv, sendAll)
-
 
 data ConnectionError
   = NoAdressResolved
   | EstablishTimeout
   deriving (Show, Exception)
 
-openNativeConnection :: ChCredential -> IO (Socket, SockAddr)
+
+
+
+openNativeConnection :: ChCredential -> IO Socket
 openNativeConnection MkChCredential{chHost, chPort} = do
   AddrInfo
     { addrFamily
@@ -56,31 +56,5 @@ openNativeConnection MkChCredential{chHost, chPort} = do
          setSocketOption sock NoDelay 1
          setSocketOption sock KeepAlive 1
          connect sock addrAddress
-         pure (sock, addrAddress)
+         pure sock
       )
-
-dev :: IO ()
-dev = do
-  (sock, _sockAddr) <- openNativeConnection devCredential
-
-  (sendAll sock . toLazyByteString) (mkHelloPacket 54467 devCredential)
-  (sendAll sock . toLazyByteString) "\0"
-  print =<< recv sock 4096
-
-  (sendAll sock . toLazyByteString) mkPingPacket
-  print =<< recv sock 4096
-
-  (sendAll sock . toLazyByteString)
-    (  mkQueryPacket 54467 devCredential "CREATE VIEW hello AS SELECT 5"
-    <> mkDataPacket "" False
-    )
-  print =<< recv sock 4096
-
-devCredential :: ChCredential
-devCredential = MkChCredential
-  { chLogin = "default"
-  , chPass = ""
-  , chDatabase = ""
-  , chHost = "localhost"
-  , chPort = "9000"
-  }
