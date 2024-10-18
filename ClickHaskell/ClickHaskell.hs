@@ -18,10 +18,10 @@ import ClickHaskell.Native.Packets
   , ChCredential(..)
   )
 import ClickHaskell.Native.Versioning
---  ( afterRevision
---  , DBMS_MIN_PROTOCOL_VERSION_WITH_CHUNKED_PACKETS
---  , latestSupportedRevision
---  )
+  ( afterRevision
+  , DBMS_MIN_PROTOCOL_VERSION_WITH_ADDENDUM
+  , latestSupportedRevision
+  )
 
 -- GHC included
 import Data.ByteString.Builder (toLazyByteString)
