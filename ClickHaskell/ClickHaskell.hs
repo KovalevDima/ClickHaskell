@@ -4,6 +4,7 @@
 module ClickHaskell
   ( module ClickHaskell.DbTypes
   , openNativeConnection
+  , ping
   , dev
   ) where
 
@@ -11,6 +12,8 @@ module ClickHaskell
 import ClickHaskell.DbTypes
 import ClickHaskell.Native (openNativeConnection, ping)
 import ClickHaskell.Native.Packets (ChCredential(..))
+
+-- GHC included
 import Control.Exception (throw)
 
 
