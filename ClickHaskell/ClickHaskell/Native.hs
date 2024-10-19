@@ -26,7 +26,7 @@ import ClickHaskell.Native.Packets
 import ClickHaskell.Native.Versioning (latestSupportedRevision)
 
 -- GHC included
-import Control.Exception (Exception, SomeException, bracketOnError, catch, finally)
+import Control.Exception (Exception, SomeException, bracketOnError, catch, finally, throw)
 import Data.ByteString.Builder (toLazyByteString)
 import Data.Maybe (fromMaybe, listToMaybe)
 import Network.Socket
@@ -35,9 +35,22 @@ import System.Timeout (timeout)
 -- External
 import Network.Socket.ByteString.Lazy (recv, sendAll)
 
+data ClientError
+  = ConnectionError ConnectionError
+  | ProtocolImplementationError ProtocolImplementationError
+  deriving (Show, Exception)
+
 data ConnectionError
   = NoAdressResolved
   | EstablishTimeout
+  deriving (Show, Exception)
+
+{- |
+  You shouldn't see this exceptions. Please report a bug if it appears
+-}
+data ProtocolImplementationError
+  = UnexpectedPacketType ServerPacketType
+  | UnknownPacketType
   deriving (Show, Exception)
 
 
@@ -46,57 +59,52 @@ data Connection = MkConnection
   , user :: User
   }
 
-openNativeConnection :: ChCredential -> IO (Either ConnectionError Connection)
+openNativeConnection :: ChCredential -> IO Connection
 openNativeConnection credentials@MkChCredential{chHost, chPort, chLogin} = do
-  eithAddr  <- maybe (Left NoAdressResolved) Right . listToMaybe
-    <$> getAddrInfo
-      (Just defaultHints{addrFlags = [AI_ADDRCONFIG], addrSocketType = Stream})
-      (Just chHost)
-      (Just chPort)
-  eithSock <- case eithAddr of
-    Left ex -> pure $ Left ex
-    Right AddrInfo
+  AddrInfo
       { addrFamily
       , addrSocketType
       , addrProtocol
       , addrAddress
-      } -> (fromMaybe (Left EstablishTimeout) <$>) . timeout 3_000_000 $
-      bracketOnError
-        (socket addrFamily addrSocketType addrProtocol)
-        (\sock ->
-          catch @SomeException
-            (finally
-              (shutdown sock ShutdownBoth)
-              (close sock)
-            )
-            (const $ pure ())
-        )
-        (\sock -> do
-           setSocketOption sock NoDelay 1
-           setSocketOption sock KeepAlive 1
-           connect sock addrAddress
-           pure $ Right sock
-        )
+      } <- fromMaybe (throw $ ConnectionError NoAdressResolved) . listToMaybe
+    <$> getAddrInfo
+      (Just defaultHints{addrFlags = [AI_ADDRCONFIG], addrSocketType = Stream})
+      (Just chHost)
+      (Just chPort)
+  sock <- (fromMaybe (throw $ ConnectionError EstablishTimeout) <$>) . timeout 3_000_000 $
+    bracketOnError
+      (socket addrFamily addrSocketType addrProtocol)
+      (\sock ->
+        catch @SomeException
+          (finally
+            (shutdown sock ShutdownBoth)
+            (close sock)
+          )
+          (const $ pure ())
+      )
+      (\sock -> do
+         setSocketOption sock NoDelay 1
+         setSocketOption sock KeepAlive 1
+         connect sock addrAddress
+         pure sock
+      )
 
-  case eithSock of
-    Left ex -> pure (Left ex)
-    Right sock -> do
-      (sendAll sock . toLazyByteString) (mkHelloPacket latestSupportedRevision credentials)
-      serverPacketType <- determineServerPacket sock
-      print serverPacketType
-      print =<< recv sock 4096
-      pure $ Right MkConnection{sock, user=chLogin} 
+  (sendAll sock . toLazyByteString) (mkHelloPacket latestSupportedRevision credentials)
+  serverPacketType <- determineServerPacket sock
+  print serverPacketType
+  print =<< recv sock 4096
+  pure $ MkConnection{sock, user=chLogin} 
 
 
 ping :: Connection -> IO ()
 ping MkConnection{sock} = do
   (sendAll sock . toLazyByteString) mkPingPacket
-  responscePacket<- determineServerPacket sock
+  responscePacket <- determineServerPacket sock
   case responscePacket of
     Just Pong -> pure ()
     Just Exception -> pure ()
-    Just otherPacket -> error $ "Unxpected packet type: " <> show otherPacket
-    Nothing -> pure ()
+    Just otherPacket -> throw . ProtocolImplementationError $ UnexpectedPacketType otherPacket
+    Nothing -> throw . ProtocolImplementationError $ UnknownPacketType
 
 
 selectFrom :: Connection -> IO ()
@@ -105,4 +113,5 @@ selectFrom MkConnection{sock, user} = do
     (  mkQueryPacket latestSupportedRevision user "SELECT 5"
     <> mkDataPacket "" False
     )
-  print =<< recv sock 4096
+  _ <- recv sock 4096
+  pure ()
