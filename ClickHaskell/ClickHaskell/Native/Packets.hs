@@ -65,7 +65,7 @@ data ServerPacketType
   | UUIDs
   | ReadTaskRequest
   | ProfileEvents
-  deriving (Enum)
+  deriving (Show, Enum)
 
 determineServerPacket :: Socket -> IO (Maybe ServerPacketType)
 determineServerPacket sock = do
@@ -112,6 +112,8 @@ mkHelloPacket clientRevision MkChCredential{chDatabase, chLogin, chPass}  = do
     , serialize @ChString (toChType chDatabase)
     , serialize @ChString (toChType chLogin)
     , serialize @ChString (toChType chPass)
+    , afterRevision @DBMS_MIN_PROTOCOL_VERSION_WITH_ADDENDUM clientRevision
+        "\0"
     ]
 
 
@@ -120,6 +122,7 @@ mkHelloPacket clientRevision MkChCredential{chDatabase, chLogin, chPass}  = do
 -- ** Query packet
 
 type Query = ChString
+type User = Text
 
 data QueryStage
   = FetchColumns
@@ -143,7 +146,7 @@ flagCode IMPORTANT = 0x01
 flagCode CUSTOM    = 0x02
 flagCode OBSOLETE  = 0x04
 
-mkQueryPacket :: ProtocolRevision -> ChCredential -> Query -> Builder
+mkQueryPacket :: ProtocolRevision -> User -> Query -> Builder
 mkQueryPacket serverRevision creds query = do
   mconcat
     [ uVarInt (clientPacketCode Query)
@@ -169,11 +172,11 @@ data QueryKind
 queryKindCode :: QueryKind -> ChUInt8
 queryKindCode = fromIntegral . fromEnum
 
-mkClientInfo :: ChCredential -> ProtocolRevision -> Builder
-mkClientInfo MkChCredential{{-chLogin-}} revision =
+mkClientInfo :: User -> ProtocolRevision -> Builder
+mkClientInfo user revision =
   mconcat
     [ serialize @ChUInt8 (queryKindCode InitialQuery)
-    , serialize @ChString "" -- (toChType chLogin) -- initial user
+    , serialize @ChString (toChType user) -- initial user
     , serialize @ChString "c6d51fce-a5ad-455d-bfc7-88974c4c2f9d" -- initial query id
     , serialize @ChString "0.0.0.0:0" -- initial address
     , afterRevision @DBMS_MIN_PROTOCOL_VERSION_WITH_INITIAL_QUERY_START_TIME revision
