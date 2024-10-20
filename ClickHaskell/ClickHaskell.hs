@@ -10,8 +10,8 @@ module ClickHaskell
 
 -- Internal dependencies
 import ClickHaskell.DbTypes
-import ClickHaskell.Native (openNativeConnection, ping, selectFrom)
-import ClickHaskell.Native.Packets (ChCredential(..))
+import ClickHaskell.NativeProtocol (ChCredential(..), openNativeConnection, ping, selectFrom)
+import ClickHaskell.Tables ()
 
 -- GHC included
 import Control.Monad (replicateM_)
@@ -20,8 +20,8 @@ import Control.Monad (replicateM_)
 dev :: IO ()
 dev = do
   connection <- openNativeConnection devCredential
-  replicateM_ 5000 (ping connection)
-  replicateM_ 50000 (selectFrom connection)
+  replicateM_ 500 (ping connection)
+  replicateM_ 500 (selectFrom connection)
 
 devCredential :: ChCredential
 devCredential = MkChCredential

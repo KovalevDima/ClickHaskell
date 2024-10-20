@@ -42,11 +42,7 @@ Library
     ClickHaskell.DbTypes
     ClickHaskell.Reading
     ClickHaskell.Writing
-    ClickHaskell.Native
-    ClickHaskell.Native.Packets
-    ClickHaskell.Native.Serialization
-    ClickHaskell.Native.Versioning
-    ClickHaskell.Lock
+    ClickHaskell.NativeProtocol
     ClickHaskell.Tables
   Other-Modules:
     Paths_ClickHaskell
