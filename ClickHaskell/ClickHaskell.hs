@@ -30,7 +30,9 @@ import ClickHaskell.NativeProtocol
   , mkQueryPacket
   , mkDataPacket
   , mkHelloPacket
-  , ChCredential(..), ServerHelloResponse (..), readHelloPacket
+  , ChCredential(..)
+  , ServerHelloResponse (..)
+  , readHelloPacket
   )
 import ClickHaskell.Tables ()
 
@@ -51,7 +53,7 @@ import Network.Socket.ByteString.Lazy (recv, sendAll)
 data Connection = MkConnection
   { sock :: Socket
   , user :: ChString
-  , chosenRevision :: ProtocolRevision 
+  , chosenRevision :: ProtocolRevision
   }
 
 openNativeConnection :: ChCredential -> IO Connection
@@ -83,11 +85,9 @@ openNativeConnection cred@MkChCredential{chHost, chPort, chLogin} = do
   (sendAll sock . toLazyByteString . serialize latestSupportedRevision) (mkHelloPacket cred)
   
   serverPacketType <- determineServerPacket sock
-  print serverPacketType
-
   case serverPacketType of
     HelloResponse -> do
-      MkServerHelloResponse{server_revision} <- readHelloPacket <$> recv sock 4096
+      MkServerHelloResponse{server_revision} <- readHelloPacket (recv sock 4096)
       pure MkConnection{user=toChType chLogin, sock, chosenRevision=server_revision}
     Exception -> do
       print =<< recv sock 4096
@@ -129,6 +129,7 @@ dev = do
   replicateM_ 500 (ping connection)
   print "Pinged"
   replicateM_ 500 (selectFrom connection)
+  print "Dummy queries done"
 
 devCredential :: ChCredential
 devCredential = MkChCredential

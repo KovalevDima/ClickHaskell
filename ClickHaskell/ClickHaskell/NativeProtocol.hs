@@ -12,6 +12,7 @@
   , TemplateHaskell
   , UndecidableInstances
 #-}
+{-# LANGUAGE LambdaCase #-}
 
 module ClickHaskell.NativeProtocol where
 
@@ -127,28 +128,8 @@ instance Deserializable [PasswordComplexityRules] where
     pure []
 
 
-readHelloPacket :: LazyByteString -> ServerHelloResponse
-readHelloPacket = runGet (deserialize @ServerHelloResponse latestSupportedRevision)
-  -- go (runGetIncremental (deserialize @ServerHelloResponse latestSupportedRevision))
-
-go1 :: Decoder ServerHelloResponse -> IO LazyByteString -> IO ServerHelloResponse
-go1 (Partial decoder) getInput                    = do
-  input <- getInput
-  go1 (decoder . takeHeadChunk $ input) (pure $ dropHeadChunk input)
-go1 (Done _leftover _consumed helloPacket) _input = pure helloPacket
-go1 (Fail _leftover _consumed msg) _input        = error msg
-
-takeHeadChunk :: LazyByteString -> Maybe StrictByteString
-takeHeadChunk lbs =
-  case lbs of
-    (BL.Chunk bs _) -> Just bs
-    _ -> Nothing
-
-dropHeadChunk :: LazyByteString -> LazyByteString
-dropHeadChunk lbs =
-  case lbs of
-    (BL.Chunk _ lbs') -> lbs'
-    _ -> BL.Empty
+readHelloPacket :: IO LazyByteString -> IO ServerHelloResponse
+readHelloPacket = bufferizedRead latestSupportedRevision
 
 
 
@@ -384,6 +365,20 @@ data ConnectionError
 
 
 -- * Serialization
+
+-- ** Bufferized reading
+
+bufferizedRead :: forall packet . Deserializable packet => ProtocolRevision -> IO LazyByteString -> IO packet
+bufferizedRead rev bufferFiller = runBufferReader bufferFiller (runGetIncremental (deserialize @packet rev)) BL.Empty
+
+runBufferReader :: Deserializable packet => IO LazyByteString -> Decoder packet -> LazyByteString -> IO packet
+runBufferReader bufferFiller (Partial decoder) (BL.Chunk bs mChunk) = runBufferReader bufferFiller (decoder $ Just bs) mChunk
+runBufferReader bufferFiller (Partial decoder) BL.Empty = do
+  bufferFiller >>= \case
+    BL.Empty -> fail "Expected more bytes while reading packet" -- ToDo: Pass packet name
+    BL.Chunk bs mChunk -> runBufferReader bufferFiller (decoder $ Just bs) mChunk
+runBufferReader _bufferFiller (Done _leftover _consumed helloPacket) _input = pure helloPacket
+runBufferReader _bufferFiller (Fail _leftover _consumed msg)  _currentBuffer = error msg
 
 {- |
   Unsigned variable-length quantity encoding
