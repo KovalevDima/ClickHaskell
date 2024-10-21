@@ -72,6 +72,7 @@ Library
     -- GHC included libraries
       base >= 4.7 && <5
     , bytestring < 0.13
+    , binary < 9
     , deepseq < 1.6
     , text < 2.2
     , time < 1.13
