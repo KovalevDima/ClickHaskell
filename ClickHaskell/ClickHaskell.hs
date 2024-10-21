@@ -87,11 +87,7 @@ openNativeConnection cred@MkChCredential{chHost, chPort, chLogin} = do
 
   case serverPacketType of
     HelloResponse -> do
-      readedBytes <- recv sock 4096 
-      print readedBytes
-      let helloPacket = readHelloPacket readedBytes
-          MkServerHelloResponse{server_revision} = helloPacket
-      print helloPacket
+      MkServerHelloResponse{server_revision} <- readHelloPacket <$> recv sock 4096
       pure MkConnection{user=toChType chLogin, sock, chosenRevision=server_revision}
     Exception -> do
       print =<< recv sock 4096

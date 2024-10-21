@@ -12,8 +12,6 @@
   , TemplateHaskell
   , UndecidableInstances
 #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE InstanceSigs #-}
 
 module ClickHaskell.NativeProtocol where
 
@@ -82,15 +80,15 @@ mkHelloPacket MkChCredential{chDatabase,chLogin,chPass} =
     } 
 
 data HelloPacket = MkHelloPacket
-  { packet_type :: Packet Hello
-  , client_name :: ChString
+  { packet_type          :: Packet Hello
+  , client_name          :: ChString
   , client_version_major :: UVarInt
   , client_version_minor :: UVarInt
   , tcp_protocol_version :: UVarInt
-  , default_database :: ChString
-  , user :: ChString
-  , password :: ChString
-  , adendum :: Adendum `SinceRevision` DBMS_MIN_PROTOCOL_VERSION_WITH_ADDENDUM
+  , default_database     :: ChString
+  , user                 :: ChString
+  , password             :: ChString
+  , adendum              :: Adendum `SinceRevision` DBMS_MIN_PROTOCOL_VERSION_WITH_ADDENDUM
   }
   deriving (Generic, Serializable)
 
@@ -115,13 +113,13 @@ data ServerHelloResponse = MkServerHelloResponse
   , password_complexity_rules      :: [PasswordComplexityRules] `SinceRevision` DBMS_MIN_PROTOCOL_VERSION_WITH_PASSWORD_COMPLEXITY_RULES
   , read_nonce                     :: ChUInt64 `SinceRevision` DBMS_MIN_REVISION_WITH_INTERSERVER_SECRET_V2
   }
-  deriving (Generic, Deserializable, Show)
+  deriving (Generic, Deserializable)
 
 data PasswordComplexityRules = MkPasswordComplexityRules
   { original_pattern :: ChString
   , exception_message :: ChString
   }
-  deriving (Generic, Deserializable, Show)
+  deriving (Generic, Deserializable)
 
 instance Deserializable [PasswordComplexityRules] where
   deserialize rev = do
@@ -433,11 +431,11 @@ instance
   where
   gSerialize rev (M1 (M1 re)) = gSerialize rev re
 instance
-  (GSerializable left, GSerializable right)
+  GSerializable (left1 :*: (left2 :*: right))
   =>
-  GSerializable (left :*: right)
+  GSerializable ((left1 :*: left2) :*: right)
   where
-  gSerialize rev (left :*: right) = gSerialize rev left <> gSerialize rev right
+  gSerialize rev ((left :*: left2) :*: right) = gSerialize rev (left :*: (left2 :*: right))
 
 instance
   Serializable chType
@@ -445,6 +443,13 @@ instance
   GSerializable (S1 (MetaSel (Just typeName) a b f) (Rec0 chType))
   where
   gSerialize rev = serialize rev . unK1 . unM1
+
+instance
+  (Serializable chType, GSerializable right)
+  =>
+  GSerializable (S1 (MetaSel (Just typeName) a b f) (Rec0 chType) :*: right)
+  where
+  gSerialize rev (left :*: right) = (serialize rev . unK1 . unM1 $ left) <> gSerialize rev right
 
 
 
@@ -459,11 +464,13 @@ class
   deserialize rev = to <$> gDeserialize rev
 
 instance Deserializable UVarInt where
-  deserialize _ = go
+  deserialize _ = go 0 (0 :: UVarInt)
     where
-    go = do
-      firstW8 <- getWord8
-      pure $ fromIntegral firstW8
+    go i o | i < 10 = do
+      byte <- getWord8
+      let o' = o .|. ((fromIntegral byte .&. 0x7f) `unsafeShiftL` (7 * i))
+      if byte .&. 0x80 == 0 then pure $! o' else go (i + 1) $! o'
+    go _ _ = fail "input exceeds varuint size"
 instance Deserializable ChUInt8 where deserialize _ = toChType <$> getWord8
 instance Deserializable ChUInt16 where deserialize _ = toChType <$> getWord16le
 instance Deserializable ChUInt32 where deserialize _ = toChType <$> getWord32le
@@ -489,20 +496,39 @@ instance
   GDeserializable (D1 c (C1 c2 f))
   where
   gDeserialize rev = M1 . M1 <$> gDeserialize rev
-instance
-  (GDeserializable left, GDeserializable right)
-  =>
-  GDeserializable (left :*: right)
-  where
-  gDeserialize rev = (:*:) <$> gDeserialize @left rev <*> gDeserialize @right rev
 
 instance
-  Deserializable chType
+  GDeserializable (left :*: (right1 :*: right2))
+  =>
+  GDeserializable ((left :*: right1) :*: right2)
+  where
+  gDeserialize rev =
+    (\(left :*: (right1 :*: right2)) -> (left :*: right1) :*: right2)
+    <$> gDeserialize rev
+
+instance
+  (Deserializable chType)
   =>
   GDeserializable (S1 (MetaSel (Just typeName) a b f) (Rec0 chType))
   where
-
   gDeserialize rev =  M1 . K1 <$> deserialize @chType rev
+
+instance
+  (Deserializable chType, GDeserializable right)
+  =>
+  GDeserializable (S1 (MetaSel (Just typeName) a b f) (Rec0 chType) :*: right)
+  where
+  gDeserialize rev = (:*:) <$> (M1 . K1 <$> deserialize @chType rev) <*> gDeserialize rev
+
+instance {-# OVERLAPPING #-}
+  (GDeserializable right)
+  =>
+  GDeserializable (S1 (MetaSel (Just "server_revision") a b f) (Rec0 UVarInt) :*: right)
+  where
+  gDeserialize rev = do
+    server_revision <- deserialize @UVarInt rev
+    (:*:) <$> (pure . M1 . K1 $ server_revision) <*> gDeserialize server_revision
+
 
 
 
@@ -525,7 +551,6 @@ latestSupportedRevision :: ProtocolRevision
 latestSupportedRevision = (fromIntegral . natVal) (Proxy @DBMS_TCP_PROTOCOL_VERSION)
 
 data SinceRevision a (revisionNumber :: Nat) = MkSinceRevision a | NotPresented
-  deriving (Show)
 
 instance
   ( KnownNat revision
@@ -544,7 +569,11 @@ instance
   =>
   Deserializable (SinceRevision chType revision)
   where
-  deserialize rev = if rev >= (fromIntegral . natVal) (Proxy @revision) then MkSinceRevision <$> deserialize @chType rev else pure NotPresented
+  deserialize rev =
+    if rev >= (fromIntegral . natVal) (Proxy @revision)
+    then MkSinceRevision <$> deserialize @chType rev 
+    else pure NotPresented
+
 
 -- ** Versions
 
