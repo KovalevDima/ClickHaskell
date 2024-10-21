@@ -20,7 +20,6 @@ module ClickHouseLock where
 -- Internal
 import ClickHaskell.Client (ChCredential (..), ReadableFrom, select)
 import ClickHaskell.DbTypes (ChString)
-import ClickHaskell.Lock (LockPart (..), LockedColumn (..), LockedParameter (..))
 import ClickHaskell.Tables (Column)
 
 
@@ -182,3 +181,38 @@ instance ToJSON LockedParameter where
       (  "name" .= name
       <> "type" .= parameterType
       )
+
+
+-- * Syntax
+
+data LockPart =
+  Table
+    { name :: Text
+    , columns :: [LockedColumn]
+    }
+  |
+  View
+    { name :: Text
+    , columns :: [LockedColumn]
+    , parameters :: [LockedParameter]
+    }
+  deriving (Generic)
+
+
+
+
+data LockedColumn = MkLockedColumn
+  { name :: Text
+  , columnType :: Text
+  }
+  deriving (Generic)
+
+
+
+
+data LockedParameter = MkLockedParameter
+  { name :: Text
+  , parameterType :: Text
+  }
+  deriving (Generic)
+
