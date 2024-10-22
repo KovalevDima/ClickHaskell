@@ -30,9 +30,8 @@ import ClickHaskell.NativeProtocol
   , mkQueryPacket
   , mkDataPacket
   , mkHelloPacket
-  , ChCredential(..)
   , ServerHelloResponse (..)
-  , readHelloPacket
+  , readHelloPacket, HelloParameters (..)
   )
 import ClickHaskell.Tables ()
 
@@ -41,14 +40,24 @@ import Control.Exception (SomeException, bracketOnError, catch, finally, throw)
 import Control.Monad (replicateM_)
 import Data.ByteString.Builder (toLazyByteString)
 import Data.Maybe (fromMaybe, listToMaybe)
+import Data.Text (Text)
+import GHC.Generics (Generic)
 import System.Timeout (timeout)
 
 -- External
 import Network.Socket as Sock
 import Network.Socket.ByteString.Lazy (recv, sendAll)
 
-
 -- * Connection
+
+data ChCredential = MkChCredential
+  { chLogin    :: Text
+  , chPass     :: Text
+  , chDatabase :: Text
+  , chHost     :: HostName
+  , chPort     :: ServiceName
+  }
+  deriving (Generic, Show, Eq)
 
 data Connection = MkConnection
   { sock :: Socket
@@ -57,7 +66,7 @@ data Connection = MkConnection
   }
 
 openNativeConnection :: ChCredential -> IO Connection
-openNativeConnection cred@MkChCredential{chHost, chPort, chLogin} = do
+openNativeConnection MkChCredential{chHost, chPort, chLogin, chPass, chDatabase} = do
   AddrInfo{addrFamily, addrSocketType, addrProtocol, addrAddress}
     <- fromMaybe (throw $ ConnectionError NoAdressResolved) . listToMaybe
     <$> getAddrInfo
@@ -82,7 +91,8 @@ openNativeConnection cred@MkChCredential{chHost, chPort, chLogin} = do
          pure sock
       )
 
-  (sendAll sock . toLazyByteString . serialize latestSupportedRevision) (mkHelloPacket cred)
+  (sendAll sock . toLazyByteString . serialize latestSupportedRevision)
+    (mkHelloPacket MkHelloParameters{..})
   
   serverPacketType <- determineServerPacket sock
   case serverPacketType of
@@ -113,8 +123,8 @@ ping MkConnection{sock, chosenRevision} = do
 selectFrom :: Connection -> IO ()
 selectFrom MkConnection{sock, user, chosenRevision} = do
   (sendAll sock . toLazyByteString)
-    (  mkQueryPacket chosenRevision (fromChType user) "SELECT 5"
-    <> mkDataPacket chosenRevision "" False
+    (  serialize chosenRevision (mkQueryPacket chosenRevision user "SELECT 5")
+    <> serialize chosenRevision (mkDataPacket "")
     )
   _ <- recv sock 4096
   pure ()

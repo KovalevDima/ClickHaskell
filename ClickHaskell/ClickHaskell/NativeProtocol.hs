@@ -7,12 +7,12 @@
   , DerivingStrategies
   , DuplicateRecordFields
   , GeneralizedNewtypeDeriving
+  , LambdaCase
   , NamedFieldPuns
   , OverloadedStrings
   , TemplateHaskell
   , UndecidableInstances
 #-}
-{-# LANGUAGE LambdaCase #-}
 
 module ClickHaskell.NativeProtocol where
 
@@ -22,9 +22,7 @@ import ClickHaskell.Tables ()
 import Paths_ClickHaskell (version)
 
 -- GHC included
-import Control.DeepSeq (NFData)
 import Control.Exception (Exception, throw)
-import Data.Binary (Binary (..))
 import Data.Binary.Get
 import Data.Binary.Get.Internal (readN)
 import Data.Bits (Bits (..))
@@ -40,62 +38,47 @@ import Data.ByteString.Lazy.Char8 as BSL8 (head)
 import Data.ByteString.Lazy (LazyByteString)
 import Data.Char (ord)
 import Data.Typeable (Proxy (..))
-import Data.Vector.Primitive (Prim)
 import Data.Version (Version (..), showVersion)
 import Data.WideWord (Int128 (..), Word128 (..))
-import Data.Word (Word64)
 import GHC.Generics
 import GHC.TypeLits (KnownNat, Nat, natVal)
 import Language.Haskell.TH.Syntax (lift)
 import Data.Text (Text)
 
 -- External
-import Network.Socket as Sock (Socket, HostName, ServiceName)
+import Network.Socket as Sock (Socket)
 import Network.Socket.ByteString.Lazy (recv)
 
--- * Connection
+-- * Server packets
 
--- ** Credentials
-data ChCredential = MkChCredential
-  { chLogin    :: Text
-  , chPass     :: Text
-  , chDatabase :: Text
-  , chHost     :: HostName
-  , chPort     :: ServiceName
-  }
-  deriving (Generic, Show, Eq)
+data ServerPacketType
+  = HelloResponse
+  | DataResponse
+  | Exception
+  | Progress
+  | Pong
+  | EndOfStream
+  | ProfileInfo
+  | Totals
+  | Extremes
+  | TablesStatusResponse
+  | Log
+  | TableColumns
+  | UUIDs
+  | ReadTaskRequest
+  | ProfileEvents
+  deriving (Show, Enum, Bounded)
+
+determineServerPacket :: Socket -> IO ServerPacketType
+determineServerPacket sock = do
+  headByte <- ord . BSL8.head <$> recv sock 1
+  pure $
+    if headByte <= fromEnum (maxBound :: ServerPacketType)
+    then toEnum headByte
+    else throw $ ProtocolImplementationError UnknownPacketType
 
 
-mkHelloPacket :: ChCredential -> HelloPacket
-mkHelloPacket MkChCredential{chDatabase,chLogin,chPass} =
-  MkHelloPacket
-    { packet_type = MkPacket
-    , client_name = clientNameAndVersion
-    , client_version_major = clientMajorVersion
-    , client_version_minor = clientMinorVersion
-    , adendum = MkSinceRevision MkAdendum
-    , tcp_protocol_version = latestSupportedRevision
-    , default_database = toChType chDatabase
-    , user = toChType chLogin
-    , password = toChType chPass
-    } 
-
-data HelloPacket = MkHelloPacket
-  { packet_type          :: Packet Hello
-  , client_name          :: ChString
-  , client_version_major :: UVarInt
-  , client_version_minor :: UVarInt
-  , tcp_protocol_version :: UVarInt
-  , default_database     :: ChString
-  , user                 :: ChString
-  , password             :: ChString
-  , adendum              :: Adendum `SinceRevision` DBMS_MIN_PROTOCOL_VERSION_WITH_ADDENDUM
-  }
-  deriving (Generic, Serializable)
-
-data Adendum = MkAdendum {}
-instance Serializable Adendum where serialize _ MkAdendum{} = "\0"
-
+-- ** HelloResponse
 
 {-
   https://github.com/ClickHouse/ClickHouse/blob/eb4a74d7412a1fcf52727cd8b00b365d6b9ed86c/src/Client/Connection.cpp#L520
@@ -130,37 +113,6 @@ instance Deserializable [PasswordComplexityRules] where
 
 readHelloPacket :: IO LazyByteString -> IO ServerHelloResponse
 readHelloPacket = bufferizedRead latestSupportedRevision
-
-
-
-
--- * Server packets
-
-data ServerPacketType
-  = HelloResponse
-  | DataResponse
-  | Exception
-  | Progress
-  | Pong
-  | EndOfStream
-  | ProfileInfo
-  | Totals
-  | Extremes
-  | TablesStatusResponse
-  | Log
-  | TableColumns
-  | UUIDs
-  | ReadTaskRequest
-  | ProfileEvents
-  deriving (Show, Enum, Bounded)
-
-determineServerPacket :: Socket -> IO ServerPacketType
-determineServerPacket sock = do
-  headByte <- ord . BSL8.head <$> recv sock 1
-  pure $
-    if headByte <= fromEnum (maxBound :: ServerPacketType)
-    then toEnum headByte
-    else throw $ ProtocolImplementationError UnknownPacketType
 
 
 
@@ -210,9 +162,46 @@ instance
   serialize rev _ = serialize @UVarInt rev (packetNumVal @packetType)
 
 
+-- ** Hello
+
+data HelloParameters = MkHelloParameters
+  { chDatabase :: Text
+  , chLogin :: Text
+  , chPass :: Text
+  }
+
+mkHelloPacket :: HelloParameters -> HelloPacket
+mkHelloPacket MkHelloParameters{chDatabase, chLogin, chPass} =
+  MkHelloPacket
+    { packet_type          = MkPacket
+    , client_name          = clientNameAndVersion
+    , client_version_major = clientMajorVersion
+    , client_version_minor = clientMinorVersion
+    , tcp_protocol_version = latestSupportedRevision
+    , default_database     = toChType chDatabase
+    , user                 = toChType chLogin
+    , password             = toChType chPass
+    , adendum              = MkSinceRevision MkAdendum
+    } 
+
+data HelloPacket = MkHelloPacket
+  { packet_type          :: Packet Hello
+  , client_name          :: ChString
+  , client_version_major :: UVarInt
+  , client_version_minor :: UVarInt
+  , tcp_protocol_version :: UVarInt
+  , default_database     :: ChString
+  , user                 :: ChString
+  , password             :: ChString
+  , adendum              :: Adendum `SinceRevision` DBMS_MIN_PROTOCOL_VERSION_WITH_ADDENDUM
+  }
+  deriving (Generic, Serializable)
+
+data Adendum = MkAdendum {}
+instance Serializable Adendum where serialize _ MkAdendum{} = "\0"
 
 
--- * Ping
+-- ** Ping
 
 mkPingPacket :: ProtocolRevision -> Builder
 mkPingPacket rev = serialize rev MkPingPacket{packet_type = MkPacket}
@@ -222,10 +211,6 @@ data PingPacket = MkPingPacket
   }
   deriving (Generic, Serializable)
 
-
-
-
--- * Querying
 
 -- ** Query
 
@@ -237,6 +222,9 @@ data QueryStage
   | WithMergeableStateAfterAggregationAndLimit
   deriving (Enum)
 
+instance Serializable QueryStage where
+  serialize rev = serialize @UVarInt rev . fromIntegral . fromEnum
+
 queryStageCode :: QueryStage -> UVarInt
 queryStageCode = fromIntegral . fromEnum
 
@@ -246,23 +234,82 @@ flagCode IMPORTANT = 0x01
 flagCode CUSTOM    = 0x02
 flagCode OBSOLETE  = 0x04
 
+mkQueryPacket :: ProtocolRevision -> ChString -> ChString -> QueryPacket
+mkQueryPacket chosenRev user query = MkQueryPacket
+  { query_packet = MkPacket
+  , query_id = ""
+  , client_info = MkClientInfo
+    { query_kind = InitialQuery
+    , initial_user = user
+    , initial_query_id = ""
+    , initial_adress = "0.0.0.0:0"
+    , initial_time = MkSinceRevision 0
+    , interface_type = 1 -- [tcp - 1, http - 2]
+    , os_user = "dmitry"
+    , hostname = "desktop"
+    , client_name = clientNameAndVersion
+    , client_major = clientMajorVersion
+    , client_minor = clientMinorVersion
+    , client_revision = chosenRev
+    , quota_key = MkSinceRevision ""
+    , distrubuted_depth = MkSinceRevision 0
+    , client_patch = MkSinceRevision clientPatchVersion
+    , open_telemetry = MkSinceRevision 0
+    , collaborate_with_initiator = MkSinceRevision 0
+    , count_participating_replicas = MkSinceRevision 0
+    , number_of_current_replica = MkSinceRevision 0
+    }
+  , settings = MkDbSettings
+  , interserver_secret = MkSinceRevision ""
+  , query_stage = Complete
+  , compression = 0
+  , query = query
+  , parameters = MkSinceRevision MkQueryParameters
+  }
 
-mkQueryPacket :: ProtocolRevision -> ChString -> ChString -> Builder
-mkQueryPacket rev user query = do
-  mconcat
-    [ serialize @UVarInt rev (packetNumVal @Query)
-    , serialize @ChString rev "c6d51fce-a5ad-455d-bfc7-88974c4c2f9d" -- queryId
-    , afterRevision @DBMS_MIN_REVISION_WITH_CLIENT_INFO rev
-        (mkClientInfo user rev)
-    , serialize @ChString rev "" -- settings
-    , afterRevision @DBMS_MIN_REVISION_WITH_INTERSERVER_SECRET rev
-        (serialize @ChString rev "") -- interserver secret 
-    , serialize @UVarInt rev (queryStageCode Complete) 
-    , serialize @UVarInt rev 0 -- compression
-    , serialize @ChString rev query
-    , afterRevision @DBMS_MIN_PROTOCOL_VERSION_WITH_PARAMETERS rev
-        (serialize @ChString rev "") -- parameters
-    ]
+data QueryPacket = MkQueryPacket
+  { query_packet       :: Packet Query
+  , query_id           :: ChString
+  , client_info        :: ClientInfo
+  , settings           :: DbSettings
+  , interserver_secret :: ChString `SinceRevision` DBMS_MIN_REVISION_WITH_INTERSERVER_SECRET
+  , query_stage        :: QueryStage
+  , compression        :: UVarInt
+  , query              :: ChString
+  , parameters         :: QueryParameters `SinceRevision` DBMS_MIN_PROTOCOL_VERSION_WITH_PARAMETERS
+  }
+  deriving (Generic, Serializable)
+
+data ClientInfo = MkClientInfo
+  { query_kind                   :: QueryKind
+  , initial_user                 :: ChString
+  , initial_query_id             :: ChString
+  , initial_adress               :: ChString
+  , initial_time                 :: ChInt64 `SinceRevision` DBMS_MIN_PROTOCOL_VERSION_WITH_INITIAL_QUERY_START_TIME
+  , interface_type               :: ChUInt8
+  , os_user                      :: ChString
+  , hostname                     :: ChString
+  , client_name                  :: ChString
+  , client_major                 :: UVarInt
+  , client_minor                 :: UVarInt
+  , client_revision              :: UVarInt
+  , quota_key                    :: ChString `SinceRevision` DBMS_MIN_REVISION_WITH_QUOTA_KEY_IN_CLIENT_INFO
+  , distrubuted_depth            :: UVarInt `SinceRevision` DBMS_MIN_PROTOCOL_VERSION_WITH_DISTRIBUTED_DEPTH
+  , client_patch                 :: UVarInt `SinceRevision` DBMS_MIN_REVISION_WITH_VERSION_PATCH 
+  , open_telemetry               :: ChUInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_OPENTELEMETRY
+  , collaborate_with_initiator   :: UVarInt `SinceRevision` DBMS_MIN_REVISION_WITH_PARALLEL_REPLICAS
+  , count_participating_replicas :: UVarInt `SinceRevision` DBMS_MIN_REVISION_WITH_PARALLEL_REPLICAS
+  , number_of_current_replica    :: UVarInt `SinceRevision` DBMS_MIN_REVISION_WITH_PARALLEL_REPLICAS
+  }
+  deriving (Generic, Serializable)
+
+data DbSettings = MkDbSettings
+instance Serializable DbSettings where
+  serialize rev _ = serialize @ChString rev ""
+
+data QueryParameters = MkQueryParameters
+instance Serializable QueryParameters where
+  serialize rev _ = serialize @ChString rev ""
 
 data QueryKind
   = NoQuery
@@ -270,71 +317,49 @@ data QueryKind
   | SecondaryQuery
   deriving (Enum)
 
-queryKindCode :: QueryKind -> ChUInt8
-queryKindCode = fromIntegral . fromEnum
+instance Serializable QueryKind where
+  serialize rev = serialize @ChUInt8 rev . fromIntegral . fromEnum
 
-mkClientInfo :: ChString -> ProtocolRevision -> Builder
-mkClientInfo user rev =
-  mconcat
-    [ serialize @ChUInt8 rev (queryKindCode InitialQuery)
-    , serialize @ChString rev (toChType user) -- initial user
-    , serialize @ChString rev "c6d51fce-a5ad-455d-bfc7-88974c4c2f9d" -- initial query id
-    , serialize @ChString rev "0.0.0.0:0" -- initial address
-    , afterRevision @DBMS_MIN_PROTOCOL_VERSION_WITH_INITIAL_QUERY_START_TIME rev
-        (serialize @ChInt64 rev 0) -- initial time
-    , serialize @ChUInt8 rev 1 -- interface type [tcp - 1, http - 2]
-    , serialize @ChString rev "dmitry" -- OS user
-    , serialize @ChString rev "desktop" -- hostname
-    , serialize @ChString rev clientNameAndVersion
-    , serialize @UVarInt rev clientMajorVersion
-    , serialize @UVarInt rev clientMinorVersion
-    , serialize @UVarInt rev rev
-    , afterRevision @DBMS_MIN_REVISION_WITH_QUOTA_KEY_IN_CLIENT_INFO rev
-        (serialize @ChString rev "") -- quota key
-    , afterRevision @DBMS_MIN_PROTOCOL_VERSION_WITH_DISTRIBUTED_DEPTH rev
-        (serialize @UVarInt rev 0) -- distrubutedDepth
-    , afterRevision @DBMS_MIN_REVISION_WITH_VERSION_PATCH rev
-        (serialize @UVarInt rev 7) -- version patch
-    , afterRevision @DBMS_MIN_REVISION_WITH_OPENTELEMETRY rev
-        (serialize @ChUInt8 rev 0) -- open telemetry
-    , afterRevision @DBMS_MIN_REVISION_WITH_PARALLEL_REPLICAS rev
-        (  serialize @UVarInt rev 0 -- collaborateWith initiator
-        <> serialize @UVarInt rev 0 -- count participating replicas
-        <> serialize @UVarInt rev 0 -- number of current replica
-        )
-    ]
-
-clientMajorVersion, clientMinorVersion, clientPatchVersion :: UVarInt
-clientMajorVersion = fromIntegral $(lift (versionBranch version !! 0))
-clientMinorVersion = fromIntegral $(lift (versionBranch version !! 1))
-clientPatchVersion = fromIntegral $(lift (versionBranch version !! 2))
-
-clientNameAndVersion :: ChString
-clientNameAndVersion = $(lift ("ClickHaskell-" <> showVersion version))
 
 -- ** Data
 
-type IsScalar = Bool
 type DataName = ChString
 
+data DataPacket = MkDataPacket
+  { packet_type   :: Packet Data
+  , data_name     :: ChString
+  , block_info    :: BlockInfo
+  , columns_count :: UVarInt
+  , rows_count    :: UVarInt
+  }
+  deriving (Generic, Serializable)
 
-mkDataPacket :: ProtocolRevision -> DataName -> IsScalar -> Builder
-mkDataPacket rev dataName isScalar =
-  mconcat
-    [ if isScalar
-      then serialize @UVarInt rev (packetNumVal @Scalar)
-      else serialize @UVarInt rev (packetNumVal @Data)
-    , serialize @ChString rev dataName
-    , mconcat -- block info
-      [ serialize @UVarInt rev 1
-      , serialize @ChUInt8 rev 0 -- is overflows
-      , serialize @UVarInt rev 2
-      , serialize @ChInt32 rev (-1) -- bucket num
-      , serialize @UVarInt rev 0
-      ]
-    , serialize @UVarInt rev 0 -- columns count
-    , serialize @UVarInt rev 0 -- rows count
-    ]
+data BlockInfo = MkBlockInfo
+  { bi1          :: UVarInt
+  , is_overflows :: ChUInt8
+  , bi3          :: UVarInt
+  , bucket_num   :: ChInt32
+  , bi5          :: UVarInt
+  }
+  deriving (Generic, Serializable)
+
+mkDataPacket :: DataName -> DataPacket
+mkDataPacket dataName =
+  MkDataPacket
+    { packet_type   = MkPacket
+    , data_name     = dataName
+    , block_info    = MkBlockInfo
+      { bi1          = 1
+      , is_overflows = 0
+      , bi3          = 2
+      , bucket_num   = -1
+      , bi5          = 0
+      }
+    , columns_count = 0
+    , rows_count    = 0
+    }
+
+
 
 
 -- * Errors handling
@@ -345,7 +370,6 @@ data ClientError
   | ProtocolImplementationError ProtocolImplementationError
   deriving (Show, Exception)
 
-
 {- |
   You shouldn't see this exceptions. Please report a bug if it appears
 -}
@@ -354,7 +378,6 @@ data ProtocolImplementationError
   | UnknownPacketType
   | DeserializationError
   deriving (Show, Exception)
-
 
 data ConnectionError
   = NoAdressResolved
@@ -372,22 +395,18 @@ bufferizedRead :: forall packet . Deserializable packet => ProtocolRevision -> I
 bufferizedRead rev bufferFiller = runBufferReader bufferFiller (runGetIncremental (deserialize @packet rev)) BL.Empty
 
 runBufferReader :: Deserializable packet => IO LazyByteString -> Decoder packet -> LazyByteString -> IO packet
-runBufferReader bufferFiller (Partial decoder) (BL.Chunk bs mChunk) = runBufferReader bufferFiller (decoder $ Just bs) mChunk
+runBufferReader bufferFiller (Partial decoder) (BL.Chunk bs mChunk)
+  = runBufferReader bufferFiller (decoder $ Just bs) mChunk
 runBufferReader bufferFiller (Partial decoder) BL.Empty = do
   bufferFiller >>= \case
     BL.Empty -> fail "Expected more bytes while reading packet" -- ToDo: Pass packet name
     BL.Chunk bs mChunk -> runBufferReader bufferFiller (decoder $ Just bs) mChunk
 runBufferReader _bufferFiller (Done _leftover _consumed helloPacket) _input = pure helloPacket
-runBufferReader _bufferFiller (Fail _leftover _consumed msg)  _currentBuffer = error msg
-
-{- |
-  Unsigned variable-length quantity encoding
--}
-newtype UVarInt = MkUVarInt Word64
-  deriving newtype (Show, Eq, Num, Prim, Bits, Enum, Ord, Real, Integral, Bounded, NFData, Binary)
+runBufferReader _bufferFiller (Fail _leftover _consumed msg) _currentBuffer = error msg
 
 
 -- ** Serializable
+
 class Serializable chType
   where
   default serialize :: (Generic chType, GSerializable (Rep chType)) => ProtocolRevision -> chType -> Builder
@@ -425,12 +444,14 @@ instance
   GSerializable (D1 c (C1 c2 f))
   where
   gSerialize rev (M1 (M1 re)) = gSerialize rev re
+
 instance
   GSerializable (left1 :*: (left2 :*: right))
   =>
   GSerializable ((left1 :*: left2) :*: right)
   where
-  gSerialize rev ((left :*: left2) :*: right) = gSerialize rev (left :*: (left2 :*: right))
+  gSerialize rev ((left :*: left2) :*: right)
+    = gSerialize rev (left :*: (left2 :*: right))
 
 instance
   Serializable chType
@@ -444,9 +465,8 @@ instance
   =>
   GSerializable (S1 (MetaSel (Just typeName) a b f) (Rec0 chType) :*: right)
   where
-  gSerialize rev (left :*: right) = (serialize rev . unK1 . unM1 $ left) <> gSerialize rev right
-
-
+  gSerialize rev (left :*: right)
+    = (serialize rev . unK1 . unM1 $ left) <> gSerialize rev right
 
 
 -- ** Deserializable
@@ -516,7 +536,7 @@ instance
   gDeserialize rev = (:*:) <$> (M1 . K1 <$> deserialize @chType rev) <*> gDeserialize rev
 
 instance {-# OVERLAPPING #-}
-  (GDeserializable right)
+  GDeserializable right
   =>
   GDeserializable (S1 (MetaSel (Just "server_revision") a b f) (Rec0 UVarInt) :*: right)
   where
@@ -527,9 +547,20 @@ instance {-# OVERLAPPING #-}
 
 
 
--- * Protocol versioning
+-- * Versioning
 
--- ** Compatibility wrappers
+-- ** Client versioning
+
+clientMajorVersion, clientMinorVersion, clientPatchVersion :: UVarInt
+clientMajorVersion = fromIntegral $(lift (versionBranch version !! 0))
+clientMinorVersion = fromIntegral $(lift (versionBranch version !! 1))
+clientPatchVersion = fromIntegral $(lift (versionBranch version !! 2))
+
+clientNameAndVersion :: ChString
+clientNameAndVersion = $(lift ("ClickHaskell-" <> showVersion version))
+
+
+-- ** Protocol compatibility wrappers
 
 type ProtocolRevision = UVarInt
 
