@@ -1,5 +1,6 @@
 {-# LANGUAGE
-    DeriveGeneric
+    DataKinds
+  , DeriveGeneric
   , DuplicateRecordFields
   , OverloadedStrings
   , NumericUnderscores
@@ -9,8 +10,11 @@
 
 module ClickHaskell
   ( module ClickHaskell.DbTypes
+  , module ClickHaskell.Tables
   , ChCredential(..)
   , openNativeConnection
+  , selectFrom
+  , insertInto
   , ping
   , dev
   ) where
@@ -33,7 +37,7 @@ import ClickHaskell.NativeProtocol
   , ServerHelloResponse (..)
   , readHelloPacket, HelloParameters (..)
   )
-import ClickHaskell.Tables ()
+import ClickHaskell.Tables
 
 -- GHC included
 import Control.Exception (SomeException, bracketOnError, catch, finally, throw)
@@ -124,11 +128,27 @@ selectFrom :: Connection -> IO ()
 selectFrom MkConnection{sock, user, chosenRevision} = do
   (sendAll sock . toLazyByteString)
     (  serialize chosenRevision (mkQueryPacket chosenRevision user "SELECT 5")
-    <> serialize chosenRevision (mkDataPacket "")
+    <> serialize chosenRevision (mkDataPacket 0 0 "")
     )
   _ <- recv sock 4096
   pure ()
 
+
+insertInto :: Connection -> IO ()
+insertInto MkConnection{sock, user, chosenRevision} = do
+  (sendAll sock . toLazyByteString)
+    (  serialize chosenRevision (mkQueryPacket chosenRevision user "INSERT INTO example (val) VALUES")
+    <> serialize chosenRevision (mkDataPacket 0 0 "")
+    )
+  print =<< recv sock 4096
+  -- ^ answers with 11.TableColumns 
+
+  (sendAll sock . toLazyByteString)
+    ( serialize chosenRevision (mkDataPacket 1 3 "`val` UInt32")
+    <> serialize chosenRevision exampleColumn
+    )
+  print =<< recv sock 4096
+  -- ^ asnwers with 1.Data
 
 -- * Dev
 
@@ -138,8 +158,12 @@ dev = do
   print "Connected"
   replicateM_ 500 (ping connection)
   print "Pinged"
-  replicateM_ 500 (selectFrom connection)
-  print "Dummy queries done"
+  -- replicateM_ 500 (selectFrom connection)
+  -- print "Dummy queries done"
+  insertInto connection
+
+exampleColumn :: Column "test" ChUInt32
+exampleColumn = mkColumn [5, 5, 5]
 
 devCredential :: ChCredential
 devCredential = MkChCredential

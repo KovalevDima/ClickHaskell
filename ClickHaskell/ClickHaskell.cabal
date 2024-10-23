@@ -43,6 +43,8 @@ Library
     ClickHaskell.Reading
     ClickHaskell.Writing
     ClickHaskell.NativeProtocol
+    ClickHaskell.NativeProtocol.Serialization
+    ClickHaskell.NativeProtocol.Versioning
     ClickHaskell.Tables
   Other-Modules:
     Paths_ClickHaskell
