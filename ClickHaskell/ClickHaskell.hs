@@ -1,10 +1,15 @@
 {-# LANGUAGE
-    DataKinds
+    AllowAmbiguousTypes
+  , DataKinds
+  , DeriveAnyClass
   , DeriveGeneric
+  , DerivingStrategies
   , DuplicateRecordFields
-  , OverloadedStrings
-  , NumericUnderscores
+  , LambdaCase
   , NamedFieldPuns
+  , NumericUnderscores
+  , OverloadedStrings
+  , UndecidableInstances
   , RecordWildCards
 #-}
 
@@ -21,28 +26,19 @@ module ClickHaskell
 
 -- Internal dependencies
 import ClickHaskell.DbTypes
-import ClickHaskell.NativeProtocol
-  ( ProtocolRevision
-  , ServerPacketType(..)
-  , latestSupportedRevision
-  , Serializable(..)
-  , determineServerPacket
-  , ProtocolImplementationError(..)
-  , ClientError(..)
-  , ConnectionError(..)
-  , mkPingPacket
-  , mkQueryPacket
-  , mkDataPacket
-  , mkHelloPacket
-  , ServerHelloResponse (..)
-  , readHelloPacket, HelloParameters (..)
-  )
+import ClickHaskell.NativeProtocol.ClientPackets (mkPingPacket, mkQueryPacket, mkDataPacket, mkHelloPacket, HelloParameters(..))
+import ClickHaskell.NativeProtocol.Serialization (Deserializable(..), Serializable(..), ProtocolRevision, latestSupportedRevision)
+import ClickHaskell.NativeProtocol.ServerPackets (ServerPacketType(..), HelloResponse(..))
 import ClickHaskell.Tables
 
 -- GHC included
-import Control.Exception (SomeException, bracketOnError, catch, finally, throw)
+import Control.Exception (Exception, SomeException, bracketOnError, catch, finally, throw)
 import Control.Monad (replicateM_)
+import Data.Binary.Get (Decoder (..), runGetIncremental)
 import Data.ByteString.Builder (toLazyByteString)
+import Data.ByteString.Lazy.Char8 as BSL8 (head)
+import Data.ByteString.Lazy.Internal as BL (ByteString (..), LazyByteString)
+import Data.Char (ord)
 import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Text (Text)
 import GHC.Generics (Generic)
@@ -101,7 +97,7 @@ openNativeConnection MkChCredential{chHost, chPort, chLogin, chPass, chDatabase}
   serverPacketType <- determineServerPacket sock
   case serverPacketType of
     HelloResponse -> do
-      MkServerHelloResponse{server_revision} <- readHelloPacket (recv sock 4096)
+      MkHelloResponse{server_revision} <- bufferizedRead latestSupportedRevision (recv sock 4096)
       pure MkConnection{user=toChType chLogin, sock, chosenRevision=server_revision}
     Exception -> do
       print =<< recv sock 4096
@@ -149,6 +145,60 @@ insertInto MkConnection{sock, user, chosenRevision} = do
     )
   print =<< recv sock 4096
   -- ^ asnwers with 1.Data
+
+-- * 
+
+determineServerPacket :: Socket -> IO ServerPacketType
+determineServerPacket sock = do
+  headByte <- ord . BSL8.head <$> recv sock 1
+  pure $
+    if headByte <= fromEnum (maxBound :: ServerPacketType)
+    then toEnum headByte
+    else throw $ ProtocolImplementationError UnknownPacketType
+
+
+-- ** Bufferized reading
+
+bufferizedRead :: forall packet . Deserializable packet => ProtocolRevision -> IO LazyByteString -> IO packet
+bufferizedRead rev bufferFiller = runBufferReader bufferFiller (runGetIncremental (deserialize @packet rev)) BL.Empty
+
+runBufferReader :: Deserializable packet => IO LazyByteString -> Decoder packet -> LazyByteString -> IO packet
+runBufferReader bufferFiller (Partial decoder) (BL.Chunk bs mChunk)
+  = runBufferReader bufferFiller (decoder $ Just bs) mChunk
+runBufferReader bufferFiller (Partial decoder) BL.Empty = do
+  bufferFiller >>= \case
+    BL.Empty -> fail "Expected more bytes while reading packet" -- ToDo: Pass packet name
+    BL.Chunk bs mChunk -> runBufferReader bufferFiller (decoder $ Just bs) mChunk
+runBufferReader _bufferFiller (Done _leftover _consumed helloPacket) _input = pure helloPacket
+runBufferReader _bufferFiller (Fail _leftover _consumed msg) _currentBuffer = error msg
+
+
+
+
+-- * Errors handling
+
+data ClientError
+  = ConnectionError ConnectionError
+  | DatabaseException
+  | ProtocolImplementationError ProtocolImplementationError
+  deriving (Show, Exception)
+
+{- |
+  You shouldn't see this exceptions. Please report a bug if it appears
+-}
+data ProtocolImplementationError
+  = UnexpectedPacketType ServerPacketType
+  | UnknownPacketType
+  | DeserializationError
+  deriving (Show, Exception)
+
+data ConnectionError
+  = NoAdressResolved
+  | EstablishTimeout
+  deriving (Show, Exception)
+
+
+
 
 -- * Dev
 

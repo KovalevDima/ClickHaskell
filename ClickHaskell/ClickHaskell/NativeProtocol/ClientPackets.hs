@@ -11,116 +11,18 @@
   , UndecidableInstances
 #-}
 
-module ClickHaskell.NativeProtocol
-  ( module ClickHaskell.NativeProtocol
-  , module ClickHaskell.NativeProtocol.Serialization
-  , module ClickHaskell.NativeProtocol.Versioning
-  ) where
+module ClickHaskell.NativeProtocol.ClientPackets where
 
 -- Internal dependencies
 import ClickHaskell.DbTypes
 import ClickHaskell.NativeProtocol.Serialization
-import ClickHaskell.NativeProtocol.Versioning
 
 -- GHC included
-import Control.Exception (Exception, throw)
-import Data.Binary.Get
 import Data.ByteString.Builder (Builder)
-import Data.ByteString.Lazy.Internal as BL (ByteString(..))
-import Data.ByteString.Lazy.Char8 as BSL8 (head)
-import Data.ByteString.Lazy (LazyByteString)
-import Data.Char (ord)
 import Data.Typeable (Proxy (..))
 import GHC.Generics
 import GHC.TypeLits (KnownNat, natVal)
 import Data.Text (Text)
-
--- External
-import Network.Socket as Sock (Socket)
-import Network.Socket.ByteString.Lazy (recv)
-
--- * Server packets
-
-data ServerPacketType
-  = HelloResponse
-  | DataResponse
-  | Exception
-  | Progress
-  | Pong
-  | EndOfStream
-  | ProfileInfo
-  | Totals
-  | Extremes
-  | TablesStatusResponse
-  | Log
-  | TableColumns
-  | UUIDs
-  | ReadTaskRequest
-  | ProfileEvents
-  deriving (Show, Enum, Bounded)
-
-determineServerPacket :: Socket -> IO ServerPacketType
-determineServerPacket sock = do
-  headByte <- ord . BSL8.head <$> recv sock 1
-  pure $
-    if headByte <= fromEnum (maxBound :: ServerPacketType)
-    then toEnum headByte
-    else throw $ ProtocolImplementationError UnknownPacketType
-
-
--- ** Bufferized reading
-
-bufferizedRead :: forall packet . Deserializable packet => ProtocolRevision -> IO LazyByteString -> IO packet
-bufferizedRead rev bufferFiller = runBufferReader bufferFiller (runGetIncremental (deserialize @packet rev)) BL.Empty
-
-runBufferReader :: Deserializable packet => IO LazyByteString -> Decoder packet -> LazyByteString -> IO packet
-runBufferReader bufferFiller (Partial decoder) (BL.Chunk bs mChunk)
-  = runBufferReader bufferFiller (decoder $ Just bs) mChunk
-runBufferReader bufferFiller (Partial decoder) BL.Empty = do
-  bufferFiller >>= \case
-    BL.Empty -> fail "Expected more bytes while reading packet" -- ToDo: Pass packet name
-    BL.Chunk bs mChunk -> runBufferReader bufferFiller (decoder $ Just bs) mChunk
-runBufferReader _bufferFiller (Done _leftover _consumed helloPacket) _input = pure helloPacket
-runBufferReader _bufferFiller (Fail _leftover _consumed msg) _currentBuffer = error msg
-
-
--- ** HelloResponse
-
-{-
-  https://github.com/ClickHouse/ClickHouse/blob/eb4a74d7412a1fcf52727cd8b00b365d6b9ed86c/src/Client/Connection.cpp#L520
--}
-data ServerHelloResponse = MkServerHelloResponse
-  { server_name                    :: ChString
-  , server_version_major           :: UVarInt
-  , server_version_minor           :: UVarInt
-  , server_revision                :: UVarInt
-  , server_parallel_replicas_proto :: UVarInt  `SinceRevision` DBMS_MIN_REVISION_WITH_VERSIONED_PARALLEL_REPLICAS_PROTOCOL
-  , server_timezone                :: ChString `SinceRevision` DBMS_MIN_REVISION_WITH_SERVER_TIMEZONE
-  , server_display_name            :: ChString `SinceRevision` DBMS_MIN_REVISION_WITH_SERVER_DISPLAY_NAME
-  , server_version_patch           :: UVarInt  `SinceRevision` DBMS_MIN_REVISION_WITH_VERSION_PATCH
-  , proto_send_chunked_srv         :: ChString `SinceRevision` DBMS_MIN_PROTOCOL_VERSION_WITH_CHUNKED_PACKETS
-  , proto_recv_chunked_srv         :: ChString `SinceRevision` DBMS_MIN_PROTOCOL_VERSION_WITH_CHUNKED_PACKETS
-  , password_complexity_rules      :: [PasswordComplexityRules] `SinceRevision` DBMS_MIN_PROTOCOL_VERSION_WITH_PASSWORD_COMPLEXITY_RULES
-  , read_nonce                     :: ChUInt64 `SinceRevision` DBMS_MIN_REVISION_WITH_INTERSERVER_SECRET_V2
-  }
-  deriving (Generic, Deserializable)
-
-data PasswordComplexityRules = MkPasswordComplexityRules
-  { original_pattern :: ChString
-  , exception_message :: ChString
-  }
-  deriving (Generic, Deserializable)
-
-instance Deserializable [PasswordComplexityRules] where
-  deserialize rev = do
-    _uvarInt <- deserialize @UVarInt rev
-    pure []
-
-
-readHelloPacket :: IO LazyByteString -> IO ServerHelloResponse
-readHelloPacket = bufferizedRead latestSupportedRevision
-
-
 
 
 -- * Client packets
@@ -224,33 +126,33 @@ mkQueryPacket :: ProtocolRevision -> ChString -> ChString -> QueryPacket
 mkQueryPacket chosenRev user query = MkQueryPacket
   { query_packet = MkPacket
   , query_id = ""
-  , client_info = MkClientInfo
-    { query_kind = InitialQuery
-    , initial_user = user
-    , initial_query_id = ""
-    , initial_adress = "0.0.0.0:0"
-    , initial_time = MkSinceRevision 0
-    , interface_type = 1 -- [tcp - 1, http - 2]
-    , os_user = "dmitry"
-    , hostname = "desktop"
-    , client_name = clientNameAndVersion
-    , client_major = clientMajorVersion
-    , client_minor = clientMinorVersion
-    , client_revision = chosenRev
-    , quota_key = MkSinceRevision ""
-    , distrubuted_depth = MkSinceRevision 0
-    , client_patch = MkSinceRevision clientPatchVersion
-    , open_telemetry = MkSinceRevision 0
-    , collaborate_with_initiator = MkSinceRevision 0
+  , client_info                    = MkClientInfo
+    { query_kind                   = InitialQuery
+    , initial_user                 = user
+    , initial_query_id             = ""
+    , initial_adress               = "0.0.0.0:0"
+    , initial_time                 = MkSinceRevision 0
+    , interface_type               = 1 -- [tcp - 1, http - 2]
+    , os_user                      = "dmitry"
+    , hostname                     = "desktop"
+    , client_name                  = clientNameAndVersion
+    , client_major                 = clientMajorVersion
+    , client_minor                 = clientMinorVersion
+    , client_revision              = chosenRev
+    , quota_key                    = MkSinceRevision ""
+    , distrubuted_depth            = MkSinceRevision 0
+    , client_patch                 = MkSinceRevision clientPatchVersion
+    , open_telemetry               = MkSinceRevision 0
+    , collaborate_with_initiator   = MkSinceRevision 0
     , count_participating_replicas = MkSinceRevision 0
-    , number_of_current_replica = MkSinceRevision 0
+    , number_of_current_replica    = MkSinceRevision 0
     }
-  , settings = MkDbSettings
+  , settings           = MkDbSettings
   , interserver_secret = MkSinceRevision ""
-  , query_stage = Complete
-  , compression = 0
-  , query = query
-  , parameters = MkSinceRevision MkQueryParameters
+  , query_stage        = Complete
+  , compression        = 0
+  , query              = query
+  , parameters         = MkSinceRevision MkQueryParameters
   }
 
 data QueryStage
@@ -329,8 +231,6 @@ instance Serializable QueryKind where
 
 -- ** Data
 
-type DataName = ChString
-
 data DataPacket = MkDataPacket
   { packet_type   :: Packet Data
   , data_name     :: ChString
@@ -349,8 +249,11 @@ data BlockInfo = MkBlockInfo
   }
   deriving (Generic, Serializable)
 
+
 type ColumnsCount = UVarInt
 type RowsCount = UVarInt
+type DataName = ChString
+
 mkDataPacket :: ColumnsCount -> RowsCount -> DataName -> DataPacket
 mkDataPacket columns rows dataName =
   MkDataPacket
@@ -366,28 +269,3 @@ mkDataPacket columns rows dataName =
     , columns_count = columns
     , rows_count    = rows
     }
-
-
-
-
--- * Errors handling
-
-data ClientError
-  = ConnectionError ConnectionError
-  | DatabaseException
-  | ProtocolImplementationError ProtocolImplementationError
-  deriving (Show, Exception)
-
-{- |
-  You shouldn't see this exceptions. Please report a bug if it appears
--}
-data ProtocolImplementationError
-  = UnexpectedPacketType ServerPacketType
-  | UnknownPacketType
-  | DeserializationError
-  deriving (Show, Exception)
-
-data ConnectionError
-  = NoAdressResolved
-  | EstablishTimeout
-  deriving (Show, Exception)
