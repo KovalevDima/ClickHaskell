@@ -34,7 +34,8 @@ module ClickHaskell.Tables
 , TakeColumn
 
 -- ** Column
-, Column
+, mkColumn
+, Column(..)
 
 -- ** Column subtypes
 , Alias
@@ -238,6 +239,9 @@ type family
 
 -- ** Column declaration
 
+mkColumn :: [chType] -> Column name chType
+mkColumn = MkColumn
+
 {- |
 Column declaration
 
@@ -249,7 +253,8 @@ type MyColumn = Column "myColumn" ChString -> Alias
 type MyColumn = Column "myColumn" ChString -> Default
 @
 -}
-data Column (name :: Symbol) (columnType :: Type)
+data Column (name :: Symbol) (chType :: Type) = MkColumn [chType]
+
 
 instance
   ( IsChType columnType

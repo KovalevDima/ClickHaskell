@@ -41,6 +41,8 @@ module ClickHaskell.DbTypes
 , ChArray
 , Nullable
 , LowCardinality, IsLowCardinalitySupported
+
+, UVarInt
 ) where
 
 
@@ -50,25 +52,26 @@ import Data.WideWord (Int128, Word128(Word128))
 
 
 -- GHC included
-import Control.DeepSeq         (NFData)
-import Data.ByteString         as BS (StrictByteString)
+import Control.DeepSeq (NFData)
+import Data.Binary (Binary (..))
+import Data.Binary.Get
+import Data.Binary.Put
+import Data.Bits (Bits)
+import Data.ByteString as BS (StrictByteString)
 import Data.ByteString.Builder as BS (Builder, byteString)
-import Data.ByteString.Char8   as BS8 (concatMap, pack, singleton, length, replicate)
-import Data.Coerce             (coerce)
-import Data.Int                (Int32, Int16, Int8, Int64)
-import Data.Text               as Text (Text)
-import Data.Text.Encoding      as Text (encodeUtf8)
-import Data.Time
-  ( UTCTime
-  , ZonedTime, zonedTimeToUTC
-  )
-import Data.Time.Clock.POSIX         (utcTimeToPOSIXSeconds, posixSecondsToUTCTime)
-import Data.Typeable                 (Proxy(..))
-import Data.List                     (uncons)
-import Data.String                   (IsString)
+import Data.ByteString.Char8 as BS8 (concatMap, length, pack, replicate, singleton)
+import Data.Coerce (coerce)
+import Data.Int (Int16, Int32, Int64, Int8)
+import Data.List (uncons)
+import Data.String (IsString)
+import Data.Text as Text (Text)
+import Data.Text.Encoding as Text (encodeUtf8)
+import Data.Time (UTCTime, ZonedTime, zonedTimeToUTC)
+import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
+import Data.Typeable (Proxy (..))
 import Data.Vector.Primitive.Mutable (Prim)
-import Data.Word                     (Word64, Word32, Word16, Word8)
-import GHC.TypeLits                  (AppendSymbol, ErrorMessage (..), Symbol, TypeError, KnownSymbol, symbolVal)
+import Data.Word (Word16, Word32, Word64, Word8)
+import GHC.TypeLits (AppendSymbol, ErrorMessage (..), KnownSymbol, Symbol, TypeError, symbolVal)
 
 
 class
@@ -114,10 +117,6 @@ class
   ToQueryPart chType
   where
   toQueryPart :: chType -> BS.Builder
-
-
-
-
 
 
 
@@ -168,15 +167,12 @@ instance
 
 
 
-
-
-
-
 -- | ClickHouse LowCardinality(T) column type
 newtype LowCardinality chType = MkLowCardinality chType
 deriving instance (Eq chType, IsLowCardinalitySupported chType) => Eq (LowCardinality chType)
 deriving instance (Show chType, IsLowCardinalitySupported chType) => Show (LowCardinality chType)
 deriving instance (NFData chType, IsLowCardinalitySupported chType) => NFData (LowCardinality chType)
+deriving instance (Binary chType, IsLowCardinalitySupported chType) => Binary (LowCardinality chType)
 deriving newtype instance IsString (LowCardinality ChString)
 
 class
@@ -254,13 +250,9 @@ instance
 
 
 
-
-
-
-
 -- | ClickHouse UUID column type
 newtype ChUUID = MkChUUID UUID
-  deriving newtype (Show, Eq, NFData)
+  deriving newtype (Show, Eq, NFData, Binary)
 
 instance IsChType ChUUID
   where
@@ -277,13 +269,9 @@ instance FromChType ChUUID UUID   where fromChType (MkChUUID uuid) = uuid
 
 
 
-
-
-
-
 -- | ClickHouse String column type
 newtype ChString = MkChString StrictByteString
-  deriving newtype (Show, Eq, IsString, NFData)
+  deriving newtype (Show, Eq, IsString, NFData, Binary)
 
 instance IsChType ChString
   where
@@ -324,13 +312,13 @@ instance
 
 
 
-
-
-
-
 -- | ClickHouse Int8 column type
 newtype ChInt8 = MkChInt8 Int8
-  deriving newtype (Show, Eq, Num, Prim, Bounded, NFData)
+  deriving newtype (Show, Eq, Num, Prim, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
+
+instance Binary ChInt8 where
+  put = putInt8 . fromChType
+  get = toChType <$> getInt8
 
 instance IsChType ChInt8
   where
@@ -350,13 +338,13 @@ instance FromChType ChInt8 Int8   where fromChType = coerce
 
 
 
-
-
-
-
 -- | ClickHouse Int16 column type
 newtype ChInt16 = MkChInt16 Int16
-  deriving newtype (Show, Eq, Num, Prim, Bounded, NFData)
+  deriving newtype (Show, Eq, Num, Prim, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
+
+instance Binary ChInt16 where
+  put = putInt16le . fromChType
+  get = toChType <$> getInt16le
 
 instance IsChType ChInt16
   where
@@ -376,13 +364,13 @@ instance FromChType ChInt16 Int16   where fromChType (MkChInt16 int16) = int16
 
 
 
-
-
-
-
 -- | ClickHouse Int32 column type
 newtype ChInt32 = MkChInt32 Int32
-  deriving newtype (Show, Eq, Num, Prim, Bounded, Enum, NFData)
+  deriving newtype (Show, Eq, Num, Prim, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
+
+instance Binary ChInt32 where
+  put = putInt32le . fromChType
+  get = toChType <$> getInt32le
 
 instance IsChType ChInt32
   where
@@ -402,13 +390,13 @@ instance FromChType ChInt32 Int32   where fromChType (MkChInt32 int32) = int32
 
 
 
-
-
-
-
 -- | ClickHouse Int64 column type
 newtype ChInt64 = MkChInt64 Int64
-  deriving newtype (Show, Eq, Num, Prim, Bounded, Enum, NFData)
+  deriving newtype (Show, Eq, Num, Prim, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
+
+instance Binary ChInt64 where
+  put = putInt64le . fromChType
+  get = toChType <$> getInt64le
 
 instance IsChType ChInt64
   where
@@ -429,13 +417,9 @@ instance FromChType ChInt64 Int64   where fromChType = coerce
 
 
 
-
-
-
-
 -- | ClickHouse Int128 column type
 newtype ChInt128 = MkChInt128 Int128
-  deriving newtype (Show, Eq, Num, Prim, Ord, Real, Enum, Integral, Bounded, NFData)
+  deriving newtype (Show, Eq, Num, Prim, Bits, Ord, Real, Enum, Integral, Bounded, NFData, Binary)
 
 instance IsChType ChInt128
   where
@@ -455,13 +439,13 @@ instance FromChType ChInt128 Int128   where fromChType (MkChInt128 int128) = int
 
 
 
-
-
-
-
 -- | ClickHouse UInt8 column type
 newtype ChUInt8 = MkChUInt8 Word8
-  deriving newtype (Show, Eq, Num, Prim, Bounded, NFData)
+  deriving newtype (Show, Eq, Num, Prim, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
+
+instance Binary ChUInt8 where
+  put = putWord8 . fromChType
+  get = toChType <$> getWord8
 
 instance IsChType ChUInt8
   where
@@ -481,13 +465,13 @@ instance FromChType ChUInt8 Word8   where fromChType (MkChUInt8 word8) = word8
 
 
 
-
-
-
-
 -- | ClickHouse UInt16 column type
 newtype ChUInt16 = MkChUInt16 Word16
-  deriving newtype (Show, Eq, Num, Prim, Bounded, NFData)
+  deriving newtype (Show, Eq, Num, Prim, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
+
+instance Binary ChUInt16 where
+  put = putWord16le . fromChType
+  get = toChType <$> getWord16le
 
 instance IsChType ChUInt16
   where
@@ -507,13 +491,13 @@ instance FromChType ChUInt16 Word16   where fromChType = coerce
 
 
 
-
-
-
-
 -- | ClickHouse UInt32 column type
 newtype ChUInt32 = MkChUInt32 Word32
-  deriving newtype (Show, Eq, Num, Prim, Bounded, Enum, NFData)
+  deriving newtype (Show, Eq, Num, Prim, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
+
+instance Binary ChUInt32 where
+  put = putWord32le . fromChType
+  get = toChType <$> getWord32le
 
 instance IsChType ChUInt32
   where
@@ -533,13 +517,13 @@ instance FromChType ChUInt32 Word32   where fromChType (MkChUInt32 word32) = wor
 
 
 
-
-
-
-
 -- | ClickHouse UInt64 column type
 newtype ChUInt64 = MkChUInt64 Word64
-  deriving newtype (Show, Eq, Num, Prim, Bounded, Enum, NFData)
+  deriving newtype (Show, Eq, Num, Prim, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
+
+instance Binary ChUInt64 where
+  put = putWord64le . fromChType
+  get = toChType <$> getWord64le
 
 instance IsChType ChUInt64
   where
@@ -559,13 +543,9 @@ instance FromChType ChUInt64 Word64   where fromChType (MkChUInt64 w64) = w64
 
 
 
-
-
-
-
 -- | ClickHouse UInt128 column type
 newtype ChUInt128 = MkChUInt128 Word128
-  deriving newtype (Show, Eq, Num, Prim, Bounded, Enum, Ord, Real, Integral, NFData)
+  deriving newtype (Show, Eq, Num, Prim, Bits, Enum, Ord, Real, Integral, Bounded, NFData, Binary)
 
 instance IsChType ChUInt128
   where
@@ -587,13 +567,13 @@ instance FromChType ChUInt128 Word128   where fromChType (MkChUInt128 w128) = w1
 
 
 
-
-
-
-
 -- | ClickHouse DateTime column type
 newtype ChDateTime = MkChDateTime Word32
-  deriving newtype (Show, Eq, Prim, Bounded, Enum, NFData)
+  deriving newtype (Show, Eq, Prim, Num, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
+
+instance Binary ChDateTime where
+  put = putWord32le . fromChType
+  get = toChType <$> getWord32le
 
 instance IsChType ChDateTime
   where
@@ -617,27 +597,29 @@ instance FromChType ChDateTime UTCTime    where fromChType (MkChDateTime w32) = 
 
 
 
-
-
-
-
 newtype ChDate = MkChDate Word16
-  deriving newtype (Show, Eq, Prim, Bounded, Enum, NFData)
+  deriving newtype (Show, Eq, Prim, Bits, Bounded, Enum, NFData)
+
+instance Binary ChDate where
+  put = putWord16le . fromChType
+  get = toChType <$> getWord16le
 
 instance IsChType ChDate
   where
   type ToChTypeName    ChDate = "Date"
   type IsWriteOptional ChDate = 'False
 
+instance ToChType ChDate ChDate where toChType = id
+instance ToChType ChDate Word16 where toChType = MkChDate
 
-
-
+instance FromChType ChDate ChDate where fromChType = id
+instance FromChType ChDate Word16 where fromChType = coerce
 
 
 
 
 newtype ChArray a = MkChArray [a]
-  deriving newtype (Show, Eq, NFData)
+  deriving newtype (Show, Eq, NFData, Binary)
 
 instance IsChType chType => IsChType (ChArray chType)
   where
@@ -657,3 +639,14 @@ instance IsChType chType => FromChType (ChArray chType) [chType] where fromChTyp
 
 instance IsChType chType           => ToChType (ChArray chType) [chType] where toChType = MkChArray
 instance ToChType chType inputType => ToChType (ChArray chType) [inputType] where toChType = MkChArray . map toChType
+
+
+
+
+{- |
+  Unsigned variable-length quantity encoding
+  
+  Part of protocol implementation
+-}
+newtype UVarInt = MkUVarInt Word64
+  deriving newtype (Show, Eq, Num, Prim, Bits, Enum, Ord, Real, Integral, Bounded, NFData, Binary)

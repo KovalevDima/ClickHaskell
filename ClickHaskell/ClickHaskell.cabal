@@ -2,7 +2,7 @@ Cabal-version: 3.4
 
 
 Name:           ClickHaskell
-Version:        0.0.0.1
+Version:        1.0.0
 
 Author:         Kovalev Dmitry
 Maintainer:     Kovalev Dmitry
@@ -38,11 +38,13 @@ Library
   Autogen-Modules:
     Paths_ClickHaskell
   Exposed-Modules:
+    ClickHaskell
     ClickHaskell.DbTypes
-    ClickHaskell.HTTP
     ClickHaskell.Reading
     ClickHaskell.Writing
-    ClickHaskell.Lock
+    ClickHaskell.NativeProtocol.ClientPackets
+    ClickHaskell.NativeProtocol.Serialization
+    ClickHaskell.NativeProtocol.ServerPackets
     ClickHaskell.Tables
   Other-Modules:
     Paths_ClickHaskell
@@ -72,12 +74,15 @@ Library
     -- GHC included libraries
       base >= 4.7 && <5
     , bytestring < 0.13
+    , binary < 9
     , deepseq < 1.6
     , text < 2.2
     , time < 1.13
     , vector < 0.14
+    , template-haskell < 2.22
 
     -- External dependencies
+    , network
     , uuid < 1.4
     , wide-word < 0.2
   Default-language: Haskell2010
