@@ -1,37 +1,17 @@
 # ClickHaskell 
 [![built with nix](https://img.shields.io/badge/Built_With-Nix-5277C3.svg?logo=nixos&labelColor=73C3D5)](https://builtwithnix.org)
 
-ClickHaskell is a `set of Haskell libraries` and `(WIP)clickhouse-lock CLI` \
-which allows you to build reliable integrations with [ClickHouse](https://clickhouse.com/) DBMS
+ClickHaskell is a Haskell implementation of [ClickHouse](https://clickhouse.com/) DBMS client
 
-Library API allows you to:
+ClickHaskell provides for users:
+1. Type safe developer-friendly interface
+2. Always up-to-date [documentation](https://kovalevdima.github.io/ClickHaskell/)
+3. End-to-end tests before distribution
+4. Very low dependency footprint
 
-1. (WIP) naturally `validate backward compatability` \
-between application and DBMS on CI/CD
-
-2. `avoid manual testing` of queries-parsers matching
-
-3. `generate encoders/parsers` transparently
-
-4. `generate data mappers` on reading/writing
-
-5. `avoid writing SQL` without any DSL
-
-Library API restricts you by:
-
-1. relying on `using fixed` `Table`s/`Table function`s \
-as read/write models contracts
-
-2. relying on `database first` development approach
-
-3. benefiting via usage of `CQRS pattern`
-
-# Interesting
-
-[Library documentation](https://getshoptv.github.io/ClickHaskell/)
-
-[ClickHouse documentation](https://clickhouse.com/docs)
-
-[Wikipedia article about CQRS](https://en.wikipedia.org/wiki/Command%E2%80%93query_separation)
-
-[Development](./development.md)
+ClickHaskell provides for contributors:
+1. Reproducable and complete dev environment
+2. Documnetation autogeneration
+3. Easy to run profiling environment
+4. Easy to track breaking changes project structure
+5. Low boilerplate abstractions
