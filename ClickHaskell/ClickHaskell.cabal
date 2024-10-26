@@ -41,6 +41,8 @@ Library
     ClickHaskell
     ClickHaskell.DbTypes
     ClickHaskell.NativeProtocol.ClientPackets
+    ClickHaskell.NativeProtocol.Columns
+    ClickHaskell.NativeProtocol.Parameters
     ClickHaskell.NativeProtocol.Serialization
     ClickHaskell.NativeProtocol.ServerPackets
     ClickHaskell.Tables
