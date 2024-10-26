@@ -248,11 +248,11 @@ data DataPacket = MkDataPacket
   deriving (Generic, Serializable)
 
 data BlockInfo = MkBlockInfo
-  { field_num    :: UVarInt
+  { field_num1   :: UVarInt
   , is_overflows :: ChUInt8
-  , bi3          :: UVarInt
+  , field_num2   :: UVarInt
   , bucket_num   :: ChInt32
-  , bi5          :: UVarInt
+  , eof          :: UVarInt
   }
   deriving (Generic, Serializable)
 
@@ -267,11 +267,11 @@ mkDataPacket dataName columns =
     { packet_type   = MkPacket
     , data_name     = dataName
     , block_info    = MkBlockInfo
-      { field_num    = 1
+      { field_num1   = 1
       , is_overflows = 0
-      , bi3          = 2
+      , field_num2   = 2
       , bucket_num   = -1
-      , bi5          = 0
+      , eof          = 0
       }
     , columns_count = columnsCount columns
     , rows_count    = rowsCount columns
