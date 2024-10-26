@@ -1,7 +1,6 @@
 packages:
     ./ClickHaskell
     ./ClickHaskell-http-client
-    ./clickhouse-lock
     ./documentation
     ./documentation/writing
     ./documentation/parametrized-view
