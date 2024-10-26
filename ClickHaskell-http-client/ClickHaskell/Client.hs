@@ -1,13 +1,19 @@
 {-# LANGUAGE
     AllowAmbiguousTypes
   , DataKinds
+  , DefaultSignatures
+  , DerivingStrategies
+  , GeneralizedNewtypeDeriving
+  , InstanceSigs
+  , NamedFieldPuns
+  , OverloadedStrings
+  , PolyKinds
+  , RankNTypes
+  , UndecidableInstances
+  , UndecidableSuperClasses 
+  , LambdaCase
   , DeriveAnyClass
   , DeriveGeneric
-  , DerivingStrategies
-  , LambdaCase
-  , OverloadedStrings
-  , TypeFamilyDependencies
-  , RankNTypes
 #-}
 
 {-# OPTIONS_GHC
@@ -26,35 +32,44 @@ module ClickHaskell.Client
 
   , WritableInto(..)
   , ReadableFrom(..)
+  , Deserializable(..)
 
   , ChCredential(..)
   ) where
 
 -- Internal
-import ClickHaskell.Writing (WritableInto(..))
-import ClickHaskell.Reading (ReadableFrom(..))
-import ClickHaskell.Tables (Table, View, ParametersInterpreter, CheckParameters, parameters)
+import ClickHaskell.Tables
+import ClickHaskell.DbTypes
 
 -- External
-import Network.HTTP.Client as H (Request(..), Response(..), RequestBody(..), parseRequest, withResponse, brConsume, BodyReader, Manager)
-import Network.HTTP.Types  as H (Status(..))
 
 -- GHC included
-import Control.DeepSeq   (NFData)
-import Control.Exception (throw, SomeException, Exception)
-import Data.ByteString            as BS (StrictByteString, empty, toStrict)
-import Data.ByteString.Builder    (Builder, byteString, toLazyByteString)
-import Data.ByteString.Char8      as BS8 (pack)
-import Data.ByteString.Lazy       as BSL (toChunks, fromChunks)
+import Control.DeepSeq (NFData)
+import Control.Exception (Exception, SomeException, throw)
+import Data.ByteString as BS (StrictByteString, drop, empty, take, toStrict)
+import Data.ByteString.Builder as BS (Builder, byteString, toLazyByteString, int16Dec, int8Dec, int32Dec, int64Dec, integerDec, word8Dec, word16Dec, word32Dec, word64Dec)
+import Data.ByteString.Char8 as BS8 (break, concatMap, length, pack, readInt, readInteger, replicate, singleton, span, unpack)
+import Data.ByteString.Lazy as BSL (fromChunks, toChunks)
 import Data.ByteString.Lazy.Char8 as BSL8 (lines)
-import Data.IORef         (newIORef, readIORef, writeIORef, atomicModifyIORef)
-import Data.Kind          (Type)
-import Data.Text          as T (unpack, Text)
+import Data.IORef (atomicModifyIORef, newIORef, readIORef, writeIORef)
+import Data.Int
+import Data.Kind (Constraint, Type)
+import Data.Maybe (fromJust)
+import Data.Text as T (Text, unpack)
 import Data.Text.Encoding as T (decodeUtf8, encodeUtf8)
-import Data.Typeable      (Proxy (..))
-import GHC.IO             (unsafeInterleaveIO)
-import GHC.Generics       (Generic)
-import GHC.TypeLits       (KnownSymbol, symbolVal)
+import Data.Time (defaultTimeLocale, parseTimeM)
+import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
+import Data.Typeable (Proxy (..))
+import GHC.Generics
+import GHC.IO (unsafeInterleaveIO)
+import GHC.TypeLits (ErrorMessage (..), KnownSymbol, TypeError, symbolVal)
+import Data.Type.Bool (If)
+
+-- External
+import qualified Data.UUID as UUID
+import Data.Word
+import Network.HTTP.Client as H (BodyReader, Manager, Request (..), RequestBody (..), Response (..), brConsume, parseRequest, withResponse)
+import Network.HTTP.Types as H (Status (..))
 
 
 insertInto ::
@@ -253,3 +268,341 @@ initAuthorizedRequest (MkChCredential login pass url databaseName) = do
           ]
           <> H.requestHeaders req
         }
+
+
+-- ** Reading
+
+class
+  ( HasColumns hasColumns
+  , GReadable (GetColumns hasColumns) (Rep record)
+  ) =>
+  ReadableFrom hasColumns record
+  where
+
+  default fromTsvLine :: (Generic record) => StrictByteString -> record
+  fromTsvLine :: StrictByteString -> record
+  fromTsvLine = to . gFromTsvBs @(GetColumns hasColumns)
+
+  default readingColumns :: (Generic record) => Builder
+  readingColumns :: Builder
+  readingColumns = gReadingColumns @(GetColumns hasColumns) @(Rep record)
+
+class GReadable
+  (columns :: [Type])
+  f
+  where
+  gFromTsvBs :: StrictByteString -> f p
+  gReadingColumns :: Builder
+
+instance
+  GReadable columns f
+  =>
+  GReadable columns (D1 c (C1 c2 f))
+  where
+  gFromTsvBs = M1 . M1 . gFromTsvBs @columns
+  gReadingColumns = gReadingColumns @columns @f
+
+
+instance
+  GReadable columns (left1 :*: (left2 :*: right))
+  =>
+  GReadable columns ((left1 :*: left2) :*: right)
+  where
+  gFromTsvBs bs =
+    let (left1 :*: (left2 :*: right)) = gFromTsvBs @columns bs
+    in ((left1 :*: left2) :*: right)
+  gReadingColumns = gReadingColumns @columns @(left1 :*: (left2 :*: right))
+
+instance
+  ( CompiledColumn column
+  , '(column, restColumns) ~ TakeColumn selectorName columns
+  , FromChType (GetColumnType column) inputType
+  , Deserializable (GetColumnType column)
+  , GReadable restColumns right
+  ) => GReadable columns (S1 (MetaSel (Just selectorName) a b f) (Rec0 inputType) :*: right)
+  where
+  gFromTsvBs bs =
+    let (beforeTab, afterTab) = BS8.span (/= '\t') bs
+    in
+    (M1 . K1 . fromChType @(GetColumnType column) . deserialize $ beforeTab) :*: gFromTsvBs @restColumns @right (BS.drop 1 afterTab)
+  gReadingColumns = renderColumnName @column <> ", " <> gReadingColumns @restColumns @right
+
+instance
+  ( CompiledColumn column
+  , '(column, restColumns) ~ TakeColumn selectorName columns
+  , Deserializable (GetColumnType column)
+  , FromChType (GetColumnType column) inputType
+  ) => GReadable columns ((S1 (MetaSel (Just selectorName) a b f)) (Rec0 inputType))
+  where
+  gFromTsvBs = M1 . K1 . fromChType @(GetColumnType column) . deserialize
+  gReadingColumns = renderColumnName @column
+
+
+
+
+-- *** Deserialization
+
+class
+  Deserializable chType
+  where
+  deserialize :: StrictByteString -> chType
+
+instance
+  Deserializable chType
+  =>
+  Deserializable (Nullable chType)
+  where
+  deserialize "\\N" = Nothing
+  deserialize someTypeBs = Just (deserialize someTypeBs)
+
+instance
+  ( Deserializable chType
+  , ToChType chType chType
+  , IsLowCardinalitySupported chType
+  ) =>
+  Deserializable (LowCardinality chType)
+  where
+  deserialize = toChType @(LowCardinality chType) @chType . deserialize
+
+instance Deserializable ChUUID
+  where
+  deserialize = toChType . fromJust . UUID.fromASCIIBytes
+
+instance Deserializable ChString
+  where
+  deserialize = toChType . deescape
+
+-- There are a big trade off between safity and performance
+-- Corner case strings with a lot of escaped symbols would reduce deserialization speed
+-- ToDo: rewrite (de)serialization to work via binary clickhouse formats
+deescape :: StrictByteString -> StrictByteString
+deescape bs = case BS8.break (=='\\') bs of
+  (beforeEscaping, startWithEscaping) ->
+    if BS.empty == startWithEscaping
+    then bs
+    else case BS.take 2 startWithEscaping of
+      "\\b" -> beforeEscaping <> "\b" <> BS.drop 2 startWithEscaping
+      "\\t" -> beforeEscaping <> "\t" <> BS.drop 2 startWithEscaping
+      "\\n" -> beforeEscaping <> "\n" <> BS.drop 2 startWithEscaping
+      "\\f" -> beforeEscaping <> "\f" <> BS.drop 2 startWithEscaping
+      "\\r" -> beforeEscaping <> "\r" <> BS.drop 2 startWithEscaping
+      "\\'" -> beforeEscaping <> "'" <> BS.drop 2 startWithEscaping
+      "\\\\" -> beforeEscaping <> "\\" <> BS.drop 2 startWithEscaping
+      _ -> bs
+
+instance Deserializable ChInt8
+  where
+  deserialize = toChType @ChInt8 @Int8 . fromIntegral . fst . fromJust . BS8.readInt
+
+instance Deserializable ChInt16
+  where
+  deserialize  = toChType @ChInt16 @Int16 . fromIntegral . fst . fromJust . BS8.readInt
+
+instance Deserializable ChInt32
+  where
+  deserialize = toChType @ChInt32 @Int32 . fromIntegral . fst . fromJust . BS8.readInt
+
+instance Deserializable ChInt64
+  where
+  deserialize = toChType @ChInt64 @Int64 . fromInteger . fst . fromJust . BS8.readInteger
+
+instance Deserializable ChInt128
+  where
+  deserialize = toChType @ChInt128 @Int128 . fromInteger . fst . fromJust . BS8.readInteger
+
+instance Deserializable ChUInt8
+  where
+  deserialize = toChType @ChUInt8 @Word8 . fromIntegral . fst . fromJust . BS8.readInt
+
+instance Deserializable ChUInt16
+  where
+  deserialize = toChType @ChUInt16 @Word16 . fromIntegral . fst . fromJust . BS8.readInt
+
+instance Deserializable ChUInt32
+  where
+  deserialize = toChType @ChUInt32 @Word32 . fromIntegral . fst . fromJust . BS8.readInt
+
+instance Deserializable ChUInt64
+  where
+  deserialize = toChType @ChUInt64 @Word64 . fromIntegral . fst . fromJust . BS8.readInteger
+
+instance Deserializable ChUInt128
+  where
+  deserialize = toChType @ChUInt128 @Word128 . fromIntegral . fst . fromJust . BS8.readInteger
+
+instance Deserializable ChDateTime where
+  deserialize
+    = toChType @ChDateTime @Word32 . fromInteger
+    . floor . utcTimeToPOSIXSeconds
+    . fromJust . parseTimeM False defaultTimeLocale "%Y-%m-%d %H:%M:%S"
+    . BS8.unpack
+
+-- ** Writing
+
+class
+  ( HasColumns table
+  , GWritable (GetColumns table) (Rep record)
+  )
+  =>
+  WritableInto table record
+  where
+  default toTsvLine :: (Generic record) => record -> Builder
+  toTsvLine :: record -> Builder
+  toTsvLine = gToTsvBs @(GetColumns table) . from
+
+  default writingColumns :: Builder
+  writingColumns :: Builder
+  writingColumns = gWritingColumns @(GetColumns table) @(Rep record)
+
+
+class GWritable
+  (columns :: [Type])
+  f
+  where
+  gToTsvBs :: f p -> Builder
+  gWritingColumns :: Builder
+
+instance
+  GWritable columns f
+  =>
+  GWritable columns (D1 c (C1 c2 f))
+  where
+  gToTsvBs (M1 (M1 re)) = gToTsvBs @columns re <> "\n"
+  gWritingColumns = gWritingColumns @columns @f
+
+instance
+  GWritable columns (left1 :*: (left2 :*: right))
+  =>
+  GWritable columns ((left1 :*: left2) :*: right)
+  where
+  gToTsvBs ((left1 :*: left2) :*: right) = gToTsvBs @columns (left1 :*: (left2 :*: right))
+  gWritingColumns = gWritingColumns @columns @(left1 :*: (left2 :*: right))
+
+instance
+  ( Serializable (GetColumnType column)
+  , ToChType (GetColumnType column) inputType
+  , CompiledColumn column
+  , GWritable restColumns right
+  , GWritable '[column] ((S1 (MetaSel (Just typeName) a b f)) (Rec0 inputType))
+  , '(column, restColumns) ~ TakeColumn typeName columns
+  )
+  =>
+  GWritable columns ((S1 (MetaSel (Just typeName) a b f)) (Rec0 inputType) :*: right)
+  where
+  gToTsvBs (M1 (K1 dataType) :*: right)
+    =  (serialize . toChType @(GetColumnType column)) dataType
+    <> "\t"
+    <> gToTsvBs @restColumns right
+  gWritingColumns = renderColumnName @column <> ", " <> gWritingColumns @restColumns @right
+
+instance
+  ( ThereIsNoWriteRequiredColumns restColumns
+  , Serializable (GetColumnType column)
+  , ToChType (GetColumnType column) inputType
+  , CompiledColumn column
+  , '(column, restColumns) ~ TakeColumn typeName columns
+  ) =>
+  GWritable columns (S1 (MetaSel (Just typeName) a b f) (Rec0 inputType))
+  where
+  gToTsvBs = serialize . toChType @(GetColumnType column) @inputType . unK1 . unM1
+  gWritingColumns = renderColumnName @column
+
+
+type family ThereIsNoWriteRequiredColumns (columns :: [Type]) :: Constraint where
+  ThereIsNoWriteRequiredColumns '[] = ()
+  ThereIsNoWriteRequiredColumns (column ': columns) =
+    If
+      (WriteOptionalColumn column)
+      (ThereIsNoWriteRequiredColumns columns)
+      (TypeError ('Text "Column " :<>: 'Text (GetColumnName column) :<>: 'Text " is required for insert but is missing"))
+
+
+
+
+-- * Serialization
+
+class
+  Serializable chType
+  where
+  serialize :: chType -> Builder
+
+instance
+  Serializable chType
+  =>
+  Serializable (Nullable chType)
+  where
+  serialize = maybe "\\N" serialize
+
+instance
+  ( Serializable chType
+  , FromChType chType chType
+  , IsLowCardinalitySupported chType
+  ) =>
+  Serializable (LowCardinality chType)
+  where
+  serialize = serialize @chType . fromChType @(LowCardinality chType)
+
+instance Serializable ChUUID
+  where
+  serialize = BS.byteString . UUID.toASCIIBytes . fromChType
+
+instance Serializable ChString
+  where
+  serialize = (BS.byteString . escape) . fromChType
+
+escape :: StrictByteString -> StrictByteString
+escape -- [ClickHaskell.DbTypes.ToDo.2]: Optimize
+  = BS8.concatMap
+    (\case
+      '\t' -> "\\t"
+      '\n' -> "\\n"
+      '\\' -> "\\\\"
+      sym -> BS8.singleton sym
+    )
+
+instance Serializable ChInt8
+  where
+  serialize = BS.int8Dec . fromChType
+
+instance Serializable ChInt16
+  where
+  serialize = BS.int16Dec . fromChType 
+
+instance Serializable ChInt32
+  where
+  serialize = BS.int32Dec . fromChType
+
+instance Serializable ChInt64
+  where
+  serialize = BS.int64Dec . fromChType
+
+instance Serializable ChInt128
+  where
+  serialize = BS.integerDec . toInteger
+
+instance Serializable ChUInt8
+  where
+  serialize = BS.word8Dec . fromChType
+
+instance Serializable ChUInt16
+  where
+  serialize = BS.word16Dec . fromChType
+
+instance Serializable ChUInt32
+  where
+  serialize = BS.word32Dec . fromChType
+
+instance Serializable ChUInt64
+  where
+  serialize = BS.word64Dec . fromChType
+
+instance Serializable ChUInt128
+  where
+  serialize = BS.integerDec . toInteger
+
+instance Serializable ChDateTime where
+  serialize chDateTime
+    = let time = BS8.pack . show . fromChType @ChDateTime @Word32 $ chDateTime
+    in BS.byteString (BS8.replicate (10 - BS8.length time) '0' <> time)
+
+

@@ -23,8 +23,7 @@ import ClickHaskell.DbTypes
   , ChString
   , ChArray
   )
-import ClickHaskell.Client (ChCredential(..), runStatement)
-import ClickHaskell.Reading (Deserializable(..))
+import ClickHaskell.Client (ChCredential(..), Deserializable(..), runStatement)
 
 
 -- External
@@ -33,7 +32,6 @@ import Control.Monad (void, when)
 import Data.ByteString as BS (singleton)
 import Data.ByteString.Char8 as BS8 (takeWhile)
 import GHC.TypeLits (KnownSymbol)
-
 
 
 runSerializationTests :: ChCredential -> IO ()
@@ -70,7 +68,6 @@ runSerializationTest manager chCred = do
           <> " Expected: " <> show chType
           <> ". But got: " <> show deserializedChType <> "."
           )
-        
       )
       (testValues :: [chType])
 

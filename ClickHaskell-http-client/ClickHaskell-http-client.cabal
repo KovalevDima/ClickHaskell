@@ -63,10 +63,12 @@ Library
     , bytestring < 0.13
     , deepseq < 1.6
     , text < 2.2
+    , time < 1.13
 
     -- External
     , http-client < 0.8
     , http-types < 0.13
+    , uuid < 1.4
   Default-language: Haskell2010
   Default-Extensions:
     FlexibleContexts
