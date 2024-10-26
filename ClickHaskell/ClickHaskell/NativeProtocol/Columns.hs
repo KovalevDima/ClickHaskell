@@ -14,7 +14,6 @@
 module ClickHaskell.NativeProtocol.Columns where
 
 -- Internal
-import ClickHaskell.NativeProtocol.Parameters
 import ClickHaskell.DbTypes (IsChType(..), UVarInt)
 
 

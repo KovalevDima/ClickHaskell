@@ -97,7 +97,7 @@ openNativeConnection MkChCredential{chHost, chPort, chLogin, chPass, chDatabase}
   case serverPacketType of
     HelloResponse -> do
       MkHelloResponse{server_revision} <- bufferizedRead latestSupportedRevision (recv sock 4096)
-      pure MkConnection{user=toChType chLogin, sock, chosenRevision=server_revision}
+      pure MkConnection{user=toChType chLogin, sock, chosenRevision=min server_revision latestSupportedRevision}
     Exception -> do
       print =<< recv sock 4096
       throw DatabaseException

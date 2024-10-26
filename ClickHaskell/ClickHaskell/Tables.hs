@@ -56,16 +56,10 @@ module ClickHaskell.Tables
 -- Internal
 import ClickHaskell.NativeProtocol.Columns
 import ClickHaskell.NativeProtocol.Parameters (CheckParameters, InterpretableParameters(..), ParametersInterpreter(..), Parameter, parameters, parameter)
-import ClickHaskell.DbTypes (IsChType(..), UVarInt)
-
 
 -- GHC included
-import Data.ByteString.Builder as BS (Builder, stringUtf8)
-import Data.Data               (Proxy (Proxy))
 import Data.Kind               (Type)
-import GHC.TypeLits            (TypeError, ErrorMessage (..), Symbol, KnownSymbol, symbolVal)
-import Data.Type.Bool          (If)
-import Data.Type.Equality      (type(==))
+import GHC.TypeLits            (Symbol)
 
 -- * Specs
 

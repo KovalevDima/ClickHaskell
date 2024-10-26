@@ -133,7 +133,7 @@ mkQueryPacket :: ProtocolRevision -> ChString -> ChString -> QueryPacket
 mkQueryPacket chosenRev user query = MkQueryPacket
   { query_packet = MkPacket
   , query_id = ""
-  , client_info                    = MkClientInfo
+  , client_info                    = MkSinceRevision MkClientInfo
     { query_kind                   = InitialQuery
     , initial_user                 = user
     , initial_query_id             = ""
@@ -185,7 +185,7 @@ flagCode OBSOLETE  = 0x04
 data QueryPacket = MkQueryPacket
   { query_packet       :: Packet Query
   , query_id           :: ChString
-  , client_info        :: ClientInfo
+  , client_info        :: ClientInfo `SinceRevision` DBMS_MIN_REVISION_WITH_CLIENT_INFO
   , settings           :: DbSettings
   , interserver_secret :: ChString `SinceRevision` DBMS_MIN_REVISION_WITH_INTERSERVER_SECRET
   , query_stage        :: QueryStage

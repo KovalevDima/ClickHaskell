@@ -18,6 +18,21 @@ module ClickHaskell.NativeProtocol.Serialization where
 
 -- Internal dependencies
 import ClickHaskell.DbTypes
+    ( ChUInt8,
+      FromChType(fromChType),
+      ChUInt16,
+      ChUInt32,
+      ChUInt64,
+      ChUInt128,
+      ChInt8,
+      ChInt16,
+      ChInt32,
+      ChInt64,
+      ChInt128,
+      ChString,
+      ToChType(toChType),
+      IsChType,
+      UVarInt )
 import ClickHaskell.Tables
 import Paths_ClickHaskell (version)
 
@@ -39,6 +54,7 @@ import Data.WideWord (Int128 (..), Word128 (..))
 import GHC.Generics
 import GHC.TypeLits (KnownNat, Nat, natVal)
 import Language.Haskell.TH.Syntax (lift)
+import Debug.Trace (trace)
 
 -- * Serializable
 
@@ -170,7 +186,7 @@ instance
   where
   gDeserialize rev = do
     chType <- deserialize @chType rev
-    right <- gDeserialize rev
+    right <- trace ("using: " <> show rev) (gDeserialize rev)
     pure ((M1 . K1) chType :*: right)
 
 instance {-# OVERLAPS #-}
@@ -178,9 +194,9 @@ instance {-# OVERLAPS #-}
   =>
   GDeserializable (S1 (MetaSel (Just "server_revision") a b f) (Rec0 UVarInt) :*: right)
   where
-  gDeserialize rev = do
-    server_revision <- deserialize @UVarInt rev
-    right <- gDeserialize @right server_revision
+  gDeserialize client_revision = do
+    server_revision <- deserialize @UVarInt client_revision
+    right <- gDeserialize @right (min server_revision client_revision)
     pure ((M1 . K1) server_revision :*: right)
 
 
