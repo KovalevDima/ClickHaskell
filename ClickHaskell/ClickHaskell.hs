@@ -33,7 +33,6 @@ import ClickHaskell.Tables
 
 -- GHC included
 import Control.Exception (Exception, SomeException, bracketOnError, catch, finally, throw)
-import Control.Monad (replicateM_)
 import Data.Binary.Get (Decoder (..), runGetIncremental)
 import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Lazy.Char8 as BSL8 (head)
@@ -93,7 +92,7 @@ openNativeConnection MkChCredential{chHost, chPort, chLogin, chPass, chDatabase}
 
   (sendAll sock . toLazyByteString . serialize latestSupportedRevision)
     (mkHelloPacket MkHelloParameters{..})
-  
+
   serverPacketType <- determineServerPacket sock
   case serverPacketType of
     HelloResponse -> do
@@ -124,24 +123,24 @@ selectFrom :: Connection -> IO ()
 selectFrom MkConnection{sock, user, chosenRevision} = do
   (sendAll sock . toLazyByteString)
     (  serialize chosenRevision (mkQueryPacket chosenRevision user "SELECT 5")
-    <> serialize chosenRevision (mkDataPacket 0 0 "")
+    <> serialize chosenRevision (mkDataPacket "" emptyColumns)
     )
   _ <- recv sock 4096
   pure ()
 
 
-insertInto :: Connection -> IO ()
-insertInto MkConnection{sock, user, chosenRevision} = do
+insertInto :: Connection -> Columns columns -> IO ()
+insertInto MkConnection{sock, user, chosenRevision} columns = do
   (sendAll sock . toLazyByteString)
     (  serialize chosenRevision (mkQueryPacket chosenRevision user "INSERT INTO example (val) VALUES")
-    <> serialize chosenRevision (mkDataPacket 0 0 "")
+    <> serialize chosenRevision (mkDataPacket "" emptyColumns)
     )
   print =<< recv sock 4096
-  -- ^ answers with 11.TableColumns 
+  -- ^ answers with 11.TableColumns
 
   (sendAll sock . toLazyByteString)
-    ( serialize chosenRevision (mkDataPacket 1 3 "`val` UInt32")
-    <> serialize chosenRevision exampleColumn
+    (  serialize chosenRevision (mkDataPacket "" columns)
+    <> serialize chosenRevision (mkDataPacket "" emptyColumns)
     )
   print =<< recv sock 4096
   -- ^ asnwers with 1.Data
@@ -206,14 +205,17 @@ dev :: IO ()
 dev = do
   connection <- openNativeConnection devCredential
   print "Connected"
-  replicateM_ 500 (ping connection)
-  print "Pinged"
+  -- replicateM_ 500 (ping connection)
+  -- print "Pinged"
   -- replicateM_ 500 (selectFrom connection)
   -- print "Dummy queries done"
-  insertInto connection
+  insertInto connection devColumns
 
-exampleColumn :: Column "test" ChUInt32
-exampleColumn = mkColumn [5, 5, 5]
+devColumns :: Columns '[Column "val" ChUInt32]
+devColumns = appendColumn devColumn emptyColumns
+
+devColumn :: Column "val" ChUInt32
+devColumn = mkColumn [5, 5, 5]
 
 devCredential :: ChCredential
 devCredential = MkChCredential

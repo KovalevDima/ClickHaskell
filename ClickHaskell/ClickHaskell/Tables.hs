@@ -27,6 +27,13 @@ module ClickHaskell.Tables
 , CheckParameters
 
 -- * Columns
+, Columns(..)
+, columnsCount
+, rowsCount
+
+, appendColumn
+, emptyColumns
+
 -- ** HasColumns helper class
 , HasColumns(..)
 
@@ -47,7 +54,7 @@ module ClickHaskell.Tables
 
 
 -- Internal
-import ClickHaskell.DbTypes (ToQueryPart(..), IsChType(ToChTypeName, IsWriteOptional), ToChType, toChType, chTypeName)
+import ClickHaskell.DbTypes (ToQueryPart(..), IsChType(..), ToChType(..), UVarInt)
 
 
 -- GHC included
@@ -194,6 +201,26 @@ type family GoCheckParameters
 
 
 -- * Columns
+
+data Columns columns where
+  Empty :: Columns '[]
+  AddColumn :: Column name chType -> Columns cols -> Columns (Column name chType ': cols)
+
+columnsCount :: Columns columns -> UVarInt
+columnsCount Empty = 0
+columnsCount (AddColumn _ restColuns) = 1 + columnsCount restColuns
+
+rowsCount :: Columns columns -> UVarInt
+rowsCount Empty = 0
+rowsCount (AddColumn (MkColumn vec) _) = fromIntegral $ length vec
+
+
+appendColumn :: Column name chType -> Columns xs -> Columns (Column name chType ': xs)
+appendColumn = AddColumn
+
+emptyColumns :: Columns '[]
+emptyColumns = Empty
+
 
 -- ** HasColumns helper class
 

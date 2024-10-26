@@ -18,6 +18,7 @@ module ClickHaskell.NativeProtocol.Serialization where
 
 -- Internal dependencies
 import ClickHaskell.DbTypes
+import ClickHaskell.Tables
 import Paths_ClickHaskell (version)
 
 -- GHC included
@@ -31,13 +32,12 @@ import Data.ByteString.Builder as BS
   , int16LE, int32LE, int64LE, int8
   , word16LE, word32LE, word64LE, word8
   )
-import Data.Typeable ( Proxy(..))
+import Data.ByteString.Lazy
+import Data.Typeable (Proxy (..))
+import Data.Version (Version (..), showVersion)
 import Data.WideWord (Int128 (..), Word128 (..))
 import GHC.Generics
 import GHC.TypeLits (KnownNat, Nat, natVal)
-import ClickHaskell.Tables
-import Data.ByteString.Lazy
-import Data.Version (Version (..), showVersion)
 import Language.Haskell.TH.Syntax (lift)
 
 -- * Serializable
@@ -128,8 +128,8 @@ instance Deserializable ChUInt64 where deserialize _ = toChType <$> getWord64le
 instance Deserializable ChUInt128 where deserialize _ = toChType <$> (Word128 <$> getWord64le <*> getWord64le)
 instance Deserializable ChInt8 where deserialize _ = toChType <$> getInt8
 instance Deserializable ChInt16 where deserialize _ = toChType <$> getInt16le
-instance Deserializable ChInt32 where deserialize _ = toChType <$>  getInt32le
-instance Deserializable ChInt64 where deserialize _ = toChType <$>  getInt64le
+instance Deserializable ChInt32 where deserialize _ = toChType <$> getInt32le
+instance Deserializable ChInt64 where deserialize _ = toChType <$> getInt64le
 instance Deserializable ChInt128 where deserialize _ = toChType <$> (Int128 <$> getWord64le <*> getWord64le)
 instance Deserializable ChString where
   deserialize revision = do
@@ -168,16 +168,21 @@ instance
   =>
   GDeserializable (S1 (MetaSel (Just typeName) a b f) (Rec0 chType) :*: right)
   where
-  gDeserialize rev = (:*:) <$> (M1 . K1 <$> deserialize @chType rev) <*> gDeserialize rev
+  gDeserialize rev = do
+    chType <- deserialize @chType rev
+    right <- gDeserialize rev
+    pure ((M1 . K1) chType :*: right)
 
-instance {-# OVERLAPPING #-}
+instance {-# OVERLAPS #-}
   GDeserializable right
   =>
   GDeserializable (S1 (MetaSel (Just "server_revision") a b f) (Rec0 UVarInt) :*: right)
   where
   gDeserialize rev = do
     server_revision <- deserialize @UVarInt rev
-    (:*:) <$> (pure . M1 . K1 $ server_revision) <*> gDeserialize server_revision
+    right <- gDeserialize @right server_revision
+    pure ((M1 . K1) server_revision :*: right)
+
 
 -- * Columns serialization
 
@@ -189,11 +194,33 @@ instance
   serialize rev (MkColumn values)
     =  serialize rev (toChType @ChString . toStrict . toLazyByteString $ renderColumnName @(Column name chType))
     <> serialize rev (toChType @ChString . toStrict . toLazyByteString $ renderColumnType @(Column name chType))
-    <> (serialize @ChUInt32 rev . fromIntegral) (Prelude.length values)
     <> mconcat (Prelude.map (serialize @chType rev) values)
 
 
+-- No columns special case
+instance Serializable (Columns '[]) where
+  serialize _ _ = ""
+
+instance
+  ( Serializable (Column name1 chType1)
+  , Serializable (Columns (one ': xs))
+  )
+  =>
+  Serializable (Columns (Column name1 chType1 ': one ': xs)) where
+  serialize rev (AddColumn column extraColumns) = serialize rev column <> serialize rev extraColumns
+
+instance
+  Serializable (Column name chType)
+  =>
+  Serializable (Columns '[Column name chType])
+  where
+  serialize rev (AddColumn column Empty) = serialize rev column
+
+
+
+
 -- * Versioning
+
 -- ** Protocol compatibility wrappers
 
 type ProtocolRevision = UVarInt
@@ -292,6 +319,7 @@ type DBMS_MIN_PROTOCOL_VERSION_WITH_QUOTA_KEY = 54458;
 type DBMS_MIN_PROTOCOL_VERSION_WITH_PARAMETERS = 54459;
 type DBMS_MIN_PROTOCOL_VERSION_WITH_SERVER_QUERY_TIME_IN_PROGRESS = 54460;
 type DBMS_MIN_PROTOCOL_VERSION_WITH_PASSWORD_COMPLEXITY_RULES = 54461;
+-- Breakpoint ^
 type DBMS_MIN_REVISION_WITH_INTERSERVER_SECRET_V2 = 54462;
 type DBMS_MIN_PROTOCOL_VERSION_WITH_TOTAL_BYTES_IN_PROGRESS = 54463;
 type DBMS_MIN_PROTOCOL_VERSION_WITH_TIMEZONE_UPDATES = 54464;

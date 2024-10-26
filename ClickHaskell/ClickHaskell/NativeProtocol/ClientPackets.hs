@@ -16,13 +16,14 @@ module ClickHaskell.NativeProtocol.ClientPackets where
 -- Internal dependencies
 import ClickHaskell.DbTypes
 import ClickHaskell.NativeProtocol.Serialization
+import ClickHaskell.Tables
 
 -- GHC included
 import Data.ByteString.Builder (Builder)
+import Data.Text (Text)
 import Data.Typeable (Proxy (..))
 import GHC.Generics
 import GHC.TypeLits (KnownNat, natVal)
-import Data.Text (Text)
 
 
 -- * Client packets
@@ -83,7 +84,6 @@ mkHelloPacket MkHelloParameters{chDatabase, chLogin, chPass} =
     , default_database     = toChType chDatabase
     , user                 = toChType chLogin
     , password             = toChType chPass
-    , adendum              = MkSinceRevision MkAdendum
     }
 
 data HelloParameters = MkHelloParameters
@@ -101,12 +101,19 @@ data HelloPacket = MkHelloPacket
   , default_database     :: ChString
   , user                 :: ChString
   , password             :: ChString
-  , adendum              :: Adendum `SinceRevision` DBMS_MIN_PROTOCOL_VERSION_WITH_ADDENDUM
   }
   deriving (Generic, Serializable)
 
-data Adendum = MkAdendum {}
-instance Serializable Adendum where serialize _ MkAdendum{} = "\0"
+
+mkAddendum :: Addendum
+mkAddendum = MkAddendum
+  { quota_key = MkSinceRevision ""
+  }
+
+data Addendum = MkAddendum
+  { quota_key :: ChString `SinceRevision` DBMS_MIN_PROTOCOL_VERSION_WITH_QUOTA_KEY
+  }
+  deriving (Generic, Serializable)
 
 
 -- ** Ping
@@ -241,7 +248,7 @@ data DataPacket = MkDataPacket
   deriving (Generic, Serializable)
 
 data BlockInfo = MkBlockInfo
-  { bi1          :: UVarInt
+  { field_num    :: UVarInt
   , is_overflows :: ChUInt8
   , bi3          :: UVarInt
   , bucket_num   :: ChInt32
@@ -254,18 +261,18 @@ type ColumnsCount = UVarInt
 type RowsCount = UVarInt
 type DataName = ChString
 
-mkDataPacket :: ColumnsCount -> RowsCount -> DataName -> DataPacket
-mkDataPacket columns rows dataName =
+mkDataPacket :: DataName -> Columns columns -> DataPacket
+mkDataPacket dataName columns =
   MkDataPacket
     { packet_type   = MkPacket
     , data_name     = dataName
     , block_info    = MkBlockInfo
-      { bi1          = 1
+      { field_num    = 1
       , is_overflows = 0
       , bi3          = 2
       , bucket_num   = -1
       , bi5          = 0
       }
-    , columns_count = columns
-    , rows_count    = rows
+    , columns_count = columnsCount columns
+    , rows_count    = rowsCount columns
     }
