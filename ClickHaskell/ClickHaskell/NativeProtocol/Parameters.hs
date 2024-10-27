@@ -90,14 +90,6 @@ renderParameter ::
   chType -> Builder
 renderParameter chType = (BS.byteString . BS8.pack . symbolVal @name) Proxy <> "=" <> toQueryPart chType
 
-class GetParameterInfo p where
-  type GetParameterName p :: Symbol
-  type GetParameterType p :: Type
-
-instance GetParameterInfo (Parameter name chType) where
-  type GetParameterName (Parameter name chType) = name
-  type GetParameterType (Parameter name chType) = chType
-
 type family CheckParameters
   (tableFunctionParams :: [Type])
   (passedParams :: [Type])
@@ -118,10 +110,10 @@ type family CheckParamDuplicates
   :: Constraint
   where
   CheckParamDuplicates _ '[] = ()
-  CheckParamDuplicates p' (p ': ps) = If
-    (GetParameterName p' == GetParameterName p)
-    (TypeError ('Text "Duplicated parameter \"" :<>: 'Text (GetParameterName p) :<>: 'Text "\" in passed parameters"))
-    (CheckParamDuplicates p' ps)
+  CheckParamDuplicates (Parameter name1 chType) (Parameter name2 _ ': ps) = If
+    (name1 == name2)
+    (TypeError ('Text "Duplicated parameter \"" :<>: 'Text name1 :<>: 'Text "\" in passed parameters"))
+    (CheckParamDuplicates (Parameter name1 chType) ps)
 
 type family GoCheckParameters
   (tableFunctionParams :: [Type])
@@ -131,16 +123,17 @@ type family GoCheckParameters
   :: Constraint
   where
   GoCheckParameters '[] '[] '[] _ = ()
-  GoCheckParameters (p ': _) '[] '[] _ = TypeError
-    ('Text "Missing  \"" :<>: 'Text (GetParameterName p) :<>: 'Text "\" in passed parameters.")
-  GoCheckParameters '[] (p ': _) _ _ = TypeError
-    ('Text "More parameters passed than used in the view")
-  GoCheckParameters '[] '[] (p ': _) _ = TypeError
-    ('Text "More parameters passed than used in the view")
-  GoCheckParameters (p ': ps) '[] (p' ': ps') False = TypeError
-    ('Text "Missing  \"" :<>: 'Text (GetParameterName p) :<>: 'Text "\" in passed parameters")
-  GoCheckParameters (p ': ps) '[] (p' ': ps') True = GoCheckParameters (p ': ps) (p' ': ps') '[] False
-  GoCheckParameters (p ': ps) (p' ': ps') acc b = If
-    (GetParameterName p == GetParameterName p')
+  GoCheckParameters (Parameter name _ ': _) '[] '[] _ = TypeError
+    ('Text "Missing  \"" :<>: 'Text name :<>: 'Text "\" in passed parameters.")
+  GoCheckParameters '[] (p ': _) _ _ =
+    TypeError ('Text "More parameters passed than used in the view")
+  GoCheckParameters '[] '[] (p ': _) _ =
+    TypeError ('Text "More parameters passed than used in the view")
+  GoCheckParameters (Parameter name1 _ ': ps) '[] (Parameter name2 _ ': ps') False =
+    TypeError ('Text "Missing  \"" :<>: 'Text name1 :<>: 'Text "\" in passed parameters")
+  GoCheckParameters (p ': ps) '[] (p' ': ps') True =
+    GoCheckParameters (p ': ps) (p' ': ps') '[] False
+  GoCheckParameters (Parameter name1 _ ': ps) (Parameter name1 _ ': ps') acc b =
     (GoCheckParameters ps ps' acc True)
-    (GoCheckParameters (p ': ps) ps' (p' ': acc) b)
+  GoCheckParameters (Parameter name1 chType1 ': ps) (Parameter name2 chType2 ': ps') acc b =
+    (GoCheckParameters (Parameter name1 chType1 ': ps) ps' (Parameter name2 chType2 ': acc) b)
