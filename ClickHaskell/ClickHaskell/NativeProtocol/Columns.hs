@@ -16,18 +16,15 @@
 module ClickHaskell.NativeProtocol.Columns where
 
 -- Internal
-import ClickHaskell.DbTypes (IsChType(..), UVarInt, ChString, ToChType (..), ChUInt8)
-import ClickHaskell.NativeProtocol.Serialization
+import ClickHaskell.DbTypes (IsChType(..), UVarInt)
 
 
 -- GHC included
-import Data.ByteString (toStrict)
-import Data.ByteString.Builder as BS (Builder, stringUtf8, toLazyByteString)
+import Data.ByteString.Builder as BS (Builder, stringUtf8)
 import Data.Data (Proxy (Proxy))
 import Data.Kind (Type)
 import Data.Type.Bool (If)
 import Data.Type.Equality (type (==))
-import GHC.Generics (Generic)
 import GHC.TypeLits (ErrorMessage (..), KnownSymbol, Symbol, TypeError, symbolVal)
 
 
@@ -51,50 +48,6 @@ appendColumn = AddColumn
 
 emptyColumns :: Columns '[]
 emptyColumns = Empty
-
-
-
-data ColumnWithType = MkColumnWithType
-  { column_name :: ChString
-  , column_type :: ChString
-  }
-  deriving (Generic, Serializable)
-
-
-class ColumnTypesAndNames columns where columnsTypesAndNames :: [ColumnWithType]
-
-instance ColumnTypesAndNames '[] where columnsTypesAndNames = []
-
-instance
-  (CompiledColumn col, ColumnTypesAndNames xs)
-  =>
-  ColumnTypesAndNames (col ': xs)
-  where
-  columnsTypesAndNames = MkColumnWithType
-    (toChType . toStrict . toLazyByteString $ renderColumnName @col)
-    (toChType . toStrict . toLazyByteString $ renderColumnType @col)
-    : columnsTypesAndNames @xs
-
-
--- ** Columns serialization
--- No columns special case
-instance Serializable (Columns '[]) where
-  serialize _ _ = ""
-
-instance
-  ( Serializable (Column name1 chType1)
-  , Serializable (Columns (one ': xs))
-  )
-  =>
-  Serializable (Columns (Column name1 chType1 ': one ': xs)) where
-  serialize rev (AddColumn column extraColumns) = serialize rev column <> serialize rev extraColumns
-
-instance
-  Serializable (Column name chType)
-  =>
-  Serializable (Columns '[Column name chType])
-  where
-  serialize rev (AddColumn column Empty) = serialize rev column
 
 
 
@@ -141,18 +94,6 @@ type MyColumn = Column "myColumn" ChString -> Default
 @
 -}
 data Column (name :: Symbol) (chType :: Type) = MkColumn [chType]
-
-instance
-  ( CompiledColumn (Column name chType)
-  , IsChType chType
-  , Serializable chType
-  ) => Serializable (Column name chType) where
-  serialize rev (MkColumn values)
-    =  serialize rev (toChType @ChString . toStrict . toLazyByteString $ renderColumnName @(Column name chType))
-    <> serialize rev (toChType @ChString . toStrict . toLazyByteString $ renderColumnType @(Column name chType))
-    -- serialization is not custom
-    <> afterRevision @DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION rev (serialize @ChUInt8 rev 0)
-    <> mconcat (Prelude.map (serialize @chType rev) values)
 
 
 instance

@@ -25,8 +25,8 @@ import Control.Monad (replicateM)
 import Data.Binary.Get
 import Data.Binary.Get.Internal (readN)
 import Data.Bits (Bits (..))
-import Data.ByteString as BS (StrictByteString, length, take)
-import Data.ByteString.Builder (Builder)
+import Data.ByteString as BS (StrictByteString, length, take, toStrict)
+import Data.ByteString.Builder (Builder, toLazyByteString)
 import Data.ByteString.Builder as BS (byteString, int16LE, int32LE, int64LE, int8, word16LE, word32LE, word64LE, word8)
 import Data.Typeable (Proxy (..))
 import Data.Version (Version (..), showVersion)
@@ -34,6 +34,7 @@ import Data.WideWord (Int128 (..), Word128 (..))
 import GHC.Generics
 import GHC.TypeLits (KnownNat, Nat, natVal)
 import Language.Haskell.TH.Syntax (lift)
+import ClickHaskell.NativeProtocol.Columns
 
 -- * Serializable
 
@@ -69,6 +70,38 @@ instance Serializable ChString where
   serialize revision str
     =  (serialize @UVarInt revision . fromIntegral . BS.length . fromChType) str
     <> (BS.byteString . fromChType @_ @StrictByteString) str
+
+-- No columns special case
+instance Serializable (Columns '[]) where
+  serialize _ _ = ""
+
+instance
+  ( Serializable (Column name1 chType1)
+  , Serializable (Columns (one ': xs))
+  )
+  =>
+  Serializable (Columns (Column name1 chType1 ': one ': xs)) where
+  serialize rev (AddColumn column extraColumns) = serialize rev column <> serialize rev extraColumns
+
+instance
+  Serializable (Column name chType)
+  =>
+  Serializable (Columns '[Column name chType])
+  where
+  serialize rev (AddColumn column Empty) = serialize rev column
+
+instance
+  ( CompiledColumn (Column name chType)
+  , IsChType chType
+  , Serializable chType
+  ) => Serializable (Column name chType) where
+  serialize rev (MkColumn values)
+    =  serialize rev (toChType @ChString . toStrict . toLazyByteString $ renderColumnName @(Column name chType))
+    <> serialize rev (toChType @ChString . toStrict . toLazyByteString $ renderColumnType @(Column name chType))
+    -- serialization is not custom
+    <> afterRevision @DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION rev (serialize @ChUInt8 rev 0)
+    <> mconcat (Prelude.map (serialize @chType rev) values)
+
 
 class GSerializable f
   where
