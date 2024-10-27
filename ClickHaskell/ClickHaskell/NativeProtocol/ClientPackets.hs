@@ -3,9 +3,7 @@
   , DataKinds
   , DeriveAnyClass
   , DeriveGeneric
-  , DerivingStrategies
   , DuplicateRecordFields
-  , LambdaCase
   , NamedFieldPuns
   , OverloadedStrings
   , UndecidableInstances

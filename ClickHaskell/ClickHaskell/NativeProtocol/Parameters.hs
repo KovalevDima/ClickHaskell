@@ -4,11 +4,8 @@
   , InstanceSigs
   , NamedFieldPuns
   , OverloadedStrings
-  , PolyKinds
   , TypeFamilyDependencies
   , UndecidableInstances
-  , GADTs
-  , ScopedTypeVariables
 #-}
 
 module ClickHaskell.NativeProtocol.Parameters where
@@ -29,9 +26,8 @@ import Data.Type.Equality      (type(==))
 
 data Parameter (name :: Symbol) (chType :: Type)
 
-
 -- |
--- >>> parameters (parameter @"a3" @ChString ("a3Val" :: ByteString) . parameter @"a2" @ChString ("a2Val" :: ByteString))
+-- >>> parameters (parameter @"a3" @ChString ("a3Val" :: String) . parameter @"a2" @ChString ("a2Val" :: String))
 -- "(a2='a2Val', a3='a3Val')"
 parameters :: forall (params :: [Type]) . (ParametersInterpreter '[] -> ParametersInterpreter params) -> Builder
 parameters interpreter = renderParameters $ interpreter (MkParametersInterpreter [])
@@ -77,7 +73,7 @@ instance InterpretableParameters (x ': xs)
     :: forall name chType
     . (KnownSymbol name, ToQueryPart chType)
     => chType -> ParametersInterpreter (x : xs) -> WithPassedParameter (Parameter name chType) (x : xs)
-  interpretParameter chType (MkParametersInterpreter evaluatedParameters) =
+  interpretParameter chType (MkParametersInterpreter{evaluatedParameters}) =
     MkParametersInterpreter $ renderParameter @name @chType chType : evaluatedParameters
 
 renderParameter ::

@@ -4,7 +4,6 @@
   , DeriveGeneric
   , DerivingStrategies
   , GeneralizedNewtypeDeriving
-  , InstanceSigs
   , LambdaCase
   , OverloadedStrings
   , StandaloneDeriving

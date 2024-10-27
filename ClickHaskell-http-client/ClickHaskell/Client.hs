@@ -517,6 +517,14 @@ type family ThereIsNoWriteRequiredColumns (columns :: [Type]) :: Constraint wher
       (TypeError ('Text "Column " :<>: 'Text (GetColumnName column) :<>: 'Text " is required for insert but is missing"))
 
 
+-- ** HasColumns helper class
+
+class HasColumns (hasColumns :: k) where type GetColumns hasColumns :: [Type]
+instance HasColumns (View name columns params) where type GetColumns (View _ columns _) = columns
+instance HasColumns (Table name columns) where type GetColumns (Table _ columns) = columns
+instance HasColumns (columns :: [Type]) where type GetColumns columns = columns
+
+
 
 
 -- * Serialization

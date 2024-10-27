@@ -3,21 +3,19 @@
   , DataKinds
   , DeriveAnyClass
   , DeriveGeneric
-  , DerivingStrategies
-  , DuplicateRecordFields
   , LambdaCase
   , NamedFieldPuns
   , NumericUnderscores
   , OverloadedStrings
-  , UndecidableInstances
   , RecordWildCards
 #-}
 
 module ClickHaskell
   ( module ClickHaskell.DbTypes
-  , module ClickHaskell.Tables
   , ChCredential(..)
   , openNativeConnection
+  , Table
+  , View
   , selectFrom
   , insertInto
   , ping
@@ -26,10 +24,10 @@ module ClickHaskell
 
 -- Internal dependencies
 import ClickHaskell.DbTypes
-import ClickHaskell.NativeProtocol.ClientPackets (mkPingPacket, mkQueryPacket, mkDataPacket, mkHelloPacket, HelloParameters(..), mkAddendum)
-import ClickHaskell.NativeProtocol.Serialization (Deserializable(..), Serializable(..), ProtocolRevision, latestSupportedRevision)
-import ClickHaskell.NativeProtocol.ServerPackets (ServerPacketType(..), HelloResponse(..), ExceptionPacket)
-import ClickHaskell.Tables
+import ClickHaskell.NativeProtocol.ClientPackets (HelloParameters (..), mkAddendum, mkDataPacket, mkHelloPacket, mkPingPacket, mkQueryPacket)
+import ClickHaskell.NativeProtocol.Columns
+import ClickHaskell.NativeProtocol.Serialization (Deserializable (..), ProtocolRevision, Serializable (..), latestSupportedRevision)
+import ClickHaskell.NativeProtocol.ServerPackets (ExceptionPacket, HelloResponse (..), ServerPacketType (..))
 
 -- GHC included
 import Control.Exception (Exception, SomeException, bracketOnError, catch, finally, throw)
@@ -39,9 +37,11 @@ import Data.ByteString.Lazy.Char8 as BSL8 (head)
 import Data.ByteString.Lazy.Internal as BL (ByteString (..), LazyByteString)
 import Data.Char (ord)
 import Data.Int (Int64)
+import Data.Kind (Type)
 import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Text (Text)
 import GHC.Generics (Generic)
+import GHC.TypeLits (Symbol)
 import System.Timeout (timeout)
 
 -- External
@@ -127,6 +127,10 @@ ping conn@MkConnection{sock, chosenRevision} = do
 
 
 -- * Querying
+
+data Table (name :: Symbol) (columns :: [Type])
+data View (name :: Symbol) (columns :: [Type]) (parameters :: [Type])
+
 selectFrom :: Connection -> IO ()
 selectFrom MkConnection{sock, user, chosenRevision} = do
   (sendAll sock . toLazyByteString)

@@ -45,7 +45,6 @@ Library
     ClickHaskell.NativeProtocol.Parameters
     ClickHaskell.NativeProtocol.Serialization
     ClickHaskell.NativeProtocol.ServerPackets
-    ClickHaskell.Tables
   Other-Modules:
     Paths_ClickHaskell
   HS-Source-Dirs:

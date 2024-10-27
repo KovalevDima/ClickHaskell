@@ -1,16 +1,8 @@
 {-# LANGUAGE
     AllowAmbiguousTypes
   , DataKinds
-  , DeriveAnyClass
-  , DeriveGeneric
-  , InstanceSigs
-  , NamedFieldPuns
-  , OverloadedStrings
-  , PolyKinds
-  , TypeFamilyDependencies
   , UndecidableInstances
   , GADTs
-  , ScopedTypeVariables
 #-}
 
 module ClickHaskell.NativeProtocol.Columns where

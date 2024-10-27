@@ -2,13 +2,7 @@
     AllowAmbiguousTypes
   , DataKinds
   , DefaultSignatures
-  , DeriveAnyClass
-  , DeriveGeneric
-  , DerivingStrategies
-  , DuplicateRecordFields
   , GeneralizedNewtypeDeriving
-  , LambdaCase
-  , NamedFieldPuns
   , OverloadedStrings
   , TemplateHaskell
   , UndecidableInstances
@@ -18,6 +12,7 @@ module ClickHaskell.NativeProtocol.Serialization where
 
 -- Internal dependencies
 import ClickHaskell.DbTypes
+import ClickHaskell.NativeProtocol.Columns
 import Paths_ClickHaskell (version)
 
 -- GHC included
@@ -34,7 +29,6 @@ import Data.WideWord (Int128 (..), Word128 (..))
 import GHC.Generics
 import GHC.TypeLits (KnownNat, Nat, natVal)
 import Language.Haskell.TH.Syntax (lift)
-import ClickHaskell.NativeProtocol.Columns
 
 -- * Serializable
 

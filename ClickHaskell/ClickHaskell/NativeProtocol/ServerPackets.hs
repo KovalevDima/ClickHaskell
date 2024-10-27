@@ -1,14 +1,6 @@
 {-# LANGUAGE
-    AllowAmbiguousTypes
-  , DataKinds
-  , DeriveAnyClass
+    DeriveAnyClass
   , DeriveGeneric
-  , DerivingStrategies
-  , DuplicateRecordFields
-  , LambdaCase
-  , NamedFieldPuns
-  , OverloadedStrings
-  , UndecidableInstances
 #-}
 
 module ClickHaskell.NativeProtocol.ServerPackets where

@@ -39,6 +39,7 @@ Library
     Paths_ClickHaskell_http_client
   Exposed-Modules:
     ClickHaskell.Client
+    ClickHaskell.Tables
   Other-Modules:
     Paths_ClickHaskell_http_client
   HS-Source-Dirs:
