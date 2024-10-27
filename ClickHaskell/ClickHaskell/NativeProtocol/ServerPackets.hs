@@ -62,13 +62,22 @@ data HelloResponse = MkHelloResponse
   }
   deriving (Generic, Deserializable)
 
-instance Deserializable [PasswordComplexityRules] where
-  deserialize rev = do
-    _uvarInt <- deserialize @UVarInt rev
-    pure []
-
 data PasswordComplexityRules = MkPasswordComplexityRules
   { original_pattern :: ChString
   , exception_message :: ChString
   }
   deriving (Generic, Deserializable)
+
+
+
+
+-- ** Exception
+
+data ExceptionPacket = MkExceptionPacket
+  { code        :: ChInt32
+  , name        :: ChString
+  , message     :: ChString
+  , stack_trace :: ChString
+  , nested      :: ChUInt8
+  }
+  deriving (Generic, Deserializable, Show)

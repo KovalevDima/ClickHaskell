@@ -16,7 +16,7 @@ module ClickHaskell.NativeProtocol.ClientPackets where
 -- Internal dependencies
 import ClickHaskell.DbTypes
 import ClickHaskell.NativeProtocol.Serialization
-import ClickHaskell.Tables
+import ClickHaskell.NativeProtocol.Columns (Columns, columnsCount, rowsCount)
 
 -- GHC included
 import Data.ByteString.Builder (Builder)
@@ -238,20 +238,21 @@ instance Serializable QueryKind where
 
 -- ** Data
 
-data DataPacket = MkDataPacket
+data DataPacket columns = MkDataPacket
   { packet_type   :: Packet Data
-  , data_name     :: ChString
+  , table_name    :: ChString
   , block_info    :: BlockInfo
   , columns_count :: UVarInt
   , rows_count    :: UVarInt
+  , columns       :: Columns columns
   }
-  deriving (Generic, Serializable)
+  deriving (Generic)
+instance Serializable (Columns columns) => Serializable (DataPacket columns)
+
 
 data BlockInfo = MkBlockInfo
-  { field_num1   :: UVarInt
-  , is_overflows :: ChUInt8
-  , field_num2   :: UVarInt
-  , bucket_num   :: ChInt32
+  { field_num1   :: UVarInt, is_overflows :: ChUInt8
+  , field_num2   :: UVarInt, bucket_num   :: ChInt32
   , eof          :: UVarInt
   }
   deriving (Generic, Serializable)
@@ -261,18 +262,17 @@ type ColumnsCount = UVarInt
 type RowsCount = UVarInt
 type DataName = ChString
 
-mkDataPacket :: DataName -> Columns columns -> DataPacket
-mkDataPacket dataName columns =
+mkDataPacket :: forall columns . Serializable (Columns columns) => ChString -> Columns columns -> DataPacket columns
+mkDataPacket table_name columns =
   MkDataPacket
     { packet_type   = MkPacket
-    , data_name     = dataName
+    , table_name
     , block_info    = MkBlockInfo
-      { field_num1   = 1
-      , is_overflows = 0
-      , field_num2   = 2
-      , bucket_num   = -1
+      { field_num1   = 1, is_overflows = 0
+      , field_num2   = 2, bucket_num   = -1
       , eof          = 0
       }
     , columns_count = columnsCount columns
     , rows_count    = rowsCount columns
+    , columns
     }

@@ -18,43 +18,22 @@ module ClickHaskell.NativeProtocol.Serialization where
 
 -- Internal dependencies
 import ClickHaskell.DbTypes
-    ( ChUInt8,
-      FromChType(fromChType),
-      ChUInt16,
-      ChUInt32,
-      ChUInt64,
-      ChUInt128,
-      ChInt8,
-      ChInt16,
-      ChInt32,
-      ChInt64,
-      ChInt128,
-      ChString,
-      ToChType(toChType),
-      IsChType,
-      UVarInt )
-import ClickHaskell.Tables
 import Paths_ClickHaskell (version)
 
 -- GHC included
+import Control.Monad (replicateM)
 import Data.Binary.Get
 import Data.Binary.Get.Internal (readN)
 import Data.Bits (Bits (..))
-import Data.ByteString as BS (length, take, StrictByteString)
-import Data.ByteString.Builder (Builder, toLazyByteString)
-import Data.ByteString.Builder as BS
-  ( byteString
-  , int16LE, int32LE, int64LE, int8
-  , word16LE, word32LE, word64LE, word8
-  )
-import Data.ByteString.Lazy
+import Data.ByteString as BS (StrictByteString, length, take)
+import Data.ByteString.Builder (Builder)
+import Data.ByteString.Builder as BS (byteString, int16LE, int32LE, int64LE, int8, word16LE, word32LE, word64LE, word8)
 import Data.Typeable (Proxy (..))
 import Data.Version (Version (..), showVersion)
 import Data.WideWord (Int128 (..), Word128 (..))
 import GHC.Generics
 import GHC.TypeLits (KnownNat, Nat, natVal)
 import Language.Haskell.TH.Syntax (lift)
-import Debug.Trace (trace)
 
 -- * Serializable
 
@@ -63,6 +42,12 @@ class Serializable chType
   default serialize :: (Generic chType, GSerializable (Rep chType)) => ProtocolRevision -> chType -> Builder
   serialize :: ProtocolRevision -> chType -> Builder
   serialize rev = gSerialize rev . from
+
+
+instance Serializable chType => Serializable [chType] where
+  serialize rev list =
+    serialize @UVarInt rev (fromIntegral $ Prelude.length list)
+    <> mconcat (map (serialize @chType rev) list) 
 
 instance Serializable UVarInt where
   serialize _ = go
@@ -129,6 +114,11 @@ class
   deserialize :: ProtocolRevision -> Get chType
   deserialize rev = to <$> gDeserialize rev
 
+instance Deserializable chType => Deserializable [chType] where
+  deserialize rev = do
+    len <- deserialize @UVarInt rev
+    replicateM (fromIntegral len) (deserialize @chType rev)
+
 instance Deserializable UVarInt where
   deserialize _ = go 0 (0 :: UVarInt)
     where
@@ -186,7 +176,7 @@ instance
   where
   gDeserialize rev = do
     chType <- deserialize @chType rev
-    right <- trace ("using: " <> show rev) (gDeserialize rev)
+    right <- gDeserialize rev
     pure ((M1 . K1) chType :*: right)
 
 instance {-# OVERLAPS #-}
@@ -198,39 +188,6 @@ instance {-# OVERLAPS #-}
     server_revision <- deserialize @UVarInt client_revision
     right <- gDeserialize @right (min server_revision client_revision)
     pure ((M1 . K1) server_revision :*: right)
-
-
--- * Columns serialization
-
-instance
-  ( CompiledColumn (Column name chType)
-  , IsChType chType
-  , Serializable chType
-  ) => Serializable (Column name chType) where
-  serialize rev (MkColumn values)
-    =  serialize rev (toChType @ChString . toStrict . toLazyByteString $ renderColumnName @(Column name chType))
-    <> serialize rev (toChType @ChString . toStrict . toLazyByteString $ renderColumnType @(Column name chType))
-    <> mconcat (Prelude.map (serialize @chType rev) values)
-
-
--- No columns special case
-instance Serializable (Columns '[]) where
-  serialize _ _ = ""
-
-instance
-  ( Serializable (Column name1 chType1)
-  , Serializable (Columns (one ': xs))
-  )
-  =>
-  Serializable (Columns (Column name1 chType1 ': one ': xs)) where
-  serialize rev (AddColumn column extraColumns) = serialize rev column <> serialize rev extraColumns
-
-instance
-  Serializable (Column name chType)
-  =>
-  Serializable (Columns '[Column name chType])
-  where
-  serialize rev (AddColumn column Empty) = serialize rev column
 
 
 
@@ -330,12 +287,12 @@ type DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION = 54454;
 type DBMS_MIN_PROTOCOL_VERSION_WITH_INITIAL_QUERY_START_TIME = 54449;
 type DBMS_MIN_PROTOCOL_VERSION_WITH_PROFILE_EVENTS_IN_INSERT = 54456;
 type DBMS_MIN_PROTOCOL_VERSION_WITH_VIEW_IF_PERMITTED = 54457;
+-- Breakpoint ^
 type DBMS_MIN_PROTOCOL_VERSION_WITH_ADDENDUM = 54458;
 type DBMS_MIN_PROTOCOL_VERSION_WITH_QUOTA_KEY = 54458;
 type DBMS_MIN_PROTOCOL_VERSION_WITH_PARAMETERS = 54459;
 type DBMS_MIN_PROTOCOL_VERSION_WITH_SERVER_QUERY_TIME_IN_PROGRESS = 54460;
 type DBMS_MIN_PROTOCOL_VERSION_WITH_PASSWORD_COMPLEXITY_RULES = 54461;
--- Breakpoint ^
 type DBMS_MIN_REVISION_WITH_INTERSERVER_SECRET_V2 = 54462;
 type DBMS_MIN_PROTOCOL_VERSION_WITH_TOTAL_BYTES_IN_PROGRESS = 54463;
 type DBMS_MIN_PROTOCOL_VERSION_WITH_TIMEZONE_UPDATES = 54464;

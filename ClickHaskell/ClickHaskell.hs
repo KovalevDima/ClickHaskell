@@ -26,9 +26,9 @@ module ClickHaskell
 
 -- Internal dependencies
 import ClickHaskell.DbTypes
-import ClickHaskell.NativeProtocol.ClientPackets (mkPingPacket, mkQueryPacket, mkDataPacket, mkHelloPacket, HelloParameters(..))
+import ClickHaskell.NativeProtocol.ClientPackets (mkPingPacket, mkQueryPacket, mkDataPacket, mkHelloPacket, HelloParameters(..), mkAddendum)
 import ClickHaskell.NativeProtocol.Serialization (Deserializable(..), Serializable(..), ProtocolRevision, latestSupportedRevision)
-import ClickHaskell.NativeProtocol.ServerPackets (ServerPacketType(..), HelloResponse(..))
+import ClickHaskell.NativeProtocol.ServerPackets (ServerPacketType(..), HelloResponse(..), ExceptionPacket)
 import ClickHaskell.Tables
 
 -- GHC included
@@ -38,6 +38,7 @@ import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Lazy.Char8 as BSL8 (head)
 import Data.ByteString.Lazy.Internal as BL (ByteString (..), LazyByteString)
 import Data.Char (ord)
+import Data.Int (Int64)
 import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Text (Text)
 import GHC.Generics (Generic)
@@ -59,8 +60,9 @@ data ChCredential = MkChCredential
   deriving (Generic, Show, Eq)
 
 data Connection = MkConnection
-  { sock :: Socket
-  , user :: ChString
+  { sock           :: Socket
+  , user           :: ChString
+  , bufferSize     :: Int64
   , chosenRevision :: ProtocolRevision
   }
 
@@ -96,11 +98,17 @@ openNativeConnection MkChCredential{chHost, chPort, chLogin, chPass, chDatabase}
   serverPacketType <- determineServerPacket sock
   case serverPacketType of
     HelloResponse -> do
-      MkHelloResponse{server_revision} <- bufferizedRead latestSupportedRevision (recv sock 4096)
-      pure MkConnection{user=toChType chLogin, sock, chosenRevision=min server_revision latestSupportedRevision}
+      MkHelloResponse{server_revision} <- rawBufferizedRead latestSupportedRevision sock 4096
+      (sendAll sock . toLazyByteString . serialize server_revision) mkAddendum
+      pure MkConnection
+        { user = toChType chLogin
+        , chosenRevision = min server_revision latestSupportedRevision
+        , sock
+        , bufferSize = 4096
+        }
     Exception -> do
-      print =<< recv sock 4096
-      throw DatabaseException
+      dbException <- rawBufferizedRead @ExceptionPacket latestSupportedRevision sock 4096
+      throw $ DatabaseException dbException
     otherPacket -> throw . ProtocolImplementationError $ UnexpectedPacketType otherPacket
 
 
@@ -109,12 +117,12 @@ openNativeConnection MkChCredential{chHost, chPort, chLogin, chPass, chDatabase}
 -- * Ping
 
 ping :: Connection -> IO ()
-ping MkConnection{sock, chosenRevision} = do
+ping conn@MkConnection{sock, chosenRevision} = do
   (sendAll sock . toLazyByteString) (mkPingPacket chosenRevision)
   responscePacket <- determineServerPacket sock
   case responscePacket of
     Pong -> pure ()
-    Exception -> throw DatabaseException
+    Exception -> throw . DatabaseException =<< readDeserializable conn
     otherPacket -> throw . ProtocolImplementationError $ UnexpectedPacketType otherPacket
 
 
@@ -129,7 +137,7 @@ selectFrom MkConnection{sock, user, chosenRevision} = do
   pure ()
 
 
-insertInto :: Connection -> Columns columns -> IO ()
+insertInto :: Serializable (Columns columns) => Connection -> Columns columns -> IO ()
 insertInto MkConnection{sock, user, chosenRevision} columns = do
   (sendAll sock . toLazyByteString)
     (  serialize chosenRevision (mkQueryPacket chosenRevision user "INSERT INTO example (val) VALUES")
@@ -137,13 +145,11 @@ insertInto MkConnection{sock, user, chosenRevision} columns = do
     )
   print =<< recv sock 4096
   -- ^ answers with 11.TableColumns
-
   (sendAll sock . toLazyByteString)
-    (  serialize chosenRevision (mkDataPacket "" columns)
+    (  serialize chosenRevision (mkDataPacket "example" columns)
     <> serialize chosenRevision (mkDataPacket "" emptyColumns)
     )
   print =<< recv sock 4096
-  -- ^ asnwers with 1.Data
 
 -- * 
 
@@ -158,8 +164,11 @@ determineServerPacket sock = do
 
 -- ** Bufferized reading
 
-bufferizedRead :: forall packet . Deserializable packet => ProtocolRevision -> IO LazyByteString -> IO packet
-bufferizedRead rev bufferFiller = runBufferReader bufferFiller (runGetIncremental (deserialize @packet rev)) BL.Empty
+readDeserializable :: forall packet . Deserializable packet => Connection -> IO packet
+readDeserializable MkConnection{chosenRevision, sock, bufferSize} = rawBufferizedRead chosenRevision sock bufferSize
+
+rawBufferizedRead :: forall packet . Deserializable packet => ProtocolRevision -> Socket -> Int64 -> IO packet
+rawBufferizedRead rev sock bufferSize = runBufferReader (recv sock bufferSize) (runGetIncremental (deserialize @packet rev)) BL.Empty
 
 runBufferReader :: Deserializable packet => IO LazyByteString -> Decoder packet -> LazyByteString -> IO packet
 runBufferReader bufferFiller (Partial decoder) (BL.Chunk bs mChunk)
@@ -178,7 +187,7 @@ runBufferReader _bufferFiller (Fail _leftover _consumed msg) _currentBuffer = er
 
 data ClientError
   = ConnectionError ConnectionError
-  | DatabaseException
+  | DatabaseException ExceptionPacket
   | ProtocolImplementationError ProtocolImplementationError
   deriving (Show, Exception)
 
