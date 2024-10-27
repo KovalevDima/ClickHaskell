@@ -58,6 +58,7 @@
 
 # Ignore some builtin hints
 - ignore: {name: Use newtype instead of data}
+- ignore: {name: Use head}
 # - ignore: {name: Use const, within: SpecialModule} # Only within certain modules
 
 

@@ -17,12 +17,13 @@ import Paths_ClickHaskell (version)
 
 -- GHC included
 import Control.Monad (replicateM)
+import Data.Binary (Binary (..))
 import Data.Binary.Get
 import Data.Binary.Get.Internal (readN)
-import Data.Bits (Bits (..))
+import Data.Binary.Put (execPut)
 import Data.ByteString as BS (StrictByteString, length, take, toStrict)
 import Data.ByteString.Builder (Builder, toLazyByteString)
-import Data.ByteString.Builder as BS (byteString, int16LE, int32LE, int64LE, int8, word16LE, word32LE, word64LE, word8)
+import Data.ByteString.Builder as BS (byteString, word64LE)
 import Data.Typeable (Proxy (..))
 import Data.Version (Version (..), showVersion)
 import Data.WideWord (Int128 (..), Word128 (..))
@@ -42,23 +43,18 @@ class Serializable chType
 instance Serializable chType => Serializable [chType] where
   serialize rev list =
     serialize @UVarInt rev (fromIntegral $ Prelude.length list)
-    <> mconcat (map (serialize @chType rev) list) 
+    <> mconcat (map (serialize @chType rev) list)
 
-instance Serializable UVarInt where
-  serialize _ = go
-    where
-    go i
-      | i < 0x80 = word8 (fromIntegral i)
-      | otherwise = word8 (setBit (fromIntegral i) 7) <> go (unsafeShiftR i 7)
-instance Serializable ChUInt8 where serialize _ = word8 . fromChType
-instance Serializable ChUInt16 where serialize _ = word16LE . fromChType
-instance Serializable ChUInt32 where serialize _ = word32LE . fromChType
-instance Serializable ChUInt64 where serialize _ = word64LE . fromChType
+instance Serializable UVarInt where serialize _ = execPut . put
+instance Serializable ChUInt8 where serialize _ = execPut . put
+instance Serializable ChUInt16 where serialize _ = execPut . put
+instance Serializable ChUInt32 where serialize _ = execPut . put
+instance Serializable ChUInt64 where serialize _ = execPut . put
 instance Serializable ChUInt128 where serialize _ = (\(Word128 hi lo) -> word64LE hi <> word64LE lo) . fromChType
-instance Serializable ChInt8 where serialize _ = int8 . fromChType
-instance Serializable ChInt16 where serialize _ = int16LE . fromChType
-instance Serializable ChInt32 where serialize _ = int32LE . fromChType
-instance Serializable ChInt64 where serialize _ = int64LE . fromChType
+instance Serializable ChInt8 where serialize _ = execPut . put
+instance Serializable ChInt16 where serialize _ = execPut . put
+instance Serializable ChInt32 where serialize _ = execPut . put
+instance Serializable ChInt64 where serialize _ = execPut . put
 instance Serializable ChInt128 where serialize _ = (\(Int128 hi lo) -> word64LE hi <> word64LE lo) . fromChType
 instance Serializable ChString where
   serialize revision str
@@ -146,28 +142,52 @@ instance Deserializable chType => Deserializable [chType] where
     len <- deserialize @UVarInt rev
     replicateM (fromIntegral len) (deserialize @chType rev)
 
-instance Deserializable UVarInt where
-  deserialize _ = go 0 (0 :: UVarInt)
-    where
-    go i o | i < 10 = do
-      byte <- getWord8
-      let o' = o .|. ((fromIntegral byte .&. 0x7f) `unsafeShiftL` (7 * i))
-      if byte .&. 0x80 == 0 then pure $! o' else go (i + 1) $! o'
-    go _ _ = fail "input exceeds varuint size"
-instance Deserializable ChUInt8 where deserialize _ = toChType <$> getWord8
-instance Deserializable ChUInt16 where deserialize _ = toChType <$> getWord16le
-instance Deserializable ChUInt32 where deserialize _ = toChType <$> getWord32le
-instance Deserializable ChUInt64 where deserialize _ = toChType <$> getWord64le
+instance Deserializable UVarInt where deserialize _ = get
+instance Deserializable ChUInt8 where deserialize _ = get
+instance Deserializable ChUInt16 where deserialize _ = get
+instance Deserializable ChUInt32 where deserialize _ = get
+instance Deserializable ChUInt64 where deserialize _ = get
 instance Deserializable ChUInt128 where deserialize _ = toChType <$> (Word128 <$> getWord64le <*> getWord64le)
-instance Deserializable ChInt8 where deserialize _ = toChType <$> getInt8
-instance Deserializable ChInt16 where deserialize _ = toChType <$> getInt16le
-instance Deserializable ChInt32 where deserialize _ = toChType <$> getInt32le
-instance Deserializable ChInt64 where deserialize _ = toChType <$> getInt64le
+instance Deserializable ChInt8 where deserialize _ = get
+instance Deserializable ChInt16 where deserialize _ = get
+instance Deserializable ChInt32 where deserialize _ = get
+instance Deserializable ChInt64 where deserialize _ = get
 instance Deserializable ChInt128 where deserialize _ = toChType <$> (Int128 <$> getWord64le <*> getWord64le)
 instance Deserializable ChString where
   deserialize revision = do
     strSize <- fromIntegral <$> deserialize @UVarInt revision
     toChType <$> readN strSize (BS.take strSize)
+
+-- No columns special case
+instance Deserializable (Columns '[]) where
+  deserialize _ = pure emptyColumns
+
+instance
+  ( Deserializable (Column name1 chType1)
+  , Deserializable (Columns (one ': xs))
+  )
+  =>
+  Deserializable (Columns (Column name1 chType1 ': one ': xs)) where
+  deserialize rev = do
+    a <- deserialize rev
+    b <- deserialize rev
+    pure $ appendColumn a b
+
+
+instance
+  Deserializable (Column name chType)
+  =>
+  Deserializable (Columns '[Column name chType])
+  where
+  deserialize rev = (`appendColumn` emptyColumns) <$> deserialize rev
+
+instance
+  ( CompiledColumn (Column name chType)
+  , IsChType chType
+  , Deserializable chType
+  ) => Deserializable (Column name chType) where
+  deserialize _rev = undefined
+
 
 class GDeserializable f
   where
@@ -190,7 +210,7 @@ instance
     <$> gDeserialize rev
 
 instance
-  (Deserializable chType)
+  Deserializable chType
   =>
   GDeserializable (S1 (MetaSel (Just typeName) a b f) (Rec0 chType))
   where
@@ -314,7 +334,6 @@ type DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION = 54454;
 type DBMS_MIN_PROTOCOL_VERSION_WITH_INITIAL_QUERY_START_TIME = 54449;
 type DBMS_MIN_PROTOCOL_VERSION_WITH_PROFILE_EVENTS_IN_INSERT = 54456;
 type DBMS_MIN_PROTOCOL_VERSION_WITH_VIEW_IF_PERMITTED = 54457;
--- Breakpoint ^
 type DBMS_MIN_PROTOCOL_VERSION_WITH_ADDENDUM = 54458;
 type DBMS_MIN_PROTOCOL_VERSION_WITH_QUOTA_KEY = 54458;
 type DBMS_MIN_PROTOCOL_VERSION_WITH_PARAMETERS = 54459;

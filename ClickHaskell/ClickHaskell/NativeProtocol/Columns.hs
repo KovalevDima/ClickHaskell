@@ -22,7 +22,7 @@ import GHC.TypeLits (ErrorMessage (..), KnownSymbol, Symbol, TypeError, symbolVa
 
 -- * Columns
 
-data Columns columns where
+data Columns (columns) where
   Empty :: Columns '[]
   AddColumn :: Column name chType -> Columns cols -> Columns (Column name chType ': cols)
 

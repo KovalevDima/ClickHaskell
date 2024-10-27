@@ -1,5 +1,6 @@
 {-# LANGUAGE
     AllowAmbiguousTypes
+  , DefaultSignatures
   , DataKinds
   , DeriveAnyClass
   , DeriveGeneric
@@ -7,7 +8,9 @@
   , NamedFieldPuns
   , NumericUnderscores
   , OverloadedStrings
+  , PolyKinds
   , RecordWildCards
+  , UndecidableInstances
 #-}
 
 module ClickHaskell
@@ -25,14 +28,14 @@ module ClickHaskell
 -- Internal dependencies
 import ClickHaskell.DbTypes
 import ClickHaskell.NativeProtocol.ClientPackets (HelloParameters (..), mkAddendum, mkDataPacket, mkHelloPacket, mkPingPacket, mkQueryPacket)
-import ClickHaskell.NativeProtocol.Columns
+import ClickHaskell.NativeProtocol.Columns (Column, Columns, appendColumn, emptyColumns, mkColumn)
 import ClickHaskell.NativeProtocol.Serialization (Deserializable (..), ProtocolRevision, Serializable (..), latestSupportedRevision)
 import ClickHaskell.NativeProtocol.ServerPackets (ExceptionPacket, HelloResponse (..), ServerPacketType (..))
 
 -- GHC included
 import Control.Exception (Exception, SomeException, bracketOnError, catch, finally, throw)
 import Data.Binary.Get (Decoder (..), runGetIncremental)
-import Data.ByteString.Builder (toLazyByteString)
+import Data.ByteString.Builder (Builder, toLazyByteString)
 import Data.ByteString.Lazy.Char8 as BSL8 (head)
 import Data.ByteString.Lazy.Internal as BL (ByteString (..), LazyByteString)
 import Data.Char (ord)
@@ -40,7 +43,8 @@ import Data.Int (Int64)
 import Data.Kind (Type)
 import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Text (Text)
-import GHC.Generics (Generic)
+import Data.Word (Word32)
+import GHC.Generics
 import GHC.TypeLits (Symbol)
 import System.Timeout (timeout)
 
@@ -106,9 +110,9 @@ openNativeConnection MkChCredential{chHost, chPort, chLogin, chPass, chDatabase}
         , sock
         , bufferSize = 4096
         }
-    Exception -> do
-      dbException <- rawBufferizedRead @ExceptionPacket latestSupportedRevision sock 4096
-      throw $ DatabaseException dbException
+    Exception ->
+      throw . DatabaseException
+        =<< rawBufferizedRead @ExceptionPacket latestSupportedRevision sock 4096
     otherPacket -> throw . ProtocolImplementationError $ UnexpectedPacketType otherPacket
 
 
@@ -123,22 +127,24 @@ ping conn@MkConnection{sock, chosenRevision} = do
   case responscePacket of
     Pong -> pure ()
     Exception -> throw . DatabaseException =<< readDeserializable conn
-    otherPacket -> throw . ProtocolImplementationError $ UnexpectedPacketType otherPacket
+    otherPacket -> (throw . ProtocolImplementationError . UnexpectedPacketType) otherPacket
+
+
 
 
 -- * Querying
 
-data Table (name :: Symbol) (columns :: [Type])
-data View (name :: Symbol) (columns :: [Type]) (parameters :: [Type])
+data Table (name :: Symbol) columns = MkTable (Columns columns)
+data View (name :: Symbol) (columns :: [Type]) parameters
 
-selectFrom :: Connection -> IO ()
+selectFrom :: forall table record . (ReadableFrom table record) => Connection -> IO [record]
 selectFrom MkConnection{sock, user, chosenRevision} = do
   (sendAll sock . toLazyByteString)
     (  serialize chosenRevision (mkQueryPacket chosenRevision user "SELECT 5")
     <> serialize chosenRevision (mkDataPacket "" emptyColumns)
     )
   _ <- recv sock 4096
-  pure ()
+  pure []
 
 
 insertInto :: Serializable (Columns columns) => Connection -> Columns columns -> IO ()
@@ -150,7 +156,7 @@ insertInto MkConnection{sock, user, chosenRevision} columns = do
   print =<< recv sock 4096
   -- ^ answers with 11.TableColumns
   (sendAll sock . toLazyByteString)
-    (  serialize chosenRevision (mkDataPacket "example" columns)
+    (  serialize chosenRevision (mkDataPacket "" columns)
     <> serialize chosenRevision (mkDataPacket "" emptyColumns)
     )
   print =<< recv sock 4096
@@ -214,23 +220,70 @@ data ConnectionError
 
 
 
+-- * Interface
+
+class
+  ReadableFrom columns record
+  where
+  default fromColumns :: (Generic record, GReadable columns (Rep record)) => columns -> [record]
+  fromColumns :: columns -> [record]
+  fromColumns = map to . gFromColumns @columns
+
+  default readingColumns :: (Generic record, GReadable columns (Rep record)) => Builder
+  readingColumns :: Builder
+  readingColumns = gReadingColumns @columns @(Rep record)
+
+instance
+  ReadableFrom (Table name columns) record
+  =>
+  ReadableFrom (Columns columns) record
+  where
+  fromColumns columns = fromColumns @(Table name columns) (MkTable columns)
+  readingColumns = readingColumns @(Table name columns) @record
+
+class GReadable columns f
+  where
+  gFromColumns :: columns -> [f p]
+  gReadingColumns :: Builder
+
+instance
+  GReadable columns f
+  =>
+  GReadable columns (D1 c (C1 c2 f))
+  where
+  gFromColumns = map (M1 . M1) . gFromColumns @columns
+  gReadingColumns = gReadingColumns @columns @f
+
+
+
+
 -- * Dev
 
 dev :: IO ()
 dev = do
   connection <- openNativeConnection devCredential
   print "Connected"
-  -- replicateM_ 500 (ping connection)
-  -- print "Pinged"
-  -- replicateM_ 500 (selectFrom connection)
-  -- print "Dummy queries done"
+  ping connection
+  print "Pinged"
+  _a <- selectFrom @ExampleTable @ExampleData connection
+  print "Dummy queries done"
   insertInto connection devColumns
 
 devColumns :: Columns '[Column "val" ChUInt32]
 devColumns = appendColumn devColumn emptyColumns
 
 devColumn :: Column "val" ChUInt32
-devColumn = mkColumn [5, 5, 5]
+devColumn = mkColumn $ replicate 500 5
+
+type ExampleTable = Table "example" '[Column "val" ChUInt32]
+
+data ExampleData = MkExample
+  { val :: Word32
+  }
+
+instance ReadableFrom ExampleTable ExampleData where
+  fromColumns _ = [MkExample{val=5}]
+  readingColumns = "val"
 
 devCredential :: ChCredential
 devCredential = MkChCredential

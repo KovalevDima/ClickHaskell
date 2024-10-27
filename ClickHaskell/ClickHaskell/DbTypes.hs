@@ -55,9 +55,9 @@ import Control.DeepSeq (NFData)
 import Data.Binary (Binary (..))
 import Data.Binary.Get
 import Data.Binary.Put
-import Data.Bits (Bits)
+import Data.Bits (Bits (..))
 import Data.ByteString as BS (StrictByteString)
-import Data.ByteString.Builder as BS (Builder, byteString)
+import Data.ByteString.Builder as BS (Builder, byteString, word8)
 import Data.ByteString.Char8 as BS8 (concatMap, length, pack, replicate, singleton)
 import Data.Coerce (coerce)
 import Data.Int (Int16, Int32, Int64, Int8)
@@ -459,7 +459,7 @@ instance ToChType ChUInt8 ChUInt8 where toChType = id
 instance ToChType ChUInt8 Word8   where toChType = MkChUInt8
 
 instance FromChType ChUInt8 ChUInt8 where fromChType = id
-instance FromChType ChUInt8 Word8   where fromChType (MkChUInt8 word8) = word8
+instance FromChType ChUInt8 Word8   where fromChType (MkChUInt8 w8) = w8
 
 
 
@@ -648,4 +648,18 @@ instance ToChType chType inputType => ToChType (ChArray chType) [inputType] wher
   Part of protocol implementation
 -}
 newtype UVarInt = MkUVarInt Word64
-  deriving newtype (Show, Eq, Num, Prim, Bits, Enum, Ord, Real, Integral, Bounded, NFData, Binary)
+  deriving newtype (Show, Eq, Num, Prim, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
+
+instance Binary UVarInt where
+  get = go 0 (0 :: UVarInt)
+    where
+    go i o | i < 10 = do
+      byte <- getWord8
+      let o' = o .|. ((fromIntegral byte .&. 0x7f) `unsafeShiftL` (7 * i))
+      if byte .&. 0x80 == 0 then pure $! o' else go (i + 1) $! o'
+    go _ _ = fail "input exceeds varuint size"
+  put = putBuilder . go
+    where
+    go i
+      | i < 0x80 = word8 (fromIntegral i)
+      | otherwise = word8 (setBit (fromIntegral i) 7) <> go (unsafeShiftR i 7)
