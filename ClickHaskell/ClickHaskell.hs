@@ -151,7 +151,10 @@ insertInto MkConnection{sock, user, chosenRevision} columns = do
     )
   print =<< recv sock 4096
 
--- * 
+
+
+
+-- * Reading
 
 determineServerPacket :: Socket -> IO ServerPacketType
 determineServerPacket sock = do
@@ -161,11 +164,10 @@ determineServerPacket sock = do
     then toEnum headByte
     else throw $ ProtocolImplementationError UnknownPacketType
 
-
--- ** Bufferized reading
-
 readDeserializable :: forall packet . Deserializable packet => Connection -> IO packet
 readDeserializable MkConnection{chosenRevision, sock, bufferSize} = rawBufferizedRead chosenRevision sock bufferSize
+
+-- ** Bufferization
 
 rawBufferizedRead :: forall packet . Deserializable packet => ProtocolRevision -> Socket -> Int64 -> IO packet
 rawBufferizedRead rev sock bufferSize = runBufferReader (recv sock bufferSize) (runGetIncremental (deserialize @packet rev)) BL.Empty
