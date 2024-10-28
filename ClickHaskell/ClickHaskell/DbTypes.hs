@@ -47,16 +47,17 @@ module ClickHaskell.DbTypes
 
 -- External
 import Data.UUID     as UUID (UUID, toWords64, fromWords64)
-import Data.WideWord (Int128, Word128(Word128))
+import Data.WideWord (Int128 (..), Word128(Word128))
 
 
 -- GHC included
 import Control.DeepSeq (NFData)
 import Data.Binary (Binary (..))
 import Data.Binary.Get
+import Data.Binary.Get.Internal (readN)
 import Data.Binary.Put
 import Data.Bits (Bits (..))
-import Data.ByteString as BS (StrictByteString)
+import Data.ByteString as BS (StrictByteString, length, take)
 import Data.ByteString.Builder as BS (Builder, byteString, word8)
 import Data.ByteString.Char8 as BS8 (concatMap, length, pack, replicate, singleton)
 import Data.Coerce (coerce)
@@ -270,7 +271,15 @@ instance FromChType ChUUID UUID   where fromChType (MkChUUID uuid) = uuid
 
 -- | ClickHouse String column type
 newtype ChString = MkChString StrictByteString
-  deriving newtype (Show, Eq, IsString, NFData, Binary)
+  deriving newtype (Show, Eq, IsString, NFData)
+
+instance Binary ChString where
+  put str
+    =  (put @UVarInt . fromIntegral . BS.length . fromChType) str
+    <> (putByteString . fromChType @_ @StrictByteString) str
+  get = do
+    strSize <- fromIntegral <$> get @UVarInt
+    toChType <$> readN strSize (BS.take strSize)
 
 instance IsChType ChString
   where
@@ -418,7 +427,11 @@ instance FromChType ChInt64 Int64   where fromChType = coerce
 
 -- | ClickHouse Int128 column type
 newtype ChInt128 = MkChInt128 Int128
-  deriving newtype (Show, Eq, Num, Prim, Bits, Ord, Real, Enum, Integral, Bounded, NFData, Binary)
+  deriving newtype (Show, Eq, Num, Prim, Bits, Ord, Real, Enum, Integral, Bounded, NFData)
+
+instance Binary ChInt128 where
+  get = toChType <$> (Int128 <$> getWord64le <*> getWord64le)
+  put = (\(Int128 hi lo) -> putWord64le hi <> putWord64le lo) . fromChType
 
 instance IsChType ChInt128
   where

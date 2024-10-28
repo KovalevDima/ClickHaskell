@@ -19,14 +19,11 @@ import Paths_ClickHaskell (version)
 import Control.Monad (replicateM)
 import Data.Binary (Binary (..))
 import Data.Binary.Get
-import Data.Binary.Get.Internal (readN)
 import Data.Binary.Put (execPut)
-import Data.ByteString as BS (StrictByteString, length, take, toStrict)
+import Data.ByteString as BS (toStrict)
 import Data.ByteString.Builder (Builder, toLazyByteString)
-import Data.ByteString.Builder as BS (byteString, word64LE)
 import Data.Typeable (Proxy (..))
 import Data.Version (Version (..), showVersion)
-import Data.WideWord (Int128 (..), Word128 (..))
 import GHC.Generics
 import GHC.TypeLits (KnownNat, Nat, natVal)
 import Language.Haskell.TH.Syntax (lift)
@@ -45,21 +42,10 @@ instance Serializable chType => Serializable [chType] where
     serialize @UVarInt rev (fromIntegral $ Prelude.length list)
     <> mconcat (map (serialize @chType rev) list)
 
+instance {-# OVERLAPPABLE #-} (IsChType chType, Binary chType)
+  => Serializable chType where serialize _ = execPut . put
 instance Serializable UVarInt where serialize _ = execPut . put
-instance Serializable ChUInt8 where serialize _ = execPut . put
-instance Serializable ChUInt16 where serialize _ = execPut . put
-instance Serializable ChUInt32 where serialize _ = execPut . put
-instance Serializable ChUInt64 where serialize _ = execPut . put
-instance Serializable ChUInt128 where serialize _ = (\(Word128 hi lo) -> word64LE hi <> word64LE lo) . fromChType
-instance Serializable ChInt8 where serialize _ = execPut . put
-instance Serializable ChInt16 where serialize _ = execPut . put
-instance Serializable ChInt32 where serialize _ = execPut . put
-instance Serializable ChInt64 where serialize _ = execPut . put
-instance Serializable ChInt128 where serialize _ = (\(Int128 hi lo) -> word64LE hi <> word64LE lo) . fromChType
-instance Serializable ChString where
-  serialize revision str
-    =  (serialize @UVarInt revision . fromIntegral . BS.length . fromChType) str
-    <> (BS.byteString . fromChType @_ @StrictByteString) str
+
 
 -- No columns special case
 instance Serializable (Columns '[]) where
@@ -142,21 +128,9 @@ instance Deserializable chType => Deserializable [chType] where
     len <- deserialize @UVarInt rev
     replicateM (fromIntegral len) (deserialize @chType rev)
 
+instance {-# OVERLAPPABLE #-} (IsChType chType, Binary chType)
+  => Deserializable chType where deserialize _ = get
 instance Deserializable UVarInt where deserialize _ = get
-instance Deserializable ChUInt8 where deserialize _ = get
-instance Deserializable ChUInt16 where deserialize _ = get
-instance Deserializable ChUInt32 where deserialize _ = get
-instance Deserializable ChUInt64 where deserialize _ = get
-instance Deserializable ChUInt128 where deserialize _ = toChType <$> (Word128 <$> getWord64le <*> getWord64le)
-instance Deserializable ChInt8 where deserialize _ = get
-instance Deserializable ChInt16 where deserialize _ = get
-instance Deserializable ChInt32 where deserialize _ = get
-instance Deserializable ChInt64 where deserialize _ = get
-instance Deserializable ChInt128 where deserialize _ = toChType <$> (Int128 <$> getWord64le <*> getWord64le)
-instance Deserializable ChString where
-  deserialize revision = do
-    strSize <- fromIntegral <$> deserialize @UVarInt revision
-    toChType <$> readN strSize (BS.take strSize)
 
 -- No columns special case
 instance Deserializable (Columns '[]) where
