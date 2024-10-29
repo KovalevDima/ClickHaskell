@@ -71,7 +71,7 @@ instance
   , IsChType chType
   , Serializable chType
   ) => Serializable (Column name chType) where
-  serialize rev (MkColumn values)
+  serialize rev (MkColumn _size values)
     =  serialize rev (toChType @ChString . toStrict . toLazyByteString $ renderColumnName @(Column name chType))
     <> serialize rev (toChType @ChString . toStrict . toLazyByteString $ renderColumnType @(Column name chType))
     -- serialization is not custom
@@ -95,8 +95,7 @@ instance
   =>
   GSerializable ((left1 :*: left2) :*: right)
   where
-  gSerialize rev ((left :*: left2) :*: right)
-    = gSerialize rev (left :*: (left2 :*: right))
+  gSerialize rev ((l1 :*: l2) :*: r) = gSerialize rev (l1 :*: (l2 :*: r))
 
 instance
   Serializable chType
@@ -142,25 +141,21 @@ instance
   )
   =>
   Deserializable (Columns (Column name1 chType1 ': one ': xs)) where
-  deserialize rev = do
-    a <- deserialize rev
-    b <- deserialize rev
-    pure $ appendColumn a b
-
+  deserialize rev = appendColumn <$> deserialize rev <*> deserialize rev
 
 instance
   Deserializable (Column name chType)
   =>
   Deserializable (Columns '[Column name chType])
   where
-  deserialize rev = (`appendColumn` emptyColumns) <$> deserialize rev
+  deserialize rev = appendColumn <$> deserialize rev <*> pure emptyColumns
 
 instance
   ( CompiledColumn (Column name chType)
   , IsChType chType
   , Deserializable chType
   ) => Deserializable (Column name chType) where
-  deserialize _rev = undefined
+  deserialize rev = MkColumn 5 <$> replicateM 5 (deserialize rev)
 
 
 class GDeserializable f
@@ -179,9 +174,14 @@ instance
   =>
   GDeserializable ((left :*: right1) :*: right2)
   where
-  gDeserialize rev =
-    (\(left :*: (right1 :*: right2)) -> (left :*: right1) :*: right2)
-    <$> gDeserialize rev
+  gDeserialize rev = (\(l :*: (r1 :*: r2)) -> (l :*: r1) :*: r2) <$> gDeserialize rev
+
+instance
+  (GDeserializable (S1 metaSel field), GDeserializable right)
+  =>
+  GDeserializable (S1 metaSel field :*: right)
+  where
+  gDeserialize rev = (:*:) <$> gDeserialize rev <*> gDeserialize rev
 
 instance
   Deserializable chType
@@ -190,16 +190,10 @@ instance
   where
   gDeserialize rev =  M1 . K1 <$> deserialize @chType rev
 
-instance
-  (Deserializable chType, GDeserializable right)
-  =>
-  GDeserializable (S1 (MetaSel (Just typeName) a b f) (Rec0 chType) :*: right)
-  where
-  gDeserialize rev = do
-    chType <- deserialize @chType rev
-    right <- gDeserialize rev
-    pure ((M1 . K1) chType :*: right)
-
+{-
+  When we run into server_revision field then override current protocol revision
+  for backward compatibility
+-}
 instance {-# OVERLAPS #-}
   GDeserializable right
   =>

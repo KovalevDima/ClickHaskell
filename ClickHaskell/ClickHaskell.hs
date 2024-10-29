@@ -28,7 +28,7 @@ module ClickHaskell
 -- Internal dependencies
 import ClickHaskell.DbTypes
 import ClickHaskell.NativeProtocol.ClientPackets (HelloParameters (..), mkAddendum, mkDataPacket, mkHelloPacket, mkPingPacket, mkQueryPacket)
-import ClickHaskell.NativeProtocol.Columns (Column, Columns, appendColumn, emptyColumns, mkColumn)
+import ClickHaskell.NativeProtocol.Columns (Column (..), Columns, appendColumn, emptyColumns)
 import ClickHaskell.NativeProtocol.Serialization (Deserializable (..), ProtocolRevision, Serializable (..), latestSupportedRevision)
 import ClickHaskell.NativeProtocol.ServerPackets (ExceptionPacket, HelloResponse (..), ServerPacketType (..))
 
@@ -273,7 +273,7 @@ devColumns :: Columns '[Column "val" ChUInt32]
 devColumns = appendColumn devColumn emptyColumns
 
 devColumn :: Column "val" ChUInt32
-devColumn = mkColumn $ replicate 500 5
+devColumn = MkColumn 500 $ replicate 500 5
 
 type ExampleTable = Table "example" '[Column "val" ChUInt32]
 

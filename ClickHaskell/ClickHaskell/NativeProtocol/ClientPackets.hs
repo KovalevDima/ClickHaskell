@@ -8,6 +8,7 @@
   , OverloadedStrings
   , UndecidableInstances
 #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module ClickHaskell.NativeProtocol.ClientPackets where
 
@@ -245,7 +246,16 @@ data DataPacket columns = MkDataPacket
   , columns       :: Columns columns
   }
   deriving (Generic)
+
 instance Serializable (Columns columns) => Serializable (DataPacket columns)
+instance Deserializable (DataPacket columns) where
+  deserialize rev = do
+    table_name <- deserialize rev
+    block_info <- deserialize rev
+    columns_count <- deserialize rev
+    rows_count <- deserialize rev
+    columns <- undefined
+    pure MkDataPacket{packet_type = MkPacket, ..}
 
 
 data BlockInfo = MkBlockInfo
@@ -253,7 +263,7 @@ data BlockInfo = MkBlockInfo
   , field_num2   :: UVarInt, bucket_num   :: ChInt32
   , eof          :: UVarInt
   }
-  deriving (Generic, Serializable)
+  deriving (Generic, Serializable, Deserializable)
 
 
 type ColumnsCount = UVarInt

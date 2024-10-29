@@ -22,7 +22,7 @@ import GHC.TypeLits (ErrorMessage (..), KnownSymbol, Symbol, TypeError, symbolVa
 
 -- * Columns
 
-data Columns (columns) where
+data Columns columns where
   Empty :: Columns '[]
   AddColumn :: Column name chType -> Columns cols -> Columns (Column name chType ': cols)
 
@@ -32,7 +32,7 @@ columnsCount (AddColumn _ restColuns) = 1 + columnsCount restColuns
 
 rowsCount :: Columns columns -> UVarInt
 rowsCount Empty = 0
-rowsCount (AddColumn (MkColumn vec) _) = fromIntegral $ length vec
+rowsCount (AddColumn (MkColumn size _vec) _) = size
 
 
 appendColumn :: Column name chType -> Columns xs -> Columns (Column name chType ': xs)
@@ -71,9 +71,6 @@ type family
 
 -- ** Column declaration
 
-mkColumn :: [chType] -> Column name chType
-mkColumn = MkColumn
-
 {- |
 Column declaration
 
@@ -85,7 +82,7 @@ type MyColumn = Column "myColumn" ChString -> Alias
 type MyColumn = Column "myColumn" ChString -> Default
 @
 -}
-data Column (name :: Symbol) (chType :: Type) = MkColumn [chType]
+data Column (name :: Symbol) (chType :: Type) = MkColumn UVarInt [chType]
 
 
 instance
@@ -187,4 +184,3 @@ class
 
   type WritableColumn    columnDescription :: Maybe ErrorMessage
   type WriteOptionalColumn columnDescription :: Bool
-
