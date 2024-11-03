@@ -15,7 +15,7 @@ module ClickHaskell.NativeProtocol.ClientPackets where
 -- Internal dependencies
 import ClickHaskell.DbTypes
 import ClickHaskell.NativeProtocol.Serialization
-import ClickHaskell.NativeProtocol.Columns (Columns, columnsCount, rowsCount)
+import ClickHaskell.NativeProtocol.Columns (Columns, columnsCount, rowsCount, KnownColumns)
 
 -- GHC included
 import Data.ByteString.Builder (Builder)
@@ -270,7 +270,9 @@ type ColumnsCount = UVarInt
 type RowsCount = UVarInt
 type DataName = ChString
 
-mkDataPacket :: forall columns . Serializable (Columns columns) => ChString -> Columns columns -> DataPacket columns
+mkDataPacket :: forall columns
+  . (Serializable (Columns columns), KnownColumns (Columns columns))
+  => ChString -> Columns columns -> DataPacket columns
 mkDataPacket table_name columns =
   MkDataPacket
     { packet_type   = MkPacket
@@ -280,7 +282,7 @@ mkDataPacket table_name columns =
       , field_num2   = 2, bucket_num   = -1
       , eof          = 0
       }
-    , columns_count = columnsCount columns
+    , columns_count = columnsCount @(Columns columns)
     , rows_count    = rowsCount columns
     , columns
     }

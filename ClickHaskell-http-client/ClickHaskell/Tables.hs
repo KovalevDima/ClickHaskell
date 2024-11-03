@@ -12,5 +12,5 @@ module ClickHaskell.Tables
 
 -- Internal
 import ClickHaskell.NativeProtocol.Columns (CompiledColumn(..), Default, Alias, Column(..), TakeColumn, Columns(..), columnsCount, rowsCount, appendColumn, emptyColumns)
-import ClickHaskell.NativeProtocol.Parameters (CheckParameters, InterpretableParameters(..), ParametersInterpreter(..), Parameter, parameters, parameter)
+import ClickHaskell.NativeProtocol.Parameters (CheckParameters, InterpretableParameters(..), ParametersInterpreter, Parameters(..), Parameter, parameters, parameter)
 import ClickHaskell (View, Table)

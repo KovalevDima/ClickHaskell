@@ -18,7 +18,10 @@ module ClickHaskell
   , ChCredential(..)
   , openNativeConnection
   , Table
+  , ReadableFrom(..)
+  , WritableInto(..)
   , View
+  , select
   , selectFrom
   , insertInto
   , ping
@@ -28,14 +31,15 @@ module ClickHaskell
 -- Internal dependencies
 import ClickHaskell.DbTypes
 import ClickHaskell.NativeProtocol.ClientPackets (HelloParameters (..), mkAddendum, mkDataPacket, mkHelloPacket, mkPingPacket, mkQueryPacket)
-import ClickHaskell.NativeProtocol.Columns (Column (..), Columns, appendColumn, emptyColumns)
+import ClickHaskell.NativeProtocol.Columns (Column (..), Columns (..), emptyColumns, KnownColumns (..), HasColumns(..), CompiledColumn (..), appendColumn, mkColumn)
 import ClickHaskell.NativeProtocol.Serialization (Deserializable (..), ProtocolRevision, Serializable (..), latestSupportedRevision)
 import ClickHaskell.NativeProtocol.ServerPackets (ExceptionPacket, HelloResponse (..), ServerPacketType (..))
 
 -- GHC included
 import Control.Exception (Exception, SomeException, bracketOnError, catch, finally, throw)
 import Data.Binary.Get (Decoder (..), runGetIncremental)
-import Data.ByteString.Builder (Builder, toLazyByteString)
+import Data.ByteString.Char8 as BS8 (pack)
+import Data.ByteString.Builder (Builder, toLazyByteString, byteString)
 import Data.ByteString.Lazy.Char8 as BSL8 (head)
 import Data.ByteString.Lazy.Internal as BL (ByteString (..), LazyByteString)
 import Data.Char (ord)
@@ -43,9 +47,10 @@ import Data.Int (Int64)
 import Data.Kind (Type)
 import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Text (Text)
+import Data.Typeable (Proxy(..))
 import Data.Word (Word32)
 import GHC.Generics
-import GHC.TypeLits (Symbol)
+import GHC.TypeLits (Symbol, symbolVal, KnownSymbol)
 import System.Timeout (timeout)
 
 -- External
@@ -134,29 +139,75 @@ ping conn@MkConnection{sock, chosenRevision} = do
 
 -- * Querying
 
-data Table (name :: Symbol) columns = MkTable (Columns columns)
+instance HasColumns (Table name columns)
+  where
+  type GetColumns (Table _ columns) = columns
+
+
+newtype Table (name :: Symbol) (columns :: [Type]) = MkTable (Columns columns)
+instance KnownColumns (Columns columns) => KnownColumns (Table name columns) where
+  type ColumnsCount (Table name columns) = ColumnsCount (Columns columns)
+  columnsCount = columnsCount @(Columns columns)
+  rowsCount (MkTable columns) = rowsCount columns
+
 data View (name :: Symbol) (columns :: [Type]) parameters
 
-selectFrom :: forall table record . (ReadableFrom table record) => Connection -> IO [record]
+selectFrom ::
+  forall table record name columns
+  .
+  ( table ~ Table name columns
+  , KnownSymbol name
+  , ReadableFrom table record
+  )
+  =>
+  Connection -> IO [record]
 selectFrom MkConnection{sock, user, chosenRevision} = do
+  let query
+        =  "SELECT " <> readingColumns @table @record
+        <> " FROM " <> (byteString . BS8.pack) (symbolVal $ Proxy @name)
   (sendAll sock . toLazyByteString)
-    (  serialize chosenRevision (mkQueryPacket chosenRevision user "SELECT 5")
+    (  serialize chosenRevision (mkQueryPacket chosenRevision user (toChType query))
     <> serialize chosenRevision (mkDataPacket "" emptyColumns)
     )
   _ <- recv sock 4096
   pure []
 
 
-insertInto :: Serializable (Columns columns) => Connection -> Columns columns -> IO ()
-insertInto MkConnection{sock, user, chosenRevision} columns = do
+select ::
+  forall columns record
+  .
+  ReadableFrom (Columns columns) record
+  =>
+  Connection -> ChString -> IO [record]
+select MkConnection{sock, user, chosenRevision} query = do
   (sendAll sock . toLazyByteString)
-    (  serialize chosenRevision (mkQueryPacket chosenRevision user "INSERT INTO example (val) VALUES")
+    (  serialize chosenRevision (mkQueryPacket chosenRevision user query)
+    <> serialize chosenRevision (mkDataPacket "" emptyColumns)
+    )
+  _ <- recv sock 4096
+  pure []
+
+
+insertInto ::
+  forall table record name columns
+  .
+  ( table ~ Table name columns
+  , WritableInto (Table name columns) record
+  , KnownSymbol name
+  )
+  => Connection -> [record] -> IO ()
+insertInto MkConnection{sock, user, chosenRevision} columns = do
+  let query =
+        "INSERT INTO " <> (byteString . BS8.pack) (symbolVal $ Proxy @name)
+        <> " (" <> writingColumns @table @record <> ") VALUES"
+  (sendAll sock . toLazyByteString)
+    (  serialize chosenRevision (mkQueryPacket chosenRevision user (toChType query))
     <> serialize chosenRevision (mkDataPacket "" emptyColumns)
     )
   print =<< recv sock 4096
   -- ^ answers with 11.TableColumns
   (sendAll sock . toLazyByteString)
-    (  serialize chosenRevision (mkDataPacket "" columns)
+    (  serialize chosenRevision (mkDataPacket "" . toColumns @(Table name columns) $ columns)
     <> serialize chosenRevision (mkDataPacket "" emptyColumns)
     )
   print =<< recv sock 4096
@@ -222,28 +273,26 @@ data ConnectionError
 
 -- * Interface
 
+-- ** Reading
+
 class
-  ReadableFrom columns record
+  ( KnownColumns hasColumns
+  , HasColumns hasColumns
+  ) =>
+  ReadableFrom hasColumns record
   where
-  default fromColumns :: (Generic record, GReadable columns (Rep record)) => columns -> [record]
-  fromColumns :: columns -> [record]
-  fromColumns = map to . gFromColumns @columns
+  default fromColumns :: (Generic record, GReadable (GetColumns hasColumns) (Rep record)) => Columns (GetColumns hasColumns) -> [record]
+  fromColumns :: Columns (GetColumns hasColumns) -> [record]
+  fromColumns = map to . gFromColumns @(GetColumns hasColumns)
 
-  default readingColumns :: (Generic record, GReadable columns (Rep record)) => Builder
+  default readingColumns :: (Generic record, GReadable (GetColumns hasColumns) (Rep record)) => Builder
   readingColumns :: Builder
-  readingColumns = gReadingColumns @columns @(Rep record)
+  readingColumns = gReadingColumns @(GetColumns hasColumns) @(Rep record)
 
-instance
-  ReadableFrom (Table name columns) record
-  =>
-  ReadableFrom (Columns columns) record
-  where
-  fromColumns columns = fromColumns @(Table name columns) (MkTable columns)
-  readingColumns = readingColumns @(Table name columns) @record
 
 class GReadable columns f
   where
-  gFromColumns :: columns -> [f p]
+  gFromColumns :: Columns columns -> [f p]
   gReadingColumns :: Builder
 
 instance
@@ -254,6 +303,103 @@ instance
   gFromColumns = map (M1 . M1) . gFromColumns @columns
   gReadingColumns = gReadingColumns @columns @f
 
+instance
+  GReadable columns (left :*: (right1 :*: right2))
+  =>
+  GReadable columns ((left :*: right1) :*: right2)
+  where
+  gFromColumns rev = (\(l :*: (r1 :*: r2)) -> (l :*: r1) :*: r2) <$> gFromColumns rev
+  gReadingColumns = gReadingColumns @columns @((left :*: right1) :*: right2)
+
+instance
+  ( CompiledColumn (Column name chType)
+  , FromChType chType inputType
+  , Deserializable chType
+  , GReadable restColumns right
+  ) => GReadable (Column name chType ': restColumns) (S1 (MetaSel (Just name) a b f) (Rec0 inputType) :*: right)
+  where
+  gFromColumns (AddColumn (MkColumn column) extraColumns) =
+    (:*:) <$> map (M1 . K1 . fromChType @chType) column <*> gFromColumns @restColumns @right extraColumns
+  gReadingColumns = renderColumnName @(Column name chType) <> ", " <> gReadingColumns @restColumns @right
+
+instance
+  ( CompiledColumn (Column name chType)
+  , Deserializable chType
+  , FromChType chType inputType
+  ) => GReadable '[Column name chType] ((S1 (MetaSel (Just name) a b f)) (Rec0 inputType))
+  where
+  gFromColumns (AddColumn (MkColumn column) _) = map (M1 . K1 . fromChType @chType) column
+  gReadingColumns = renderColumnName @(Column name chType)
+
+
+-- ** Writing
+
+class
+  ( KnownColumns hasColumns
+  , HasColumns hasColumns
+  , KnownColumns (Columns (GetColumns hasColumns))
+  )
+  =>
+  WritableInto hasColumns record
+  where
+  default toColumns :: (Generic record, GWritable (GetColumns hasColumns) (Rep record)) => [record] -> Columns (GetColumns hasColumns)
+  toColumns :: [record] -> Columns (GetColumns hasColumns)
+  toColumns = gToColumns @(GetColumns hasColumns) . map from
+
+  default writingColumns :: (Generic record, GWritable (GetColumns hasColumns) (Rep record)) => Builder
+  writingColumns :: Builder
+  writingColumns = gWritingColumns @(GetColumns hasColumns) @(Rep record)
+
+
+class GWritable columns f
+  where
+  gToColumns ::  [f p] -> Columns columns
+  gWritingColumns :: Builder
+
+instance
+  GWritable columns f
+  =>
+  GWritable columns (D1 c (C1 c2 f))
+  where
+  gToColumns =  gToColumns @columns . map (unM1 . unM1)
+  gWritingColumns = gWritingColumns @columns @f
+
+instance
+  GWritable columns (left1 :*: (left2 :*: right))
+  =>
+  GWritable columns ((left1 :*: left2) :*: right)
+  where
+  gToColumns  = gToColumns . map (\((l1 :*: l2) :*: r) -> l1 :*: (l2 :*: r))
+  gWritingColumns = gWritingColumns @columns @((left1 :*: left2) :*: right)
+
+instance
+  ( GWritable '[Column name chType] (S1 (MetaSel (Just name) a b f) (Rec0 inputType))
+  , GWritable restColumns right
+  , CompiledColumn (Column name chType)
+  , ToChType chType inputType
+  , KnownSymbol name
+  , Serializable chType
+  )
+  =>
+  GWritable (Column name chType ': restColumns) (S1 (MetaSel (Just name) a b f) (Rec0 inputType) :*: right)
+  where
+  gToColumns rows =
+    mkColumn (map (\(l :*: _) -> toChType . unK1 . unM1 $ l) rows)
+    `appendColumn`
+    (gToColumns @restColumns $ map (\(_ :*: r) -> r) rows)
+  gWritingColumns = renderColumnName @(Column name chType) <> ", " <> gWritingColumns @restColumns @right
+
+instance
+  ( KnownSymbol name
+  , KnownSymbol (ToChTypeName chType)
+  , ToChType chType inputType
+  , Serializable chType
+  )
+  =>
+  GWritable '[Column name chType] (S1 (MetaSel (Just selectorName) a b f) (Rec0 inputType))
+  where
+  gToColumns rows = (mkColumn . map (toChType . unK1 . unM1)) rows `appendColumn` emptyColumns
+  gWritingColumns = renderColumnName @(Column name chType)
 
 
 
@@ -267,23 +413,21 @@ dev = do
   print "Pinged"
   _a <- selectFrom @ExampleTable @ExampleData connection
   print "Dummy queries done"
-  insertInto connection devColumns
+  insertInto @ExampleTable @ExampleData connection devColumns
 
-devColumns :: Columns '[Column "val" ChUInt32]
-devColumns = appendColumn devColumn emptyColumns
+devColumns ::  [ExampleData]
+devColumns = MkExample <$> replicate 253 127
 
-devColumn :: Column "val" ChUInt32
-devColumn = MkColumn 500 $ replicate 500 5
 
 type ExampleTable = Table "example" '[Column "val" ChUInt32]
 
 data ExampleData = MkExample
   { val :: Word32
-  }
+  } deriving (Generic)
 
-instance ReadableFrom ExampleTable ExampleData where
-  fromColumns _ = [MkExample{val=5}]
-  readingColumns = "val"
+instance ReadableFrom ExampleTable ExampleData
+instance WritableInto ExampleTable ExampleData
+
 
 devCredential :: ChCredential
 devCredential = MkChCredential

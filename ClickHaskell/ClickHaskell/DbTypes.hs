@@ -57,8 +57,8 @@ import Data.Binary.Get
 import Data.Binary.Get.Internal (readN)
 import Data.Binary.Put
 import Data.Bits (Bits (..))
-import Data.ByteString as BS (StrictByteString, length, take)
-import Data.ByteString.Builder as BS (Builder, byteString, word8)
+import Data.ByteString as BS (StrictByteString, length, take, toStrict)
+import Data.ByteString.Builder as BS (Builder, byteString, word8, toLazyByteString)
 import Data.ByteString.Char8 as BS8 (concatMap, length, pack, replicate, singleton)
 import Data.Coerce (coerce)
 import Data.Int (Int16, Int32, Int64, Int8)
@@ -302,6 +302,7 @@ escapeQuery -- [ClickHaskell.DbTypes.ToDo.1]: Optimize
 
 instance ToChType ChString ChString         where toChType = id
 instance ToChType ChString StrictByteString where toChType = MkChString
+instance ToChType ChString Builder          where toChType = MkChString . toStrict . toLazyByteString
 instance ToChType ChString String           where toChType = MkChString . BS8.pack
 instance ToChType ChString Text             where toChType = MkChString . Text.encodeUtf8
 instance ToChType ChString Int              where toChType = MkChString . BS8.pack . show

@@ -57,3 +57,38 @@ executable profiler
 
     -- External
     , http-client
+
+executable profiler2
+  main-is: ProfilerV2.hs
+  hs-source-dirs: ./
+  ghc-options:
+    -O2
+    -threaded
+    -rtsopts "-with-rtsopts=-s -A32m -AL256m -p -hy -L250 -l-agu -N1"
+    -fprof-late
+    -main-is ProfilerV2
+
+  if flag(dev)
+    ghc-options: 
+      -ddump-to-file
+      -ddump-simpl
+      -dsuppress-type-applications
+      -dsuppress-coercions
+      -dsuppress-idinfo
+      -dsuppress-type-signatures
+      -dsuppress-var-kinds
+      -dsuppress-module-prefixes
+      -dsuppress-uniques
+
+  build-depends:
+    -- Internal
+      ClickHaskell
+    , ClickHaskell-http-client
+
+    -- GHC included
+    , base
+    , bytestring
+    , stm
+
+    -- External
+    , http-client

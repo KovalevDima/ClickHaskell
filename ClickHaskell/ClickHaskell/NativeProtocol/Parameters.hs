@@ -13,7 +13,6 @@ module ClickHaskell.NativeProtocol.Parameters where
 -- Internal
 import ClickHaskell.DbTypes (ToQueryPart(..), ToChType(..))
 
-
 -- GHC included
 import Data.ByteString.Builder as BS (Builder, byteString)
 import Data.ByteString.Char8   as BS8 (pack)
@@ -29,23 +28,24 @@ data Parameter (name :: Symbol) (chType :: Type)
 -- |
 -- >>> parameters (parameter @"a3" @ChString ("a3Val" :: String) . parameter @"a2" @ChString ("a2Val" :: String))
 -- "(a2='a2Val', a3='a3Val')"
-parameters :: forall (params :: [Type]) . (ParametersInterpreter '[] -> ParametersInterpreter params) -> Builder
+parameters :: forall (params :: [Type]) . (Parameters '[] -> Parameters params) -> Builder
 parameters interpreter = renderParameters $ interpreter (MkParametersInterpreter [])
 
 parameter
   :: forall name chType parameters userType
-  . ( InterpretableParameters parameters, ToChType chType userType, KnownSymbol name, ToQueryPart chType)
-  => userType -> ParametersInterpreter parameters -> WithPassedParameter (Parameter name chType) parameters
+  . (InterpretableParameters parameters, ToChType chType userType, KnownSymbol name, ToQueryPart chType)
+  => userType -> Parameters parameters -> WithPassedParameter (Parameter name chType) parameters
 parameter = interpretParameter . toChType
 
-renderParameters :: ParametersInterpreter parameters -> Builder
+renderParameters :: Parameters parameters -> Builder
 renderParameters (MkParametersInterpreter (param:ps)) = "(" <> foldr (\p1 p2 -> p1 <> ", " <> p2) param ps <> ")"
 renderParameters (MkParametersInterpreter [])         = ""
 
 
+{-# DEPRECATED ParametersInterpreter "This type would be removed in next major release. Use Parameters instead" #-}
+type ParametersInterpreter a = Parameters a
 
-
-newtype ParametersInterpreter (parameters :: [Type]) =
+newtype Parameters (parameters :: [Type]) =
   MkParametersInterpreter
     { evaluatedParameters :: [Builder]
     }
@@ -55,24 +55,24 @@ class InterpretableParameters (ps :: [Type]) where
   interpretParameter
     :: forall name chType
     . (KnownSymbol name, ToQueryPart chType)
-    => chType -> (ParametersInterpreter ps -> WithPassedParameter (Parameter name chType) ps)
+    => chType -> (Parameters ps -> WithPassedParameter (Parameter name chType) ps)
 
 instance InterpretableParameters '[]
   where
-  type WithPassedParameter p '[] = ParametersInterpreter '[p]
+  type WithPassedParameter p '[] = Parameters '[p]
   interpretParameter
     :: forall name chType
     . (KnownSymbol name, ToQueryPart chType)
-    => chType -> ParametersInterpreter '[] -> WithPassedParameter (Parameter name chType) '[]
+    => chType -> Parameters '[] -> WithPassedParameter (Parameter name chType) '[]
   interpretParameter userType _ = MkParametersInterpreter [renderParameter @name @chType userType]
 
 instance InterpretableParameters (x ': xs)
   where
-  type WithPassedParameter p (x ': xs) = ParametersInterpreter (p ': (x ': xs))
+  type WithPassedParameter p (x ': xs) = Parameters (p ': (x ': xs))
   interpretParameter
     :: forall name chType
     . (KnownSymbol name, ToQueryPart chType)
-    => chType -> ParametersInterpreter (x : xs) -> WithPassedParameter (Parameter name chType) (x : xs)
+    => chType -> Parameters (x : xs) -> WithPassedParameter (Parameter name chType) (x : xs)
   interpretParameter chType (MkParametersInterpreter{evaluatedParameters}) =
     MkParametersInterpreter $ renderParameter @name @chType chType : evaluatedParameters
 

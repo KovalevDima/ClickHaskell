@@ -12,7 +12,6 @@ module ClickHaskell.NativeProtocol.Serialization where
 
 -- Internal dependencies
 import ClickHaskell.DbTypes
-import ClickHaskell.NativeProtocol.Columns
 import Paths_ClickHaskell (version)
 
 -- GHC included
@@ -20,8 +19,7 @@ import Control.Monad (replicateM)
 import Data.Binary (Binary (..))
 import Data.Binary.Get
 import Data.Binary.Put (execPut)
-import Data.ByteString as BS (toStrict)
-import Data.ByteString.Builder (Builder, toLazyByteString)
+import Data.ByteString.Builder (Builder)
 import Data.Typeable (Proxy (..))
 import Data.Version (Version (..), showVersion)
 import GHC.Generics
@@ -47,37 +45,7 @@ instance {-# OVERLAPPABLE #-} (IsChType chType, Binary chType)
 instance Serializable UVarInt where serialize _ = execPut . put
 
 
--- No columns special case
-instance Serializable (Columns '[]) where
-  serialize _ _ = ""
-
-instance
-  ( Serializable (Column name1 chType1)
-  , Serializable (Columns (one ': xs))
-  )
-  =>
-  Serializable (Columns (Column name1 chType1 ': one ': xs)) where
-  serialize rev (AddColumn column extraColumns) = serialize rev column <> serialize rev extraColumns
-
-instance
-  Serializable (Column name chType)
-  =>
-  Serializable (Columns '[Column name chType])
-  where
-  serialize rev (AddColumn column Empty) = serialize rev column
-
-instance
-  ( CompiledColumn (Column name chType)
-  , IsChType chType
-  , Serializable chType
-  ) => Serializable (Column name chType) where
-  serialize rev (MkColumn _size values)
-    =  serialize rev (toChType @ChString . toStrict . toLazyByteString $ renderColumnName @(Column name chType))
-    <> serialize rev (toChType @ChString . toStrict . toLazyByteString $ renderColumnType @(Column name chType))
-    -- serialization is not custom
-    <> afterRevision @DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION rev (serialize @ChUInt8 rev 0)
-    <> mconcat (Prelude.map (serialize @chType rev) values)
-
+-- ** Generic helper class
 
 class GSerializable f
   where
@@ -131,32 +99,8 @@ instance {-# OVERLAPPABLE #-} (IsChType chType, Binary chType)
   => Deserializable chType where deserialize _ = get
 instance Deserializable UVarInt where deserialize _ = get
 
--- No columns special case
-instance Deserializable (Columns '[]) where
-  deserialize _ = pure emptyColumns
 
-instance
-  ( Deserializable (Column name1 chType1)
-  , Deserializable (Columns (one ': xs))
-  )
-  =>
-  Deserializable (Columns (Column name1 chType1 ': one ': xs)) where
-  deserialize rev = appendColumn <$> deserialize rev <*> deserialize rev
-
-instance
-  Deserializable (Column name chType)
-  =>
-  Deserializable (Columns '[Column name chType])
-  where
-  deserialize rev = appendColumn <$> deserialize rev <*> pure emptyColumns
-
-instance
-  ( CompiledColumn (Column name chType)
-  , IsChType chType
-  , Deserializable chType
-  ) => Deserializable (Column name chType) where
-  deserialize rev = MkColumn 5 <$> replicateM 5 (deserialize rev)
-
+-- ** Generic helper class
 
 class GDeserializable f
   where

@@ -112,7 +112,7 @@ selectFromView ::
   , tableFunction ~ View name columns parameters
   , CheckParameters parameters passedParameters
   )
-  => Manager -> ChCredential -> (ParametersInterpreter '[] -> ParametersInterpreter passedParameters) -> IO [record]
+  => Manager -> ChCredential -> (Parameters '[] -> Parameters passedParameters) -> IO [record]
 selectFromView manager cred interpreter =
   selectFromHttpGeneric
     @record
@@ -132,7 +132,7 @@ selectFromTableFunction ::
   , tableFunction ~ View name columns parameters
   , CheckParameters parameters passedParameters
   )
-  => Manager -> ChCredential -> (ParametersInterpreter '[] -> ParametersInterpreter passedParameters) -> IO [record]
+  => Manager -> ChCredential -> (Parameters '[] -> Parameters passedParameters) -> IO [record]
 selectFromTableFunction manager cred interpreter =
   selectFromHttpGeneric
     @record

@@ -87,6 +87,23 @@
             depends_on.profiling.condition = "process_completed_successfully";
           };
         };
+        process-compose."profiling2" = let
+          programName = "profiler2";
+        in {
+          imports = [inputs.services-flake.processComposeModules.default];
+          services.clickhouse."profiler-db" = wrapDefaultClickHouse [
+            (extractSqlFromMarkdown ./documentation/writing/Writing.lhs)
+          ];
+          settings.processes.profiling = {
+            command = "${self'.apps.${programName}.program}";
+            depends_on.profiler-db.condition = "process_healthy";
+          };
+          settings.processes.dump-artifacts = {
+            command = "${lib.getExe' pkgs.haskellPackages.eventlog2html "eventlog2html"} ./${programName}.eventlog";
+            # availability.exit_on_end = true;
+            depends_on.profiling.condition = "process_completed_successfully";
+          };
+        };
         # ClickHaskell project itself with Haskell env
         haskellProjects.default = {
           autoWire = ["packages" "apps"];

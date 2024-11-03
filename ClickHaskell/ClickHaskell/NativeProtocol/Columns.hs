@@ -3,44 +3,83 @@
   , DataKinds
   , UndecidableInstances
   , GADTs
+  , OverloadedStrings
+  , TypeFamilyDependencies
+  , InstanceSigs
 #-}
 
 module ClickHaskell.NativeProtocol.Columns where
 
 -- Internal
-import ClickHaskell.DbTypes (IsChType(..), UVarInt)
+import ClickHaskell.DbTypes (IsChType(..), UVarInt, ChString, ChUInt8, ToChType (toChType))
+import ClickHaskell.NativeProtocol.Serialization
 
 
 -- GHC included
-import Data.ByteString.Builder as BS (Builder, stringUtf8)
+import Data.ByteString (toStrict)
+import Data.ByteString.Builder as BS (Builder, stringUtf8, toLazyByteString)
 import Data.Data (Proxy (Proxy))
 import Data.Kind (Type)
 import Data.Type.Bool (If)
 import Data.Type.Equality (type (==))
-import GHC.TypeLits (ErrorMessage (..), KnownSymbol, Symbol, TypeError, symbolVal)
-
+import GHC.TypeLits (ErrorMessage (..), KnownNat, KnownSymbol, Nat, Symbol, TypeError, natVal, symbolVal, type(+))
+import Data.Binary (Get)
+import Control.Monad (replicateM)
 
 -- * Columns
 
 data Columns columns where
   Empty :: Columns '[]
-  AddColumn :: Column name chType -> Columns cols -> Columns (Column name chType ': cols)
-
-columnsCount :: Columns columns -> UVarInt
-columnsCount Empty = 0
-columnsCount (AddColumn _ restColuns) = 1 + columnsCount restColuns
-
-rowsCount :: Columns columns -> UVarInt
-rowsCount Empty = 0
-rowsCount (AddColumn (MkColumn size _vec) _) = size
-
-
-appendColumn :: Column name chType -> Columns xs -> Columns (Column name chType ': xs)
-appendColumn = AddColumn
+  AddColumn
+    :: Serializable (Column name chType)
+    => Column name chType
+    -> Columns columns
+    -> Columns (Column name chType ': columns)
 
 emptyColumns :: Columns '[]
 emptyColumns = Empty
 
+appendColumn
+  :: Serializable (Column name chType)
+  => Column name chType
+  -> Columns columns
+  -> Columns (Column name chType ': columns)
+appendColumn = AddColumn
+
+class KnownNat (ColumnsCount columns) => KnownColumns columns
+  where
+  type ColumnsCount columns :: Nat
+  columnsCount :: UVarInt
+  columnsCount = (fromIntegral . natVal) (Proxy @(ColumnsCount columns))
+
+  rowsCount :: columns -> UVarInt
+
+
+instance KnownColumns (Columns '[])
+  where
+  type ColumnsCount (Columns '[]) = 0
+  rowsCount Empty = 0
+
+
+instance
+  KnownNat (1 + ColumnsCount (Columns extraColumns))
+  =>
+  KnownColumns (Columns (col ': extraColumns))
+  where
+  type ColumnsCount (Columns (col ': extraColumns)) = 1 + ColumnsCount (Columns extraColumns)
+  rowsCount :: Columns (col : extraColumns) -> UVarInt
+  rowsCount (AddColumn (MkColumn col) _) = fromIntegral (length col)
+
+-- * Columns extraction helper
+
+class
+  HasColumns hasColumns
+  where
+  type GetColumns hasColumns :: [Type]
+
+instance HasColumns (Columns columns)
+  where
+  type GetColumns (Columns columns) = columns
 
 
 
@@ -67,6 +106,37 @@ type family
   (++) (head ': tail) list = tail ++ (head ': list)
 
 
+-- ** 
+
+instance {-# OVERLAPPING #-}
+  Serializable (Columns columns)
+  where
+  serialize rev (AddColumn col columns) = serialize rev col <> serialize rev columns
+  serialize _rev Empty = ""
+
+instance {-# OVERLAPPING #-}
+  ( CompiledColumn (Column name chType)
+  , IsChType chType
+  , KnownSymbol name
+  , Serializable chType
+  ) => Serializable (Column name chType) where
+  serialize rev (MkColumn values)
+    =  serialize rev (toChType @ChString . toStrict . toLazyByteString $ renderColumnName @(Column name chType))
+    <> serialize rev (toChType @ChString . toStrict . toLazyByteString $ renderColumnType @(Column name chType))
+    -- serialization is not custom
+    <> afterRevision @DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION rev (serialize @ChUInt8 rev 0)
+    <> mconcat (Prelude.map (serialize @chType rev) values)
+
+
+desializeColumn :: forall name chType . Deserializable chType => ProtocolRevision -> UVarInt -> Get (Column name chType)
+desializeColumn rev rows = do
+  _columnName <- deserialize @ChString rev
+  _columnType <- deserialize @ChString rev
+  _isCustom <- deserialize @(ChUInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION) rev
+  column <- replicateM (fromIntegral rows) (deserialize @chType rev)
+  pure $ MkColumn column
+
+
 
 
 -- ** Column declaration
@@ -82,7 +152,10 @@ type MyColumn = Column "myColumn" ChString -> Alias
 type MyColumn = Column "myColumn" ChString -> Default
 @
 -}
-data Column (name :: Symbol) (chType :: Type) = MkColumn UVarInt [chType]
+newtype Column (name :: Symbol) (chType :: Type) = MkColumn [chType]
+
+mkColumn :: forall name chType . [chType] -> Column name chType
+mkColumn = MkColumn
 
 
 instance
