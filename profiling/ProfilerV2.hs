@@ -45,26 +45,19 @@ main :: IO ()
 main = do
   traceMarkerIO "Initialization"
   connection <- openNativeConnection devCredential
-  print "Connected"
-  ping connection
-  print "Pinged"
-  _a <- selectFrom @ExampleTable @ExampleData connection
-  print "Dummy queries done"
-  insertInto @ExampleTable connection devColumns
-
   let totalRows = 1_000_000
 
   threadDelay 1_000_000
   traceMarkerIO "Push data"
 
-  traceMarkerIO "Starting reading"
+  -- traceMarkerIO "Starting reading"
   -- selectedData <-
   --   select
   --     @ExampleColumns
   --     @ExampleData
-  --     manager
-  --     credentials
-  --     ("SELECT * FROM generateRandom('\
+  --     connection
+  --     (toChType $
+  --     "SELECT * FROM generateRandom('\
   --     \a1 Int64, \
   --     \a2 LowCardinality(String), \
   --     \a3 DateTime, \
@@ -76,24 +69,44 @@ main = do
 
   threadDelay 1_000_000
   traceMarkerIO "Starting writing"
+  insertInto
+    @(Table "exampleWriteRead" ExampleColumns)
+    connection
+    (replicate 100 test)
+    -- selectedData
 
   traceMarkerIO "Completion"
   print $ "5. Writing done. " <> show totalRows <> " rows was written"
   threadDelay 1_000_000
 
--- devColumns ::  Columns '[Column "var2" ChUInt32, Column "var" ChUInt32]
-devColumns ::  [ExampleData]
-devColumns = MkExample <$> replicate (1*1000*1000) 127
 
-type ExampleTable = Table "example" '[Column "val" ChInt64]
 
-data ExampleData = MkExample
-  { val :: Int64
-  } deriving (Generic)
+data ExampleData = MkExampleData
+  { a1 :: ChInt64
+  , a2 :: StrictByteString
+  , a3 :: Word32
+  , a4 :: ChUUID
+  , a5 :: Int32
+  , a6 :: Nullable ChString
+  , a7 :: ChString
+  }
+  deriving (Generic)
+  deriving anyclass (ReadableFrom (Columns ExampleColumns), WritableInto (Table "exampleWriteRead" ExampleColumns))
 
-instance ReadableFrom ExampleTable ExampleData
-instance WritableInto ExampleTable ExampleData
 
+test :: ExampleData
+test = MkExampleData 0 "hello" 42 (toChType (0 :: Word64)) 50 Nothing "b5"
+
+
+type ExampleColumns =
+ '[ Column "a1" ChInt64
+  , Column "a2" (LowCardinality ChString)
+  , Column "a3" ChDateTime
+  , Column "a4" ChUUID
+  , Column "a5" ChInt32
+  , Column "a6" (LowCardinality (Nullable ChString))
+  , Column "a7" (LowCardinality ChString)
+  ]
 
 devCredential :: ChCredential
 devCredential = MkChCredential

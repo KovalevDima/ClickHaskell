@@ -31,7 +31,7 @@ import Control.Monad (replicateM)
 data Columns columns where
   Empty :: Columns '[]
   AddColumn
-    :: Serializable (Column name chType)
+    :: KnownColumn (Column name chType)
     => Column name chType
     -> Columns columns
     -> Columns (Column name chType ': columns)
@@ -40,7 +40,7 @@ emptyColumns :: Columns '[]
 emptyColumns = Empty
 
 appendColumn
-  :: Serializable (Column name chType)
+  :: KnownColumn (Column name chType)
   => Column name chType
   -> Columns columns
   -> Columns (Column name chType ': columns)
@@ -109,13 +109,21 @@ type family
 -- ** 
 
 instance {-# OVERLAPPING #-}
-  Serializable (Columns columns)
+  Serializable (Columns '[])
   where
-  serialize rev (AddColumn col columns) = serialize rev col <> serialize rev columns
   serialize _rev Empty = ""
 
 instance {-# OVERLAPPING #-}
-  ( CompiledColumn (Column name chType)
+  ( Serializable (Columns columns)
+  , Serializable (Column name chType)
+  )
+  =>
+  Serializable (Columns (Column name chType ': columns))
+  where
+  serialize rev (AddColumn col columns) = serialize rev col <> serialize rev columns
+
+instance {-# OVERLAPPING #-}
+  ( KnownColumn (Column name chType)
   , IsChType chType
   , KnownSymbol name
   , Serializable chType
@@ -141,6 +149,22 @@ desializeColumn rev rows = do
 
 -- ** Column declaration
 
+class
+  ( IsChType (GetColumnType columnDescription)
+  , KnownSymbol (GetColumnName columnDescription)
+  , KnownSymbol (ToChTypeName (GetColumnType columnDescription))
+  )
+  =>
+  KnownColumn columnDescription where
+  type GetColumnName columnDescription :: Symbol
+  renderColumnName :: Builder
+
+  type GetColumnType columnDescription :: Type
+  renderColumnType :: Builder
+
+  type WritableColumn    columnDescription :: Maybe ErrorMessage
+  type WriteOptionalColumn columnDescription :: Bool
+
 {- |
 Column declaration
 
@@ -160,9 +184,9 @@ mkColumn = MkColumn
 
 instance
   ( IsChType columnType
-  , KnownSymbol name
   , KnownSymbol (ToChTypeName columnType)
-  ) => CompiledColumn (Column name columnType)
+  , KnownSymbol name
+  ) => KnownColumn (Column name columnType)
   where
   type GetColumnName (Column name columnType) = name
   renderColumnName = (stringUtf8 . symbolVal @name) Proxy
@@ -193,9 +217,9 @@ type MyColumn = Column "myColumn" ChString -> Alias
 data Alias
 
 instance
-  CompiledColumn (Column name columnType)
+  KnownColumn (Column name columnType)
   =>
-  CompiledColumn (Column name columnType -> Alias)
+  KnownColumn (Column name columnType -> Alias)
   where
   type GetColumnName (Column name columnType -> Alias) = GetColumnName (Column name columnType)
   renderColumnName = renderColumnName @(Column name columnType)
@@ -226,9 +250,9 @@ type MyColumn = Column "myColumn" ChString -> Default
 data Default
 
 instance
-  CompiledColumn (Column name columnType)
+  KnownColumn (Column name columnType)
   =>
-  CompiledColumn (Column name columnType -> Default)
+  KnownColumn (Column name columnType -> Default)
   where
   type GetColumnName (Column name columnType -> Default) = GetColumnName (Column name columnType)
   renderColumnName = renderColumnName @(Column name columnType)
@@ -239,21 +263,3 @@ instance
   type WritableColumn (Column name columnType -> Default) = Nothing
 
   type WriteOptionalColumn (Column name columnType -> Default) = True
-
-
-
-
--- ** Compiler
-
-class
-  IsChType (GetColumnType columnDescription)
-  =>
-  CompiledColumn columnDescription where
-  type GetColumnName columnDescription :: Symbol
-  renderColumnName :: Builder
-
-  type GetColumnType columnDescription :: Type
-  renderColumnType :: Builder
-
-  type WritableColumn    columnDescription :: Maybe ErrorMessage
-  type WriteOptionalColumn columnDescription :: Bool

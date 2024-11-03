@@ -1,5 +1,6 @@
 {-# LANGUAGE
     AllowAmbiguousTypes
+  , ConstraintKinds
   , DefaultSignatures
   , DataKinds
   , DeriveAnyClass
@@ -31,7 +32,7 @@ module ClickHaskell
 -- Internal dependencies
 import ClickHaskell.DbTypes
 import ClickHaskell.NativeProtocol.ClientPackets (HelloParameters (..), mkAddendum, mkDataPacket, mkHelloPacket, mkPingPacket, mkQueryPacket)
-import ClickHaskell.NativeProtocol.Columns (Column (..), Columns (..), emptyColumns, KnownColumns (..), HasColumns(..), CompiledColumn (..), appendColumn, mkColumn)
+import ClickHaskell.NativeProtocol.Columns (Column (..), Columns (..), emptyColumns, KnownColumns (..), HasColumns(..), KnownColumn (..), appendColumn, mkColumn)
 import ClickHaskell.NativeProtocol.Serialization (Deserializable (..), ProtocolRevision, Serializable (..), latestSupportedRevision)
 import ClickHaskell.NativeProtocol.ServerPackets (ExceptionPacket, HelloResponse (..), ServerPacketType (..))
 
@@ -194,6 +195,7 @@ insertInto ::
   ( table ~ Table name columns
   , WritableInto (Table name columns) record
   , KnownSymbol name
+  , Serializable (Columns columns)
   )
   => Connection -> [record] -> IO ()
 insertInto MkConnection{sock, user, chosenRevision} columns = do
@@ -275,17 +277,22 @@ data ConnectionError
 
 -- ** Reading
 
+type GenericReadable record hasColumns =
+  ( Generic record
+  , GReadable (GetColumns hasColumns) (Rep record)
+  )
+
 class
   ( KnownColumns hasColumns
   , HasColumns hasColumns
   ) =>
   ReadableFrom hasColumns record
   where
-  default fromColumns :: (Generic record, GReadable (GetColumns hasColumns) (Rep record)) => Columns (GetColumns hasColumns) -> [record]
+  default fromColumns :: GenericReadable record hasColumns => Columns (GetColumns hasColumns) -> [record]
   fromColumns :: Columns (GetColumns hasColumns) -> [record]
   fromColumns = map to . gFromColumns @(GetColumns hasColumns)
 
-  default readingColumns :: (Generic record, GReadable (GetColumns hasColumns) (Rep record)) => Builder
+  default readingColumns :: GenericReadable record hasColumns => Builder
   readingColumns :: Builder
   readingColumns = gReadingColumns @(GetColumns hasColumns) @(Rep record)
 
@@ -312,19 +319,25 @@ instance
   gReadingColumns = gReadingColumns @columns @((left :*: right1) :*: right2)
 
 instance
-  ( CompiledColumn (Column name chType)
+  ( KnownColumn (Column name chType)
   , FromChType chType inputType
-  , Deserializable chType
   , GReadable restColumns right
-  ) => GReadable (Column name chType ': restColumns) (S1 (MetaSel (Just name) a b f) (Rec0 inputType) :*: right)
+  )
+  => 
+  GReadable
+    (Column name chType ': restColumns)
+    (S1 (MetaSel (Just name) a b f) (Rec0 inputType) :*: right)
   where
   gFromColumns (AddColumn (MkColumn column) extraColumns) =
-    (:*:) <$> map (M1 . K1 . fromChType @chType) column <*> gFromColumns @restColumns @right extraColumns
-  gReadingColumns = renderColumnName @(Column name chType) <> ", " <> gReadingColumns @restColumns @right
+    (:*:)
+      <$> map (M1 . K1 . fromChType @chType) column
+      <*> gFromColumns @restColumns @right extraColumns
+  gReadingColumns =
+    renderColumnName @(Column name chType)
+    <> ", " <> gReadingColumns @restColumns @right
 
 instance
-  ( CompiledColumn (Column name chType)
-  , Deserializable chType
+  ( KnownColumn (Column name chType)
   , FromChType chType inputType
   ) => GReadable '[Column name chType] ((S1 (MetaSel (Just name) a b f)) (Rec0 inputType))
   where
@@ -334,26 +347,30 @@ instance
 
 -- ** Writing
 
+type GenericWritable record hasColumns =
+  ( Generic record
+  , GWritable (GetColumns hasColumns) (Rep record)
+  )
+
 class
-  ( KnownColumns hasColumns
-  , HasColumns hasColumns
+  ( HasColumns hasColumns
   , KnownColumns (Columns (GetColumns hasColumns))
   )
   =>
   WritableInto hasColumns record
   where
-  default toColumns :: (Generic record, GWritable (GetColumns hasColumns) (Rep record)) => [record] -> Columns (GetColumns hasColumns)
+  default toColumns :: GenericWritable record hasColumns => [record] -> Columns (GetColumns hasColumns)
   toColumns :: [record] -> Columns (GetColumns hasColumns)
   toColumns = gToColumns @(GetColumns hasColumns) . map from
 
-  default writingColumns :: (Generic record, GWritable (GetColumns hasColumns) (Rep record)) => Builder
+  default writingColumns :: GenericWritable record hasColumns =>  Builder
   writingColumns :: Builder
   writingColumns = gWritingColumns @(GetColumns hasColumns) @(Rep record)
 
 
 class GWritable columns f
   where
-  gToColumns ::  [f p] -> Columns columns
+  gToColumns :: [f p] -> Columns columns
   gWritingColumns :: Builder
 
 instance
@@ -375,10 +392,8 @@ instance
 instance
   ( GWritable '[Column name chType] (S1 (MetaSel (Just name) a b f) (Rec0 inputType))
   , GWritable restColumns right
-  , CompiledColumn (Column name chType)
+  , KnownColumn (Column name chType)
   , ToChType chType inputType
-  , KnownSymbol name
-  , Serializable chType
   )
   =>
   GWritable (Column name chType ': restColumns) (S1 (MetaSel (Just name) a b f) (Rec0 inputType) :*: right)
@@ -387,16 +402,16 @@ instance
     mkColumn (map (\(l :*: _) -> toChType . unK1 . unM1 $ l) rows)
     `appendColumn`
     (gToColumns @restColumns $ map (\(_ :*: r) -> r) rows)
-  gWritingColumns = renderColumnName @(Column name chType) <> ", " <> gWritingColumns @restColumns @right
+  gWritingColumns =
+    renderColumnName @(Column name chType)
+    <> ", " <> gWritingColumns @restColumns @right
 
 instance
-  ( KnownSymbol name
-  , KnownSymbol (ToChTypeName chType)
-  , ToChType chType inputType
-  , Serializable chType
+  ( ToChType chType inputType
+  , KnownColumn (Column name chType)
   )
   =>
-  GWritable '[Column name chType] (S1 (MetaSel (Just selectorName) a b f) (Rec0 inputType))
+  GWritable '[Column name chType] (S1 (MetaSel (Just name) a b f) (Rec0 inputType))
   where
   gToColumns rows = (mkColumn . map (toChType . unK1 . unM1)) rows `appendColumn` emptyColumns
   gWritingColumns = renderColumnName @(Column name chType)
@@ -416,7 +431,7 @@ dev = do
   insertInto @ExampleTable @ExampleData connection devColumns
 
 devColumns ::  [ExampleData]
-devColumns = MkExample <$> replicate 253 127
+devColumns = MkExample <$> replicate 5 127
 
 
 type ExampleTable = Table "example" '[Column "val" ChUInt32]

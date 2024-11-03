@@ -314,7 +314,7 @@ instance
   gReadingColumns = gReadingColumns @columns @(left1 :*: (left2 :*: right))
 
 instance
-  ( CompiledColumn column
+  ( KnownColumn column
   , '(column, restColumns) ~ TakeColumn selectorName columns
   , FromChType (GetColumnType column) inputType
   , Deserializable (GetColumnType column)
@@ -328,7 +328,7 @@ instance
   gReadingColumns = renderColumnName @column <> ", " <> gReadingColumns @restColumns @right
 
 instance
-  ( CompiledColumn column
+  ( KnownColumn column
   , '(column, restColumns) ~ TakeColumn selectorName columns
   , Deserializable (GetColumnType column)
   , FromChType (GetColumnType column) inputType
@@ -481,7 +481,7 @@ instance
 instance
   ( Serializable (GetColumnType column)
   , ToChType (GetColumnType column) inputType
-  , CompiledColumn column
+  , KnownColumn column
   , GWritable restColumns right
   , GWritable '[column] ((S1 (MetaSel (Just typeName) a b f)) (Rec0 inputType))
   , '(column, restColumns) ~ TakeColumn typeName columns
@@ -499,7 +499,7 @@ instance
   ( ThereIsNoWriteRequiredColumns restColumns
   , Serializable (GetColumnType column)
   , ToChType (GetColumnType column) inputType
-  , CompiledColumn column
+  , KnownColumn column
   , '(column, restColumns) ~ TakeColumn typeName columns
   ) =>
   GWritable columns (S1 (MetaSel (Just typeName) a b f) (Rec0 inputType))
