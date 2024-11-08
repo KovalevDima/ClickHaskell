@@ -15,7 +15,7 @@ module ClickHaskell.NativeProtocol.ClientPackets where
 -- Internal dependencies
 import ClickHaskell.DbTypes
 import ClickHaskell.NativeProtocol.Serialization
-import ClickHaskell.NativeProtocol.Columns (Columns, columnsCount, rowsCount, KnownColumns)
+import ClickHaskell.NativeProtocol.Columns (Columns, KnownColumns(columnsCount, rowsCount), DeserializableColumns (deserializeColumns))
 
 -- GHC included
 import Data.ByteString.Builder (Builder)
@@ -69,8 +69,17 @@ instance
   Serializable (Packet (packetType :: ClientPacketType)) where
   serialize rev _ = serialize @UVarInt rev (packetNumVal @packetType)
 
+instance Deserializable (Packet (packetType :: ClientPacketType)) where
+  deserialize _rev = pure (MkPacket @packetType)
+
 
 -- ** Hello
+
+data HelloParameters = MkHelloParameters
+  { chDatabase :: Text
+  , chLogin :: Text
+  , chPass :: Text
+  }
 
 mkHelloPacket :: HelloParameters -> HelloPacket
 mkHelloPacket MkHelloParameters{chDatabase, chLogin, chPass} =
@@ -84,12 +93,6 @@ mkHelloPacket MkHelloParameters{chDatabase, chLogin, chPass} =
     , user                 = toChType chLogin
     , password             = toChType chPass
     }
-
-data HelloParameters = MkHelloParameters
-  { chDatabase :: Text
-  , chLogin :: Text
-  , chPass :: Text
-  }
 
 data HelloPacket = MkHelloPacket
   { packet_type          :: Packet Hello
@@ -161,6 +164,19 @@ mkQueryPacket chosenRev user query = MkQueryPacket
   , parameters         = MkSinceRevision MkQueryParameters
   }
 
+data QueryPacket = MkQueryPacket
+  { query_packet       :: Packet Query
+  , query_id           :: ChString
+  , client_info        :: ClientInfo `SinceRevision` DBMS_MIN_REVISION_WITH_CLIENT_INFO
+  , settings           :: DbSettings
+  , interserver_secret :: ChString `SinceRevision` DBMS_MIN_REVISION_WITH_INTERSERVER_SECRET
+  , query_stage        :: QueryStage
+  , compression        :: UVarInt
+  , query              :: ChString
+  , parameters         :: QueryParameters `SinceRevision` DBMS_MIN_PROTOCOL_VERSION_WITH_PARAMETERS
+  }
+  deriving (Generic, Serializable)
+
 data QueryStage
   = FetchColumns
   | WithMergeableState
@@ -180,19 +196,6 @@ flagCode :: Flags -> ChUInt64
 flagCode IMPORTANT = 0x01
 flagCode CUSTOM    = 0x02
 flagCode OBSOLETE  = 0x04
-
-data QueryPacket = MkQueryPacket
-  { query_packet       :: Packet Query
-  , query_id           :: ChString
-  , client_info        :: ClientInfo `SinceRevision` DBMS_MIN_REVISION_WITH_CLIENT_INFO
-  , settings           :: DbSettings
-  , interserver_secret :: ChString `SinceRevision` DBMS_MIN_REVISION_WITH_INTERSERVER_SECRET
-  , query_stage        :: QueryStage
-  , compression        :: UVarInt
-  , query              :: ChString
-  , parameters         :: QueryParameters `SinceRevision` DBMS_MIN_PROTOCOL_VERSION_WITH_PARAMETERS
-  }
-  deriving (Generic, Serializable)
 
 data ClientInfo = MkClientInfo
   { query_kind                   :: QueryKind
@@ -237,42 +240,10 @@ instance Serializable QueryKind where
 
 -- ** Data
 
-data DataPacket columns = MkDataPacket
-  { packet_type   :: Packet Data
-  , table_name    :: ChString
-  , block_info    :: BlockInfo
-  , columns_count :: UVarInt
-  , rows_count    :: UVarInt
-  , columns       :: Columns columns
-  }
-  deriving (Generic)
-
-instance Serializable (Columns columns) => Serializable (DataPacket columns)
-instance Deserializable (DataPacket columns) where
-  deserialize rev = do
-    table_name <- deserialize rev
-    block_info <- deserialize rev
-    columns_count <- deserialize rev
-    rows_count <- deserialize rev
-    columns <- undefined
-    pure MkDataPacket{packet_type = MkPacket, ..}
-
-
-data BlockInfo = MkBlockInfo
-  { field_num1   :: UVarInt, is_overflows :: ChUInt8
-  , field_num2   :: UVarInt, bucket_num   :: ChInt32
-  , eof          :: UVarInt
-  }
-  deriving (Generic, Serializable, Deserializable)
-
-
-type ColumnsCount = UVarInt
-type RowsCount = UVarInt
-type DataName = ChString
-
-mkDataPacket :: forall columns
-  . (Serializable (Columns columns), KnownColumns (Columns columns))
-  => ChString -> Columns columns -> DataPacket columns
+mkDataPacket :: forall columns .
+  ( Serializable (Columns columns)
+  , KnownColumns (Columns columns)
+  ) => ChString -> Columns columns -> DataPacket columns
 mkDataPacket table_name columns =
   MkDataPacket
     { packet_type   = MkPacket
@@ -286,3 +257,35 @@ mkDataPacket table_name columns =
     , rows_count    = rowsCount columns
     , columns
     }
+
+data DataPacket columns = MkDataPacket
+  { packet_type   :: Packet Data
+  , table_name    :: ChString
+  , block_info    :: BlockInfo
+  , columns_count :: UVarInt
+  , rows_count    :: UVarInt
+  , columns       :: Columns columns
+  }
+  deriving (Generic)
+
+instance Serializable (Columns columns) => Serializable (DataPacket columns)
+instance
+  DeserializableColumns (Columns columns)
+  =>
+  Deserializable (DataPacket columns)
+  where
+  deserialize rev = do
+    table_name <- deserialize rev
+    block_info <- deserialize rev
+    columns_count <- deserialize rev
+    rows_count <- deserialize rev
+    columns <- deserializeColumns rev rows_count
+    pure MkDataPacket{packet_type = MkPacket, ..}
+
+
+data BlockInfo = MkBlockInfo
+  { field_num1   :: UVarInt, is_overflows :: ChUInt8
+  , field_num2   :: UVarInt, bucket_num   :: ChInt32
+  , eof          :: UVarInt
+  }
+  deriving (Generic, Serializable, Deserializable)

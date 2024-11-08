@@ -7,9 +7,6 @@
   , OverloadedStrings
   , TypeApplications
 #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 
 module ProfilerV2 (main) where
 
@@ -47,65 +44,61 @@ main = do
   connection <- openNativeConnection devCredential
   let totalRows = 1_000_000
 
-  threadDelay 1_000_000
+  threadDelay 250_000
   traceMarkerIO "Push data"
 
-  -- traceMarkerIO "Starting reading"
-  -- selectedData <-
-  --   select
-  --     @ExampleColumns
-  --     @ExampleData
-  --     connection
-  --     (toChType $
-  --     "SELECT * FROM generateRandom('\
-  --     \a1 Int64, \
-  --     \a2 LowCardinality(String), \
-  --     \a3 DateTime, \
-  --     \a4 UUID, \
-  --     \a5 Int32, \
-  --     \a6 LowCardinality(Nullable(String)), \
-  --     \a7 LowCardinality(String)\
-  --     \', 1, 10, 2) LIMIT " <> (string8 . show) totalRows)
+  traceMarkerIO "Starting reading"
+  selectedData <-
+    select
+      @ExampleColumns
+      @ExampleData
+      connection
+      {-
+      \a2 LowCardinality(String), \
+      \a6 LowCardinality(Nullable(String)), \
+      \a7 LowCardinality(String)\
+      -}
+      (toChType $
+      "SELECT * FROM generateRandom('\
+      \a1 Int64, \
+      \a3 DateTime, \
+      \a4 UUID, \
+      \a5 Int32 \
+      \', 1, 10, 2) LIMIT " <> (string8 . show) totalRows)
 
   threadDelay 1_000_000
   traceMarkerIO "Starting writing"
   insertInto
     @(Table "exampleWriteRead" ExampleColumns)
     connection
-    (replicate 100 test)
-    -- selectedData
+    selectedData
 
   traceMarkerIO "Completion"
-  print $ "5. Writing done. " <> show totalRows <> " rows was written"
+  print $ "Writing done. " <> show (length selectedData) <> " rows was written"
   threadDelay 1_000_000
-
 
 
 data ExampleData = MkExampleData
   { a1 :: ChInt64
-  , a2 :: StrictByteString
+  -- , a2 :: StrictByteString
   , a3 :: Word32
   , a4 :: ChUUID
   , a5 :: Int32
-  , a6 :: Nullable ChString
-  , a7 :: ChString
+  -- , a6 :: Nullable ChString
+  -- , a7 :: ChString
   }
-  deriving (Generic)
+  deriving (Generic, Show)
   deriving anyclass (ReadableFrom (Columns ExampleColumns), WritableInto (Table "exampleWriteRead" ExampleColumns))
-
-
-test :: ExampleData
-test = MkExampleData 0 "hello" 42 (toChType (0 :: Word64)) 50 Nothing "b5"
 
 
 type ExampleColumns =
  '[ Column "a1" ChInt64
-  , Column "a2" (LowCardinality ChString)
+  -- , Column "a2" (LowCardinality ChString)
   , Column "a3" ChDateTime
   , Column "a4" ChUUID
   , Column "a5" ChInt32
-  , Column "a6" (LowCardinality (Nullable ChString))
-  , Column "a7" (LowCardinality ChString)
+  -- , Column "a6" (LowCardinality (Nullable ChString))
+  -- , Column "a7" (LowCardinality ChString)
   ]
 
 devCredential :: ChCredential

@@ -252,7 +252,11 @@ instance
 
 -- | ClickHouse UUID column type
 newtype ChUUID = MkChUUID UUID
-  deriving newtype (Show, Eq, NFData, Binary)
+  deriving newtype (Show, Eq, NFData)
+
+instance Binary ChUUID where
+  get = toChType <$> (fromWords64 <$> getWord64le <*> getWord64le)
+  put = (\(hi, lo) -> putWord64le lo <> putWord64le hi) . toWords64 . fromChType
 
 instance IsChType ChUUID
   where
@@ -261,7 +265,7 @@ instance IsChType ChUUID
 
 instance ToChType ChUUID ChUUID where toChType = id
 instance ToChType ChUUID UUID   where toChType = MkChUUID
-instance ToChType ChUUID Word64 where toChType = MkChUUID . UUID.fromWords64 0 . fromIntegral
+instance ToChType ChUUID Word64 where toChType = MkChUUID . flip UUID.fromWords64 0 . fromIntegral
 
 instance FromChType ChUUID ChUUID where fromChType = id
 instance FromChType ChUUID UUID   where fromChType (MkChUUID uuid) = uuid
@@ -558,7 +562,11 @@ instance FromChType ChUInt64 Word64   where fromChType (MkChUInt64 w64) = w64
 
 -- | ClickHouse UInt128 column type
 newtype ChUInt128 = MkChUInt128 Word128
-  deriving newtype (Show, Eq, Num, Prim, Bits, Enum, Ord, Real, Integral, Bounded, NFData, Binary)
+  deriving newtype (Show, Eq, Num, Prim, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
+
+instance Binary ChUInt128 where
+  get = toChType <$> (Word128 <$> getWord64le <*> getWord64le)
+  put = (\(Word128 hi lo) -> putWord64le hi <> putWord64le lo) . fromChType
 
 instance IsChType ChUInt128
   where

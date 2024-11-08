@@ -28,7 +28,7 @@ import Control.Monad (replicateM)
 
 -- * Columns
 
-data Columns columns where
+data Columns (columns :: [Type]) where
   Empty :: Columns '[]
   AddColumn
     :: KnownColumn (Column name chType)
@@ -134,6 +134,31 @@ instance {-# OVERLAPPING #-}
     -- serialization is not custom
     <> afterRevision @DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION rev (serialize @ChUInt8 rev 0)
     <> mconcat (Prelude.map (serialize @chType rev) values)
+
+
+
+class DeserializableColumns columns where
+  deserializeColumns :: ProtocolRevision -> UVarInt -> Get columns
+
+instance {-# OVERLAPPING #-}
+  DeserializableColumns (Columns '[])
+  where
+  deserializeColumns _rev _rows = pure Empty
+
+instance {-# OVERLAPPING #-}
+  ( KnownColumn (Column name chType)
+  , Deserializable chType
+  , DeserializableColumns (Columns extraColumns)
+  )
+  =>
+  DeserializableColumns (Columns (Column name chType ': extraColumns))
+  where
+  deserializeColumns rev rows = do
+    AddColumn
+      <$> desializeColumn @name @chType rev rows
+      <*> deserializeColumns @(Columns extraColumns) rev rows
+
+
 
 
 desializeColumn :: forall name chType . Deserializable chType => ProtocolRevision -> UVarInt -> Get (Column name chType)

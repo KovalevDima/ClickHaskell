@@ -2,6 +2,8 @@
     DeriveAnyClass
   , DeriveGeneric
 #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE DataKinds #-}
 
 module ClickHaskell.NativeProtocol.ServerPackets where
 
@@ -15,10 +17,10 @@ import GHC.Generics (Generic)
 -- * Server packets
 
 data ServerPacketType
-  = HelloResponse
+  = HelloResponse HelloResponse
   | DataResponse
-  | Exception
-  | Progress
+  | Exception ExceptionPacket
+  | Progress ProgressPacket
   | Pong
   | EndOfStream
   | ProfileInfo
@@ -30,8 +32,46 @@ data ServerPacketType
   | UUIDs
   | ReadTaskRequest
   | ProfileEvents
-  deriving (Show, Enum, Bounded)
+  | UnknownPacket
 
+instance Deserializable ServerPacketType where
+  deserialize rev = do
+    packetNum <- deserialize @UVarInt rev
+    case packetNum of
+      0  -> HelloResponse <$> deserialize rev
+      1  -> pure DataResponse
+      2  -> Exception <$> deserialize rev
+      3  -> Progress <$> deserialize rev
+      4  -> pure Pong
+      5  -> pure EndOfStream
+      6  -> pure ProfileInfo
+      7  -> pure Totals
+      8  -> pure Extremes
+      9 -> pure TablesStatusResponse
+      10 -> pure Log
+      11 -> pure TableColumns
+      12 -> pure UUIDs
+      13 -> pure ReadTaskRequest
+      14 -> pure ProfileEvents
+      _  -> pure UnknownPacket
+
+instance Show ServerPacketType where
+  show (HelloResponse _) = "HelloResponse"
+  show DataResponse = "DataResponse"
+  show (Exception _) = "Exception"
+  show (Progress _) = "Progress"
+  show Pong = "Pong"
+  show EndOfStream = "EndOfStream"
+  show ProfileInfo = "ProfileInfo"
+  show Totals = "Totals"
+  show Extremes = "Extremes"
+  show TablesStatusResponse = "TablesStatusResponse"
+  show Log = "Log"
+  show TableColumns = "TableColumns"
+  show UUIDs = "UUIDs"
+  show ReadTaskRequest = "ReadTaskRequest"
+  show ProfileEvents = "ProfileEvents"
+  show UnknownPacket = "UnknownPacket"
 
 -- ** HelloResponse
 
@@ -71,5 +111,19 @@ data ExceptionPacket = MkExceptionPacket
   , message     :: ChString
   , stack_trace :: ChString
   , nested      :: ChUInt8
+  }
+  deriving (Generic, Deserializable, Show)
+
+
+-- ** Progress
+
+data ProgressPacket = MkProgressPacket
+  { rows :: UVarInt
+  , bytes :: UVarInt
+  , total_rows :: UVarInt
+  , total_bytes :: UVarInt `SinceRevision`  DBMS_MIN_PROTOCOL_VERSION_WITH_TOTAL_BYTES_IN_PROGRESS
+  , wrote_rows :: UVarInt `SinceRevision` DBMS_MIN_PROTOCOL_VERSION_WITH_TOTAL_BYTES_IN_PROGRESS
+  , wrote_bytes :: UVarInt `SinceRevision` DBMS_MIN_REVISION_WITH_CLIENT_WRITE_INFO
+  , elapsed_ns :: UVarInt `SinceRevision` DBMS_MIN_REVISION_WITH_CLIENT_WRITE_INFO
   }
   deriving (Generic, Deserializable, Show)

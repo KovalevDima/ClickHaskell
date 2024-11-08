@@ -170,6 +170,9 @@ latestSupportedRevision :: ProtocolRevision
 latestSupportedRevision = (fromIntegral . natVal) (Proxy @DBMS_TCP_PROTOCOL_VERSION)
 
 data SinceRevision a (revisionNumber :: Nat) = MkSinceRevision a | NotPresented
+instance Show a => Show (SinceRevision a (revisionNumber :: Nat)) where
+  show (MkSinceRevision a) = show a
+  show NotPresented = ""
 
 instance
   ( KnownNat revision

@@ -64,7 +64,7 @@ executable profiler2
   ghc-options:
     -O2
     -threaded
-    -rtsopts "-with-rtsopts=-s -A32m -AL256m -p -hy -L250 -l-agu -N1"
+    -- -rtsopts "-with-rtsopts=-s -A32m -AL256m -p -hy -L250 -l-agu -N1"
     -fprof-late
     -main-is ProfilerV2
 
@@ -89,6 +89,8 @@ executable profiler2
     , base
     , bytestring
     , stm
+    , time
+    , template-haskell
 
     -- External
     , http-client
