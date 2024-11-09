@@ -1,10 +1,11 @@
 {-# LANGUAGE
     DeriveAnyClass
   , DeriveGeneric
+  , DuplicateRecordFields
+  , RankNTypes
+  , DataKinds
+  , GADTs
 #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE GADTs #-}
 
 module ClickHaskell.NativeProtocol.ServerPackets where
 
@@ -24,7 +25,7 @@ data ServerPacketType where
   Progress :: ProgressPacket -> ServerPacketType
   Pong :: ServerPacketType
   EndOfStream :: ServerPacketType
-  ProfileInfo :: ServerPacketType
+  ProfileInfo :: ProfileInfo -> ServerPacketType
   Totals :: ServerPacketType
   Extremes :: ServerPacketType
   TablesStatusResponse :: ServerPacketType
@@ -45,7 +46,7 @@ instance Deserializable ServerPacketType where
       3  -> Progress <$> deserialize rev
       4  -> pure Pong
       5  -> pure EndOfStream
-      6  -> pure ProfileInfo
+      6  -> ProfileInfo <$> deserialize rev
       7  -> pure Totals
       8  -> pure Extremes
       9  -> pure TablesStatusResponse
@@ -57,13 +58,13 @@ instance Deserializable ServerPacketType where
       _  -> pure UnknownPacket
 
 instance Show ServerPacketType where
-  show (HelloResponse _) = "HelloResponse"
+  show (HelloResponse hello) = "HelloResponse " <> show hello
   show DataResponse = "DataResponse"
-  show (Exception _) = "Exception"
-  show (Progress _) = "Progress"
+  show (Exception exception) = "Exception" <> show exception
+  show (Progress progress) = "Progress" <> show progress
   show Pong = "Pong"
   show EndOfStream = "EndOfStream"
-  show ProfileInfo = "ProfileInfo"
+  show (ProfileInfo profileInfo) = "ProfileInfo" <> show profileInfo 
   show Totals = "Totals"
   show Extremes = "Extremes"
   show TablesStatusResponse = "TablesStatusResponse"
@@ -93,13 +94,13 @@ data HelloResponse = MkHelloResponse
   , password_complexity_rules      :: [PasswordComplexityRules] `SinceRevision` DBMS_MIN_PROTOCOL_VERSION_WITH_PASSWORD_COMPLEXITY_RULES
   , read_nonce                     :: ChUInt64 `SinceRevision` DBMS_MIN_REVISION_WITH_INTERSERVER_SECRET_V2
   }
-  deriving (Generic, Deserializable)
+  deriving (Generic, Deserializable, Show)
 
 data PasswordComplexityRules = MkPasswordComplexityRules
   { original_pattern  :: ChString
   , exception_message :: ChString
   }
-  deriving (Generic, Deserializable)
+  deriving (Generic, Deserializable, Show)
 
 
 
@@ -126,5 +127,18 @@ data ProgressPacket = MkProgressPacket
   , wrote_rows  :: UVarInt `SinceRevision` DBMS_MIN_PROTOCOL_VERSION_WITH_TOTAL_BYTES_IN_PROGRESS
   , wrote_bytes :: UVarInt `SinceRevision` DBMS_MIN_REVISION_WITH_CLIENT_WRITE_INFO
   , elapsed_ns  :: UVarInt `SinceRevision` DBMS_MIN_REVISION_WITH_CLIENT_WRITE_INFO
+  }
+  deriving (Generic, Deserializable, Show)
+
+
+data ProfileInfo = MkProfileInfo
+  { rows                         :: UVarInt
+  , blocks                       :: UVarInt
+  , bytes                        :: UVarInt
+  , applied_limit                :: ChUInt8
+  , rows_before_limit            :: UVarInt
+  , calculated_rows_before_limit :: ChUInt8
+  , applied_aggregation          :: ChUInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_ROWS_BEFORE_AGGREGATION
+  , rows_before_aggregation      :: UVarInt `SinceRevision` DBMS_MIN_REVISION_WITH_ROWS_BEFORE_AGGREGATION
   }
   deriving (Generic, Deserializable, Show)

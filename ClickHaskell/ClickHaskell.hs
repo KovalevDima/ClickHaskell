@@ -54,12 +54,12 @@ import Data.Typeable (Proxy(..))
 import Data.Word (Word32)
 import GHC.Generics
 import GHC.TypeLits (Symbol, symbolVal, KnownSymbol)
+import GHC.Stack (HasCallStack, prettyCallStack, callStack)
 import System.Timeout (timeout)
 
 -- External
 import Network.Socket as Sock
 import Network.Socket.ByteString.Lazy (recv, sendAll)
-import GHC.Stack (HasCallStack, prettyCallStack, callStack)
 
 -- * Connection
 
@@ -184,9 +184,9 @@ handleSelect conn previousBuffer = do
     DataResponse -> do
       (dataPacket, nextBuffer) <- continueReadDeserializable @(DataPacket (GetColumns hasColumns)) conn buffer
       ((fromColumns @hasColumns . columns) dataPacket ++) <$> handleSelect @hasColumns conn nextBuffer
-    Progress progress -> do
-      print progress
-      handleSelect @hasColumns conn buffer
+    Progress _    -> handleSelect @hasColumns conn buffer
+    ProfileInfo _ -> handleSelect @hasColumns conn buffer
+    EndOfStream   -> pure []
     Exception exception -> throwIO $ DatabaseException exception
     otherPacket         -> throwIO $ ProtocolImplementationError $ UnexpectedPacketType otherPacket
 
