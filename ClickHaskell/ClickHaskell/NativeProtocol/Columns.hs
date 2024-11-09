@@ -137,15 +137,16 @@ instance {-# OVERLAPPING #-}
 
 
 
+
 class DeserializableColumns columns where
   deserializeColumns :: ProtocolRevision -> UVarInt -> Get columns
 
-instance {-# OVERLAPPING #-}
+instance
   DeserializableColumns (Columns '[])
   where
   deserializeColumns _rev _rows = pure Empty
 
-instance {-# OVERLAPPING #-}
+instance
   ( KnownColumn (Column name chType)
   , Deserializable chType
   , DeserializableColumns (Columns extraColumns)

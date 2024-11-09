@@ -34,32 +34,33 @@ module ClickHaskell
 
 -- Internal dependencies
 import ClickHaskell.DbTypes
-import ClickHaskell.NativeProtocol.ClientPackets (HelloParameters (..), mkAddendum, mkDataPacket, mkHelloPacket, mkPingPacket, mkQueryPacket, DataPacket, columns)
-import ClickHaskell.NativeProtocol.Columns (Column (..), Columns (..), emptyColumns, KnownColumns (..), HasColumns(..), KnownColumn (..), appendColumn, mkColumn, DeserializableColumns)
+import ClickHaskell.NativeProtocol.ClientPackets (DataPacket (..), HelloParameters (..), mkAddendum, mkDataPacket, mkHelloPacket, mkPingPacket, mkQueryPacket)
+import ClickHaskell.NativeProtocol.Columns (Column (..), Columns (..), DeserializableColumns (deserializeColumns), HasColumns (..), KnownColumn (..), KnownColumns (..), appendColumn, emptyColumns, mkColumn)
 import ClickHaskell.NativeProtocol.Serialization (Deserializable (..), ProtocolRevision, Serializable (..), latestSupportedRevision)
 import ClickHaskell.NativeProtocol.ServerPackets (ExceptionPacket, HelloResponse (..), ServerPacketType (..))
 
 -- GHC included
 import Control.Exception (Exception, SomeException, bracketOnError, catch, finally, throwIO)
 import Control.Monad ((<=<))
-import Data.Binary.Get (Decoder (..), runGetIncremental)
-import Data.ByteString.Char8 as BS8 (pack, fromStrict)
-import Data.ByteString.Builder (Builder, toLazyByteString, byteString)
+import Data.Binary.Get (Decoder (..), Get, runGetIncremental)
+import Data.ByteString.Builder (Builder, byteString, toLazyByteString)
+import Data.ByteString.Char8 as BS8 (fromStrict, pack)
 import Data.ByteString.Lazy.Internal as BL (ByteString (..), LazyByteString)
 import Data.Int (Int64)
 import Data.Kind (Type)
 import Data.Maybe (listToMaybe)
 import Data.Text (Text)
-import Data.Typeable (Proxy(..))
+import Data.Typeable (Proxy (..))
 import Data.Word (Word32)
 import GHC.Generics
-import GHC.TypeLits (Symbol, symbolVal, KnownSymbol)
-import GHC.Stack (HasCallStack, prettyCallStack, callStack)
+import GHC.Stack (HasCallStack, callStack, prettyCallStack)
+import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
 import System.Timeout (timeout)
 
 -- External
 import Network.Socket as Sock
 import Network.Socket.ByteString.Lazy (recv, sendAll)
+import Debug.Trace (traceShowId)
 
 -- * Connection
 
@@ -76,7 +77,7 @@ data Connection = MkConnection
   { sock           :: Socket
   , user           :: ChString
   , bufferSize     :: Int64
-  , chosenRevision :: ProtocolRevision
+  , revision :: ProtocolRevision
   }
 
 openNativeConnection :: HasCallStack => ChCredential -> IO Connection
@@ -108,14 +109,14 @@ openNativeConnection MkChCredential{chHost, chPort, chLogin, chPass, chDatabase}
   (sendAll sock . toLazyByteString . serialize latestSupportedRevision)
     (mkHelloPacket MkHelloParameters{..})
 
-  (serverPacketType, _) <- rawBufferizedRead emptyBuffer latestSupportedRevision sock 4096
+  (serverPacketType, _) <- rawBufferizedRead emptyBuffer (deserialize latestSupportedRevision) sock 4096
   case serverPacketType of
     HelloResponse MkHelloResponse{server_revision} -> do
-      let chosenRevision = min server_revision latestSupportedRevision
-      (sendAll sock . toLazyByteString) (serialize chosenRevision mkAddendum)
+      let revision = min server_revision latestSupportedRevision
+      (sendAll sock . toLazyByteString) (serialize revision mkAddendum)
       pure MkConnection
         { user = toChType chLogin
-        , chosenRevision
+        , revision
         , sock
         , bufferSize = 4096
         }
@@ -128,10 +129,10 @@ openNativeConnection MkChCredential{chHost, chPort, chLogin, chPass, chDatabase}
 -- * Ping
 
 ping :: HasCallStack => Connection -> IO ()
-ping conn@MkConnection{sock, chosenRevision} = do
+ping conn@MkConnection{sock, revision} = do
   (sendAll sock . toLazyByteString)
-    (mkPingPacket chosenRevision)
-  (responsePacket, _) <- readDeserializable conn
+    (mkPingPacket revision)
+  (responsePacket, _) <- continueReadDeserializable conn emptyBuffer
   case responsePacket of
     Pong                -> pure ()
     Exception exception -> throwIO (DatabaseException exception)
@@ -153,13 +154,13 @@ selectFrom ::
   )
   =>
   Connection -> IO [record]
-selectFrom conn@MkConnection{sock, user, chosenRevision} = do
+selectFrom conn@MkConnection{sock, user, revision} = do
   let query
         =  "SELECT " <> readingColumns @table @record
         <> " FROM " <> (byteString . BS8.pack) (symbolVal $ Proxy @name)
   (sendAll sock . toLazyByteString)
-    (  serialize chosenRevision (mkQueryPacket chosenRevision user (toChType query))
-    <> serialize chosenRevision (mkDataPacket "" emptyColumns)
+    (  serialize revision (mkQueryPacket revision user (toChType query))
+    <> serialize revision (mkDataPacket "" emptyColumns)
     )
   handleSelect @table conn emptyBuffer
 
@@ -167,26 +168,36 @@ selectFrom conn@MkConnection{sock, user, chosenRevision} = do
 select ::
   forall columns record
   .
-  ReadableFrom (Columns columns) record
+  (ReadableFrom (Columns columns) record, Serializable (Columns columns))
   =>
   Connection -> ChString -> IO [record]
-select conn@MkConnection{sock, user, chosenRevision} query = do
+select conn@MkConnection{sock, user, revision} query = do
   (sendAll sock . toLazyByteString)
-    (  serialize chosenRevision (mkQueryPacket chosenRevision user query)
-    <> serialize chosenRevision (mkDataPacket "" emptyColumns)
+    (  serialize revision (mkQueryPacket revision user query)
+    <> serialize revision (mkDataPacket "" emptyColumns)
     )
-  handleSelect @(Columns columns) conn emptyBuffer
+  (firstPacket, buffer) <- continueReadDeserializable @ServerPacketType conn emptyBuffer  
+  case traceShowId firstPacket of
+    DataResponse _      -> do
+      (_empty, nextBuffer) <- continueReadColumns @(Columns columns) conn buffer 0
+      print (serialize revision _empty)
+      handleSelect @(Columns columns) conn nextBuffer
+    Exception exception -> throwIO $ DatabaseException exception
+    otherPacket         -> throwIO $ ProtocolImplementationError $ UnexpectedPacketType otherPacket
 
-handleSelect :: forall hasColumns record . ReadableFrom hasColumns record => Connection -> PreviousBuffer -> IO [record]
+handleSelect :: forall hasColumns record . ReadableFrom hasColumns record => Connection -> Buffer -> IO [record]
 handleSelect conn previousBuffer = do
   (packet, buffer) <- continueReadDeserializable @ServerPacketType conn previousBuffer
-  case packet of
-    DataResponse -> do
-      (dataPacket, nextBuffer) <- continueReadDeserializable @(DataPacket (GetColumns hasColumns)) conn buffer
-      ((fromColumns @hasColumns . columns) dataPacket ++) <$> handleSelect @hasColumns conn nextBuffer
-    Progress _    -> handleSelect @hasColumns conn buffer
-    ProfileInfo _ -> handleSelect @hasColumns conn buffer
-    EndOfStream   -> pure []
+  case traceShowId packet of
+    DataResponse MkDataPacket{rows_count} -> do
+      case rows_count of
+        0 -> pure []
+        rows -> do
+          (columns, nextBuffer) <- continueReadColumns @(Columns (GetColumns hasColumns)) conn buffer rows
+          ((fromColumns @hasColumns) columns ++) <$> handleSelect @hasColumns conn nextBuffer
+    Progress          _ -> handleSelect @hasColumns conn buffer
+    ProfileInfo       _ -> handleSelect @hasColumns conn buffer
+    EndOfStream         -> pure []
     Exception exception -> throwIO $ DatabaseException exception
     otherPacket         -> throwIO $ ProtocolImplementationError $ UnexpectedPacketType otherPacket
 
@@ -201,18 +212,18 @@ insertInto ::
   , Serializable (Columns columns)
   )
   => Connection -> [record] -> IO ()
-insertInto MkConnection{sock, user, chosenRevision} columns = do
+insertInto MkConnection{sock, user, revision} columns = do
   let query =
         "INSERT INTO " <> (byteString . BS8.pack) (symbolVal $ Proxy @name)
         <> " (" <> writingColumns @table @record <> ") VALUES"
   (sendAll sock . toLazyByteString)
-    (  serialize chosenRevision (mkQueryPacket chosenRevision user (toChType query))
-    <> serialize chosenRevision (mkDataPacket "" emptyColumns)
+    (  serialize revision (mkQueryPacket revision user (toChType query))
+    <> serialize revision (mkDataPacket "" emptyColumns)
     )
   -- ^ answers with 11.TableColumns
   (sendAll sock . toLazyByteString)
-    (  serialize chosenRevision (mkDataPacket "" . toColumns @(Table name columns) $ columns)
-    <> serialize chosenRevision (mkDataPacket "" emptyColumns)
+    (  serialize revision (mkDataPacket "" . toColumns @(Table name columns) $ columns)
+    <> serialize revision (mkDataPacket "" emptyColumns)
     )
   -- print =<< recv sock 4096
 
@@ -220,28 +231,24 @@ insertInto MkConnection{sock, user, chosenRevision} columns = do
 
 -- * Reading
 
-readDeserializable :: Deserializable packet => Connection -> IO (packet, PreviousBuffer)
-readDeserializable MkConnection{..} = rawBufferizedRead emptyBuffer chosenRevision sock bufferSize
+continueReadDeserializable :: Deserializable packet => Connection -> Buffer -> IO (packet, Buffer)
+continueReadDeserializable MkConnection{..} buffer = rawBufferizedRead buffer (deserialize revision) sock bufferSize
 
-continueReadDeserializable :: Deserializable packet => Connection -> PreviousBuffer -> IO (packet, PreviousBuffer)
-continueReadDeserializable MkConnection{..} buffer = rawBufferizedRead buffer chosenRevision sock bufferSize
+continueReadColumns :: DeserializableColumns columns => Connection -> Buffer -> UVarInt -> IO (columns, Buffer)
+continueReadColumns MkConnection{..} buffer rows = rawBufferizedRead buffer (deserializeColumns revision rows) sock bufferSize
 
 -- ** Bufferization
 
-type PreviousBuffer = LazyByteString
+type Buffer = LazyByteString
 
-emptyBuffer :: PreviousBuffer
+emptyBuffer :: Buffer
 emptyBuffer = BL.Empty
 
-rawBufferizedRead :: Deserializable packet => PreviousBuffer -> ProtocolRevision -> Socket -> Int64 -> IO (packet, LazyByteString)
-rawBufferizedRead bytesToContinueFrom rev sock bufferSize =
-  runBufferReader
-    (recv sock bufferSize)
-    (runGetIncremental (deserialize rev))
-    bytesToContinueFrom
+rawBufferizedRead :: Buffer -> Get packet -> Socket -> Int64 -> IO (packet, LazyByteString)
+rawBufferizedRead buffer parser sock bufSize = runBufferReader (recv sock bufSize) (runGetIncremental parser) buffer
 
 
-runBufferReader :: Deserializable packet => IO LazyByteString -> Decoder packet -> LazyByteString -> IO (packet, LazyByteString)
+runBufferReader :: IO LazyByteString -> Decoder packet -> LazyByteString -> IO (packet, LazyByteString)
 runBufferReader bufferFiller (Partial decoder) (BL.Chunk bs mChunk)
   = runBufferReader bufferFiller (decoder $ Just bs) mChunk
 runBufferReader bufferFiller (Partial decoder) BL.Empty = do
@@ -263,7 +270,7 @@ data ClientError where
 
 instance Show ClientError where
   show (ConnectionError connError) = "ConnectionError" <> show connError <> "\n" <> prettyCallStack callStack
-  show (DatabaseException exceptionPacket) = "DatabaseException" <> show exceptionPacket <> "\n" <> prettyCallStack callStack
+  show (DatabaseException exception) = "DatabaseException" <> show exception <> "\n" <> prettyCallStack callStack
   show (ProtocolImplementationError err) = "ConnectionError" <> show err <> "\n" <> prettyCallStack callStack
 
 deriving anyclass instance Exception ClientError
@@ -404,7 +411,7 @@ instance
   =>
   GWritable columns (D1 c (C1 c2 f))
   where
-  gToColumns =  gToColumns @columns . map (unM1 . unM1)
+  gToColumns = gToColumns @columns . map (unM1 . unM1)
   gWritingColumns = gWritingColumns @columns @f
 
 instance

@@ -15,7 +15,7 @@ module ClickHaskell.NativeProtocol.ClientPackets where
 -- Internal dependencies
 import ClickHaskell.DbTypes
 import ClickHaskell.NativeProtocol.Serialization
-import ClickHaskell.NativeProtocol.Columns (Columns, KnownColumns(columnsCount, rowsCount), DeserializableColumns (deserializeColumns))
+import ClickHaskell.NativeProtocol.Columns (Columns, KnownColumns(columnsCount, rowsCount))
 
 -- GHC included
 import Data.ByteString.Builder (Builder)
@@ -41,6 +41,7 @@ data ClientPacketType
   | MergeTreeReadTaskResponse
   | SSHChallengeRequest
   | SSHChallengeResponse
+  deriving (Enum, Show)
 
 type family PacketTypeNumber (packetType :: ClientPacketType)
   where
@@ -59,6 +60,8 @@ type family PacketTypeNumber (packetType :: ClientPacketType)
   PacketTypeNumber SSHChallengeResponse = 12
 
 data Packet (packetType :: ClientPacketType) = MkPacket
+instance KnownNat (PacketTypeNumber packetType) => Show (Packet (packetType :: ClientPacketType)) where
+  show _ = show . toEnum @ClientPacketType . fromIntegral $ packetNumVal @packetType
 
 packetNumVal :: forall packetType . KnownNat (PacketTypeNumber packetType) => UVarInt
 packetNumVal = fromIntegral . natVal $ Proxy @(PacketTypeNumber packetType)
@@ -243,7 +246,7 @@ instance Serializable QueryKind where
 mkDataPacket :: forall columns .
   ( Serializable (Columns columns)
   , KnownColumns (Columns columns)
-  ) => ChString -> Columns columns -> DataPacket columns
+  ) => ChString -> Columns columns -> DataPacket
 mkDataPacket table_name columns =
   MkDataPacket
     { packet_type   = MkPacket
@@ -255,32 +258,16 @@ mkDataPacket table_name columns =
       }
     , columns_count = columnsCount @(Columns columns)
     , rows_count    = rowsCount columns
-    , columns
     }
 
-data DataPacket columns = MkDataPacket
+data DataPacket = MkDataPacket
   { packet_type   :: Packet Data
   , table_name    :: ChString
   , block_info    :: BlockInfo
   , columns_count :: UVarInt
   , rows_count    :: UVarInt
-  , columns       :: Columns columns
   }
-  deriving (Generic)
-
-instance Serializable (Columns columns) => Serializable (DataPacket columns)
-instance
-  DeserializableColumns (Columns columns)
-  =>
-  Deserializable (DataPacket columns)
-  where
-  deserialize rev = do
-    table_name    <- deserialize rev
-    block_info    <- deserialize rev
-    columns_count <- deserialize rev
-    rows_count    <- deserialize rev
-    columns       <- deserializeColumns rev rows_count
-    pure MkDataPacket{packet_type = MkPacket, ..}
+  deriving (Generic, Serializable, Deserializable, Show)
 
 
 data BlockInfo = MkBlockInfo
@@ -288,4 +275,4 @@ data BlockInfo = MkBlockInfo
   , field_num2   :: UVarInt, bucket_num   :: ChInt32
   , eof          :: UVarInt
   }
-  deriving (Generic, Serializable, Deserializable)
+  deriving (Generic, Serializable, Deserializable, Show)

@@ -12,6 +12,7 @@ module ClickHaskell.NativeProtocol.ServerPackets where
 -- Internal dependencies
 import ClickHaskell.DbTypes
 import ClickHaskell.NativeProtocol.Serialization
+import ClickHaskell.NativeProtocol.ClientPackets (DataPacket)
 
 -- GHC included
 import GHC.Generics (Generic)
@@ -20,7 +21,7 @@ import GHC.Generics (Generic)
 
 data ServerPacketType where
   HelloResponse :: HelloResponse -> ServerPacketType
-  DataResponse :: ServerPacketType
+  DataResponse :: DataPacket -> ServerPacketType
   Exception :: ExceptionPacket -> ServerPacketType
   Progress :: ProgressPacket -> ServerPacketType
   Pong :: ServerPacketType
@@ -34,14 +35,14 @@ data ServerPacketType where
   UUIDs :: ServerPacketType
   ReadTaskRequest :: ServerPacketType
   ProfileEvents :: ServerPacketType
-  UnknownPacket :: ServerPacketType
+  UnknownPacket :: UVarInt -> ServerPacketType
 
 instance Deserializable ServerPacketType where
   deserialize rev = do
     packetNum <- deserialize @UVarInt rev
     case packetNum of
       0  -> HelloResponse <$> deserialize rev
-      1  -> pure DataResponse
+      1  -> DataResponse <$> deserialize rev
       2  -> Exception <$> deserialize rev
       3  -> Progress <$> deserialize rev
       4  -> pure Pong
@@ -55,11 +56,11 @@ instance Deserializable ServerPacketType where
       12 -> pure UUIDs
       13 -> pure ReadTaskRequest
       14 -> pure ProfileEvents
-      _  -> pure UnknownPacket
+      _  -> pure $ UnknownPacket packetNum
 
 instance Show ServerPacketType where
   show (HelloResponse hello) = "HelloResponse " <> show hello
-  show DataResponse = "DataResponse"
+  show (DataResponse dataPacket) = "DataResponse" <> show dataPacket
   show (Exception exception) = "Exception" <> show exception
   show (Progress progress) = "Progress" <> show progress
   show Pong = "Pong"
@@ -73,7 +74,7 @@ instance Show ServerPacketType where
   show UUIDs = "UUIDs"
   show ReadTaskRequest = "ReadTaskRequest"
   show ProfileEvents = "ProfileEvents"
-  show UnknownPacket = "UnknownPacket"
+  show (UnknownPacket packetNum) = "UnknownPacket: " <> show packetNum
 
 -- ** HelloResponse
 

@@ -41,7 +41,7 @@ main = do
   traceMarkerIO "Initialization"
   manager <- newManager defaultManagerSettings
 
-  let totalRows = 1_000_000
+  let totalRows = 500_000
 
   threadDelay 1_000_000
   traceMarkerIO "Push data"
