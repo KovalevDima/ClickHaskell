@@ -108,12 +108,12 @@ type family
 
 -- ** 
 
-instance {-# OVERLAPPING #-}
+instance
   Serializable (Columns '[])
   where
   serialize _rev Empty = ""
 
-instance {-# OVERLAPPING #-}
+instance
   ( Serializable (Columns columns)
   , Serializable (Column name chType)
   )
@@ -122,7 +122,7 @@ instance {-# OVERLAPPING #-}
   where
   serialize rev (AddColumn col columns) = serialize rev col <> serialize rev columns
 
-instance {-# OVERLAPPING #-}
+instance
   ( KnownColumn (Column name chType)
   , IsChType chType
   , KnownSymbol name
@@ -156,24 +156,31 @@ instance
   where
   deserializeColumns rev rows = do
     AddColumn
-      <$> desializeColumn @name @chType rev rows
+      <$> (do
+        _columnName <- deserialize @ChString rev
+        _columnType <- deserialize @ChString rev
+        _isCustom <- deserialize @(ChUInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION) rev
+        column <- replicateM (fromIntegral rows) (deserialize @chType rev)
+        pure $ MkColumn column
+      )
       <*> deserializeColumns @(Columns extraColumns) rev rows
 
 
-
-
-desializeColumn :: forall name chType . Deserializable chType => ProtocolRevision -> UVarInt -> Get (Column name chType)
-desializeColumn rev rows = do
-  _columnName <- deserialize @ChString rev
-  _columnType <- deserialize @ChString rev
-  _isCustom <- deserialize @(ChUInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION) rev
-  column <- replicateM (fromIntegral rows) (deserialize @chType rev)
-  pure $ MkColumn column
-
-
-
-
 -- ** Column declaration
+
+{- |
+Column declaration
+
+For example:
+
+@
+type MyColumn = Column "myColumn" ChString
+@
+-}
+newtype Column (name :: Symbol) (chType :: Type) = MkColumn [chType]
+
+mkColumn :: forall name chType . [chType] -> Column name chType
+mkColumn = MkColumn
 
 class
   ( IsChType (GetColumnType columnDescription)
@@ -184,108 +191,18 @@ class
   KnownColumn columnDescription where
   type GetColumnName columnDescription :: Symbol
   renderColumnName :: Builder
+  renderColumnName = (stringUtf8 . symbolVal @(GetColumnName columnDescription)) Proxy
 
   type GetColumnType columnDescription :: Type
   renderColumnType :: Builder
-
-  type WritableColumn    columnDescription :: Maybe ErrorMessage
-  type WriteOptionalColumn columnDescription :: Bool
-
-{- |
-Column declaration
-
-Examples:
-
-@
-type MyColumn = Column "myColumn" ChString
-type MyColumn = Column "myColumn" ChString -> Alias
-type MyColumn = Column "myColumn" ChString -> Default
-@
--}
-newtype Column (name :: Symbol) (chType :: Type) = MkColumn [chType]
-
-mkColumn :: forall name chType . [chType] -> Column name chType
-mkColumn = MkColumn
+  renderColumnType = chTypeName @(GetColumnType columnDescription)
 
 
 instance
   ( IsChType columnType
-  , KnownSymbol (ToChTypeName columnType)
   , KnownSymbol name
+  , KnownSymbol (ToChTypeName columnType)
   ) => KnownColumn (Column name columnType)
   where
   type GetColumnName (Column name columnType) = name
-  renderColumnName = (stringUtf8 . symbolVal @name) Proxy
-
   type GetColumnType (Column name columnType) = columnType
-  renderColumnType = chTypeName @columnType
-
-  type WritableColumn (Column _ _) = Nothing
-
-  type WriteOptionalColumn (Column name columnType) = IsWriteOptional columnType
-
-
-
-
--- ** Columns properties
-
-{- |
-Column that refers to another column.
-
-Can be only readed.
-
-Example:
-
-@
-type MyColumn = Column "myColumn" ChString -> Alias
-@
--}
-data Alias
-
-instance
-  KnownColumn (Column name columnType)
-  =>
-  KnownColumn (Column name columnType -> Alias)
-  where
-  type GetColumnName (Column name columnType -> Alias) = GetColumnName (Column name columnType)
-  renderColumnName = renderColumnName @(Column name columnType)
-
-  type GetColumnType (Column name columnType -> Alias) = GetColumnType (Column name columnType)
-  renderColumnType = renderColumnType @(Column name columnType)
-
-  type WritableColumn (Column name columnType -> Alias) =
-    Just
-      (    'Text "You are trying insert into Alias column \"" :<>: 'Text name :<>: 'Text "\""
-      :$$: 'Text "You can't do this. Read about Alias columns"
-      )
-
-  type WriteOptionalColumn (Column name columnType -> Alias) = False
-
-
-{- |
-Column which value could be evaluated when it's not mentioned.
-
-Not required for writing.
-
-Example:
-
-@
-type MyColumn = Column "myColumn" ChString -> Default
-@
--}
-data Default
-
-instance
-  KnownColumn (Column name columnType)
-  =>
-  KnownColumn (Column name columnType -> Default)
-  where
-  type GetColumnName (Column name columnType -> Default) = GetColumnName (Column name columnType)
-  renderColumnName = renderColumnName @(Column name columnType)
-
-  type GetColumnType (Column name columnType -> Default) = GetColumnType (Column name columnType)
-  renderColumnType = renderColumnType @(Column name columnType)
-
-  type WritableColumn (Column name columnType -> Default) = Nothing
-
-  type WriteOptionalColumn (Column name columnType -> Default) = True

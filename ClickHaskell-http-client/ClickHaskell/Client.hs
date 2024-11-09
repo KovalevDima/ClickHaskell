@@ -47,13 +47,13 @@ import ClickHaskell.DbTypes
 import Control.DeepSeq (NFData)
 import Control.Exception (Exception, SomeException, throw)
 import Data.ByteString as BS (StrictByteString, drop, empty, take, toStrict)
-import Data.ByteString.Builder as BS (Builder, byteString, toLazyByteString, int16Dec, int8Dec, int32Dec, int64Dec, integerDec, word8Dec, word16Dec, word32Dec, word64Dec)
+import Data.ByteString.Builder as BS (Builder, byteString, int16Dec, int32Dec, int64Dec, int8Dec, integerDec, toLazyByteString, word16Dec, word32Dec, word64Dec, word8Dec)
 import Data.ByteString.Char8 as BS8 (break, concatMap, length, pack, readInt, readInteger, replicate, singleton, span, unpack)
 import Data.ByteString.Lazy as BSL (fromChunks, toChunks)
 import Data.ByteString.Lazy.Char8 as BSL8 (lines)
 import Data.IORef (atomicModifyIORef, newIORef, readIORef, writeIORef)
 import Data.Int
-import Data.Kind (Constraint, Type)
+import Data.Kind (Type)
 import Data.Maybe (fromJust)
 import Data.Text as T (Text, unpack)
 import Data.Text.Encoding as T (decodeUtf8, encodeUtf8)
@@ -62,8 +62,7 @@ import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
 import Data.Typeable (Proxy (..))
 import GHC.Generics
 import GHC.IO (unsafeInterleaveIO)
-import GHC.TypeLits (ErrorMessage (..), KnownSymbol, TypeError, symbolVal)
-import Data.Type.Bool (If)
+import GHC.TypeLits (KnownSymbol, symbolVal)
 
 -- External
 import qualified Data.UUID as UUID
@@ -496,8 +495,7 @@ instance
   gWritingColumns = renderColumnName @column <> ", " <> gWritingColumns @restColumns @right
 
 instance
-  ( ThereIsNoWriteRequiredColumns restColumns
-  , Serializable (GetColumnType column)
+  ( Serializable (GetColumnType column)
   , ToChType (GetColumnType column) inputType
   , KnownColumn column
   , '(column, restColumns) ~ TakeColumn typeName columns
@@ -506,15 +504,6 @@ instance
   where
   gToTsvBs = serialize . toChType @(GetColumnType column) @inputType . unK1 . unM1
   gWritingColumns = renderColumnName @column
-
-
-type family ThereIsNoWriteRequiredColumns (columns :: [Type]) :: Constraint where
-  ThereIsNoWriteRequiredColumns '[] = ()
-  ThereIsNoWriteRequiredColumns (column ': columns) =
-    If
-      (WriteOptionalColumn column)
-      (ThereIsNoWriteRequiredColumns columns)
-      (TypeError ('Text "Column " :<>: 'Text (GetColumnName column) :<>: 'Text " is required for insert but is missing"))
 
 
 -- ** HasColumns helper class
