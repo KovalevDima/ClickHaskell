@@ -47,6 +47,8 @@ main = do
   threadDelay 250_000
   traceMarkerIO "Push data"
 
+  ping connection
+
   traceMarkerIO "Starting reading"
   selectedData <-
     select

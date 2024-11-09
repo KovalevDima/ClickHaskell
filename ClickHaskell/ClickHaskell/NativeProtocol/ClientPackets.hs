@@ -275,11 +275,11 @@ instance
   Deserializable (DataPacket columns)
   where
   deserialize rev = do
-    table_name <- deserialize rev
-    block_info <- deserialize rev
+    table_name    <- deserialize rev
+    block_info    <- deserialize rev
     columns_count <- deserialize rev
-    rows_count <- deserialize rev
-    columns <- deserializeColumns rev rows_count
+    rows_count    <- deserialize rev
+    columns       <- deserializeColumns rev rows_count
     pure MkDataPacket{packet_type = MkPacket, ..}
 
 

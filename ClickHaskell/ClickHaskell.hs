@@ -108,21 +108,19 @@ openNativeConnection MkChCredential{chHost, chPort, chLogin, chPass, chDatabase}
   (sendAll sock . toLazyByteString . serialize latestSupportedRevision)
     (mkHelloPacket MkHelloParameters{..})
 
-  (serverPacketType, _) <- bufferizedRead emptyBuffer latestSupportedRevision sock 4096
+  (serverPacketType, _) <- rawBufferizedRead emptyBuffer latestSupportedRevision sock 4096
   case serverPacketType of
     HelloResponse MkHelloResponse{server_revision} -> do
-      -- (MkHelloResponse{server_revision}, _) <- bufferizedRead emptyBuffer latestSupportedRevision sock 4096
-      (sendAll sock . toLazyByteString . serialize server_revision) mkAddendum
+      let chosenRevision = min server_revision latestSupportedRevision
+      (sendAll sock . toLazyByteString) (serialize chosenRevision mkAddendum)
       pure MkConnection
         { user = toChType chLogin
-        , chosenRevision = min server_revision latestSupportedRevision
+        , chosenRevision
         , sock
         , bufferSize = 4096
         }
-    Exception _ ->
-      throwIO . DatabaseException . fst
-        =<< bufferizedRead emptyBuffer latestSupportedRevision sock 4096
-    otherPacket -> throwIO . ProtocolImplementationError $ UnexpectedPacketType otherPacket
+    Exception exception -> throwIO . DatabaseException $ exception
+    otherPacket         -> throwIO . ProtocolImplementationError $ UnexpectedPacketType otherPacket
 
 
 
@@ -131,12 +129,13 @@ openNativeConnection MkChCredential{chHost, chPort, chLogin, chPass, chDatabase}
 
 ping :: HasCallStack => Connection -> IO ()
 ping conn@MkConnection{sock, chosenRevision} = do
-  (sendAll sock . toLazyByteString) (mkPingPacket chosenRevision)
-  (responscePacket, _) <- bufferizedRead emptyBuffer latestSupportedRevision sock 4096
-  case responscePacket of
-    Pong -> pure ()
-    Exception _ -> throwIO . DatabaseException . fst =<< readDeserializable conn
-    otherPacket -> (throwIO . ProtocolImplementationError . UnexpectedPacketType) otherPacket
+  (sendAll sock . toLazyByteString)
+    (mkPingPacket chosenRevision)
+  (responsePacket, _) <- readDeserializable conn
+  case responsePacket of
+    Pong                -> pure ()
+    Exception exception -> throwIO (DatabaseException exception)
+    otherPacket         -> throwIO (ProtocolImplementationError . UnexpectedPacketType $ otherPacket)
 
 
 
@@ -179,7 +178,7 @@ select conn@MkConnection{sock, user, chosenRevision} query = do
   handleSelect @(Columns columns) conn emptyBuffer
 
 handleSelect :: forall hasColumns record . ReadableFrom hasColumns record => Connection -> PreviousBuffer -> IO [record]
-handleSelect conn@MkConnection{sock} previousBuffer = do
+handleSelect conn previousBuffer = do
   (packet, buffer) <- continueReadDeserializable @ServerPacketType conn previousBuffer
   case packet of
     DataResponse -> do
@@ -189,9 +188,7 @@ handleSelect conn@MkConnection{sock} previousBuffer = do
       print progress
       handleSelect @hasColumns conn buffer
     Exception exception -> throwIO $ DatabaseException exception
-    otherPacket         -> do
-      print =<< recv sock 4096
-      throwIO $ ProtocolImplementationError $ UnexpectedPacketType otherPacket
+    otherPacket         -> throwIO $ ProtocolImplementationError $ UnexpectedPacketType otherPacket
 
 -- ** Inserting
 
@@ -212,7 +209,6 @@ insertInto MkConnection{sock, user, chosenRevision} columns = do
     (  serialize chosenRevision (mkQueryPacket chosenRevision user (toChType query))
     <> serialize chosenRevision (mkDataPacket "" emptyColumns)
     )
-  _ <- recv sock 4096
   -- ^ answers with 11.TableColumns
   (sendAll sock . toLazyByteString)
     (  serialize chosenRevision (mkDataPacket "" . toColumns @(Table name columns) $ columns)
@@ -225,10 +221,10 @@ insertInto MkConnection{sock, user, chosenRevision} columns = do
 -- * Reading
 
 readDeserializable :: Deserializable packet => Connection -> IO (packet, PreviousBuffer)
-readDeserializable MkConnection{..} = bufferizedRead emptyBuffer chosenRevision sock bufferSize
+readDeserializable MkConnection{..} = rawBufferizedRead emptyBuffer chosenRevision sock bufferSize
 
 continueReadDeserializable :: Deserializable packet => Connection -> PreviousBuffer -> IO (packet, PreviousBuffer)
-continueReadDeserializable MkConnection{..} buffer = bufferizedRead buffer chosenRevision sock bufferSize
+continueReadDeserializable MkConnection{..} buffer = rawBufferizedRead buffer chosenRevision sock bufferSize
 
 -- ** Bufferization
 
@@ -237,11 +233,11 @@ type PreviousBuffer = LazyByteString
 emptyBuffer :: PreviousBuffer
 emptyBuffer = BL.Empty
 
-bufferizedRead :: forall packet . Deserializable packet => PreviousBuffer -> ProtocolRevision -> Socket -> Int64 -> IO (packet, LazyByteString)
-bufferizedRead bytesToContinueFrom rev sock bufferSize =
+rawBufferizedRead :: Deserializable packet => PreviousBuffer -> ProtocolRevision -> Socket -> Int64 -> IO (packet, LazyByteString)
+rawBufferizedRead bytesToContinueFrom rev sock bufferSize =
   runBufferReader
     (recv sock bufferSize)
-    (runGetIncremental (deserialize @packet rev))
+    (runGetIncremental (deserialize rev))
     bytesToContinueFrom
 
 
@@ -252,7 +248,7 @@ runBufferReader bufferFiller (Partial decoder) BL.Empty = do
   bufferFiller >>= \case
     BL.Empty -> fail "Expected more bytes while reading packet" -- ToDo: Pass packet name
     BL.Chunk bs mChunk -> runBufferReader bufferFiller (decoder $ Just bs) mChunk
-runBufferReader _bufferFiller (Done leftover _consumed helloPacket) _input = pure (helloPacket, fromStrict leftover)
+runBufferReader _bufferFiller (Done leftover _consumed packet) _input = pure (packet, fromStrict leftover)
 runBufferReader _bufferFiller (Fail _leftover _consumed msg) _currentBuffer = error msg
 
 

@@ -4,6 +4,7 @@
 #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE GADTs #-}
 
 module ClickHaskell.NativeProtocol.ServerPackets where
 
@@ -16,23 +17,23 @@ import GHC.Generics (Generic)
 
 -- * Server packets
 
-data ServerPacketType
-  = HelloResponse HelloResponse
-  | DataResponse
-  | Exception ExceptionPacket
-  | Progress ProgressPacket
-  | Pong
-  | EndOfStream
-  | ProfileInfo
-  | Totals
-  | Extremes
-  | TablesStatusResponse
-  | Log
-  | TableColumns
-  | UUIDs
-  | ReadTaskRequest
-  | ProfileEvents
-  | UnknownPacket
+data ServerPacketType where
+  HelloResponse :: HelloResponse -> ServerPacketType
+  DataResponse :: ServerPacketType
+  Exception :: ExceptionPacket -> ServerPacketType
+  Progress :: ProgressPacket -> ServerPacketType
+  Pong :: ServerPacketType
+  EndOfStream :: ServerPacketType
+  ProfileInfo :: ServerPacketType
+  Totals :: ServerPacketType
+  Extremes :: ServerPacketType
+  TablesStatusResponse :: ServerPacketType
+  Log :: ServerPacketType
+  TableColumns :: ServerPacketType
+  UUIDs :: ServerPacketType
+  ReadTaskRequest :: ServerPacketType
+  ProfileEvents :: ServerPacketType
+  UnknownPacket :: ServerPacketType
 
 instance Deserializable ServerPacketType where
   deserialize rev = do
@@ -47,7 +48,7 @@ instance Deserializable ServerPacketType where
       6  -> pure ProfileInfo
       7  -> pure Totals
       8  -> pure Extremes
-      9 -> pure TablesStatusResponse
+      9  -> pure TablesStatusResponse
       10 -> pure Log
       11 -> pure TableColumns
       12 -> pure UUIDs
@@ -95,7 +96,7 @@ data HelloResponse = MkHelloResponse
   deriving (Generic, Deserializable)
 
 data PasswordComplexityRules = MkPasswordComplexityRules
-  { original_pattern :: ChString
+  { original_pattern  :: ChString
   , exception_message :: ChString
   }
   deriving (Generic, Deserializable)
@@ -118,12 +119,12 @@ data ExceptionPacket = MkExceptionPacket
 -- ** Progress
 
 data ProgressPacket = MkProgressPacket
-  { rows :: UVarInt
-  , bytes :: UVarInt
-  , total_rows :: UVarInt
-  , total_bytes :: UVarInt `SinceRevision`  DBMS_MIN_PROTOCOL_VERSION_WITH_TOTAL_BYTES_IN_PROGRESS
-  , wrote_rows :: UVarInt `SinceRevision` DBMS_MIN_PROTOCOL_VERSION_WITH_TOTAL_BYTES_IN_PROGRESS
+  { rows        :: UVarInt
+  , bytes       :: UVarInt
+  , total_rows  :: UVarInt
+  , total_bytes :: UVarInt `SinceRevision` DBMS_MIN_PROTOCOL_VERSION_WITH_TOTAL_BYTES_IN_PROGRESS
+  , wrote_rows  :: UVarInt `SinceRevision` DBMS_MIN_PROTOCOL_VERSION_WITH_TOTAL_BYTES_IN_PROGRESS
   , wrote_bytes :: UVarInt `SinceRevision` DBMS_MIN_REVISION_WITH_CLIENT_WRITE_INFO
-  , elapsed_ns :: UVarInt `SinceRevision` DBMS_MIN_REVISION_WITH_CLIENT_WRITE_INFO
+  , elapsed_ns  :: UVarInt `SinceRevision` DBMS_MIN_REVISION_WITH_CLIENT_WRITE_INFO
   }
   deriving (Generic, Deserializable, Show)
