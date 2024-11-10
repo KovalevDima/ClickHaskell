@@ -4,7 +4,7 @@
   , UndecidableInstances
 #-}
 
-module ClickHaskell.NativeProtocol.Parameters where
+module ClickHaskell.Parameters where
 
 -- Internal
 import ClickHaskell.DbTypes (ToQueryPart(..), ToChType(..))

@@ -87,7 +87,6 @@ executable profiler2
   build-depends:
     -- Internal
       ClickHaskell
-    , ClickHaskell-http-client
 
     -- GHC included
     , base

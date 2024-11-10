@@ -39,7 +39,7 @@ module ClickHaskell.Client
 
 -- Internal
 import ClickHaskell.Tables
-import ClickHaskell.DbTypes
+import ClickHaskell.DbTypes hiding (Serializable(..), Deserializable(..))
 
 -- External
 

@@ -4,13 +4,13 @@
 #-}
 
 module ClickHaskell.Tables
-( module ClickHaskell.NativeProtocol.Columns
-, module ClickHaskell.NativeProtocol.Parameters
+( module ClickHaskell.Columns
+, module ClickHaskell.Parameters
 , Table, View
 ) where
 
 
 -- Internal
-import ClickHaskell.NativeProtocol.Columns (KnownColumn(..), Column(..), TakeColumn, Columns(..), columnsCount, rowsCount, appendColumn, emptyColumns)
-import ClickHaskell.NativeProtocol.Parameters (CheckParameters, InterpretableParameters(..), ParametersInterpreter, Parameters(..), Parameter, parameters, parameter)
+import ClickHaskell.Columns (KnownColumn(..), Column(..), TakeColumn, Columns(..), columnsCount, rowsCount, appendColumn, emptyColumns)
+import ClickHaskell.Parameters (CheckParameters, InterpretableParameters(..), ParametersInterpreter, Parameters(..), Parameter, parameters, parameter)
 import ClickHaskell (View, Table)

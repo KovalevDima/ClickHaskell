@@ -15,14 +15,12 @@ import Network.HTTP.Client (defaultManagerSettings, newManager)
 
 import ClickHaskell
 -- Internal
-import ClickHaskell.Tables (Table, Columns(..), appendColumn)
 import ClickHaskell.DbTypes
   ( toChType
   , ChUUID, ChDateTime, ChInt32, ChInt64, ChString
   , LowCardinality, Nullable
   )
-import ClickHaskell.NativeProtocol.Serialization (latestSupportedRevision)
-import ClickHaskell.NativeProtocol.Columns (Column(..))
+import ClickHaskell.Columns (Column(..))
 
 -- GHC included
 import Control.Concurrent (forkIO, killThread, threadDelay)
@@ -70,9 +68,9 @@ main = do
 
   threadDelay 1_000_000
   traceMarkerIO "Starting writing"
-  insertInto
+  mapM_ (insertInto
     @(Table "exampleWriteRead" ExampleColumns)
-    connection
+    connection)
     selectedData
 
   traceMarkerIO "Completion"

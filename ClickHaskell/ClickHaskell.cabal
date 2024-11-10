@@ -39,12 +39,10 @@ Library
     Paths_ClickHaskell
   Exposed-Modules:
     ClickHaskell
+    ClickHaskell.Columns
     ClickHaskell.DbTypes
-    ClickHaskell.NativeProtocol.ClientPackets
-    ClickHaskell.NativeProtocol.Columns
-    ClickHaskell.NativeProtocol.Parameters
-    ClickHaskell.NativeProtocol.Serialization
-    ClickHaskell.NativeProtocol.ServerPackets
+    ClickHaskell.Parameters
+    ClickHaskell.NativeProtocol
   Other-Modules:
     Paths_ClickHaskell
   HS-Source-Dirs:
