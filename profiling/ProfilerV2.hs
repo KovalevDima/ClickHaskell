@@ -68,9 +68,9 @@ main = do
 
   threadDelay 1_000_000
   traceMarkerIO "Starting writing"
-  mapM_ (insertInto
+  insertInto
     @(Table "exampleWriteRead" ExampleColumns)
-    connection)
+    connection
     selectedData
 
   traceMarkerIO "Completion"
