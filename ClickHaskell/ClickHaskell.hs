@@ -176,7 +176,7 @@ select conn@MkConnection{sock, user, revision} query = do
     (  serialize revision (mkQueryPacket revision user query)
     <> serialize revision (mkDataPacket "" emptyColumns)
     )
-  (firstPacket, buffer) <- continueReadDeserializable @ServerPacketType conn emptyBuffer  
+  (firstPacket, buffer) <- continueReadDeserializable @ServerPacketType conn emptyBuffer
   case traceShowId firstPacket of
     DataResponse _      -> do
       (_empty, nextBuffer) <- continueReadColumns @(Columns columns) conn buffer 0
@@ -189,12 +189,11 @@ handleSelect :: forall hasColumns record . ReadableFrom hasColumns record => Con
 handleSelect conn previousBuffer = do
   (packet, buffer) <- continueReadDeserializable @ServerPacketType conn previousBuffer
   case traceShowId packet of
-    DataResponse MkDataPacket{rows_count} -> do
-      case rows_count of
-        0 -> pure []
-        rows -> do
-          (columns, nextBuffer) <- continueReadColumns @(Columns (GetColumns hasColumns)) conn buffer rows
-          ((fromColumns @hasColumns) columns ++) <$> handleSelect @hasColumns conn nextBuffer
+    DataResponse MkDataPacket{rows_count} -> case rows_count of
+      0 -> pure []
+      rows -> do
+        (columns, nextBuffer) <- continueReadColumns @(Columns (GetColumns hasColumns)) conn buffer rows
+        ((fromColumns @hasColumns) columns ++) <$> handleSelect @hasColumns conn nextBuffer
     Progress          _ -> handleSelect @hasColumns conn buffer
     ProfileInfo       _ -> handleSelect @hasColumns conn buffer
     EndOfStream         -> pure []
@@ -212,17 +211,22 @@ insertInto ::
   , Serializable (Columns columns)
   )
   => Connection -> [record] -> IO ()
-insertInto MkConnection{sock, user, revision} columns = do
+insertInto conn@MkConnection{sock, user, revision} columnsData = do
   let query =
         "INSERT INTO " <> (byteString . BS8.pack) (symbolVal $ Proxy @name)
         <> " (" <> writingColumns @table @record <> ") VALUES"
+      columns = toColumns @(Table name columns) columnsData
   (sendAll sock . toLazyByteString)
     (  serialize revision (mkQueryPacket revision user (toChType query))
     <> serialize revision (mkDataPacket "" emptyColumns)
     )
-  -- ^ answers with 11.TableColumns
+  (firstPacket, buffer) <- continueReadDeserializable @ServerPacketType conn emptyBuffer
+  case firstPacket of
+    packet -> print packet *> print buffer
+  
   (sendAll sock . toLazyByteString)
-    (  serialize revision (mkDataPacket "" . toColumns @(Table name columns) $ columns)
+    (  serialize revision (mkDataPacket "" columns)
+    <> serialize revision columns
     <> serialize revision (mkDataPacket "" emptyColumns)
     )
   -- print =<< recv sock 4096

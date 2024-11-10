@@ -39,14 +39,13 @@ import GHC.Natural (Natural)
 main :: IO ()
 main = do
   traceMarkerIO "Initialization"
+  let credentials = MkChCredential "default" "" "http://localhost:8123" "default"
   manager <- newManager defaultManagerSettings
 
-  let totalRows = 500_000
+  let totalRows = 1_000_000
 
-  threadDelay 1_000_000
+  threadDelay 250_000
   traceMarkerIO "Push data"
-
-  let credentials = MkChCredential "default" "" "http://localhost:8123" "default"
 
   traceMarkerIO "Starting reading"
   selectedData <-

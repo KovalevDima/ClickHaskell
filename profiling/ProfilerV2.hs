@@ -40,8 +40,10 @@ import GHC.Natural (Natural)
 
 main :: IO ()
 main = do
-  traceMarkerIO "Initialization"
-  connection <- openNativeConnection devCredential
+  traceMarkerIO "Initialization"  
+  let credentials = MkChCredential "default" "" "" "localhost" "9000"
+  connection <- openNativeConnection credentials
+
   let totalRows = 1_000_000
 
   threadDelay 250_000
@@ -74,7 +76,7 @@ main = do
     selectedData
 
   traceMarkerIO "Completion"
-  print $ "Writing done. " <> show (length selectedData) <> " rows was written"
+  print $ "Writing done. " <> show totalRows <> " rows was written"
   threadDelay 1_000_000
 
 
@@ -100,12 +102,3 @@ type ExampleColumns =
   -- , Column "a6" (LowCardinality (Nullable ChString))
   -- , Column "a7" (LowCardinality ChString)
   ]
-
-devCredential :: ChCredential
-devCredential = MkChCredential
-  { chLogin = "default"
-  , chPass = ""
-  , chDatabase = ""
-  , chHost = "localhost"
-  , chPort = "9000"
-  }
