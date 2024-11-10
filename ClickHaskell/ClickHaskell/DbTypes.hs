@@ -1,12 +1,7 @@
 {-# LANGUAGE
-    AllowAmbiguousTypes
-  , DataKinds
-  , DerivingStrategies
-  , GeneralizedNewtypeDeriving
+    GeneralizedNewtypeDeriving
   , LambdaCase
   , OverloadedStrings
-  , StandaloneDeriving
-  , UndecidableInstances
 #-}
 
 {-# OPTIONS_GHC
@@ -21,17 +16,8 @@ module ClickHaskell.DbTypes
 
 , ChDateTime
 
-, ChInt8
-, ChInt16
-, ChInt32
-, ChInt64
-, ChInt128, Int128
-
-, ChUInt8
-, ChUInt16
-, ChUInt32
-, ChUInt64
-, ChUInt128, Word128
+, ChInt8, ChInt16, ChInt32, ChInt64, ChInt128
+, ChUInt8, ChUInt16, ChUInt32, ChUInt64, ChUInt128
 
 , ChString
 , ChUUID
@@ -41,6 +27,7 @@ module ClickHaskell.DbTypes
 , LowCardinality, IsLowCardinalitySupported
 
 , UVarInt
+, module Data.WideWord
 ) where
 
 
@@ -141,10 +128,10 @@ instance
 
 -- | ClickHouse LowCardinality(T) column type
 newtype LowCardinality chType = MkLowCardinality chType
-deriving instance (Eq chType, IsLowCardinalitySupported chType) => Eq (LowCardinality chType)
-deriving instance (Show chType, IsLowCardinalitySupported chType) => Show (LowCardinality chType)
-deriving instance (NFData chType, IsLowCardinalitySupported chType) => NFData (LowCardinality chType)
-deriving instance (Binary chType, IsLowCardinalitySupported chType) => Binary (LowCardinality chType)
+deriving newtype instance (Eq chType, IsLowCardinalitySupported chType) => Eq (LowCardinality chType)
+deriving newtype instance (Show chType, IsLowCardinalitySupported chType) => Show (LowCardinality chType)
+deriving newtype instance (NFData chType, IsLowCardinalitySupported chType) => NFData (LowCardinality chType)
+deriving newtype instance (Binary chType, IsLowCardinalitySupported chType) => Binary (LowCardinality chType)
 deriving newtype instance IsString (LowCardinality ChString)
 
 class IsChType chType => IsLowCardinalitySupported chType

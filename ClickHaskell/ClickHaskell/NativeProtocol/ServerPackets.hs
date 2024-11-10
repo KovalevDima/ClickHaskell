@@ -1,10 +1,6 @@
 {-# LANGUAGE
-    DeriveAnyClass
-  , DeriveGeneric
-  , DuplicateRecordFields
+    DuplicateRecordFields
   , RankNTypes
-  , DataKinds
-  , GADTs
 #-}
 
 module ClickHaskell.NativeProtocol.ServerPackets where
@@ -103,9 +99,6 @@ data PasswordComplexityRules = MkPasswordComplexityRules
   }
   deriving (Generic, Deserializable, Show)
 
-
-
-
 -- ** Exception
 
 data ExceptionPacket = MkExceptionPacket
@@ -131,6 +124,7 @@ data ProgressPacket = MkProgressPacket
   }
   deriving (Generic, Deserializable, Show)
 
+-- ** ProfileInfo
 
 data ProfileInfo = MkProfileInfo
   { rows                         :: UVarInt

@@ -1,14 +1,7 @@
 {-# LANGUAGE
-    AllowAmbiguousTypes
-  , DataKinds
-  , DeriveAnyClass
-  , DeriveGeneric
-  , DuplicateRecordFields
-  , NamedFieldPuns
+    DuplicateRecordFields
   , OverloadedStrings
-  , UndecidableInstances
 #-}
-{-# LANGUAGE RecordWildCards #-}
 
 module ClickHaskell.NativeProtocol.ClientPackets where
 
@@ -18,12 +11,10 @@ import ClickHaskell.NativeProtocol.Serialization
 import ClickHaskell.NativeProtocol.Columns (Columns, KnownColumns(columnsCount, rowsCount))
 
 -- GHC included
-import Data.ByteString.Builder (Builder)
 import Data.Text (Text)
 import Data.Typeable (Proxy (..))
 import GHC.Generics
 import GHC.TypeLits (KnownNat, natVal)
-
 
 -- * Client packets
 
@@ -123,12 +114,10 @@ data Addendum = MkAddendum
 
 -- ** Ping
 
-mkPingPacket :: ProtocolRevision -> Builder
-mkPingPacket rev = serialize rev MkPingPacket{packet_type = MkPacket}
+mkPingPacket :: PingPacket
+mkPingPacket = MkPingPacket{packet_type = MkPacket}
 
-data PingPacket = MkPingPacket
-  { packet_type :: Packet Ping
-  }
+data PingPacket = MkPingPacket{packet_type :: Packet Ping}
   deriving (Generic, Serializable)
 
 
@@ -180,6 +169,12 @@ data QueryPacket = MkQueryPacket
   }
   deriving (Generic, Serializable)
 
+data DbSettings = MkDbSettings
+instance Serializable DbSettings where serialize rev _ = serialize @ChString rev ""
+
+data QueryParameters = MkQueryParameters
+instance Serializable QueryParameters where serialize rev _ = serialize @ChString rev ""
+
 data QueryStage
   = FetchColumns
   | WithMergeableState
@@ -223,18 +218,7 @@ data ClientInfo = MkClientInfo
   }
   deriving (Generic, Serializable)
 
-data DbSettings = MkDbSettings
-instance Serializable DbSettings where
-  serialize rev _ = serialize @ChString rev ""
-
-data QueryParameters = MkQueryParameters
-instance Serializable QueryParameters where
-  serialize rev _ = serialize @ChString rev ""
-
-data QueryKind
-  = NoQuery
-  | InitialQuery
-  | SecondaryQuery
+data QueryKind = NoQuery | InitialQuery | SecondaryQuery
   deriving (Enum)
 
 instance Serializable QueryKind where
@@ -243,10 +227,7 @@ instance Serializable QueryKind where
 
 -- ** Data
 
-mkDataPacket :: forall columns .
-  ( Serializable (Columns columns)
-  , KnownColumns (Columns columns)
-  ) => ChString -> Columns columns -> DataPacket
+mkDataPacket :: forall columns . KnownColumns (Columns columns) => ChString -> Columns columns -> DataPacket
 mkDataPacket table_name columns =
   MkDataPacket
     { packet_type   = MkPacket
@@ -268,7 +249,6 @@ data DataPacket = MkDataPacket
   , rows_count    :: UVarInt
   }
   deriving (Generic, Serializable, Deserializable, Show)
-
 
 data BlockInfo = MkBlockInfo
   { field_num1   :: UVarInt, is_overflows :: ChUInt8

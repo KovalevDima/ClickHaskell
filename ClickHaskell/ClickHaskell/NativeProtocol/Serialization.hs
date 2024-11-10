@@ -1,9 +1,5 @@
 {-# LANGUAGE 
-    AllowAmbiguousTypes
-  , DataKinds
-  , DefaultSignatures
-  , GeneralizedNewtypeDeriving
-  , OverloadedStrings
+    OverloadedStrings
   , TemplateHaskell
   , UndecidableInstances
 #-}

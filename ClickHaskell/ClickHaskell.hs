@@ -1,21 +1,10 @@
 {-# LANGUAGE
-    AllowAmbiguousTypes
-  , ConstraintKinds
-  , DefaultSignatures
-  , DataKinds
-  , DeriveAnyClass
-  , DeriveGeneric
+    ConstraintKinds
   , LambdaCase
-  , NamedFieldPuns
   , NumericUnderscores
   , OverloadedStrings
-  , PolyKinds
   , RecordWildCards
-  , UndecidableInstances
 #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE DerivingStrategies #-}
 
 module ClickHaskell
   ( module ClickHaskell.DbTypes
@@ -29,7 +18,6 @@ module ClickHaskell
   , selectFrom
   , insertInto
   , ping
-  , dev
   ) where
 
 -- Internal dependencies
@@ -51,7 +39,6 @@ import Data.Kind (Type)
 import Data.Maybe (listToMaybe)
 import Data.Text (Text)
 import Data.Typeable (Proxy (..))
-import Data.Word (Word32)
 import GHC.Generics
 import GHC.Stack (HasCallStack, callStack, prettyCallStack)
 import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
@@ -60,7 +47,6 @@ import System.Timeout (timeout)
 -- External
 import Network.Socket as Sock
 import Network.Socket.ByteString.Lazy (recv, sendAll)
-import Debug.Trace (traceShowId)
 
 -- * Connection
 
@@ -131,7 +117,7 @@ openNativeConnection MkChCredential{chHost, chPort, chLogin, chPass, chDatabase}
 ping :: HasCallStack => Connection -> IO ()
 ping conn@MkConnection{sock, revision} = do
   (sendAll sock . toLazyByteString)
-    (mkPingPacket revision)
+    (serialize revision mkPingPacket)
   (responsePacket, _) <- continueReadDeserializable conn emptyBuffer
   case responsePacket of
     Pong                -> pure ()
@@ -168,7 +154,7 @@ selectFrom conn@MkConnection{sock, user, revision} = do
 select ::
   forall columns record
   .
-  (ReadableFrom (Columns columns) record, Serializable (Columns columns))
+  ReadableFrom (Columns columns) record
   =>
   Connection -> ChString -> IO [record]
 select conn@MkConnection{sock, user, revision} query = do
@@ -177,10 +163,9 @@ select conn@MkConnection{sock, user, revision} query = do
     <> serialize revision (mkDataPacket "" emptyColumns)
     )
   (firstPacket, buffer) <- continueReadDeserializable @ServerPacketType conn emptyBuffer
-  case traceShowId firstPacket of
+  case firstPacket of
     DataResponse _      -> do
       (_empty, nextBuffer) <- continueReadColumns @(Columns columns) conn buffer 0
-      print (serialize revision _empty)
       handleSelect @(Columns columns) conn nextBuffer
     Exception exception -> throwIO $ DatabaseException exception
     otherPacket         -> throwIO $ ProtocolImplementationError $ UnexpectedPacketType otherPacket
@@ -188,7 +173,7 @@ select conn@MkConnection{sock, user, revision} query = do
 handleSelect :: forall hasColumns record . ReadableFrom hasColumns record => Connection -> Buffer -> IO [record]
 handleSelect conn previousBuffer = do
   (packet, buffer) <- continueReadDeserializable @ServerPacketType conn previousBuffer
-  case traceShowId packet of
+  case packet of
     DataResponse MkDataPacket{rows_count} -> case rows_count of
       0 -> pure []
       rows -> do
@@ -208,7 +193,6 @@ insertInto ::
   ( table ~ Table name columns
   , WritableInto (Table name columns) record
   , KnownSymbol name
-  , Serializable (Columns columns)
   )
   => Connection -> [record] -> IO ()
 insertInto conn@MkConnection{sock, user, revision} columnsData = do
@@ -229,8 +213,6 @@ insertInto conn@MkConnection{sock, user, revision} columnsData = do
     <> serialize revision columns
     <> serialize revision (mkDataPacket "" emptyColumns)
     )
-  -- print =<< recv sock 4096
-
 
 
 -- * Reading
@@ -248,11 +230,10 @@ type Buffer = LazyByteString
 emptyBuffer :: Buffer
 emptyBuffer = BL.Empty
 
-rawBufferizedRead :: Buffer -> Get packet -> Socket -> Int64 -> IO (packet, LazyByteString)
+rawBufferizedRead :: Buffer -> Get packet -> Socket -> Int64 -> IO (packet, Buffer)
 rawBufferizedRead buffer parser sock bufSize = runBufferReader (recv sock bufSize) (runGetIncremental parser) buffer
 
-
-runBufferReader :: IO LazyByteString -> Decoder packet -> LazyByteString -> IO (packet, LazyByteString)
+runBufferReader :: IO LazyByteString -> Decoder packet -> Buffer -> IO (packet, Buffer)
 runBufferReader bufferFiller (Partial decoder) (BL.Chunk bs mChunk)
   = runBufferReader bufferFiller (decoder $ Just bs) mChunk
 runBufferReader bufferFiller (Partial decoder) BL.Empty = do
@@ -298,7 +279,7 @@ data ConnectionError
 
 -- * Interface
 
-data View (name :: Symbol) (columns :: [Type]) parameters
+data View (name :: Symbol) (columns :: [Type]) (parameters :: [Type])
 
 newtype Table (name :: Symbol) (columns :: [Type]) = MkTable (Columns columns)
 
@@ -392,6 +373,7 @@ type GenericWritable record hasColumns =
 class
   ( HasColumns hasColumns
   , KnownColumns (Columns (GetColumns hasColumns))
+  , Serializable (Columns (GetColumns hasColumns))
   )
   =>
   WritableInto hasColumns record
@@ -452,41 +434,3 @@ instance
   where
   gToColumns rows = (mkColumn . map (toChType . unK1 . unM1)) rows `appendColumn` emptyColumns
   gWritingColumns = renderColumnName @(Column name chType)
-
-
-
--- * Dev
-
-dev :: IO ()
-dev = do
-  connection <- openNativeConnection devCredential
-  print "Connected"
-  ping connection
-  print "Pinged"
-  a <- selectFrom @ExampleTable @ExampleData connection
-  print a
-  print "Dummy queries done"
-  insertInto @ExampleTable @ExampleData connection devColumns
-
-devColumns ::  [ExampleData]
-devColumns = MkExample <$> replicate 5 127
-
-
-type ExampleTable = Table "example" '[Column "val" ChUInt32]
-
-data ExampleData = MkExample
-  { val :: Word32
-  } deriving (Generic, Show)
-
-instance ReadableFrom ExampleTable ExampleData
-instance WritableInto ExampleTable ExampleData
-
-
-devCredential :: ChCredential
-devCredential = MkChCredential
-  { chLogin = "default"
-  , chPass = ""
-  , chDatabase = ""
-  , chHost = "localhost"
-  , chPort = "9000"
-  }

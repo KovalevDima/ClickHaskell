@@ -1,9 +1,5 @@
 {-# LANGUAGE
-    AllowAmbiguousTypes
-  , DataKinds
-  , InstanceSigs
-  , NamedFieldPuns
-  , OverloadedStrings
+    OverloadedStrings
   , TypeFamilyDependencies
   , UndecidableInstances
 #-}
@@ -21,7 +17,6 @@ import Data.Kind               (Type, Constraint)
 import GHC.TypeLits            (TypeError, ErrorMessage (..), Symbol, KnownSymbol, symbolVal)
 import Data.Type.Bool          (If)
 import Data.Type.Equality      (type(==))
-
 
 data Parameter (name :: Symbol) (chType :: Type)
 
@@ -76,14 +71,7 @@ instance InterpretableParameters (x ': xs)
   interpretParameter chType (MkParametersInterpreter{evaluatedParameters}) =
     MkParametersInterpreter $ renderParameter @name @chType chType : evaluatedParameters
 
-renderParameter ::
-  forall name chType
-  .
-  ( KnownSymbol name
-  , ToQueryPart chType
-  )
-  =>
-  chType -> Builder
+renderParameter :: forall name chType . (KnownSymbol name, ToQueryPart chType) => chType -> Builder
 renderParameter chType = (BS.byteString . BS8.pack . symbolVal @name) Proxy <> "=" <> toQueryPart chType
 
 type family CheckParameters

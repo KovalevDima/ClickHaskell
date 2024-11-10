@@ -1,11 +1,6 @@
 {-# LANGUAGE
-    AllowAmbiguousTypes
-  , DataKinds
-  , UndecidableInstances
-  , GADTs
-  , OverloadedStrings
+    OverloadedStrings
   , TypeFamilyDependencies
-  , InstanceSigs
 #-}
 
 module ClickHaskell.NativeProtocol.Columns where
@@ -14,10 +9,8 @@ module ClickHaskell.NativeProtocol.Columns where
 import ClickHaskell.DbTypes (IsChType(..), UVarInt, ChString, ChUInt8, ToChType (toChType))
 import ClickHaskell.NativeProtocol.Serialization
 
-
 -- GHC included
-import Data.ByteString (toStrict)
-import Data.ByteString.Builder as BS (Builder, stringUtf8, toLazyByteString)
+import Data.ByteString.Builder as BS (Builder, stringUtf8)
 import Data.Data (Proxy (Proxy))
 import Data.Kind (Type)
 import Data.Type.Bool (If)
@@ -93,7 +86,8 @@ type family
 type family
   GoTakeColumn name (columns :: [Type]) (acc :: [Type]) :: (Type, [Type])
   where
-  GoTakeColumn name (column ': columns) acc = If (name == GetColumnName column) '(column, acc ++ columns) (GoTakeColumn name columns (column ': acc))
+  GoTakeColumn name (column ': columns) acc =
+    If (name == GetColumnName column) '(column, acc ++ columns) (GoTakeColumn name columns (column ': acc))
   GoTakeColumn name '[]                 acc = TypeError
     (    'Text "There is no column \"" :<>: 'Text name :<>: 'Text "\" in table"
     :$$: 'Text "You can't use this field"
@@ -129,8 +123,8 @@ instance
   , Serializable chType
   ) => Serializable (Column name chType) where
   serialize rev (MkColumn values)
-    =  serialize rev (toChType @ChString . toStrict . toLazyByteString $ renderColumnName @(Column name chType))
-    <> serialize rev (toChType @ChString . toStrict . toLazyByteString $ renderColumnType @(Column name chType))
+    =  serialize rev (toChType @ChString $ renderColumnName @(Column name chType))
+    <> serialize rev (toChType @ChString $ renderColumnType @(Column name chType))
     -- serialization is not custom
     <> afterRevision @DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION rev (serialize @ChUInt8 rev 0)
     <> mconcat (Prelude.map (serialize @chType rev) values)

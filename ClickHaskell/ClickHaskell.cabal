@@ -49,6 +49,18 @@ Library
     Paths_ClickHaskell
   HS-Source-Dirs:
     ./
+  default-extensions:
+    AllowAmbiguousTypes
+    DataKinds
+    DefaultSignatures
+    DeriveAnyClass
+    DeriveGeneric
+    DerivingStrategies
+    InstanceSigs
+    GADTs
+    NamedFieldPuns
+    StandaloneDeriving
+    UndecidableInstances
   GHC-Options:
     -Wall
     -fno-warn-type-defaults
