@@ -60,10 +60,10 @@ data ChCredential = MkChCredential
   deriving (Generic, Show, Eq)
 
 data Connection = MkConnection
-  { sock           :: Socket
-  , user           :: ChString
-  , bufferSize     :: Int64
-  , revision :: ProtocolRevision
+  { sock       :: Socket
+  , user       :: ChString
+  , bufferSize :: Int64
+  , revision   :: ProtocolRevision
   }
 
 openNativeConnection :: HasCallStack => ChCredential -> IO Connection
@@ -106,8 +106,8 @@ openNativeConnection MkChCredential{chHost, chPort, chLogin, chPass, chDatabase}
         , sock
         , bufferSize = 4096
         }
-    Exception exception -> throwIO . DatabaseException $ exception
-    otherPacket         -> throwIO . ProtocolImplementationError $ UnexpectedPacketType otherPacket
+    Exception exception -> throwIO (DatabaseException exception)
+    otherPacket         -> throwIO (ProtocolImplementationError $ UnexpectedPacketType otherPacket)
 
 
 
@@ -167,8 +167,8 @@ select conn@MkConnection{sock, user, revision} query = do
     DataResponse _      -> do
       (_empty, nextBuffer) <- continueReadColumns @(Columns columns) conn buffer 0
       handleSelect @(Columns columns) conn nextBuffer
-    Exception exception -> throwIO $ DatabaseException exception
-    otherPacket         -> throwIO $ ProtocolImplementationError $ UnexpectedPacketType otherPacket
+    Exception exception -> throwIO (DatabaseException exception)
+    otherPacket         -> throwIO (ProtocolImplementationError $ UnexpectedPacketType otherPacket)
 
 handleSelect :: forall hasColumns record . ReadableFrom hasColumns record => Connection -> Buffer -> IO [record]
 handleSelect conn previousBuffer = do
@@ -182,8 +182,8 @@ handleSelect conn previousBuffer = do
     Progress          _ -> handleSelect @hasColumns conn buffer
     ProfileInfo       _ -> handleSelect @hasColumns conn buffer
     EndOfStream         -> pure []
-    Exception exception -> throwIO $ DatabaseException exception
-    otherPacket         -> throwIO $ ProtocolImplementationError $ UnexpectedPacketType otherPacket
+    Exception exception -> throwIO (DatabaseException exception)
+    otherPacket         -> throwIO (ProtocolImplementationError $ UnexpectedPacketType otherPacket)
 
 -- ** Inserting
 
@@ -238,10 +238,10 @@ runBufferReader bufferFiller (Partial decoder) (BL.Chunk bs mChunk)
   = runBufferReader bufferFiller (decoder $ Just bs) mChunk
 runBufferReader bufferFiller (Partial decoder) BL.Empty = do
   bufferFiller >>= \case
-    BL.Empty -> fail "Expected more bytes while reading packet" -- ToDo: Pass packet name
+    BL.Empty -> throwIO (DeserializationError "Expected more bytes while reading packet")
     BL.Chunk bs mChunk -> runBufferReader bufferFiller (decoder $ Just bs) mChunk
 runBufferReader _bufferFiller (Done leftover _consumed packet) _input = pure (packet, fromStrict leftover)
-runBufferReader _bufferFiller (Fail _leftover _consumed msg) _currentBuffer = error msg
+runBufferReader _initBuf (Fail _leftover _consumed msg) _buffer = throwIO (DeserializationError msg)
 
 
 
@@ -265,8 +265,7 @@ deriving anyclass instance Exception ClientError
 -}
 data ProtocolImplementationError
   = UnexpectedPacketType ServerPacketType
-  | UnknownPacketType
-  | DeserializationError
+  | DeserializationError String
   deriving (Show, Exception)
 
 data ConnectionError
