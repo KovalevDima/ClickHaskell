@@ -41,7 +41,6 @@ import Data.WideWord (Int128 (..), Word128(Word128))
 
 -- GHC included
 import Control.DeepSeq (NFData)
-import Control.Monad (replicateM)
 import Data.Binary.Get
 import Data.Binary.Get.Internal (readN)
 import Data.Binary.Put
@@ -571,12 +570,6 @@ class
   default deserialize :: (Generic chType, GDeserializable (Rep chType)) => ProtocolRevision -> Get chType
   deserialize :: ProtocolRevision -> Get chType
   deserialize rev = to <$> gDeserialize rev
-
-instance Deserializable chType => Deserializable [chType] where
-  deserialize rev = do
-    len <- deserialize @UVarInt rev
-    replicateM (fromIntegral len) (deserialize @chType rev)
-
 
 class GDeserializable f
   where

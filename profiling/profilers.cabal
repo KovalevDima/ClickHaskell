@@ -70,7 +70,7 @@ executable profiler2
 
   ghc-prof-options:
     -fprof-late
-    -rtsopts "-with-rtsopts=-s -A32m -AL256m -p -hy -L250 -l-agu -N1"
+    -rtsopts "-with-rtsopts=-s -A32m -AL256m -p -hc -L250 -l-agu -N1"
 
   if flag(dev)
     ghc-options:
@@ -83,6 +83,8 @@ executable profiler2
       -dsuppress-var-kinds
       -dsuppress-module-prefixes
       -dsuppress-uniques
+      -ddump-simpl-stats
+      -ddump-rule-firings
 
   build-depends:
     -- Internal

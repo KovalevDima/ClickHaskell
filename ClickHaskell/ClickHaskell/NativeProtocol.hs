@@ -12,11 +12,12 @@ import ClickHaskell.DbTypes
 import Paths_ClickHaskell (version)
 
 -- GHC included
+import Control.Monad (replicateM)
+import Data.Text
 import Data.Typeable (Proxy (..))
 import Data.Version (Version (..), showVersion)
 import Language.Haskell.TH.Syntax (lift)
 import GHC.Generics
-import Data.Text
 import GHC.TypeLits
 
 -- * Client packets
@@ -366,6 +367,11 @@ data PasswordComplexityRules = MkPasswordComplexityRules
   , exception_message :: ChString
   }
   deriving (Generic, Deserializable, Show)
+
+instance Deserializable [PasswordComplexityRules] where
+  deserialize rev = do
+    len <- deserialize @UVarInt rev
+    replicateM (fromIntegral len) (deserialize @PasswordComplexityRules rev)
 
 -- ** Exception
 

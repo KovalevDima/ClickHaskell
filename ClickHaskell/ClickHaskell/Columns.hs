@@ -166,6 +166,7 @@ instance
       )
       <*> deserializeColumns @(Columns extraColumns) rev rows
 
+{-# SPECIALIZE replicateM :: Int -> Get chType -> Get [chType] #-}
 
 -- ** Column declaration
 

@@ -37,6 +37,7 @@ import ClickHaskell.Parameters (Parameter, parameter)
 
 -- GHC included
 import Control.Exception (Exception, SomeException, bracketOnError, catch, finally, throwIO)
+import Data.Bifunctor (bimap)
 import Data.Binary.Get (Decoder (..), Get, runGetIncremental)
 import Data.ByteString.Builder (Builder, byteString, toLazyByteString)
 import Data.ByteString.Char8 as BS8 (fromStrict, pack)
@@ -339,7 +340,9 @@ instance
   GReadable columns ((left :*: right1) :*: right2)
   where
   {-# INLINE gFromColumns #-}
-  gFromColumns rev = (\(l :*: (r1 :*: r2)) -> (l :*: r1) :*: r2) <$> gFromColumns rev
+  gFromColumns rev = do
+    (l :*: (r1 :*: r2)) <- gFromColumns rev
+    pure ((l :*: r1) :*: r2)
   gReadingColumns = gReadingColumns @columns @((left :*: right1) :*: right2)
 
 instance
@@ -353,10 +356,10 @@ instance
     (S1 (MetaSel (Just name) a b f) (Rec0 inputType) :*: right)
   where
   {-# INLINE gFromColumns #-}
-  gFromColumns (AddColumn (MkColumn _ column) extraColumns) =
+  gFromColumns (AddColumn column extraColumns) =
     zipWith (:*:)
-      (map (M1 . K1 . fromChType @chType) column)
-      (gFromColumns @restColumns @right extraColumns)
+      (gFromColumns (AddColumn column emptyColumns))
+      (gFromColumns extraColumns)
   gReadingColumns =
     renderColumnName @(Column name chType)
     <> ", " <> gReadingColumns @restColumns @right
@@ -430,10 +433,12 @@ instance
   GWritable (Column name chType ': restColumns) (S1 (MetaSel (Just name) a b f) (Rec0 inputType) :*: right)
   where
   {-# INLINE gToColumns #-}
-  gToColumns size rows =
-    mkColumn size (map (\(l :*: _) -> toChType . unK1 . unM1 $ l) rows)
-    `appendColumn`
-    gToColumns @restColumns size (map (\(_ :*: r) -> r) rows)
+  gToColumns size
+    = uncurry appendColumn
+    . bimap (mkColumn size) (gToColumns @restColumns size)
+    . unzip
+    . map (\(l :*: r) -> ((toChType . unK1 . unM1) l, r))
+     
   {-# INLINE gWritingColumns #-}
   gWritingColumns =
     renderColumnName @(Column name chType)
@@ -447,6 +452,6 @@ instance
   GWritable '[Column name chType] (S1 (MetaSel (Just name) a b f) (Rec0 inputType))
   where
   {-# INLINE gToColumns #-}
-  gToColumns _size rows = (MkColumn (fromIntegral $ length rows) . map (toChType . unK1 . unM1)) rows `appendColumn` emptyColumns
+  gToColumns size rows = (MkColumn size . map (toChType . unK1 . unM1)) rows `appendColumn` emptyColumns
   {-# INLINE gWritingColumns #-}
   gWritingColumns = renderColumnName @(Column name chType)
