@@ -92,7 +92,6 @@ Library
 
     -- External dependencies
     , network
-    , uuid < 1.4
     , wide-word < 0.2
   Default-language: Haskell2010
   Default-Extensions:

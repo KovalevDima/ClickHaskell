@@ -35,9 +35,7 @@ module ClickHaskell.DbTypes
 
 
 -- External
-import Data.UUID     as UUID (UUID, toWords64, fromWords64)
 import Data.WideWord (Int128 (..), Word128(Word128))
-
 
 -- GHC included
 import Control.DeepSeq (NFData)
@@ -197,22 +195,20 @@ instance
 
 
 -- | ClickHouse UUID column type
-newtype ChUUID = MkChUUID UUID
-  deriving newtype (Show, Eq, NFData)
+data ChUUID = MkChUUID {-# UNPACK #-} !Word64 {-# UNPACK #-} !Word64
+  deriving (Generic, Show, Eq, NFData)
 
 instance IsChType ChUUID where type ToChTypeName ChUUID = "UUID"
 
-instance Deserializable ChUUID where
-  deserialize _ = toChType <$> (fromWords64 <$> getWord64le <*> getWord64le)
-instance Serializable ChUUID where
-  serialize _ = execPut . (\(hi, lo) -> putWord64le lo <> putWord64le hi) . toWords64 . fromChType
+instance Deserializable ChUUID where deserialize _ = MkChUUID <$> getWord64le <*> getWord64le
+instance Serializable ChUUID where serialize _ = execPut . (\(hi, lo) -> putWord64le lo <> putWord64le hi) . fromChType
 
 instance ToChType ChUUID ChUUID where toChType = id
-instance ToChType ChUUID UUID   where toChType = MkChUUID
-instance ToChType ChUUID Word64 where toChType = MkChUUID . flip UUID.fromWords64 0 . fromIntegral
+instance ToChType ChUUID Word64 where toChType = MkChUUID 0
+instance ToChType ChUUID (Word64, Word64) where toChType = uncurry MkChUUID
 
 instance FromChType ChUUID ChUUID where fromChType = id
-instance FromChType ChUUID UUID   where fromChType (MkChUUID uuid) = uuid
+instance FromChType ChUUID (Word64, Word64) where fromChType (MkChUUID w64hi w64lo) = (w64hi, w64lo)
 
 
 
@@ -226,7 +222,7 @@ instance IsChType ChString where type ToChTypeName ChString = "String"
 instance Serializable ChString where
   serialize rev str
     =  (serialize @UVarInt rev . fromIntegral . BS.length . fromChType) str
-    <> (execPut .putByteString . fromChType) str
+    <> (execPut . putByteString . fromChType) str
 
 instance Deserializable ChString where
   deserialize rev = do
@@ -456,7 +452,6 @@ instance ToQueryPart ChUInt128 where toQueryPart = BS.byteString . BS8.pack . sh
 
 instance ToChType ChUInt128 ChUInt128 where toChType = id
 instance ToChType ChUInt128 Word128   where toChType = MkChUInt128
-instance ToChType ChUInt128 UUID      where toChType = MkChUInt128 . uncurry Word128 . toWords64
 instance ToChType ChUInt128 Word64    where toChType = MkChUInt128 . fromIntegral
 
 instance FromChType ChUInt128 ChUInt128 where fromChType = id

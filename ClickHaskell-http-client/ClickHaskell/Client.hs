@@ -65,6 +65,7 @@ import GHC.IO (unsafeInterleaveIO)
 import GHC.TypeLits (KnownSymbol, symbolVal)
 
 -- External
+import Data.UUID (fromWords64, toWords64, UUID)
 import qualified Data.UUID as UUID
 import Data.Word
 import Network.HTTP.Client as H (BodyReader, Manager, Request (..), RequestBody (..), Response (..), brConsume, parseRequest, withResponse)
@@ -602,4 +603,5 @@ instance Serializable ChDateTime where
     = let time = BS8.pack . show . fromChType @ChDateTime @Word32 $ chDateTime
     in BS.byteString (BS8.replicate (10 - BS8.length time) '0' <> time)
 
-
+instance ToChType ChUUID UUID where toChType = toChType . toWords64
+instance FromChType ChUUID UUID where fromChType = uncurry fromWords64 . fromChType

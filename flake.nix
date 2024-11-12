@@ -122,7 +122,7 @@
             };
           };
           devShell.tools = hp: {
-            inherit (hp) eventlog2html graphmod;
+            inherit (hp) eventlog2html graphmod cabal-plan;
           };
         };
         devShells.default = pkgs.mkShell {
