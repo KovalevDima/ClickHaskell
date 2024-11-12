@@ -209,20 +209,29 @@ insertInto conn@MkConnection{sock, user, revision} columnsData = do
   let query =
         "INSERT INTO " <> (byteString . BS8.pack) (symbolVal $ Proxy @name)
         <> " (" <> writingColumns @table @record <> ") VALUES"
-      columns = toColumns @(Table name columns) (fromIntegral $ length columnsData) columnsData
   (sendAll sock . toLazyByteString)
     (  serialize revision (mkQueryPacket revision user (toChType query))
     <> serialize revision (mkDataPacket "" 0 0)
     )
-  (firstPacket, buffer) <- continueReadDeserializable @ServerPacketType conn emptyBuffer
+  (firstPacket, buffer1) <- continueReadDeserializable @ServerPacketType conn emptyBuffer
   case firstPacket of
-    packet -> print packet *> print buffer
-
-  (sendAll sock . toLazyByteString)
-    (  serialize revision (mkDataPacket "" (columnsCount @(Columns columns)) (rowsCount columns))
-    <> serialize revision columns
-    <> serialize revision (mkDataPacket "" 0 0)
-    )
+    TableColumns _ ->
+      do
+      (secondPacket, buffer2) <- continueReadDeserializable @ServerPacketType conn buffer1
+      case secondPacket of
+        DataResponse (MkDataPacket {rows_count}) ->
+          do
+          (_emptyDataPacket, _buffer) <- continueReadColumns @(Columns columns) conn buffer2 rows_count
+          let columns = toColumns @(Table name columns) (fromIntegral $ length columnsData) columnsData
+          (sendAll sock . toLazyByteString)
+            (  serialize revision (mkDataPacket "" (columnsCount @(Columns columns)) (rowsCount columns))
+            <> serialize revision columns
+            <> serialize revision (mkDataPacket "" 0 0)
+            )
+        Exception exception -> throwIO (DatabaseException exception)
+        otherPacket -> throwIO (ProtocolImplementationError $ UnexpectedPacketType otherPacket)
+    Exception exception -> throwIO (DatabaseException exception)
+    otherPacket -> throwIO (ProtocolImplementationError $ UnexpectedPacketType otherPacket)
 
 
 -- * Reading
@@ -305,8 +314,7 @@ type GenericReadable record hasColumns =
   )
 
 class
-  ( KnownColumns hasColumns
-  , HasColumns hasColumns
+  ( HasColumns hasColumns
   , DeserializableColumns (Columns (GetColumns hasColumns))
   ) =>
   ReadableFrom hasColumns record
@@ -385,6 +393,7 @@ class
   ( HasColumns hasColumns
   , KnownColumns (Columns (GetColumns hasColumns))
   , Serializable (Columns (GetColumns hasColumns))
+  , DeserializableColumns (Columns (GetColumns hasColumns))
   )
   =>
   WritableInto hasColumns record

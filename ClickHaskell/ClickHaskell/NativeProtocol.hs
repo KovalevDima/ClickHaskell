@@ -278,7 +278,7 @@ data ServerPacketType where
   Extremes :: ServerPacketType
   TablesStatusResponse :: ServerPacketType
   Log :: ServerPacketType
-  TableColumns :: ServerPacketType
+  TableColumns :: TableColumns -> ServerPacketType
   UUIDs :: ServerPacketType
   ReadTaskRequest :: ServerPacketType
   ProfileEvents :: ServerPacketType
@@ -299,7 +299,7 @@ instance Deserializable ServerPacketType where
       8  -> pure Extremes
       9  -> pure TablesStatusResponse
       10 -> pure Log
-      11 -> pure TableColumns
+      11 -> TableColumns <$> deserialize rev
       12 -> pure UUIDs
       13 -> pure ReadTaskRequest
       14 -> pure ProfileEvents
@@ -307,17 +307,17 @@ instance Deserializable ServerPacketType where
 
 instance Show ServerPacketType where
   show (HelloResponse hello) = "HelloResponse " <> show hello
-  show (DataResponse dataPacket) = "DataResponse" <> show dataPacket
-  show (Exception exception) = "Exception" <> show exception
-  show (Progress progress) = "Progress" <> show progress
+  show (DataResponse dataPacket) = "DataResponse " <> show dataPacket
+  show (Exception exception) = "Exception " <> show exception
+  show (Progress progress) = "Progress " <> show progress
   show Pong = "Pong"
   show EndOfStream = "EndOfStream"
-  show (ProfileInfo profileInfo) = "ProfileInfo" <> show profileInfo 
+  show (ProfileInfo profileInfo) = "ProfileInfo " <> show profileInfo 
   show Totals = "Totals"
   show Extremes = "Extremes"
   show TablesStatusResponse = "TablesStatusResponse"
   show Log = "Log"
-  show TableColumns = "TableColumns"
+  show (TableColumns tabelColumnsPacket) = "TableColumns " <> show tabelColumnsPacket
   show UUIDs = "UUIDs"
   show ReadTaskRequest = "ReadTaskRequest"
   show ProfileEvents = "ProfileEvents"
@@ -408,6 +408,14 @@ data ProfileInfo = MkProfileInfo
   , calculated_rows_before_limit :: ChUInt8
   , applied_aggregation          :: ChUInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_ROWS_BEFORE_AGGREGATION
   , rows_before_aggregation      :: UVarInt `SinceRevision` DBMS_MIN_REVISION_WITH_ROWS_BEFORE_AGGREGATION
+  }
+  deriving (Generic, Deserializable, Show)
+
+-- ** TableColumns
+
+data TableColumns = MkTableColumns
+  { table_name :: ChString
+  , table_columns :: ChString
   }
   deriving (Generic, Deserializable, Show)
 
