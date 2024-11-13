@@ -43,6 +43,9 @@ Library
     ClickHaskell.DbTypes
     ClickHaskell.Parameters
     ClickHaskell.NativeProtocol
+    ClickHaskell.Serialization
+    ClickHaskell.Deserialization
+    ClickHaskell.Versioning
   Other-Modules:
     Paths_ClickHaskell
   HS-Source-Dirs:

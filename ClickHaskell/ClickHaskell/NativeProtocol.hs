@@ -9,6 +9,9 @@ module ClickHaskell.NativeProtocol where
 
 -- Internal dependencies
 import ClickHaskell.DbTypes
+import ClickHaskell.Deserialization
+import ClickHaskell.Serialization
+import ClickHaskell.Versioning
 import Paths_ClickHaskell (version)
 
 -- GHC included
@@ -19,6 +22,11 @@ import Data.Version (Version (..), showVersion)
 import Language.Haskell.TH.Syntax (lift)
 import GHC.Generics
 import GHC.TypeLits
+
+-- * Compatibility
+
+latestSupportedRevision :: ProtocolRevision
+latestSupportedRevision = mostRecentRevision
 
 -- * Client packets
 
@@ -97,7 +105,7 @@ data HelloPacket = MkHelloPacket
   , client_name          :: ChString
   , client_version_major :: UVarInt
   , client_version_minor :: UVarInt
-  , tcp_protocol_version :: UVarInt
+  , tcp_protocol_version :: ProtocolRevision
   , default_database     :: ChString
   , user                 :: ChString
   , password             :: ChString
@@ -211,7 +219,7 @@ data ClientInfo = MkClientInfo
   , client_name                  :: ChString
   , client_major                 :: UVarInt
   , client_minor                 :: UVarInt
-  , client_revision              :: UVarInt
+  , client_revision              :: ProtocolRevision
   , quota_key                    :: ChString `SinceRevision` DBMS_MIN_REVISION_WITH_QUOTA_KEY_IN_CLIENT_INFO
   , distrubuted_depth            :: UVarInt `SinceRevision` DBMS_MIN_PROTOCOL_VERSION_WITH_DISTRIBUTED_DEPTH
   , client_patch                 :: UVarInt `SinceRevision` DBMS_MIN_REVISION_WITH_VERSION_PATCH
@@ -332,7 +340,7 @@ data HelloResponse = MkHelloResponse
   { server_name                    :: ChString
   , server_version_major           :: UVarInt
   , server_version_minor           :: UVarInt
-  , server_revision                :: UVarInt
+  , server_revision                :: ProtocolRevision
   , server_parallel_replicas_proto :: UVarInt  `SinceRevision` DBMS_MIN_REVISION_WITH_VERSIONED_PARALLEL_REPLICAS_PROTOCOL
   , server_timezone                :: ChString `SinceRevision` DBMS_MIN_REVISION_WITH_SERVER_TIMEZONE
   , server_display_name            :: ChString `SinceRevision` DBMS_MIN_REVISION_WITH_SERVER_DISPLAY_NAME
@@ -424,48 +432,8 @@ data TableColumns = MkTableColumns
 
 -- * Versioning
 
--- ** Protocol compatibility wrappers
+-- ** Protocol compatible (de)serialization
 
-{-# INLINE [0] afterRevision #-}
-afterRevision
-  :: forall (revision :: Nat) monoid
-  .  (KnownNat revision, Monoid monoid)
-  => ProtocolRevision -> monoid -> monoid
-afterRevision chosenRevision monoid =
-  if chosenRevision >= (fromIntegral . natVal) (Proxy @revision)
-  then monoid
-  else mempty
-
-{-# INLINE [0] latestSupportedRevision #-}
-latestSupportedRevision :: ProtocolRevision
-latestSupportedRevision = (fromIntegral . natVal) (Proxy @DBMS_TCP_PROTOCOL_VERSION)
-
-data SinceRevision a (revisionNumber :: Nat) = MkSinceRevision a | NotPresented
-instance Show a => Show (SinceRevision a (revisionNumber :: Nat)) where
-  show (MkSinceRevision a) = show a
-  show NotPresented = ""
-
-instance
-  ( KnownNat revision
-  , Serializable chType
-  )
-  =>
-  Serializable (SinceRevision chType revision)
-  where
-  serialize rev (MkSinceRevision val) = afterRevision @revision rev (serialize rev val)
-  serialize rev NotPresented          = afterRevision @revision rev (error "Unexpected error")
-
-instance
-  ( KnownNat revision
-  , Deserializable chType
-  )
-  =>
-  Deserializable (SinceRevision chType revision)
-  where
-  deserialize rev =
-    if rev >= (fromIntegral . natVal) (Proxy @revision)
-    then MkSinceRevision <$> deserialize @chType rev
-    else pure NotPresented
 
 
 -- ** Client versioning
@@ -477,61 +445,3 @@ clientPatchVersion = fromIntegral $(lift (versionBranch version !! 2))
 
 clientNameAndVersion :: ChString
 clientNameAndVersion = $(lift ("ClickHaskell-" <> showVersion version))
-
-
--- ** Versions
-
-{-
-  Slightly modified C++ sources:
-  https://github.com/ClickHouse/ClickHouse/blob/eb4a74d7412a1fcf52727cd8b00b365d6b9ed86c/src/Core/ProtocolDefines.h#L6
--}
-type DBMS_TCP_PROTOCOL_VERSION = 54448;
-
-type DBMS_MIN_REVISION_WITH_CLIENT_INFO = 54032;
-type DBMS_MIN_REVISION_WITH_SERVER_TIMEZONE = 54058;
-type DBMS_MIN_REVISION_WITH_QUOTA_KEY_IN_CLIENT_INFO = 54060;
-type DBMS_MIN_REVISION_WITH_TABLES_STATUS = 54226;
-type DBMS_MIN_REVISION_WITH_TIME_ZONE_PARAMETER_IN_DATETIME_DATA_TYPE = 54337;
-type DBMS_MIN_REVISION_WITH_SERVER_DISPLAY_NAME = 54372;
-type DBMS_MIN_REVISION_WITH_VERSION_PATCH = 54401;
-type DBMS_MIN_REVISION_WITH_SERVER_LOGS = 54406;
-type DBMS_MIN_REVISION_WITH_CURRENT_AGGREGATION_VARIANT_SELECTION_METHOD = 54448;
-type DBMS_MIN_MAJOR_VERSION_WITH_CURRENT_AGGREGATION_VARIANT_SELECTION_METHOD = 21;
-type DBMS_MIN_MINOR_VERSION_WITH_CURRENT_AGGREGATION_VARIANT_SELECTION_METHOD = 4;
-type DBMS_MIN_REVISION_WITH_COLUMN_DEFAULTS_METADATA = 54410;
-type DBMS_MIN_REVISION_WITH_LOW_CARDINALITY_TYPE = 54405;
-type DBMS_MIN_REVISION_WITH_CLIENT_WRITE_INFO = 54420;
-type DBMS_MIN_REVISION_WITH_SETTINGS_SERIALIZED_AS_STRINGS = 54429;
-type DBMS_MIN_REVISION_WITH_SCALARS = 54429;
-type DBMS_MIN_REVISION_WITH_OPENTELEMETRY = 54442;
-type DBMS_MIN_REVISION_WITH_AGGREGATE_FUNCTIONS_VERSIONING = 54452;
-type DBMS_CLUSTER_PROCESSING_PROTOCOL_VERSION = 1;
-type DBMS_MIN_SUPPORTED_PARALLEL_REPLICAS_PROTOCOL_VERSION = 3;
-type DBMS_PARALLEL_REPLICAS_MIN_VERSION_WITH_MARK_SEGMENT_SIZE_FIELD = 4;
-type DBMS_PARALLEL_REPLICAS_PROTOCOL_VERSION = 4;
-type DBMS_MIN_REVISION_WITH_PARALLEL_REPLICAS = 54453;
-type DBMS_MERGE_TREE_PART_INFO_VERSION = 1;
-type DBMS_MIN_REVISION_WITH_INTERSERVER_SECRET = 54441;
-type DBMS_MIN_REVISION_WITH_X_FORWARDED_FOR_IN_CLIENT_INFO = 54443;
-type DBMS_MIN_REVISION_WITH_REFERER_IN_CLIENT_INFO = 54447;
-type DBMS_MIN_PROTOCOL_VERSION_WITH_DISTRIBUTED_DEPTH = 54448;
-type DBMS_MIN_PROTOCOL_VERSION_WITH_INCREMENTAL_PROFILE_EVENTS = 54451;
-type DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION = 54454;
-type DBMS_MIN_PROTOCOL_VERSION_WITH_INITIAL_QUERY_START_TIME = 54449;
-type DBMS_MIN_PROTOCOL_VERSION_WITH_PROFILE_EVENTS_IN_INSERT = 54456;
-type DBMS_MIN_PROTOCOL_VERSION_WITH_VIEW_IF_PERMITTED = 54457;
-type DBMS_MIN_PROTOCOL_VERSION_WITH_ADDENDUM = 54458;
-type DBMS_MIN_PROTOCOL_VERSION_WITH_QUOTA_KEY = 54458;
-type DBMS_MIN_PROTOCOL_VERSION_WITH_PARAMETERS = 54459;
-type DBMS_MIN_PROTOCOL_VERSION_WITH_SERVER_QUERY_TIME_IN_PROGRESS = 54460;
-type DBMS_MIN_PROTOCOL_VERSION_WITH_PASSWORD_COMPLEXITY_RULES = 54461;
-type DBMS_MIN_REVISION_WITH_INTERSERVER_SECRET_V2 = 54462;
-type DBMS_MIN_PROTOCOL_VERSION_WITH_TOTAL_BYTES_IN_PROGRESS = 54463;
-type DBMS_MIN_PROTOCOL_VERSION_WITH_TIMEZONE_UPDATES = 54464;
-type DBMS_MIN_REVISION_WITH_SPARSE_SERIALIZATION = 54465;
-type DBMS_MIN_REVISION_WITH_SSH_AUTHENTICATION = 54466;
-type DBMS_MIN_REVISION_WITH_TABLE_READ_ONLY_CHECK = 54467;
-type DBMS_MIN_REVISION_WITH_SYSTEM_KEYWORDS_TABLE = 54468;
-type DBMS_MIN_REVISION_WITH_ROWS_BEFORE_AGGREGATION = 54469;
-type DBMS_MIN_PROTOCOL_VERSION_WITH_CHUNKED_PACKETS = 54470;
-type DBMS_MIN_REVISION_WITH_VERSIONED_PARALLEL_REPLICAS_PROTOCOL = 54471;

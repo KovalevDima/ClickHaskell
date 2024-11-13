@@ -6,29 +6,20 @@
 
 module ClickHaskell.Columns where
 
--- Internal
+-- Internal dependencies
 import ClickHaskell.DbTypes
-import ClickHaskell.NativeProtocol
 
 -- GHC included
 import Data.Typeable (Proxy (..))
-import GHC.TypeLits (KnownNat, Nat, natVal, ErrorMessage(..), KnownSymbol(..), Symbol, TypeError, symbolVal, type (+))
-import Data.ByteString.Builder as BS (Builder, stringUtf8)
+import GHC.TypeLits (KnownNat, Nat, natVal, ErrorMessage(..), Symbol, TypeError, type (+))
 import Data.Kind (Type)
 import Data.Type.Bool (If)
 import Data.Type.Equality (type (==))
-import Data.Binary (Get)
-import Control.Monad (replicateM)
 
 -- * Columns
 
-data Columns (columns :: [Type]) where
-  Empty :: Columns '[]
-  AddColumn
-    :: KnownColumn (Column name chType)
-    => Column name chType
-    -> Columns columns
-    -> Columns (Column name chType ': columns)
+mkColumn :: forall name chType . UVarInt -> [chType] -> Column name chType
+mkColumn = MkColumn
 
 emptyColumns :: Columns '[]
 emptyColumns = Empty
@@ -100,111 +91,3 @@ type family
   where
   (++) '[]            list = list
   (++) (head ': tail) list = tail ++ (head ': list)
-
-
--- ** 
-
-instance
-  Serializable (Columns '[])
-  where
-  {-# INLINE serialize #-}
-  serialize _rev Empty = ""
-
-instance
-  ( Serializable (Columns columns)
-  , Serializable (Column name chType)
-  )
-  =>
-  Serializable (Columns (Column name chType ': columns))
-  where
-  {-# INLINE serialize #-}
-  serialize rev (AddColumn col columns) = serialize rev col <> serialize rev columns
-
-instance
-  ( KnownColumn (Column name chType)
-  , IsChType chType
-  , KnownSymbol name
-  , Serializable chType
-  ) => Serializable (Column name chType) where
-  {-# INLINE serialize #-}
-  serialize rev (MkColumn _size values)
-    =  serialize rev (toChType @ChString $ renderColumnName @(Column name chType))
-    <> serialize rev (toChType @ChString $ renderColumnType @(Column name chType))
-    -- serialization is not custom
-    <> afterRevision @DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION rev (serialize @ChUInt8 rev 0)
-    <> mconcat (Prelude.map (serialize @chType rev) values)
-
-
-
-
-class DeserializableColumns columns where
-  deserializeColumns :: ProtocolRevision -> UVarInt -> Get columns
-
-instance
-  DeserializableColumns (Columns '[])
-  where
-  {-# INLINE deserializeColumns #-}
-  deserializeColumns _rev _rows = pure Empty
-
-instance
-  ( KnownColumn (Column name chType)
-  , Deserializable chType
-  , DeserializableColumns (Columns extraColumns)
-  )
-  =>
-  DeserializableColumns (Columns (Column name chType ': extraColumns))
-  where
-  {-# INLINE deserializeColumns #-}
-  deserializeColumns rev rows = do
-    AddColumn
-      <$> (do
-        _columnName <- deserialize @ChString rev
-        _columnType <- deserialize @ChString rev
-        _isCustom <- deserialize @(ChUInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION) rev
-        column <- replicateM (fromIntegral rows) (deserialize @chType rev)
-        pure $ MkColumn rows column
-      )
-      <*> deserializeColumns @(Columns extraColumns) rev rows
-
-{-# SPECIALIZE replicateM :: Int -> Get chType -> Get [chType] #-}
-
--- ** Column declaration
-
-{- |
-Column declaration
-
-For example:
-
-@
-type MyColumn = Column "myColumn" ChString
-@
--}
-data Column (name :: Symbol) (chType :: Type) = MkColumn UVarInt [chType]
-
-mkColumn :: forall name chType . UVarInt -> [chType] -> Column name chType
-mkColumn = MkColumn
-
-class
-  ( IsChType (GetColumnType columnDescription)
-  , KnownSymbol (GetColumnName columnDescription)
-  , KnownSymbol (ToChTypeName (GetColumnType columnDescription))
-  )
-  =>
-  KnownColumn columnDescription where
-  type GetColumnName columnDescription :: Symbol
-  renderColumnName :: Builder
-  renderColumnName = (stringUtf8 . symbolVal @(GetColumnName columnDescription)) Proxy
-
-  type GetColumnType columnDescription :: Type
-  renderColumnType :: Builder
-  renderColumnType = chTypeName @(GetColumnType columnDescription)
-
-
-instance
-  ( IsChType columnType
-  , KnownSymbol name
-  , KnownSymbol (ToChTypeName columnType)
-  ) => KnownColumn (Column name columnType)
-  where
-  type GetColumnName (Column name columnType) = name
-  type GetColumnType (Column name columnType) = columnType

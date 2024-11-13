@@ -7,20 +7,31 @@
 #-}
 
 module ClickHaskell
-  ( module ClickHaskell.DbTypes
-  , ChCredential(..)
+  (
+  -- * Connection
+    ChCredential(..)
+  , Connection(..)
   , openNativeConnection
+  
+  -- * Database types
+  , module ClickHaskell.DbTypes
+
+  -- * Reading and writing
+  , Table
+  , View, parameter, Parameter
+
+  -- ** Reading
   , ReadableFrom(..)
-  , WritableInto(..)
   , select
   , selectFrom
   , selectFromView
-  , insertInto
-  , ping
 
-  , Column, Columns
-  , Table, View
-  , parameter, Parameter
+  -- ** Writing
+  , WritableInto(..)
+  , insertInto
+
+  -- * Ping database connection
+  , ping
   ) where
 
 -- Internal dependencies
@@ -30,11 +41,12 @@ import ClickHaskell.NativeProtocol
   , mkHelloPacket, HelloParameters(..), mkAddendum
   , mkPingPacket
   , mkQueryPacket
-  , ServerPacketType(..), HelloResponse(..), ExceptionPacket
-  , latestSupportedRevision
+  , ServerPacketType(..), HelloResponse(..), ExceptionPacket, latestSupportedRevision
   )
-import ClickHaskell.Columns (Column (..), Columns (..), DeserializableColumns (deserializeColumns), HasColumns (..), KnownColumn (..), KnownColumns (..), appendColumn, emptyColumns, mkColumn)
+import ClickHaskell.Columns (HasColumns (..), KnownColumns (..), appendColumn, emptyColumns, mkColumn)
 import ClickHaskell.Parameters (Parameter, parameter, parameters, Parameters, CheckParameters)
+import ClickHaskell.Deserialization (Deserializable(..), DeserializableColumns(..))
+import ClickHaskell.Serialization (Serializable(..))
 
 -- GHC included
 import Control.Exception (Exception, SomeException, bracketOnError, catch, finally, throwIO)
@@ -56,6 +68,7 @@ import System.Timeout (timeout)
 -- External
 import Network.Socket as Sock
 import Network.Socket.ByteString.Lazy (recv, sendAll)
+import Debug.Trace (traceShowId)
 
 -- * Connection
 
@@ -66,7 +79,6 @@ data ChCredential = MkChCredential
   , chHost     :: HostName
   , chPort     :: ServiceName
   }
-  deriving (Generic, Show, Eq)
 
 data Connection = MkConnection
   { sock       :: Socket
@@ -173,50 +185,41 @@ select conn@MkConnection{sock, user, revision} query = do
     (  serialize revision (mkQueryPacket revision user query)
     <> serialize revision (mkDataPacket "" 0 0)
     )
-  (firstPacket, buffer) <- continueReadDeserializable @ServerPacketType conn emptyBuffer
-  case firstPacket of
-    DataResponse _      -> do
-      (_empty, nextBuffer) <- continueReadColumns @(Columns columns) conn buffer 0
-      handleSelect @(Columns columns) conn nextBuffer
-    Exception exception -> throwIO (DatabaseException exception)
-    otherPacket         -> throwIO (ProtocolImplementationError $ UnexpectedPacketType otherPacket)
+  handleSelect @(Columns columns) conn emptyBuffer
 
 
 selectFromView ::
-  forall view record name columns parameters passedParameters
+  forall name columns parameters record passedParameters
   .
-  ( ReadableFrom view record
+  ( ReadableFrom (View name columns parameters) record
   , KnownSymbol name
-  , view ~ View name columns parameters
   , CheckParameters parameters passedParameters
   )
   => Connection -> (Parameters '[] -> Parameters passedParameters) -> IO [record]
 selectFromView conn@MkConnection{..} interpreter = do
   (sendAll sock . toLazyByteString)
     (  serialize revision (mkQueryPacket revision user
-      (toChType $ "SELECT " <> readingColumns @view @record <>
+      (toChType $ "SELECT " <> readingColumns @(View name columns parameters) @record <>
         " FROM " <> (byteString . BS8.pack . symbolVal @name) Proxy <> parameters interpreter <>
         " FORMAT TSV\n"))
     <> serialize revision (mkDataPacket "" 0 0)
     )
-  (firstPacket, buffer) <- continueReadDeserializable @ServerPacketType conn emptyBuffer
-  case firstPacket of
-    DataResponse _      -> do
-      (_empty, nextBuffer) <- continueReadColumns @(Columns columns) conn buffer 0
-      handleSelect @view conn nextBuffer
-    Exception exception -> throwIO (DatabaseException exception)
-    otherPacket         -> throwIO (ProtocolImplementationError $ UnexpectedPacketType otherPacket)
+  handleSelect @(View name columns parameters) conn emptyBuffer
 
 
 handleSelect :: forall hasColumns record . ReadableFrom hasColumns record => Connection -> Buffer -> IO [record]
 handleSelect conn previousBuffer = do
   (packet, buffer) <- continueReadDeserializable @ServerPacketType conn previousBuffer
-  case packet of
-    DataResponse MkDataPacket{rows_count} -> case rows_count of
-      0 -> pure []
-      rows -> do
-        (columns, nextBuffer) <- continueReadColumns @(Columns (GetColumns hasColumns)) conn buffer rows
-        ((fromColumns @hasColumns) columns ++) <$> handleSelect @hasColumns conn nextBuffer
+  case traceShowId packet of
+    DataResponse MkDataPacket{columns_count, rows_count} -> do
+      case (columns_count, rows_count) of
+        (0, 0) -> handleSelect @hasColumns conn buffer
+        (_, 0) -> do
+          (_, nextBuffer) <- continueReadColumns @(Columns (GetColumns hasColumns)) conn buffer 0
+          handleSelect @hasColumns conn nextBuffer
+        (_, rows) -> do
+          (columns, nextBuffer) <- continueReadColumns @(Columns (GetColumns hasColumns)) conn buffer rows
+          ((fromColumns @hasColumns) columns ++) <$> handleSelect @hasColumns conn nextBuffer
     Progress          _ -> handleSelect @hasColumns conn buffer
     ProfileInfo       _ -> handleSelect @hasColumns conn buffer
     EndOfStream         -> pure []

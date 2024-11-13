@@ -1,8 +1,9 @@
 {-# LANGUAGE
     AllowAmbiguousTypes
+  , DataKinds
+  , DeriveGeneric
   , FlexibleContexts
   , FlexibleInstances
-  , InstanceSigs
   , MultiParamTypeClasses
   , OverloadedStrings
   , TypeFamilies
@@ -10,39 +11,32 @@
   , UndecidableInstances
   , ScopedTypeVariables
 #-}
+
 module IntegrationTests.Serialization
-  ( runSerializationTests
-  , HasTestValues(..)
+  ( runSerializationTest
   ) where
 
-
 -- Internal
-import ClickHaskell.DbTypes 
+import ClickHaskell.DbTypes
   ( IsChType(..), ToChType(..), ToQueryPart(..)
   , ChUInt64, ChInt64, ChUInt32, ChInt32
   , ChString
   , ChArray
   )
-import ClickHaskell.Client (ChCredential(..), Deserializable(..), runStatement)
-
+import ClickHaskell
+  ( ChCredential(..), Connection(..), openNativeConnection
+  , select, Column, Columns, ReadableFrom, FromChType
+  )
+import ClickHaskell.Deserialization (Deserializable)
 
 -- External
 import Network.HTTP.Client as H (Manager, newManager, defaultManagerSettings)
 import Control.Monad (void, when)
 import Data.ByteString as BS (singleton)
 import Data.ByteString.Char8 as BS8 (takeWhile)
-import GHC.TypeLits (KnownSymbol)
-
-
-runSerializationTests :: ChCredential -> IO ()
-runSerializationTests client = do
-  manager <- newManager defaultManagerSettings
-  runSerializationTest @ChInt32 manager client
-  runSerializationTest @ChInt64 manager client
-  runSerializationTest @ChUInt32 manager client
-  runSerializationTest @ChUInt64 manager client
-  runSerializationTest @ChString manager client
-  runOnlyQuerySerializationTest @(ChArray ChString) manager client
+import GHC.TypeLits (KnownSymbol, symbolVal)
+import GHC.Generics (Generic)
+import Debug.Trace (traceShowId)
 
 
 runSerializationTest ::
@@ -50,69 +44,43 @@ runSerializationTest ::
   .
   ( ToQueryPart chType
   , Eq chType
+  , KnownSymbol (ToChTypeName chType)
+  , Show chType
+  , ReadableFrom (Columns '[Column "testSample" chType]) (TestSample chType)
+  )
+  =>
+  Connection -> [chType] -> IO ()
+runSerializationTest connection testValues = do
+  mapM_
+    (\chType -> do
+      selectChType <-
+        head <$>
+          select
+            @'[Column "testSample" chType]
+            @(TestSample chType)
+            connection
+            (toChType (traceShowId $ "SELECT CAST(" <> toQueryPart chType <> ", '" <> chTypeName @chType <> "') as testSample;"))
+
+      (when (chType /= testSample selectChType) . error)
+        (  "Deserialized value of type " <> show (chTypeName @chType) <> " unmatched:"
+        <> " Expected: " <> show chType
+        <> ". But got: " <> show selectChType <> "."
+        )
+    )
+    testValues
+
+  print (chTypeName @chType <> ": Ok")
+
+
+data TestSample chType = MkTestSample {testSample :: chType}
+  deriving (Generic, Show)
+
+
+instance
+  ( IsChType chType
+  , KnownSymbol (ToChTypeName chType)
+  , FromChType chType chType
   , Deserializable chType
-  , HasTestValues chType
-  , KnownSymbol (ToChTypeName chType)
-  , Show chType
   )
   =>
-  Manager -> ChCredential -> IO ()
-runSerializationTest manager chCred = do
-  mapM_
-      (\chType -> do
-        selectChType <- runStatement manager chCred ("SELECT " <> toQueryPart chType)
-        let deserializedChType = deserialize . BS8.takeWhile (/= '\n') $ selectChType
-  
-        (when (chType /= deserializedChType) . error)
-          (  "Deserialized value of type " <> show (chTypeName @chType) <> " unmatched:"
-          <> " Expected: " <> show chType
-          <> ". But got: " <> show deserializedChType <> "."
-          )
-      )
-      (testValues :: [chType])
-
-  print (chTypeName @chType <> ": Ok")
-
-runOnlyQuerySerializationTest :: forall chType
-  .
-  ( ToQueryPart chType
-  , Eq chType
-  , HasTestValues chType
-  , KnownSymbol (ToChTypeName chType)
-  , Show chType
-  )
-  =>
-  Manager -> ChCredential -> IO ()
-runOnlyQuerySerializationTest manager chCred = do
-  mapM_
-      (\chType -> do
-        void $! runStatement manager chCred ("SELECT " <> toQueryPart chType)  
-      )
-      (testValues :: [chType])
-
-  print (chTypeName @chType <> ": Ok")
-
-
-
-
-class HasTestValues chType
-  where
-  testValues :: [chType]
-
-instance {-# OVERLAPPABLE #-}
-  ( Bounded boundedEnum
-  , Enum boundedEnum
-  )
-  =>
-  HasTestValues boundedEnum
-  where
-  testValues :: [boundedEnum]
-  testValues = [minBound, toEnum 0, maxBound]
-
-instance HasTestValues ChString
-  where
-  testValues = map (toChType . BS.singleton) [1..255]
-
-instance HasTestValues (ChArray ChString)
-  where
-  testValues = [toChType $ map BS.singleton [1..255]]
+  ReadableFrom (Columns '[Column "testSample" chType]) (TestSample chType)

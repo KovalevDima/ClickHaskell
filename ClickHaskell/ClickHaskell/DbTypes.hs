@@ -2,6 +2,7 @@
     GeneralizedNewtypeDeriving
   , LambdaCase
   , OverloadedStrings
+  , TupleSections
 #-}
 
 {-# OPTIONS_GHC
@@ -13,41 +14,41 @@ module ClickHaskell.DbTypes
 , ToChType(toChType)
 , FromChType(fromChType)
 , ToQueryPart(toQueryPart)
-, Serializable(..)
-, Deserializable(..)
 , ProtocolRevision
 
-, ChDateTime
+, ChDateTime(..)
+, ChDate(..)
 
-, ChInt8, ChInt16, ChInt32, ChInt64, ChInt128
-, ChUInt8, ChUInt16, ChUInt32, ChUInt64, ChUInt128
+, ChInt8(..), ChInt16(..), ChInt32(..), ChInt64(..), ChInt128(..)
+, ChUInt8(..), ChUInt16(..), ChUInt32(..), ChUInt64(..), ChUInt128(..)
 
-, ChString
-, ChUUID
+, ChString(..)
+, ChUUID(..)
 
-, ChArray
+, ChArray(..)
 , Nullable
 , LowCardinality, IsLowCardinalitySupported
 
-, UVarInt
+, UVarInt(..)
+, Columns(..), Column(..), KnownColumn(..)
 , module Data.WideWord
 ) where
 
+-- Internal dependencies
+import ClickHaskell.Versioning (ProtocolRevision(..))
 
 -- External
 import Data.WideWord (Int128 (..), Word128(Word128))
 
 -- GHC included
 import Control.DeepSeq (NFData)
-import Data.Binary.Get
-import Data.Binary.Get.Internal (readN)
-import Data.Binary.Put
 import Data.Bits (Bits (..))
-import Data.ByteString as BS (StrictByteString, length, take, toStrict)
-import Data.ByteString.Builder as BS (Builder, byteString, word8, toLazyByteString)
+import Data.ByteString as BS (StrictByteString, toStrict)
+import Data.ByteString.Builder as BS (Builder, byteString, toLazyByteString, stringUtf8)
 import Data.ByteString.Char8 as BS8 (concatMap, length, pack, replicate, singleton)
 import Data.Coerce (coerce)
 import Data.Int (Int16, Int32, Int64, Int8)
+import Data.Kind (Type)
 import Data.List (uncons)
 import Data.String (IsString)
 import Data.Text as Text (Text)
@@ -200,8 +201,6 @@ data ChUUID = MkChUUID {-# UNPACK #-} !Word64 {-# UNPACK #-} !Word64
 
 instance IsChType ChUUID where type ToChTypeName ChUUID = "UUID"
 
-instance Deserializable ChUUID where deserialize _ = MkChUUID <$> getWord64le <*> getWord64le
-instance Serializable ChUUID where serialize _ = execPut . (\(hi, lo) -> putWord64le lo <> putWord64le hi) . fromChType
 
 instance ToChType ChUUID ChUUID where toChType = id
 instance ToChType ChUUID Word64 where toChType = MkChUUID 0
@@ -219,15 +218,6 @@ newtype ChString = MkChString StrictByteString
 
 instance IsChType ChString where type ToChTypeName ChString = "String"
 
-instance Serializable ChString where
-  serialize rev str
-    =  (serialize @UVarInt rev . fromIntegral . BS.length . fromChType) str
-    <> (execPut . putByteString . fromChType) str
-
-instance Deserializable ChString where
-  deserialize rev = do
-    strSize <- fromIntegral <$> deserialize @UVarInt rev
-    toChType <$> readN strSize (BS.take strSize)
 
 instance ToQueryPart ChString where toQueryPart (MkChString string) =  "'" <> escapeQuery string <> "'"
 
@@ -262,9 +252,6 @@ newtype ChInt8 = MkChInt8 Int8
 
 instance IsChType ChInt8 where type ToChTypeName ChInt8 = "Int8"
 
-instance Serializable ChInt8 where serialize _ = execPut . putInt8 . fromChType
-instance Deserializable ChInt8 where deserialize _ = toChType <$> getInt8
-
 instance ToQueryPart ChInt8
   where
   toQueryPart = BS.byteString . BS8.pack . show
@@ -284,9 +271,6 @@ newtype ChInt16 = MkChInt16 Int16
 
 instance IsChType ChInt16 where type ToChTypeName ChInt16 = "Int16"
 
-instance Serializable ChInt16 where serialize _ = execPut . putInt16le . fromChType
-instance Deserializable ChInt16 where deserialize _ = toChType <$> getInt16le
-
 instance ToQueryPart ChInt16 where toQueryPart = BS.byteString . BS8.pack . show
 
 instance ToChType ChInt16 ChInt16 where toChType = id
@@ -304,9 +288,6 @@ newtype ChInt32 = MkChInt32 Int32
 
 instance IsChType ChInt32 where type ToChTypeName ChInt32 = "Int32"
 
-instance Serializable ChInt32 where serialize _ = execPut . putInt32le . fromChType
-instance Deserializable ChInt32 where deserialize _ = toChType <$> getInt32le
-
 instance ToQueryPart ChInt32 where toQueryPart = BS.byteString . BS8.pack . show
 
 instance ToChType ChInt32 ChInt32 where toChType = id
@@ -323,9 +304,6 @@ newtype ChInt64 = MkChInt64 Int64
   deriving newtype (Show, Eq, Num, Prim, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
 
 instance IsChType ChInt64 where type ToChTypeName ChInt64 = "Int64"
-
-instance Serializable ChInt64 where serialize _ = execPut . putInt64le . fromChType
-instance Deserializable ChInt64 where deserialize _ = toChType <$> getInt64le
 
 instance ToQueryPart ChInt64 where toQueryPart = BS.byteString . BS8.pack . show
 
@@ -345,9 +323,6 @@ newtype ChInt128 = MkChInt128 Int128
 
 instance IsChType ChInt128 where type ToChTypeName ChInt128 = "Int128"
 
-instance Serializable ChInt128 where serialize _ = execPut . (\(Int128 hi lo) -> putWord64le hi <> putWord64le lo) . fromChType
-instance Deserializable ChInt128 where deserialize _ = toChType <$> (Int128 <$> getWord64le <*> getWord64le)
-
 instance ToQueryPart ChInt128 where toQueryPart = BS.byteString . BS8.pack . show
 
 instance ToChType ChInt128 ChInt128 where toChType = id
@@ -365,8 +340,6 @@ newtype ChUInt8 = MkChUInt8 Word8
 
 instance IsChType ChUInt8 where type ToChTypeName ChUInt8 = "UInt8"
 
-instance Serializable ChUInt8 where serialize _ = execPut . putWord8 . fromChType
-instance Deserializable ChUInt8 where deserialize _ = toChType <$> getWord8
 
 instance ToQueryPart ChUInt8 where toQueryPart = BS.byteString . BS8.pack . show
 
@@ -385,9 +358,6 @@ newtype ChUInt16 = MkChUInt16 Word16
 
 instance IsChType ChUInt16 where type ToChTypeName ChUInt16 = "UInt16"
 
-instance Serializable ChUInt16 where serialize _ = execPut . putWord16le . fromChType
-instance Deserializable ChUInt16 where deserialize _ = toChType <$> getWord16le
-
 instance ToQueryPart ChUInt16 where toQueryPart = BS.byteString . BS8.pack . show
 
 instance ToChType ChUInt16 ChUInt16 where toChType = id
@@ -404,9 +374,6 @@ newtype ChUInt32 = MkChUInt32 Word32
   deriving newtype (Show, Eq, Num, Prim, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
 
 instance IsChType ChUInt32 where type ToChTypeName ChUInt32 = "UInt32"
-
-instance Serializable ChUInt32 where serialize _ = execPut . putWord32le . fromChType
-instance Deserializable ChUInt32 where deserialize _ = toChType <$> getWord32le
 
 instance ToQueryPart ChUInt32 where toQueryPart = BS.byteString . BS8.pack . show
 
@@ -425,9 +392,6 @@ newtype ChUInt64 = MkChUInt64 Word64
 
 instance IsChType ChUInt64 where type ToChTypeName ChUInt64 = "UInt64"
 
-instance Serializable ChUInt64 where serialize _ = execPut . putWord64le . fromChType
-instance Deserializable ChUInt64 where deserialize _ = toChType <$> getWord64le
-
 instance ToQueryPart ChUInt64 where toQueryPart = BS.byteString . BS8.pack . show
 
 instance ToChType ChUInt64 ChUInt64 where toChType = id
@@ -444,9 +408,6 @@ newtype ChUInt128 = MkChUInt128 Word128
   deriving newtype (Show, Eq, Num, Prim, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
 
 instance IsChType ChUInt128 where type ToChTypeName ChUInt128 = "UInt128"
-
-instance Serializable ChUInt128 where serialize _ = execPut . (\(Word128 hi lo) -> putWord64le hi <> putWord64le lo) . fromChType
-instance Deserializable ChUInt128 where deserialize _ = toChType <$> (Word128 <$> getWord64le <*> getWord64le)
 
 instance ToQueryPart ChUInt128 where toQueryPart = BS.byteString . BS8.pack . show
 
@@ -465,9 +426,6 @@ newtype ChDateTime = MkChDateTime Word32
   deriving newtype (Show, Eq, Prim, Num, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
 
 instance IsChType ChDateTime where type ToChTypeName ChDateTime = "DateTime"
-
-instance Serializable ChDateTime where serialize _ = execPut . putWord32le . fromChType
-instance Deserializable ChDateTime where deserialize _ = toChType <$> getWord32le
 
 instance ToQueryPart ChDateTime
   where
@@ -491,9 +449,6 @@ newtype ChDate = MkChDate Word16
 
 instance IsChType ChDate where type ToChTypeName ChDate = "Date"
 
-instance Serializable ChDate where serialize _ = execPut . putWord16le . fromChType
-instance Deserializable ChDate where deserialize _ = toChType <$> getWord16le
-
 instance ToChType ChDate ChDate where toChType = id
 instance ToChType ChDate Word16 where toChType = MkChDate
 
@@ -508,7 +463,10 @@ newtype ChArray a = MkChArray [a]
 
 instance IsChType chType => IsChType (ChArray chType)
   where
-  type ToChTypeName    (ChArray chType) = "Array(" `AppendSymbol` ToChTypeName chType `AppendSymbol` ")"
+  type ToChTypeName (ChArray chType) = "Array(" `AppendSymbol` ToChTypeName chType `AppendSymbol` ")"
+
+
+
 
 instance ToQueryPart chType => ToQueryPart (ChArray chType)
   where
@@ -521,7 +479,8 @@ instance ToQueryPart chType => ToQueryPart (ChArray chType)
 
 instance IsChType chType => FromChType (ChArray chType) [chType] where fromChType (MkChArray values) = values
 
-instance IsChType chType           => ToChType (ChArray chType) [chType] where toChType = MkChArray
+instance FromChType chType chType => FromChType (ChArray chType) (ChArray chType) where fromChType = id
+
 instance ToChType chType inputType => ToChType (ChArray chType) [inputType] where toChType = MkChArray . map toChType
 
 
@@ -535,115 +494,50 @@ instance ToChType chType inputType => ToChType (ChArray chType) [inputType] wher
 newtype UVarInt = MkUVarInt Word64
   deriving newtype (Show, Eq, Num, Prim, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
 
-instance Deserializable UVarInt where
-  deserialize _ = go 0 (0 :: UVarInt)
-    where
-    go i o | i < 10 = do
-      byte <- getWord8
-      let o' = o .|. ((fromIntegral byte .&. 0x7f) `unsafeShiftL` (7 * i))
-      if byte .&. 0x80 == 0 then pure $! o' else go (i + 1) $! o'
-    go _ _ = fail "input exceeds varuint size"
-
-instance Serializable UVarInt where
-  serialize _ = go
-    where
-    go i
-      | i < 0x80 = word8 (fromIntegral i)
-      | otherwise = word8 (setBit (fromIntegral i) 7) <> go (unsafeShiftR i 7)
 
 
 
--- * (De)serialization
+-- * Columns
 
-type ProtocolRevision = UVarInt
+data Columns (columns :: [Type]) where
+  Empty :: Columns '[]
+  AddColumn
+    :: KnownColumn (Column name chType)
+    => Column name chType
+    -> Columns columns
+    -> Columns (Column name chType ': columns)
 
--- ** Deserializable
+{- |
+Column declaration
 
+For example:
+
+@
+type MyColumn = Column "myColumn" ChString
+@
+-}
+data Column (name :: Symbol) (chType :: Type) = MkColumn UVarInt [chType]
 class
-  Deserializable chType
-  where
-  default deserialize :: (Generic chType, GDeserializable (Rep chType)) => ProtocolRevision -> Get chType
-  deserialize :: ProtocolRevision -> Get chType
-  deserialize rev = to <$> gDeserialize rev
+  ( IsChType (GetColumnType columnDescription)
+  , KnownSymbol (GetColumnName columnDescription)
+  , KnownSymbol (ToChTypeName (GetColumnType columnDescription))
+  )
+  =>
+  KnownColumn columnDescription where
+  type GetColumnName columnDescription :: Symbol
+  renderColumnName :: Builder
+  renderColumnName = (stringUtf8 . symbolVal @(GetColumnName columnDescription)) Proxy
 
-class GDeserializable f
-  where
-  gDeserialize :: ProtocolRevision -> Get (f p)
+  type GetColumnType columnDescription :: Type
+  renderColumnType :: Builder
+  renderColumnType = chTypeName @(GetColumnType columnDescription)
+
 
 instance
-  GDeserializable f
-  =>
-  GDeserializable (D1 c (C1 c2 f))
+  ( IsChType columnType
+  , KnownSymbol name
+  , KnownSymbol (ToChTypeName columnType)
+  ) => KnownColumn (Column name columnType)
   where
-  {-# INLINE gDeserialize #-}
-  gDeserialize rev = M1 . M1 <$> gDeserialize rev
-
-instance
-  GDeserializable (left :*: (right1 :*: right2))
-  =>
-  GDeserializable ((left :*: right1) :*: right2)
-  where
-  {-# INLINE gDeserialize #-}
-  gDeserialize rev = (\(l :*: (r1 :*: r2)) -> (l :*: r1) :*: r2) <$> gDeserialize rev
-
-instance
-  (GDeserializable (S1 metaSel field), GDeserializable right)
-  =>
-  GDeserializable (S1 metaSel field :*: right)
-  where
-  {-# INLINE gDeserialize #-}
-  gDeserialize rev = (:*:) <$> gDeserialize rev <*> gDeserialize rev
-
-instance
-  Deserializable chType
-  =>
-  GDeserializable (S1 (MetaSel (Just typeName) a b f) (Rec0 chType))
-  where
-  {-# INLINE gDeserialize #-}
-  gDeserialize rev =  M1 . K1 <$> deserialize @chType rev
-
-
--- ** Serializable
-
-class Serializable chType
-  where
-  default serialize :: (Generic chType, GSerializable (Rep chType)) => ProtocolRevision -> chType -> Builder
-  serialize :: ProtocolRevision -> chType -> Builder
-  serialize rev = gSerialize rev . from
-
-class GSerializable f
-  where
-  gSerialize :: ProtocolRevision -> f p -> Builder
-
-instance
-  GSerializable f
-  =>
-  GSerializable (D1 c (C1 c2 f))
-  where
-  {-# INLINE gSerialize #-}
-  gSerialize rev (M1 (M1 re)) = gSerialize rev re
-
-instance
-  GSerializable (left1 :*: (left2 :*: right))
-  =>
-  GSerializable ((left1 :*: left2) :*: right)
-  where
-  {-# INLINE gSerialize #-}
-  gSerialize rev ((l1 :*: l2) :*: r) = gSerialize rev (l1 :*: (l2 :*: r))
-
-instance
-  Serializable chType
-  =>
-  GSerializable (S1 (MetaSel (Just typeName) a b f) (Rec0 chType))
-  where
-  {-# INLINE gSerialize #-}
-  gSerialize rev = serialize rev . unK1 . unM1
-
-instance
-  (Serializable chType, GSerializable right)
-  =>
-  GSerializable (S1 (MetaSel (Just typeName) a b f) (Rec0 chType) :*: right)
-  where
-  {-# INLINE gSerialize #-}
-  gSerialize rev (left :*: right)
-    = (serialize rev . unK1 . unM1 $ left) <> gSerialize rev right
+  type GetColumnName (Column name columnType) = name
+  type GetColumnType (Column name columnType) = columnType

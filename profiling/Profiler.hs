@@ -16,8 +16,8 @@ import ClickHaskell.DbTypes
   ( toChType
   , ChUUID, ChDateTime, ChInt32, ChInt64, ChString
   , LowCardinality, Nullable
+  , Column(..)
   )
-import ClickHaskell.Columns (Column(..))
 
 -- GHC included
 import Control.Concurrent (forkIO, killThread, threadDelay)
