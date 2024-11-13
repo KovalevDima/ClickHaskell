@@ -14,10 +14,11 @@ module ClickHaskell
   , WritableInto(..)
   , select
   , selectFrom
+  , selectFromView
   , insertInto
   , ping
 
-  , Columns
+  , Column, Columns
   , Table, View
   , parameter, Parameter
   ) where
@@ -33,7 +34,7 @@ import ClickHaskell.NativeProtocol
   , latestSupportedRevision
   )
 import ClickHaskell.Columns (Column (..), Columns (..), DeserializableColumns (deserializeColumns), HasColumns (..), KnownColumn (..), KnownColumns (..), appendColumn, emptyColumns, mkColumn)
-import ClickHaskell.Parameters (Parameter, parameter)
+import ClickHaskell.Parameters (Parameter, parameter, parameters, Parameters, CheckParameters)
 
 -- GHC included
 import Control.Exception (Exception, SomeException, bracketOnError, catch, finally, throwIO)
@@ -180,6 +181,33 @@ select conn@MkConnection{sock, user, revision} query = do
     Exception exception -> throwIO (DatabaseException exception)
     otherPacket         -> throwIO (ProtocolImplementationError $ UnexpectedPacketType otherPacket)
 
+
+selectFromView ::
+  forall view record name columns parameters passedParameters
+  .
+  ( ReadableFrom view record
+  , KnownSymbol name
+  , view ~ View name columns parameters
+  , CheckParameters parameters passedParameters
+  )
+  => Connection -> (Parameters '[] -> Parameters passedParameters) -> IO [record]
+selectFromView conn@MkConnection{..} interpreter = do
+  (sendAll sock . toLazyByteString)
+    (  serialize revision (mkQueryPacket revision user
+      (toChType $ "SELECT " <> readingColumns @view @record <>
+        " FROM " <> (byteString . BS8.pack . symbolVal @name) Proxy <> parameters interpreter <>
+        " FORMAT TSV\n"))
+    <> serialize revision (mkDataPacket "" 0 0)
+    )
+  (firstPacket, buffer) <- continueReadDeserializable @ServerPacketType conn emptyBuffer
+  case firstPacket of
+    DataResponse _      -> do
+      (_empty, nextBuffer) <- continueReadColumns @(Columns columns) conn buffer 0
+      handleSelect @view conn nextBuffer
+    Exception exception -> throwIO (DatabaseException exception)
+    otherPacket         -> throwIO (ProtocolImplementationError $ UnexpectedPacketType otherPacket)
+
+
 handleSelect :: forall hasColumns record . ReadableFrom hasColumns record => Connection -> Buffer -> IO [record]
 handleSelect conn previousBuffer = do
   (packet, buffer) <- continueReadDeserializable @ServerPacketType conn previousBuffer
@@ -201,7 +229,7 @@ insertInto ::
   forall table record name columns
   .
   ( table ~ Table name columns
-  , WritableInto (Table name columns) record
+  , WritableInto table record
   , KnownSymbol name
   )
   => Connection -> [record] -> IO ()
@@ -305,6 +333,10 @@ data Table (name :: Symbol) (columns :: [Type])
 instance HasColumns (Table name columns)
   where
   type GetColumns (Table _ columns) = columns
+
+instance HasColumns (View name columns parameters)
+  where
+  type GetColumns (View _ columns _) = columns
 
 -- ** Reading
 

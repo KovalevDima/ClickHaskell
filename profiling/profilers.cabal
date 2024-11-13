@@ -36,43 +36,6 @@ executable profiler
     -rtsopts "-with-rtsopts=-s -A32m -AL256m -p -hy -L250 -l-agu -N1"
 
   if flag(dev)
-    ghc-options: 
-      -ddump-to-file
-      -ddump-simpl
-      -dsuppress-type-applications
-      -dsuppress-coercions
-      -dsuppress-idinfo
-      -dsuppress-type-signatures
-      -dsuppress-var-kinds
-      -dsuppress-module-prefixes
-      -dsuppress-uniques
-
-  build-depends:
-    -- Internal
-      ClickHaskell
-    , ClickHaskell-http-client
-
-    -- GHC included
-    , base
-    , bytestring
-    , stm
-
-    -- External
-    , http-client
-
-executable profiler2
-  main-is: ProfilerV2.hs
-  hs-source-dirs: ./
-  ghc-options:
-    -O2
-    -threaded
-    -main-is ProfilerV2
-
-  ghc-prof-options:
-    -fprof-late
-    -rtsopts "-with-rtsopts=-s -A32m -AL256m -p -hy -L250 -l-agu -N1"
-
-  if flag(dev)
     ghc-options:
       -ddump-to-file
       -ddump-simpl
@@ -96,6 +59,3 @@ executable profiler2
     , stm
     , time
     , template-haskell
-
-    -- External
-    , http-client

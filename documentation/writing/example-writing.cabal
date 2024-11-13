@@ -24,7 +24,6 @@ executable example-writing
   build-depends:
     -- Internal
       ClickHaskell
-    , ClickHaskell-http-client
 
     -- GHC included
     , base >=4.7 && <5
@@ -32,7 +31,6 @@ executable example-writing
     , stm
 
     -- External
-    , http-client < 0.8
     , markdown-unlit
   ghc-options:
     -pgmL markdown-unlit
