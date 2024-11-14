@@ -4,12 +4,14 @@
 ClickHaskell is a Haskell implementation of [ClickHouse](https://clickhouse.com/) DBMS client
 
 ClickHaskell provides for users:
+
 1. Type safe developer-friendly interface
 2. Always up-to-date [documentation](https://kovalevdima.github.io/ClickHaskell/)
 3. End-to-end tests before distribution
 4. Very low dependency footprint
 
 ClickHaskell provides for contributors:
+
 1. Reproducable and complete dev environment
 2. Documnetation autogeneration
 3. Easy to run profiling environment
