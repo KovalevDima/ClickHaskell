@@ -30,24 +30,22 @@ executable profiler
     -O2
     -threaded
     -main-is Profiler
+    -- * Dump core
+    -ddump-to-file
+    -ddump-simpl
+    -dsuppress-type-applications
+    -dsuppress-coercions
+    -dsuppress-idinfo
+    -dsuppress-type-signatures
+    -dsuppress-var-kinds
+    -dsuppress-module-prefixes
+    -dsuppress-uniques
+    -ddump-simpl-stats
+    -ddump-rule-firings
 
   ghc-prof-options:
     -fprof-late
     -rtsopts "-with-rtsopts=-s -A32m -AL256m -p -hy -L250 -l-agu -N1"
-
-  if flag(dev)
-    ghc-options:
-      -ddump-to-file
-      -ddump-simpl
-      -dsuppress-type-applications
-      -dsuppress-coercions
-      -dsuppress-idinfo
-      -dsuppress-type-signatures
-      -dsuppress-var-kinds
-      -dsuppress-module-prefixes
-      -dsuppress-uniques
-      -ddump-simpl-stats
-      -ddump-rule-firings
 
   build-depends:
     -- Internal
