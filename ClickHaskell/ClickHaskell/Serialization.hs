@@ -1,6 +1,7 @@
 {-# LANGUAGE
     OverloadedStrings
 #-}
+{-# LANGUAGE LambdaCase #-}
 module ClickHaskell.Serialization where
 
 -- Internal dependencies
@@ -98,6 +99,22 @@ instance
     -- serialization is not custom
     <> afterRevision @DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION rev (serialize @ChUInt8 rev 0)
     <> mconcat (Prelude.map (serialize @chType rev) values)
+
+instance {-# OVERLAPPING #-}
+  ( KnownColumn (Column name (Nullable chType))
+  , IsChType chType
+  , KnownSymbol name
+  , Serializable chType
+  ) => Serializable (Column name (Nullable chType)) where
+  {-# INLINE serialize #-}
+  serialize rev (MkColumn _size values)
+    =  serialize rev (toChType @ChString $ renderColumnName @(Column name (Nullable chType)))
+    <> serialize rev (toChType @ChString $ renderColumnType @(Column name (Nullable chType)))
+    -- serialization is not custom
+    <> afterRevision @DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION rev (serialize @ChUInt8 rev 0)
+    {- Nulls -} <> mconcat (Prelude.map (serialize @ChUInt8 rev . \case Nothing -> 1; Just _ -> 0) values)
+    {- Values -} <> mconcat (Prelude.map (maybe (serialize @chType rev defaultValueOfTypeName) (serialize @chType rev)) values)
+
 
 -- * Generics
 

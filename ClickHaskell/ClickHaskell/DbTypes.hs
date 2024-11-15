@@ -10,7 +10,7 @@
 #-}
 
 module ClickHaskell.DbTypes
-( IsChType(ToChTypeName, chTypeName)
+( IsChType(ToChTypeName, chTypeName, defaultValueOfTypeName)
 , ToChType(toChType)
 , FromChType(fromChType)
 , ToQueryPart(toQueryPart)
@@ -76,6 +76,8 @@ class
   chTypeName :: KnownSymbol (ToChTypeName chType) => Builder
   chTypeName = byteString . BS8.pack . symbolVal @(ToChTypeName chType) $ Proxy
 
+  defaultValueOfTypeName :: chType
+
 class IsChType chType => ToChType chType inputType    where toChType    :: inputType -> chType
 class IsChType chType => FromChType chType outputType where fromChType  :: chType -> outputType
 class IsChType chType => ToQueryPart chType           where toQueryPart :: chType -> BS.Builder
@@ -103,6 +105,7 @@ instance
   IsChType (Nullable chType)
   where
   type ToChTypeName (Nullable chType) = NullableTypeName chType
+  defaultValueOfTypeName = Nothing
 
 instance
   ToQueryPart chType
@@ -156,6 +159,7 @@ instance
   IsChType (LowCardinality chType)
   where
   type ToChTypeName (LowCardinality chType) = "LowCardinality(" `AppendSymbol` ToChTypeName chType `AppendSymbol` ")"
+  defaultValueOfTypeName = MkLowCardinality $ defaultValueOfTypeName @chType
 
 instance
   ( ToChType inputType chType
@@ -199,7 +203,9 @@ instance
 newtype ChUUID = MkChUUID Word128
   deriving newtype (Generic, Show, Eq, NFData, Bounded, Prim, Enum)
 
-instance IsChType ChUUID where type ToChTypeName ChUUID = "UUID"
+instance IsChType ChUUID where
+  type ToChTypeName ChUUID = "UUID"
+  defaultValueOfTypeName = MkChUUID 0
 
 
 instance ToChType ChUUID ChUUID where toChType = id
@@ -216,7 +222,9 @@ instance FromChType ChUUID (Word64, Word64) where fromChType (MkChUUID (Word128 
 newtype ChString = MkChString StrictByteString
   deriving newtype (Show, Eq, IsString, NFData)
 
-instance IsChType ChString where type ToChTypeName ChString = "String"
+instance IsChType ChString where
+  type ToChTypeName ChString = "String"
+  defaultValueOfTypeName = ""
 
 
 instance ToQueryPart ChString where toQueryPart (MkChString string) =  "'" <> escapeQuery string <> "'"
@@ -250,7 +258,9 @@ instance
 newtype ChInt8 = MkChInt8 Int8
   deriving newtype (Show, Eq, Num, Prim, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
 
-instance IsChType ChInt8 where type ToChTypeName ChInt8 = "Int8"
+instance IsChType ChInt8 where
+  type ToChTypeName ChInt8 = "Int8"
+  defaultValueOfTypeName = 0
 
 instance ToQueryPart ChInt8
   where
@@ -269,7 +279,9 @@ instance FromChType ChInt8 Int8   where fromChType = coerce
 newtype ChInt16 = MkChInt16 Int16
   deriving newtype (Show, Eq, Num, Prim, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
 
-instance IsChType ChInt16 where type ToChTypeName ChInt16 = "Int16"
+instance IsChType ChInt16 where
+  type ToChTypeName ChInt16 = "Int16"
+  defaultValueOfTypeName = 0
 
 instance ToQueryPart ChInt16 where toQueryPart = BS.byteString . BS8.pack . show
 
@@ -286,7 +298,9 @@ instance FromChType ChInt16 Int16   where fromChType (MkChInt16 int16) = int16
 newtype ChInt32 = MkChInt32 Int32
   deriving newtype (Show, Eq, Num, Prim, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
 
-instance IsChType ChInt32 where type ToChTypeName ChInt32 = "Int32"
+instance IsChType ChInt32 where
+  type ToChTypeName ChInt32 = "Int32"
+  defaultValueOfTypeName = 0
 
 instance ToQueryPart ChInt32 where toQueryPart = BS.byteString . BS8.pack . show
 
@@ -303,7 +317,9 @@ instance FromChType ChInt32 Int32   where fromChType (MkChInt32 int32) = int32
 newtype ChInt64 = MkChInt64 Int64
   deriving newtype (Show, Eq, Num, Prim, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
 
-instance IsChType ChInt64 where type ToChTypeName ChInt64 = "Int64"
+instance IsChType ChInt64 where
+  type ToChTypeName ChInt64 = "Int64"
+  defaultValueOfTypeName = 0
 
 instance ToQueryPart ChInt64 where toQueryPart = BS.byteString . BS8.pack . show
 
@@ -321,7 +337,9 @@ instance FromChType ChInt64 Int64   where fromChType = coerce
 newtype ChInt128 = MkChInt128 Int128
   deriving newtype (Show, Eq, Num, Prim, Bits, Ord, Real, Enum, Integral, Bounded, NFData)
 
-instance IsChType ChInt128 where type ToChTypeName ChInt128 = "Int128"
+instance IsChType ChInt128 where
+  type ToChTypeName ChInt128 = "Int128"
+  defaultValueOfTypeName = 0
 
 instance ToQueryPart ChInt128 where toQueryPart = BS.byteString . BS8.pack . show
 
@@ -338,7 +356,9 @@ instance FromChType ChInt128 Int128   where fromChType (MkChInt128 int128) = int
 newtype ChUInt8 = MkChUInt8 Word8
   deriving newtype (Show, Eq, Num, Prim, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
 
-instance IsChType ChUInt8 where type ToChTypeName ChUInt8 = "UInt8"
+instance IsChType ChUInt8 where
+  type ToChTypeName ChUInt8 = "UInt8"
+  defaultValueOfTypeName = 0
 
 
 instance ToQueryPart ChUInt8 where toQueryPart = BS.byteString . BS8.pack . show
@@ -356,7 +376,9 @@ instance FromChType ChUInt8 Word8   where fromChType (MkChUInt8 w8) = w8
 newtype ChUInt16 = MkChUInt16 Word16
   deriving newtype (Show, Eq, Num, Prim, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
 
-instance IsChType ChUInt16 where type ToChTypeName ChUInt16 = "UInt16"
+instance IsChType ChUInt16 where
+  type ToChTypeName ChUInt16 = "UInt16"
+  defaultValueOfTypeName = 0
 
 instance ToQueryPart ChUInt16 where toQueryPart = BS.byteString . BS8.pack . show
 
@@ -373,7 +395,9 @@ instance FromChType ChUInt16 Word16   where fromChType = coerce
 newtype ChUInt32 = MkChUInt32 Word32
   deriving newtype (Show, Eq, Num, Prim, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
 
-instance IsChType ChUInt32 where type ToChTypeName ChUInt32 = "UInt32"
+instance IsChType ChUInt32 where
+  type ToChTypeName ChUInt32 = "UInt32"
+  defaultValueOfTypeName = 0
 
 instance ToQueryPart ChUInt32 where toQueryPart = BS.byteString . BS8.pack . show
 
@@ -390,7 +414,9 @@ instance FromChType ChUInt32 Word32   where fromChType (MkChUInt32 word32) = wor
 newtype ChUInt64 = MkChUInt64 Word64
   deriving newtype (Show, Eq, Num, Prim, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
 
-instance IsChType ChUInt64 where type ToChTypeName ChUInt64 = "UInt64"
+instance IsChType ChUInt64 where
+  type ToChTypeName ChUInt64 = "UInt64"
+  defaultValueOfTypeName = 0
 
 instance ToQueryPart ChUInt64 where toQueryPart = BS.byteString . BS8.pack . show
 
@@ -407,7 +433,9 @@ instance FromChType ChUInt64 Word64   where fromChType (MkChUInt64 w64) = w64
 newtype ChUInt128 = MkChUInt128 Word128
   deriving newtype (Show, Eq, Num, Prim, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
 
-instance IsChType ChUInt128 where type ToChTypeName ChUInt128 = "UInt128"
+instance IsChType ChUInt128 where
+  type ToChTypeName ChUInt128 = "UInt128"
+  defaultValueOfTypeName = 0
 
 instance ToQueryPart ChUInt128 where toQueryPart = BS.byteString . BS8.pack . show
 
@@ -425,7 +453,10 @@ instance FromChType ChUInt128 Word128   where fromChType (MkChUInt128 w128) = w1
 newtype ChDateTime = MkChDateTime Word32
   deriving newtype (Show, Eq, Prim, Num, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
 
-instance IsChType ChDateTime where type ToChTypeName ChDateTime = "DateTime"
+instance IsChType ChDateTime
+  where
+  type ToChTypeName ChDateTime = "DateTime"
+  defaultValueOfTypeName = MkChDateTime 0
 
 instance ToQueryPart ChDateTime
   where
@@ -447,7 +478,9 @@ instance FromChType ChDateTime UTCTime    where fromChType (MkChDateTime w32) = 
 newtype ChDate = MkChDate Word16
   deriving newtype (Show, Eq, Prim, Bits, Bounded, Enum, NFData)
 
-instance IsChType ChDate where type ToChTypeName ChDate = "Date"
+instance IsChType ChDate where
+  type ToChTypeName ChDate = "Date"
+  defaultValueOfTypeName = MkChDate 0
 
 instance ToChType ChDate ChDate where toChType = id
 instance ToChType ChDate Word16 where toChType = MkChDate
@@ -464,6 +497,7 @@ newtype ChArray a = MkChArray [a]
 instance IsChType chType => IsChType (ChArray chType)
   where
   type ToChTypeName (ChArray chType) = "Array(" `AppendSymbol` ToChTypeName chType `AppendSymbol` ")"
+  defaultValueOfTypeName = MkChArray []
 
 
 

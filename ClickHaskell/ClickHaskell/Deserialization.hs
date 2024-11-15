@@ -3,6 +3,7 @@
 {-# OPTIONS_GHC
   -Wno-orphans
 #-}
+{-# LANGUAGE LambdaCase #-}
 
 module ClickHaskell.Deserialization where
 
@@ -11,14 +12,13 @@ import ClickHaskell.Versioning (ProtocolRevision(..), SinceRevision (..), DBMS_M
 import ClickHaskell.DbTypes
 
 -- GHC included
-import Data.Binary 
 import Data.Bits (Bits (..))
 import Data.ByteString as BS (take)
 import Data.Coerce (coerce)
 import Data.Typeable (Proxy (..))
 import GHC.Generics
 import GHC.TypeLits (KnownNat, natVal, TypeError, ErrorMessage (..))
-import Control.Monad (replicateM)
+import Control.Monad (replicateM, forM)
 import Data.Binary.Get.Internal
 import Data.Binary.Get
 
@@ -121,12 +121,12 @@ instance
     where
     readOffsets :: ProtocolRevision -> Get (ChUInt64, [ChUInt64])
     readOffsets revivion = do
-      size <- deserialize @ChUInt64 rev 
+      size <- deserialize @ChUInt64 rev
       (size, ) <$> go size
       where
-      go arraySize = 
+      go arraySize =
         do
-        nextOffset <- deserialize @ChUInt64 revivion 
+        nextOffset <- deserialize @ChUInt64 revivion
         if arraySize == nextOffset
           then pure [nextOffset]
           else (nextOffset :) <$> go arraySize
@@ -173,3 +173,30 @@ instance
       <*> deserializeColumns @(Columns extraColumns) rev rows
 
 {-# SPECIALIZE replicateM :: Int -> Get chType -> Get [chType] #-}
+
+instance {-# OVERLAPPING #-}
+  ( KnownColumn (Column name (Nullable chType))
+  , Deserializable chType
+  , DeserializableColumns (Columns extraColumns)
+  )
+  =>
+  DeserializableColumns (Columns (Column name (Nullable chType) ': extraColumns))
+  where
+  {-# INLINE deserializeColumns #-}
+  deserializeColumns rev rows = do
+    AddColumn
+      <$> (do
+        _columnName <- deserialize @ChString rev
+        _columnType <- deserialize @ChString rev
+        _isCustom <- deserialize @(ChUInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION) rev
+        nulls <- replicateM (fromIntegral rows) (deserialize @ChUInt8 rev)
+        nullable <-
+          forM
+            nulls
+            (\case
+              0 -> Just <$> deserialize @chType rev
+              _ -> (Nothing <$ deserialize @chType rev)
+            )
+        pure $ MkColumn rows nullable
+      )
+      <*> deserializeColumns @(Columns extraColumns) rev rows
