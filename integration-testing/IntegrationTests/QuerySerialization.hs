@@ -17,25 +17,26 @@ module IntegrationTests.QuerySerialization
   ) where
 
 -- Internal
-import ClickHaskell.DbTypes
-  ( IsChType(..), ToChType(..), ToQueryPart(..)
-  , ChUInt64, ChInt64, ChUInt32, ChInt32
-  , ChString
-  , ChArray
-  )
 import ClickHaskell
   ( ChCredential(..), Connection(..), openNativeConnection
-  , select, Column, Columns, ReadableFrom, FromChType
+  , ReadableFrom, select
   )
-import ClickHaskell.Deserialization (Deserializable)
+import ClickHaskell.DbTypes
+  ( IsChType(..), ToChType(..), FromChType
+  , ToQueryPart(..)
+  , ChUInt32, ChUInt64
+  , ChInt32, ChInt64
+  , ChString, ChArray
+  , Column, Columns
+  )
+import ClickHaskell.DeSerialization (Deserializable)
 
--- External
-import Network.HTTP.Client as H (Manager, newManager, defaultManagerSettings)
+-- GHC included
 import Control.Monad (void, when)
 import Data.ByteString as BS (singleton)
 import Data.ByteString.Char8 as BS8 (takeWhile)
-import GHC.TypeLits (KnownSymbol, symbolVal)
 import GHC.Generics (Generic)
+import GHC.TypeLits (KnownSymbol, symbolVal)
 
 
 querySerializationTest ::

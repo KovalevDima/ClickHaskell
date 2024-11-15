@@ -16,27 +16,28 @@ module IntegrationTests.WriteReadEquality
   ) where
 
 -- Internal
-import ClickHaskell (WritableInto, ReadableFrom, ChCredential(..), insertInto, selectFrom, Connection, Table, Column)
+import ClickHaskell
+  ( WritableInto, insertInto
+  , ReadableFrom, selectFrom
+  , ChCredential(..), Connection
+  , Table
+  )
 import ClickHaskell.DbTypes
   ( toChType
   , ChInt8, ChInt16, ChInt32, ChInt64, ChInt128
   , ChUInt8, ChUInt16, ChUInt32, ChUInt64, ChUInt128
   , ChUUID, ChDateTime, ChString, Int128, Word128
   , Nullable
+  , Column
   )
 
-
--- External
-import Network.HTTP.Client as H (newManager, defaultManagerSettings, Manager)
-
-
 -- GHC included
-import Control.Exception      (bracket)
-import Control.Monad          (when)
-import Data.Int               (Int8, Int16, Int32, Int64)
-import Data.Word              (Word8, Word16, Word32, Word64)
-import GHC.Generics           (Generic)
 import Control.Concurrent (threadDelay)
+import Control.Exception  (bracket)
+import Control.Monad      (when)
+import Data.Int           (Int16, Int32, Int64, Int8)
+import Data.Word          (Word16, Word32, Word64, Word8)
+import GHC.Generics       (Generic)
 
 runWriteReadEqualityTest :: Connection -> IO ()
 runWriteReadEqualityTest connection = do
@@ -87,7 +88,7 @@ type TestTable = Table "writeReadEqualityTable"
    , Column "uint64Nullable" (Nullable ChUInt64)
    , Column "uint8" ChUInt8
    , Column "uint8Nullable" (Nullable ChUInt8)
-  , Column "uuid" ChUUID
+   , Column "uuid" ChUUID
    , Column "uuidNullable" (Nullable ChUUID)
    ]
 

@@ -12,9 +12,6 @@ module ClickHaskell
     ChCredential(..)
   , Connection(..)
   , openNativeConnection
-  
-  -- * Database types
-  , module ClickHaskell.DbTypes
 
   -- * Reading and writing
   , Table
@@ -43,10 +40,10 @@ import ClickHaskell.NativeProtocol
   , mkQueryPacket
   , ServerPacketType(..), HelloResponse(..), ExceptionPacket, latestSupportedRevision
   )
+import ClickHaskell.Versioning (ProtocolRevision)
 import ClickHaskell.Columns (HasColumns (..), KnownColumns (..), appendColumn, emptyColumns, mkColumn)
 import ClickHaskell.Parameters (Parameter, parameter, parameters, Parameters, CheckParameters)
-import ClickHaskell.Deserialization (Deserializable(..), DeserializableColumns(..))
-import ClickHaskell.Serialization (Serializable(..))
+import ClickHaskell.DeSerialization (Serializable(..), Deserializable(..), DeserializableColumns(..))
 
 -- GHC included
 import Control.Exception (Exception, SomeException, bracketOnError, catch, finally, throwIO)

@@ -20,9 +20,8 @@ executable ClickHaskell-documentation
   ghc-options: -threaded
   
   build-depends:
-    base
+      base
     , hakyll
-    , binary
     , bytestring
     , filepath
     , time

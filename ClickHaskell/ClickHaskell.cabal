@@ -43,8 +43,7 @@ Library
     ClickHaskell.DbTypes
     ClickHaskell.Parameters
     ClickHaskell.NativeProtocol
-    ClickHaskell.Serialization
-    ClickHaskell.Deserialization
+    ClickHaskell.DeSerialization
     ClickHaskell.Versioning
   Other-Modules:
     Paths_ClickHaskell

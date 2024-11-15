@@ -9,19 +9,18 @@ module ClickHaskell.NativeProtocol where
 
 -- Internal dependencies
 import ClickHaskell.DbTypes
-import ClickHaskell.Deserialization
-import ClickHaskell.Serialization
+import ClickHaskell.DeSerialization (Serializable(..), Deserializable(..))
 import ClickHaskell.Versioning
 import Paths_ClickHaskell (version)
 
 -- GHC included
 import Control.Monad (replicateM)
-import Data.Text
+import Data.Text (Text)
 import Data.Typeable (Proxy (..))
 import Data.Version (Version (..), showVersion)
 import Language.Haskell.TH.Syntax (lift)
-import GHC.Generics
-import GHC.TypeLits
+import GHC.Generics (Generic)
+import GHC.TypeLits (KnownNat, natVal)
 
 -- * Compatibility
 
@@ -431,12 +430,6 @@ data TableColumns = MkTableColumns
 
 
 -- * Versioning
-
--- ** Protocol compatible (de)serialization
-
-
-
--- ** Client versioning
 
 clientMajorVersion, clientMinorVersion, clientPatchVersion :: UVarInt
 clientMajorVersion = fromIntegral $(lift (versionBranch version !! 0))

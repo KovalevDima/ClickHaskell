@@ -14,7 +14,6 @@ module ClickHaskell.DbTypes
 , ToChType(toChType)
 , FromChType(fromChType)
 , ToQueryPart(toQueryPart)
-, ProtocolRevision
 
 , ChDateTime(..)
 , ChDate(..)
@@ -35,7 +34,6 @@ module ClickHaskell.DbTypes
 ) where
 
 -- Internal dependencies
-import ClickHaskell.Versioning (ProtocolRevision(..))
 
 -- External
 import Data.WideWord (Int128 (..), Word128(..))

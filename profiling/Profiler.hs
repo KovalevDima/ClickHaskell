@@ -16,7 +16,7 @@ import ClickHaskell.DbTypes
   ( toChType
   , ChUUID, ChDateTime, ChInt32, ChInt64, ChString
   , LowCardinality, Nullable
-  , Column(..)
+  , Column(..), Columns
   )
 
 -- GHC included
