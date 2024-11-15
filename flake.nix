@@ -95,10 +95,6 @@
               libraryProfiling = true;
               haddock = true;
             };
-            ClickHaskell-http-client = {
-              libraryProfiling = true;
-              haddock = true;
-            };
             profilers = {
               executableProfiling = true;
               libraryProfiling = true;
@@ -137,13 +133,6 @@
             mkdir -m 777 $out/packages $out/docs
             cp -r ${extractDist self'.packages.ClickHaskell} $out/packages
             cp -r ${extractDocs self'.packages.ClickHaskell} $out/docs
-        '';
-        packages."ClickHaskell-http-client-dist" =
-          pkgs.runCommand "ClickHaskell-http-client-dist" {} ''
-            mkdir $out
-            mkdir -m 777 $out/packages $out/docs
-            cp -r ${extractDist self'.packages.ClickHaskell-http-client} $out/packages
-            cp -r ${extractDocs self'.packages.ClickHaskell-http-client} $out/docs
         '';
       };
     };
