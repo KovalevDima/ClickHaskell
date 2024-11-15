@@ -1,4 +1,9 @@
 {-# LANGUAGE TupleSections #-}
+
+{-# OPTIONS_GHC
+  -Wno-orphans
+#-}
+
 module ClickHaskell.Deserialization where
 
 -- Internal dependencies
@@ -83,10 +88,7 @@ instance Deserializable ProtocolRevision where
 -- * Database types
 
 instance Deserializable ChUUID where
-  deserialize _ = do
-    hi <- getWord64le
-    lo <- getWord64le
-    pure $ MkChUUID lo hi
+  deserialize _ = MkChUUID <$> (flip Word128 <$> getWord64le <*> getWord64le)
 
 instance Deserializable ChString where
   deserialize rev = do
@@ -98,12 +100,12 @@ instance Deserializable ChInt8 where deserialize _ = toChType <$> getInt8
 instance Deserializable ChInt16 where deserialize _ = toChType <$> getInt16le
 instance Deserializable ChInt32 where deserialize _ = toChType <$> getInt32le
 instance Deserializable ChInt64 where deserialize _ = toChType <$> getInt64le
-instance Deserializable ChInt128 where deserialize _ = toChType <$> (Int128 <$> getWord64le <*> getWord64le)
+instance Deserializable ChInt128 where deserialize _ = toChType <$> (flip Int128 <$> getWord64le <*> getWord64le)
 instance Deserializable ChUInt8 where deserialize _ = toChType <$> getWord8
 instance Deserializable ChUInt16 where deserialize _ = toChType <$> getWord16le
 instance Deserializable ChUInt32 where deserialize _ = toChType <$> getWord32le
 instance Deserializable ChUInt64 where deserialize _ = toChType <$> getWord64le
-instance Deserializable ChUInt128 where deserialize _ = toChType <$> (Word128 <$> getWord64le <*> getWord64le)
+instance Deserializable ChUInt128 where deserialize _ = toChType <$> (flip Word128 <$> getWord64le <*> getWord64le)
 instance Deserializable ChDateTime where deserialize _ = toChType <$> getWord32le
 instance Deserializable ChDate where deserialize _ = toChType <$> getWord16le
 

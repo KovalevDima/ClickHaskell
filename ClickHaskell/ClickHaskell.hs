@@ -68,7 +68,6 @@ import System.Timeout (timeout)
 -- External
 import Network.Socket as Sock
 import Network.Socket.ByteString.Lazy (recv, sendAll)
-import Debug.Trace (traceShowId)
 
 -- * Connection
 
@@ -165,7 +164,7 @@ selectFrom ::
   Connection -> IO [record]
 selectFrom conn@MkConnection{sock, user, revision} = do
   let query
-        =  "SELECT " <> readingColumns @table @record
+        = "SELECT " <> readingColumns @table @record
         <> " FROM " <> (byteString . BS8.pack) (symbolVal $ Proxy @name)
   (sendAll sock . toLazyByteString)
     (  serialize revision (mkQueryPacket revision user (toChType query))
@@ -189,28 +188,29 @@ select conn@MkConnection{sock, user, revision} query = do
 
 
 selectFromView ::
-  forall name columns parameters record passedParameters
+  forall view record name columns parameters passedParameters
   .
-  ( ReadableFrom (View name columns parameters) record
+  ( ReadableFrom view record
   , KnownSymbol name
+  , view ~ View name columns parameters
   , CheckParameters parameters passedParameters
   )
   => Connection -> (Parameters '[] -> Parameters passedParameters) -> IO [record]
 selectFromView conn@MkConnection{..} interpreter = do
+  let query =
+        "SELECT " <> readingColumns @view @record <>
+        " FROM " <> (byteString . BS8.pack . symbolVal @name) Proxy <> parameters interpreter
   (sendAll sock . toLazyByteString)
-    (  serialize revision (mkQueryPacket revision user
-      (toChType $ "SELECT " <> readingColumns @(View name columns parameters) @record <>
-        " FROM " <> (byteString . BS8.pack . symbolVal @name) Proxy <> parameters interpreter <>
-        " FORMAT TSV\n"))
+    (  serialize revision (mkQueryPacket revision user (toChType query))
     <> serialize revision (mkDataPacket "" 0 0)
     )
-  handleSelect @(View name columns parameters) conn emptyBuffer
+  handleSelect @view conn emptyBuffer
 
 
-handleSelect :: forall hasColumns record . ReadableFrom hasColumns record => Connection -> Buffer -> IO [record]
+handleSelect :: forall hasColumns record . (HasCallStack, ReadableFrom hasColumns record) => Connection -> Buffer -> IO [record]
 handleSelect conn previousBuffer = do
   (packet, buffer) <- continueReadDeserializable @ServerPacketType conn previousBuffer
-  case traceShowId packet of
+  case packet of
     DataResponse MkDataPacket{columns_count, rows_count} -> do
       case (columns_count, rows_count) of
         (0, 0) -> handleSelect @hasColumns conn buffer
@@ -244,26 +244,30 @@ insertInto conn@MkConnection{sock, user, revision} columnsData = do
     (  serialize revision (mkQueryPacket revision user (toChType query))
     <> serialize revision (mkDataPacket "" 0 0)
     )
-  (firstPacket, buffer1) <- continueReadDeserializable @ServerPacketType conn emptyBuffer
-  case firstPacket of
-    TableColumns _ ->
-      do
-      (secondPacket, buffer2) <- continueReadDeserializable @ServerPacketType conn buffer1
-      case secondPacket of
-        DataResponse (MkDataPacket {rows_count}) ->
-          do
-          (_emptyDataPacket, _buffer) <- continueReadColumns @(Columns columns) conn buffer2 rows_count
-          let columns = toColumns @(Table name columns) (fromIntegral $ length columnsData) columnsData
-          (sendAll sock . toLazyByteString)
-            (  serialize revision (mkDataPacket "" (columnsCount @(Columns columns)) (rowsCount columns))
-            <> serialize revision columns
-            <> serialize revision (mkDataPacket "" 0 0)
-            )
-        Exception exception -> throwIO (DatabaseException exception)
-        otherPacket -> throwIO (ProtocolImplementationError $ UnexpectedPacketType otherPacket)
-    Exception exception -> throwIO (DatabaseException exception)
-    otherPacket -> throwIO (ProtocolImplementationError $ UnexpectedPacketType otherPacket)
+  handleInsertResult @table conn emptyBuffer columnsData
 
+handleInsertResult ::
+  forall hasColumns record
+  .
+  (HasCallStack, WritableInto hasColumns record)
+  =>
+  Connection -> Buffer -> [record] -> IO ()
+handleInsertResult conn@MkConnection{..} buffer records = do
+  (firstPacket, buffer1) <- continueReadDeserializable @ServerPacketType conn buffer
+  case firstPacket of
+    TableColumns      _ -> handleInsertResult @hasColumns conn buffer1 records
+    DataResponse packet -> do
+      (_emptyDataPacket, buffer2) <- continueReadColumns @(Columns (GetColumns hasColumns)) conn buffer1 (rows_count packet)
+      let columns = toColumns @hasColumns (fromIntegral $ length records) records
+      (sendAll sock . toLazyByteString)
+        (  serialize revision (mkDataPacket "" (columnsCount @(Columns (GetColumns hasColumns))) (rowsCount columns))
+        <> serialize revision columns
+        <> serialize revision (mkDataPacket "" 0 0)
+        )
+      handleInsertResult @hasColumns @record conn buffer2 []
+    EndOfStream         -> pure ()
+    Exception exception -> throwIO (DatabaseException exception)
+    otherPacket         -> throwIO (ProtocolImplementationError $ UnexpectedPacketType otherPacket)
 
 -- * Reading
 
@@ -386,7 +390,7 @@ instance
   gFromColumns rev = do
     (l :*: (r1 :*: r2)) <- gFromColumns rev
     pure ((l :*: r1) :*: r2)
-  gReadingColumns = gReadingColumns @columns @((left :*: right1) :*: right2)
+  gReadingColumns = gReadingColumns @columns @(left :*: (right1 :*: right2))
 
 instance
   ( KnownColumn (Column name chType)

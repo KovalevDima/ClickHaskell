@@ -38,7 +38,7 @@ module ClickHaskell.DbTypes
 import ClickHaskell.Versioning (ProtocolRevision(..))
 
 -- External
-import Data.WideWord (Int128 (..), Word128(Word128))
+import Data.WideWord (Int128 (..), Word128(..))
 
 -- GHC included
 import Control.DeepSeq (NFData)
@@ -196,18 +196,18 @@ instance
 
 
 -- | ClickHouse UUID column type
-data ChUUID = MkChUUID {-# UNPACK #-} !Word64 {-# UNPACK #-} !Word64
-  deriving (Generic, Show, Eq, NFData)
+newtype ChUUID = MkChUUID Word128
+  deriving newtype (Generic, Show, Eq, NFData, Bounded, Prim, Enum)
 
 instance IsChType ChUUID where type ToChTypeName ChUUID = "UUID"
 
 
 instance ToChType ChUUID ChUUID where toChType = id
-instance ToChType ChUUID Word64 where toChType = MkChUUID 0
-instance ToChType ChUUID (Word64, Word64) where toChType = uncurry MkChUUID
+instance ToChType ChUUID Word64 where toChType = MkChUUID . flip Word128 0
+instance ToChType ChUUID (Word64, Word64) where toChType = MkChUUID . uncurry (flip Word128)
 
 instance FromChType ChUUID ChUUID where fromChType = id
-instance FromChType ChUUID (Word64, Word64) where fromChType (MkChUUID w64hi w64lo) = (w64hi, w64lo)
+instance FromChType ChUUID (Word64, Word64) where fromChType (MkChUUID (Word128 w64hi w64lo)) = (w64hi, w64lo)
 
 
 

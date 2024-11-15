@@ -12,8 +12,8 @@
   , ScopedTypeVariables
 #-}
 
-module IntegrationTests.Serialization
-  ( runSerializationTest
+module IntegrationTests.QuerySerialization
+  ( querySerializationTest
   ) where
 
 -- Internal
@@ -36,10 +36,9 @@ import Data.ByteString as BS (singleton)
 import Data.ByteString.Char8 as BS8 (takeWhile)
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import GHC.Generics (Generic)
-import Debug.Trace (traceShowId)
 
 
-runSerializationTest ::
+querySerializationTest ::
   forall chType
   .
   ( ToQueryPart chType
@@ -50,7 +49,7 @@ runSerializationTest ::
   )
   =>
   Connection -> [chType] -> IO ()
-runSerializationTest connection testValues = do
+querySerializationTest connection testValues = do
   mapM_
     (\chType -> do
       selectChType <-
@@ -59,7 +58,7 @@ runSerializationTest connection testValues = do
             @'[Column "testSample" chType]
             @(TestSample chType)
             connection
-            (toChType (traceShowId $ "SELECT CAST(" <> toQueryPart chType <> ", '" <> chTypeName @chType <> "') as testSample;"))
+            (toChType ("SELECT CAST(" <> toQueryPart chType <> ", '" <> chTypeName @chType <> "') as testSample;"))
 
       (when (chType /= testSample selectChType) . error)
         (  "Deserialized value of type " <> show (chTypeName @chType) <> " unmatched:"

@@ -25,7 +25,6 @@ executable integration-tests
   build-depends:
     -- Internal
       ClickHaskell
-    , ClickHaskell-http-client
 
     -- GHC included
     , base >=4.7 && <5
@@ -35,6 +34,6 @@ executable integration-tests
     , http-client < 0.8
   other-modules:
       Paths_integration_tests
-      IntegrationTests.Serialization
+      IntegrationTests.QuerySerialization
       IntegrationTests.WriteReadEquality
   default-language: Haskell2010

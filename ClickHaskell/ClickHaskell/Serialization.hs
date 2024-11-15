@@ -58,12 +58,12 @@ instance Serializable ChInt8 where serialize _ = execPut . putInt8 . fromChType
 instance Serializable ChInt16 where serialize _ = execPut . putInt16le . fromChType
 instance Serializable ChInt32 where serialize _ = execPut . putInt32le . fromChType
 instance Serializable ChInt64 where serialize _ = execPut . putInt64le . fromChType
-instance Serializable ChInt128 where serialize _ = execPut . (\(Int128 hi lo) -> putWord64le hi <> putWord64le lo) . fromChType
+instance Serializable ChInt128 where serialize _ = execPut . (\(Int128 hi lo) -> putWord64le lo <> putWord64le hi) . fromChType
 instance Serializable ChUInt8 where serialize _ = execPut . putWord8 . fromChType
 instance Serializable ChUInt16 where serialize _ = execPut . putWord16le . fromChType
 instance Serializable ChUInt32 where serialize _ = execPut . putWord32le . fromChType
 instance Serializable ChUInt64 where serialize _ = execPut . putWord64le . fromChType
-instance Serializable ChUInt128 where serialize _ = execPut . (\(Word128 hi lo) -> putWord64le hi <> putWord64le lo) . fromChType
+instance Serializable ChUInt128 where serialize _ = execPut . (\(Word128 hi lo) -> putWord64le lo <> putWord64le hi) . fromChType
 instance Serializable ChDateTime where serialize _ = execPut . putWord32le . fromChType
 instance Serializable ChDate where serialize _ = execPut . putWord16le . fromChType
 

@@ -10,7 +10,7 @@ module IntegrationTests
 -- Internal
 import ClickHaskell (ChCredential(..), openNativeConnection)
 import ClickHaskell.DbTypes
-import IntegrationTests.Serialization (runSerializationTest)
+import IntegrationTests.QuerySerialization (querySerializationTest)
 import IntegrationTests.WriteReadEquality (runWriteReadEqualityTest)
 
 -- GHC included
@@ -26,11 +26,17 @@ main = do
         , chPort     = "9000"
         }
   connection <- openNativeConnection credentials
-  
-  runSerializationTest @ChInt32 connection [minBound, toEnum 0, maxBound]
-  runSerializationTest @ChInt64 connection [minBound, toEnum 0, maxBound]
-  runSerializationTest @ChUInt32 connection [minBound, toEnum 0, maxBound]
-  runSerializationTest @ChUInt64 connection [minBound, toEnum 0, maxBound]
-  runSerializationTest @ChString connection (map (toChType . BS.singleton) [1..255])
-  -- runSerializationTest @(ChArray ChString) connection [toChType $ map BS.singleton [0..255]]
-  -- runSerializationTest @(ChArray ChInt64) connection [toChType [0 :: ChInt64 .. 255]]
+
+  querySerializationTest @ChInt8 connection [minBound, toEnum 0, maxBound]
+  querySerializationTest @ChInt16 connection [minBound, toEnum 0, maxBound]
+  querySerializationTest @ChInt32 connection [minBound, toEnum 0, maxBound]
+  querySerializationTest @ChInt64 connection [minBound, toEnum 0, maxBound]
+  querySerializationTest @ChUInt8 connection [minBound, toEnum 0, maxBound]
+  querySerializationTest @ChUInt16 connection [minBound, toEnum 0, maxBound]
+  querySerializationTest @ChUInt32 connection [minBound, toEnum 0, maxBound]
+  querySerializationTest @ChUInt64 connection [minBound, toEnum 0, maxBound]
+  -- ToDo: querySerializationTest @ChUUID connection [minBound, toEnum 0, maxBound]
+  querySerializationTest @ChString connection (map (toChType . BS.singleton) [1..255])
+  -- ToDo: querySerializationTest @(ChArray ChString) connection [toChType $ map BS.singleton [0..255]]
+  -- ToDo: querySerializationTest @(ChArray ChInt64) connection [toChType [0 :: ChInt64 .. 255]]
+  runWriteReadEqualityTest connection
