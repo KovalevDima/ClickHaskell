@@ -5,10 +5,6 @@
   , TupleSections
 #-}
 
-{-# OPTIONS_GHC
-  -Wno-missing-methods
-#-}
-
 module ClickHaskell.DbTypes
 ( IsChType(ToChTypeName, chTypeName, defaultValueOfTypeName)
 , ToChType(toChType)
@@ -29,7 +25,8 @@ module ClickHaskell.DbTypes
 , LowCardinality, IsLowCardinalitySupported
 
 , UVarInt(..)
-, Columns(..), Column(..), KnownColumn(..)
+, Columns(..)
+, KnownColumn(..), Column(..), mkColumn
 , module Data.WideWord
 ) where
 
@@ -89,6 +86,10 @@ type Nullable = Maybe
 
 type NullableTypeName chType = "Nullable(" `AppendSymbol` ToChTypeName chType `AppendSymbol` ")"
 
+{-
+This instance leads to disable -Wmissing-methods
+Need to move it's semantics to another classes
+
 instance {-# OVERLAPPING #-}
   ( TypeError
     (     'Text (ToChTypeName (Nullable (LowCardinality chType))) ':<>: 'Text " is unsupported type in ClickHouse."
@@ -96,6 +97,10 @@ instance {-# OVERLAPPING #-}
     )
   , IsChType chType
   ) => IsChType (Nullable (LowCardinality chType))
+  where
+  defaultValueOfTypeName = error "Unreachable"
+  chTypeName = error "Unreachable"
+-}
 
 instance
   IsChType chType
@@ -248,6 +253,8 @@ instance
     )
   ) =>
   FromChType ChString Text
+  where
+  fromChType = error "Unreachable"
 
 
 
@@ -549,20 +556,27 @@ type MyColumn = Column "myColumn" ChString
 @
 -}
 data Column (name :: Symbol) (chType :: Type) = MkColumn UVarInt [chType]
+
+mkColumn :: forall name chType . UVarInt -> [chType] -> Column name chType
+mkColumn = MkColumn
+
 class
-  ( IsChType (GetColumnType columnDescription)
-  , KnownSymbol (GetColumnName columnDescription)
-  , KnownSymbol (ToChTypeName (GetColumnType columnDescription))
+  ( IsChType (GetColumnType column)
+  , KnownSymbol (GetColumnName column)
+  , KnownSymbol (ToChTypeName (GetColumnType column))
   )
   =>
-  KnownColumn columnDescription where
-  type GetColumnName columnDescription :: Symbol
+  KnownColumn column where
+  type GetColumnName column :: Symbol
   renderColumnName :: Builder
-  renderColumnName = (stringUtf8 . symbolVal @(GetColumnName columnDescription)) Proxy
+  renderColumnName = (stringUtf8 . symbolVal @(GetColumnName column)) Proxy
 
-  type GetColumnType columnDescription :: Type
+  type GetColumnType column :: Type
   renderColumnType :: Builder
-  renderColumnType = chTypeName @(GetColumnType columnDescription)
+  renderColumnType = chTypeName @(GetColumnType column)
+
+  columnSize :: column -> UVarInt
+  columnValues :: column -> [GetColumnType column]
 
 
 instance
@@ -573,3 +587,6 @@ instance
   where
   type GetColumnName (Column name columnType) = name
   type GetColumnType (Column name columnType) = columnType
+
+  columnSize   (MkColumn size _values) = size
+  columnValues (MkColumn _size values) = values
