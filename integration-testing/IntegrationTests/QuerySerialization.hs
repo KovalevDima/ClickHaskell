@@ -27,9 +27,9 @@ import ClickHaskell.DbTypes
   , ChUInt32, ChUInt64
   , ChInt32, ChInt64
   , ChString, ChArray
-  , Column, Columns
+  , Column, Columns, KnownColumn
   )
-import ClickHaskell.DeSerialization (Deserializable)
+import ClickHaskell.DeSerialization (Deserializable, DeserializableColumn)
 
 -- GHC included
 import Control.Monad (void, when)
@@ -44,7 +44,6 @@ querySerializationTest ::
   .
   ( ToQueryPart chType
   , Eq chType
-  , KnownSymbol (ToChTypeName chType)
   , Show chType
   , ReadableFrom (Columns '[Column "testSample" chType]) (TestSample chType)
   )
@@ -77,10 +76,8 @@ data TestSample chType = MkTestSample {testSample :: chType}
 
 
 instance
-  ( IsChType chType
-  , KnownSymbol (ToChTypeName chType)
-  , FromChType chType chType
-  , Deserializable chType
+  ( DeserializableColumn (Column "testSample" chType)
+  , KnownColumn (Column "testSample" chType)
   )
   =>
   ReadableFrom (Columns '[Column "testSample" chType]) (TestSample chType)

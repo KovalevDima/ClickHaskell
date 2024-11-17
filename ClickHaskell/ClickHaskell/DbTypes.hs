@@ -26,7 +26,7 @@ module ClickHaskell.DbTypes
 
 , UVarInt(..)
 , Columns(..)
-, KnownColumn(..), Column(..), mkColumn
+, KnownColumn(..), Column(..), columnValues, columnSize
 , module Data.WideWord
 ) where
 
@@ -58,6 +58,7 @@ import GHC.TypeLits (AppendSymbol, ErrorMessage (..), KnownSymbol, Symbol, TypeE
 
 
 class
+  KnownSymbol (ToChTypeName chType) =>
   IsChType chType
   where
   -- | Shows database original type name
@@ -68,7 +69,7 @@ class
   -- @
   type ToChTypeName chType :: Symbol
 
-  chTypeName :: KnownSymbol (ToChTypeName chType) => Builder
+  chTypeName :: Builder
   chTypeName = byteString . BS8.pack . symbolVal @(ToChTypeName chType) $ Proxy
 
   defaultValueOfTypeName :: chType
@@ -88,7 +89,7 @@ type NullableTypeName chType = "Nullable(" `AppendSymbol` ToChTypeName chType `A
 
 {-
 This instance leads to disable -Wmissing-methods
-Need to move it's semantics to another classes
+Need to move it's semantics to another instances
 
 instance {-# OVERLAPPING #-}
   ( TypeError
@@ -103,7 +104,9 @@ instance {-# OVERLAPPING #-}
 -}
 
 instance
-  IsChType chType
+  ( IsChType chType
+  , KnownSymbol ("Nullable(" `AppendSymbol` ToChTypeName chType `AppendSymbol` ")")
+  )
   =>
   IsChType (Nullable chType)
   where
@@ -111,21 +114,27 @@ instance
   defaultValueOfTypeName = Nothing
 
 instance
-  ToQueryPart chType
+  ( ToQueryPart chType
+  , IsChType (Nullable chType)
+  )
   =>
   ToQueryPart (Nullable chType)
   where
   toQueryPart = maybe "null" toQueryPart
 
 instance
-  ToChType inputType chType
+  ( ToChType inputType chType
+  , IsChType (Nullable inputType)
+  )
   =>
   ToChType (Nullable inputType) (Nullable chType)
   where
   toChType = fmap (toChType @inputType @chType)
 
 instance
-  FromChType chType inputType
+  ( FromChType chType inputType
+  , IsChType (Nullable chType)
+  )
   =>
   FromChType (Nullable chType) (Nullable inputType)
   where
@@ -143,7 +152,11 @@ deriving newtype instance IsString (LowCardinality ChString)
 
 class IsChType chType => IsLowCardinalitySupported chType
 instance IsLowCardinalitySupported ChString
-instance IsLowCardinalitySupported chType => IsLowCardinalitySupported (Nullable chType)
+instance
+  ( IsLowCardinalitySupported chType
+  , IsChType (Nullable chType)
+  ) =>
+  IsLowCardinalitySupported (Nullable chType)
 
 instance {-# OVERLAPPABLE #-}
   ( IsChType chType
@@ -157,8 +170,9 @@ instance {-# OVERLAPPABLE #-}
   ) => IsLowCardinalitySupported chType
 
 instance
-  IsLowCardinalitySupported chType
-  =>
+  ( IsLowCardinalitySupported chType
+  , KnownSymbol ("LowCardinality(" `AppendSymbol` ToChTypeName chType `AppendSymbol` ")")
+  ) =>
   IsChType (LowCardinality chType)
   where
   type ToChTypeName (LowCardinality chType) = "LowCardinality(" `AppendSymbol` ToChTypeName chType `AppendSymbol` ")"
@@ -166,6 +180,7 @@ instance
 
 instance
   ( ToChType inputType chType
+  , IsChType (LowCardinality inputType)
   , IsLowCardinalitySupported inputType
   )
   =>
@@ -183,6 +198,7 @@ instance IsLowCardinalitySupported chType => FromChType chType (LowCardinality c
 
 instance
   ( FromChType chType outputType
+  , IsChType (LowCardinality chType)
   , IsLowCardinalitySupported chType
   )
   =>
@@ -192,6 +208,7 @@ instance
 
 instance
   ( ToQueryPart chType
+  , IsChType (LowCardinality chType)
   , IsLowCardinalitySupported chType
   )
   =>
@@ -211,11 +228,9 @@ instance IsChType ChUUID where
   defaultValueOfTypeName = MkChUUID 0
 
 
-instance ToChType ChUUID ChUUID where toChType = id
 instance ToChType ChUUID Word64 where toChType = MkChUUID . flip Word128 0
 instance ToChType ChUUID (Word64, Word64) where toChType = MkChUUID . uncurry (flip Word128)
 
-instance FromChType ChUUID ChUUID where fromChType = id
 instance FromChType ChUUID (Word64, Word64) where fromChType (MkChUUID (Word128 w64hi w64lo)) = (w64hi, w64lo)
 
 
@@ -237,14 +252,12 @@ escapeQuery -- [ClickHaskell.DbTypes.ToDo.1]: Optimize
   = BS.byteString
   . BS8.concatMap (\case '\'' -> "\\\'"; '\\' -> "\\\\"; sym -> BS8.singleton sym;)
 
-instance ToChType ChString ChString         where toChType = id
 instance ToChType ChString StrictByteString where toChType = MkChString
 instance ToChType ChString Builder          where toChType = MkChString . toStrict . toLazyByteString
 instance ToChType ChString String           where toChType = MkChString . BS8.pack
 instance ToChType ChString Text             where toChType = MkChString . Text.encodeUtf8
 instance ToChType ChString Int              where toChType = MkChString . BS8.pack . show
 
-instance FromChType ChString ChString         where fromChType = id
 instance FromChType ChString StrictByteString where fromChType (MkChString string) = string
 instance
   ( TypeError
@@ -271,10 +284,8 @@ instance ToQueryPart ChInt8
   where
   toQueryPart = BS.byteString . BS8.pack . show
 
-instance ToChType ChInt8 ChInt8 where toChType = id
 instance ToChType ChInt8 Int8   where toChType = MkChInt8
 
-instance FromChType ChInt8 ChInt8 where fromChType = id
 instance FromChType ChInt8 Int8   where fromChType = coerce
 
 
@@ -290,10 +301,8 @@ instance IsChType ChInt16 where
 
 instance ToQueryPart ChInt16 where toQueryPart = BS.byteString . BS8.pack . show
 
-instance ToChType ChInt16 ChInt16 where toChType = id
 instance ToChType ChInt16 Int16   where toChType = MkChInt16
 
-instance FromChType ChInt16 ChInt16 where fromChType = id
 instance FromChType ChInt16 Int16   where fromChType (MkChInt16 int16) = int16
 
 
@@ -309,10 +318,8 @@ instance IsChType ChInt32 where
 
 instance ToQueryPart ChInt32 where toQueryPart = BS.byteString . BS8.pack . show
 
-instance ToChType ChInt32 ChInt32 where toChType = id
 instance ToChType ChInt32 Int32   where toChType = MkChInt32
 
-instance FromChType ChInt32 ChInt32 where fromChType = id
 instance FromChType ChInt32 Int32   where fromChType (MkChInt32 int32) = int32
 
 
@@ -328,11 +335,9 @@ instance IsChType ChInt64 where
 
 instance ToQueryPart ChInt64 where toQueryPart = BS.byteString . BS8.pack . show
 
-instance ToChType ChInt64 ChInt64 where toChType = id
 instance ToChType ChInt64 Int64   where toChType = MkChInt64 . fromIntegral
 instance ToChType ChInt64 Int     where toChType = MkChInt64 . fromIntegral
 
-instance FromChType ChInt64 ChInt64 where fromChType = id
 instance FromChType ChInt64 Int64   where fromChType = coerce
 
 
@@ -348,10 +353,8 @@ instance IsChType ChInt128 where
 
 instance ToQueryPart ChInt128 where toQueryPart = BS.byteString . BS8.pack . show
 
-instance ToChType ChInt128 ChInt128 where toChType = id
 instance ToChType ChInt128 Int128   where toChType = MkChInt128 . fromIntegral
 
-instance FromChType ChInt128 ChInt128 where fromChType = id
 instance FromChType ChInt128 Int128   where fromChType (MkChInt128 int128) = int128
 
 
@@ -368,10 +371,8 @@ instance IsChType ChUInt8 where
 
 instance ToQueryPart ChUInt8 where toQueryPart = BS.byteString . BS8.pack . show
 
-instance ToChType ChUInt8 ChUInt8 where toChType = id
 instance ToChType ChUInt8 Word8   where toChType = MkChUInt8
 
-instance FromChType ChUInt8 ChUInt8 where fromChType = id
 instance FromChType ChUInt8 Word8   where fromChType (MkChUInt8 w8) = w8
 
 
@@ -387,10 +388,8 @@ instance IsChType ChUInt16 where
 
 instance ToQueryPart ChUInt16 where toQueryPart = BS.byteString . BS8.pack . show
 
-instance ToChType ChUInt16 ChUInt16 where toChType = id
 instance ToChType ChUInt16 Word16   where toChType = coerce
 
-instance FromChType ChUInt16 ChUInt16 where fromChType = id
 instance FromChType ChUInt16 Word16   where fromChType = coerce
 
 
@@ -406,10 +405,8 @@ instance IsChType ChUInt32 where
 
 instance ToQueryPart ChUInt32 where toQueryPart = BS.byteString . BS8.pack . show
 
-instance ToChType ChUInt32 ChUInt32 where toChType = id
 instance ToChType ChUInt32 Word32   where toChType = MkChUInt32
 
-instance FromChType ChUInt32 ChUInt32 where fromChType = id
 instance FromChType ChUInt32 Word32   where fromChType (MkChUInt32 word32) = word32
 
 
@@ -425,10 +422,8 @@ instance IsChType ChUInt64 where
 
 instance ToQueryPart ChUInt64 where toQueryPart = BS.byteString . BS8.pack . show
 
-instance ToChType ChUInt64 ChUInt64 where toChType = id
 instance ToChType ChUInt64 Word64   where toChType = MkChUInt64
 
-instance FromChType ChUInt64 ChUInt64 where fromChType = id
 instance FromChType ChUInt64 Word64   where fromChType (MkChUInt64 w64) = w64
 
 
@@ -444,11 +439,9 @@ instance IsChType ChUInt128 where
 
 instance ToQueryPart ChUInt128 where toQueryPart = BS.byteString . BS8.pack . show
 
-instance ToChType ChUInt128 ChUInt128 where toChType = id
 instance ToChType ChUInt128 Word128   where toChType = MkChUInt128
 instance ToChType ChUInt128 Word64    where toChType = MkChUInt128 . fromIntegral
 
-instance FromChType ChUInt128 ChUInt128 where fromChType = id
 instance FromChType ChUInt128 Word128   where fromChType (MkChUInt128 w128) = w128
 
 
@@ -468,12 +461,10 @@ instance ToQueryPart ChDateTime
   toQueryPart chDateTime = let time = BS8.pack . show . fromChType @ChDateTime @Word32 $ chDateTime
     in BS.byteString (BS8.replicate (10 - BS8.length time) '0' <> time)
 
-instance ToChType ChDateTime ChDateTime where toChType = id
 instance ToChType ChDateTime Word32     where toChType = MkChDateTime
 instance ToChType ChDateTime UTCTime    where toChType = MkChDateTime . floor . utcTimeToPOSIXSeconds
 instance ToChType ChDateTime ZonedTime  where toChType = MkChDateTime . floor . utcTimeToPOSIXSeconds . zonedTimeToUTC
 
-instance FromChType ChDateTime ChDateTime where fromChType = id
 instance FromChType ChDateTime Word32     where fromChType = coerce
 instance FromChType ChDateTime UTCTime    where fromChType (MkChDateTime w32) = posixSecondsToUTCTime (fromIntegral w32)
 
@@ -487,10 +478,8 @@ instance IsChType ChDate where
   type ToChTypeName ChDate = "Date"
   defaultValueOfTypeName = MkChDate 0
 
-instance ToChType ChDate ChDate where toChType = id
 instance ToChType ChDate Word16 where toChType = MkChDate
 
-instance FromChType ChDate ChDate where fromChType = id
 instance FromChType ChDate Word16 where fromChType = coerce
 
 
@@ -499,7 +488,11 @@ instance FromChType ChDate Word16 where fromChType = coerce
 newtype ChArray a = MkChArray [a]
   deriving newtype (Show, Eq, NFData)
 
-instance IsChType chType => IsChType (ChArray chType)
+instance
+  ( IsChType chType
+  , KnownSymbol (AppendSymbol (AppendSymbol "Array(" (ToChTypeName chType)) ")")
+  ) =>
+  IsChType (ChArray chType)
   where
   type ToChTypeName (ChArray chType) = "Array(" `AppendSymbol` ToChTypeName chType `AppendSymbol` ")"
   defaultValueOfTypeName = MkChArray []
@@ -507,20 +500,30 @@ instance IsChType chType => IsChType (ChArray chType)
 
 
 
-instance ToQueryPart chType => ToQueryPart (ChArray chType)
+instance
+  ( ToQueryPart chType
+  , IsChType (ChArray chType)
+  ) =>
+  ToQueryPart (ChArray chType)
   where
   toQueryPart
     = (\x -> "[" <> x <> "]")
     . (maybe "" (uncurry (foldr (\ a b -> a <> "," <> b)))
     . uncons
     . map (toQueryPart @chType))
-    . fromChType 
+    . fromChType
 
-instance IsChType chType => FromChType (ChArray chType) [chType] where fromChType (MkChArray values) = values
+instance
+  ( IsChType chType
+  , IsChType (ChArray chType)
+  ) =>
+  FromChType (ChArray chType) [chType] where fromChType (MkChArray values) = values
 
-instance FromChType chType chType => FromChType (ChArray chType) (ChArray chType) where fromChType = id
-
-instance ToChType chType inputType => ToChType (ChArray chType) [inputType] where toChType = MkChArray . map toChType
+instance
+  ( ToChType chType inputType
+  , IsChType (ChArray chType)
+  ) =>
+  ToChType (ChArray chType) [inputType] where toChType = MkChArray . map toChType
 
 
 
@@ -555,38 +558,66 @@ For example:
 type MyColumn = Column "myColumn" ChString
 @
 -}
-data Column (name :: Symbol) (chType :: Type) = MkColumn UVarInt [chType]
+data Column (name :: Symbol) (chType :: Type) where
+  RegularColumn :: IsChType chType => UVarInt -> [chType] -> Column name chType
+  NullableColumn :: IsChType chType => UVarInt -> [chType] -> Column name chType
 
-mkColumn :: forall name chType . UVarInt -> [chType] -> Column name chType
-mkColumn = MkColumn
+type family GetColumnName column :: Symbol
+  where
+  GetColumnName (Column name columnType) = name
+
+type family GetColumnType column :: Type
+  where
+  GetColumnType (Column name columnType) = columnType
 
 class
   ( IsChType (GetColumnType column)
   , KnownSymbol (GetColumnName column)
-  , KnownSymbol (ToChTypeName (GetColumnType column))
-  )
-  =>
+  ) =>
   KnownColumn column where
-  type GetColumnName column :: Symbol
   renderColumnName :: Builder
   renderColumnName = (stringUtf8 . symbolVal @(GetColumnName column)) Proxy
 
-  type GetColumnType column :: Type
   renderColumnType :: Builder
   renderColumnType = chTypeName @(GetColumnType column)
 
-  columnSize :: column -> UVarInt
-  columnValues :: column -> [GetColumnType column]
+  mkColumn :: UVarInt -> [GetColumnType column] -> Column (GetColumnName column) (GetColumnType column)
 
+{-# INLINE [0] columnSize #-}
+columnSize :: Column name chType -> UVarInt
+columnSize column = case column of
+  (RegularColumn size _listValues) -> size
+  (NullableColumn size _nullableValues) -> size
 
+{-# INLINE [0] columnValues #-}
+columnValues :: Column name chType -> [chType]
+columnValues column = case column of
+  (RegularColumn _size values) -> values
+  (NullableColumn _size nullableValues) -> nullableValues
+
+instance KnownSymbol name => KnownColumn (Column name ChUInt8) where mkColumn = RegularColumn
+instance KnownSymbol name => KnownColumn (Column name ChUInt16) where mkColumn = RegularColumn
+instance KnownSymbol name => KnownColumn (Column name ChUInt32) where mkColumn = RegularColumn
+instance KnownSymbol name => KnownColumn (Column name ChUInt64) where mkColumn = RegularColumn
+instance KnownSymbol name => KnownColumn (Column name ChUInt128) where mkColumn = RegularColumn
+instance KnownSymbol name => KnownColumn (Column name ChInt8)  where mkColumn = RegularColumn
+instance KnownSymbol name => KnownColumn (Column name ChInt16) where mkColumn = RegularColumn
+instance KnownSymbol name => KnownColumn (Column name ChInt32) where mkColumn = RegularColumn
+instance KnownSymbol name => KnownColumn (Column name ChInt64) where mkColumn = RegularColumn
+instance KnownSymbol name => KnownColumn (Column name ChInt128) where mkColumn = RegularColumn
+instance KnownSymbol name => KnownColumn (Column name ChDate) where mkColumn = RegularColumn
+instance KnownSymbol name => KnownColumn (Column name ChDateTime) where mkColumn = RegularColumn
+instance KnownSymbol name => KnownColumn (Column name ChUUID) where mkColumn = RegularColumn
 instance
-  ( IsChType columnType
-  , KnownSymbol name
-  , KnownSymbol (ToChTypeName columnType)
-  ) => KnownColumn (Column name columnType)
-  where
-  type GetColumnName (Column name columnType) = name
-  type GetColumnType (Column name columnType) = columnType
-
-  columnSize   (MkColumn size _values) = size
-  columnValues (MkColumn _size values) = values
+  ( KnownSymbol name
+  , IsChType (Nullable chType)
+  ) =>
+  KnownColumn (Column name (Nullable chType)) where mkColumn = RegularColumn
+instance KnownSymbol name => KnownColumn (Column name ChString) where mkColumn = RegularColumn
+instance
+  ( KnownSymbol name
+  , IsChType (LowCardinality chType)
+  , IsLowCardinalitySupported chType
+  ) =>
+  KnownColumn (Column name (LowCardinality chType)) where mkColumn = RegularColumn
+instance KnownSymbol name => KnownColumn (Column name (ChArray ChString)) where mkColumn = RegularColumn

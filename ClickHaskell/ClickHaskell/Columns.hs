@@ -9,24 +9,21 @@ module ClickHaskell.Columns where
 
 -- Internal dependencies
 import ClickHaskell.DbTypes
+import ClickHaskell.DeSerialization (DeserializableColumns, Serializable)
 
 -- GHC included
 import Data.Typeable (Proxy (..))
 import GHC.TypeLits (KnownNat, Nat, natVal, ErrorMessage(..), Symbol, TypeError, type (+))
 import Data.Kind (Type)
-import Data.Type.Bool (If)
-import Data.Type.Equality (type (==))
 import GHC.Generics
-import ClickHaskell.DeSerialization
-import Data.ByteString.Builder
-import Data.Bifunctor (bimap)
+import Data.ByteString.Builder (Builder)
 
 -- * Columns
 
 emptyColumns :: Columns '[]
 emptyColumns = Empty
 
-rowsCount :: Columns columns -> UVarInt
+rowsCount ::  Columns columns -> UVarInt
 rowsCount (AddColumn col _) = columnSize col
 rowsCount Empty = 0
 
@@ -81,8 +78,8 @@ type family
 type family
   GoTakeColumn name (columns :: [Type]) (acc :: [Type]) :: (Type, [Type])
   where
-  GoTakeColumn name (column ': columns) acc =
-    If (name == GetColumnName column) '(column, acc ++ columns) (GoTakeColumn name columns (column ': acc))
+  GoTakeColumn name (Column name chType ': columns) acc = '(Column name chType, acc ++ columns)
+  GoTakeColumn name (Column name1 chType ': columns) acc = (GoTakeColumn name columns (Column name1 chType ': acc))
   GoTakeColumn name '[]                 acc = TypeError
     (    'Text "There is no column \"" :<>: 'Text name :<>: 'Text "\" in table"
     :$$: 'Text "You can't use this field"
@@ -148,35 +145,48 @@ instance
   gWritingColumns = gWritingColumns @columns @(left1 :*: (left2 :*: right))
 
 instance
-  ( GWritable '[Column name chType] (S1 (MetaSel (Just name) a b f) (Rec0 inputType))
+  ( GWritable '[Column name chType] (S1 sel rec)
   , GWritable restColumns right
-  , KnownColumn (Column name chType)
-  , ToChType chType inputType
   )
   =>
-  GWritable (Column name chType ': restColumns) (S1 (MetaSel (Just name) a b f) (Rec0 inputType) :*: right)
+  GWritable (Column name chType ': restColumns) (S1 sel rec :*: right)
   where
   {-# INLINE gToColumns #-}
   gToColumns size
-    = uncurry appendColumn
-    . bimap (mkColumn size) (gToColumns @restColumns size)
-    . unzip
-    . map (\(l :*: r) -> ((toChType . unK1 . unM1) l, r))
-     
+    = (\ (a, b)
+   -> (case gToColumns @'[Column name chType] size a of
+         (AddColumn col Empty) -> AddColumn col $ gToColumns @restColumns size b))
+    . unzip . map (\(l :*: r) -> (l, r))
+
   {-# INLINE gWritingColumns #-}
   gWritingColumns =
-    renderColumnName @(Column name chType)
+    gWritingColumns @'[Column name chType] @(S1 sel rec)
     <> ", " <> gWritingColumns @restColumns @right
+
+instance {-# OVERLAPPING #-}
+  ( KnownColumn (Column name chType)
+  ) =>
+  GWritable '[Column name chType] (S1 (MetaSel (Just name) a b f) (Rec0 chType))
+  where
+  {-# INLINE gToColumns #-}
+  gToColumns size rows =
+    appendColumn
+      ((mkColumn @(Column name chType) size . map (unK1 . unM1)) rows)
+      emptyColumns
+  {-# INLINE gWritingColumns #-}
+  gWritingColumns = renderColumnName @(Column name chType)
 
 instance
   ( ToChType chType inputType
   , KnownColumn (Column name chType)
-  )
-  =>
+  ) =>
   GWritable '[Column name chType] (S1 (MetaSel (Just name) a b f) (Rec0 inputType))
   where
   {-# INLINE gToColumns #-}
-  gToColumns size rows = (MkColumn size . map (toChType . unK1 . unM1)) rows `appendColumn` emptyColumns
+  gToColumns size rows =
+    appendColumn
+      ((mkColumn @(Column name chType) size . map (toChType . unK1 . unM1)) rows)
+      emptyColumns
   {-# INLINE gWritingColumns #-}
   gWritingColumns = renderColumnName @(Column name chType)
 
@@ -234,13 +244,13 @@ instance
 
 instance
   ( KnownColumn (Column name chType)
-  , FromChType chType inputType
+  , GReadable '[Column name chType] (S1 sel rec)
   , GReadable restColumns right
   )
   =>
   GReadable
     (Column name chType ': restColumns)
-    (S1 (MetaSel (Just name) a b f) (Rec0 inputType) :*: right)
+    (S1 sel rec :*: right)
   where
   {-# INLINE gFromColumns #-}
   gFromColumns (AddColumn column extraColumns) =
@@ -250,6 +260,14 @@ instance
   gReadingColumns =
     renderColumnName @(Column name chType)
     <> ", " <> gReadingColumns @restColumns @right
+
+instance {-# OVERLAPPING #-}
+  ( KnownColumn (Column name chType)
+  ) => GReadable '[Column name chType] ((S1 (MetaSel (Just name) a b f)) (Rec0 chType))
+  where
+  {-# INLINE gFromColumns #-}
+  gFromColumns (AddColumn column _) = map (M1 . K1) (columnValues column)
+  gReadingColumns = renderColumnName @(Column name chType)
 
 instance
   ( KnownColumn (Column name chType)

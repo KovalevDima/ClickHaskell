@@ -24,6 +24,7 @@ import Data.Coerce (coerce)
 import Data.Typeable (Proxy (..))
 import GHC.Generics
 import GHC.TypeLits (ErrorMessage (..), KnownNat, TypeError, natVal)
+import Debug.Trace (traceShowId)
 
 -- * Deserialization
 
@@ -116,28 +117,6 @@ instance Deserializable ChUInt128 where deserialize _ = toChType <$> (flip Word1
 instance Deserializable ChDateTime where deserialize _ = toChType <$> getWord32le
 instance Deserializable ChDate where deserialize _ = toChType <$> getWord16le
 
-instance
-  ( Deserializable chType
-  , ToChType chType chType
-  , TypeError ('Text "Arrays still unsupported to select")
-  )
-  => Deserializable (ChArray chType) where
-  deserialize rev = do
-    (arraySize, _offsets) <- readOffsets rev
-    toChType <$> replicateM (fromIntegral arraySize) (deserialize @chType rev)
-    where
-    readOffsets :: ProtocolRevision -> Get (ChUInt64, [ChUInt64])
-    readOffsets revivion = do
-      size <- deserialize @ChUInt64 rev
-      (size, ) <$> go size
-      where
-      go arraySize =
-        do
-        nextOffset <- deserialize @ChUInt64 revivion
-        if arraySize == nextOffset
-          then pure [nextOffset]
-          else (nextOffset :) <$> go arraySize
-
 instance Deserializable UVarInt where
   deserialize _ = go 0 (0 :: UVarInt)
     where
@@ -159,54 +138,99 @@ instance
   {-# INLINE deserializeColumns #-}
   deserializeColumns _rev _rows = pure Empty
 
-instance
+instance 
   ( KnownColumn (Column name chType)
-  , Deserializable chType
+  , DeserializableColumn (Column name chType)
   , DeserializableColumns (Columns extraColumns)
   )
   =>
   DeserializableColumns (Columns (Column name chType ': extraColumns))
   where
   {-# INLINE deserializeColumns #-}
-  deserializeColumns rev rows = do
+  deserializeColumns rev rows =
     AddColumn
-      <$> (do
-        _columnName <- deserialize @ChString rev
-        _columnType <- deserialize @ChString rev
-        _isCustom <- deserialize @(ChUInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION) rev
-        column <- replicateM (fromIntegral rows) (deserialize @chType rev)
-        pure $ MkColumn rows column
-      )
+      <$> deserializeColumn rev rows
       <*> deserializeColumns @(Columns extraColumns) rev rows
 
+
+-- ** Column deserialization
+
 {-# SPECIALIZE replicateM :: Int -> Get chType -> Get [chType] #-}
+
+class DeserializableColumn column where
+  deserializeColumn :: ProtocolRevision -> UVarInt -> Get column
+
+instance
+  ( KnownColumn (Column name chType)
+  , Deserializable chType
+  ) =>
+  DeserializableColumn (Column name chType) where
+  deserializeColumn rev rows = do
+    _columnName <- deserialize @ChString rev
+    _columnType <- deserialize @ChString rev
+    _isCustom <- deserialize @(ChUInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION) rev
+    column <- replicateM (fromIntegral rows) (deserialize @chType rev)
+    pure $ mkColumn @(Column name chType) rows column
 
 instance {-# OVERLAPPING #-}
   ( KnownColumn (Column name (Nullable chType))
   , Deserializable chType
-  , DeserializableColumns (Columns extraColumns)
+  ) =>
+  DeserializableColumn (Column name (Nullable chType)) where
+  deserializeColumn rev rows = do
+    _columnName <- deserialize @ChString rev
+    _columnType <- deserialize @ChString rev
+    _isCustom <- deserialize @(ChUInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION) rev
+    nulls <- replicateM (fromIntegral rows) (deserialize @ChUInt8 rev)
+    nullable <-
+      forM
+        nulls
+        (\case
+          0 -> Just <$> deserialize @chType rev
+          _ -> (Nothing <$ deserialize @chType rev)
+        )
+    pure $ mkColumn @(Column name (Nullable chType)) rows nullable
+
+instance {-# OVERLAPPING #-}
+  ( KnownColumn (Column name (LowCardinality chType))
+  , Deserializable chType
+  , ToChType (LowCardinality chType) chType
+  , IsLowCardinalitySupported chType
+  , TypeError ('Text "LowCardinality deserialization still unsupported")
+  ) =>
+  DeserializableColumn (Column name (LowCardinality chType)) where
+  deserializeColumn rev rows = do
+    _columnName <- deserialize @ChString rev
+    _columnType <- deserialize @ChString rev
+    _isCustom <- deserialize @(ChUInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION) rev
+    lc <- replicateM (fromIntegral rows) (toChType <$> deserialize @chType rev)
+    pure $ mkColumn @(Column name (LowCardinality chType)) rows lc
+
+instance {-# OVERLAPPING #-}
+  ( KnownColumn (Column name (ChArray chType))
+  , Deserializable chType
+  , TypeError ('Text "Arrays deserialization still unsupported")
   )
-  =>
-  DeserializableColumns (Columns (Column name (Nullable chType) ': extraColumns))
-  where
-  {-# INLINE deserializeColumns #-}
-  deserializeColumns rev rows = do
-    AddColumn
-      <$> (do
-        _columnName <- deserialize @ChString rev
-        _columnType <- deserialize @ChString rev
-        _isCustom <- deserialize @(ChUInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION) rev
-        nulls <- replicateM (fromIntegral rows) (deserialize @ChUInt8 rev)
-        nullable <-
-          forM
-            nulls
-            (\case
-              0 -> Just <$> deserialize @chType rev
-              _ -> (Nothing <$ deserialize @chType rev)
-            )
-        pure $ MkColumn rows nullable
-      )
-      <*> deserializeColumns @(Columns extraColumns) rev rows
+  => DeserializableColumn (Column name (ChArray chType)) where
+  deserializeColumn rev rows = do
+    _columnName <- deserialize @ChString rev
+    _columnType <- deserialize @ChString rev
+    _isCustom <- deserialize @(ChUInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION) rev
+    (arraySize, _offsets) <- traceShowId <$> readOffsets rev
+    _types <- replicateM (fromIntegral arraySize) (deserialize @chType rev)
+    pure $ mkColumn @(Column name (ChArray chType)) rows []
+    where
+    readOffsets :: ProtocolRevision -> Get (ChUInt64, [ChUInt64])
+    readOffsets revivion = do
+      size <- deserialize @ChUInt64 rev
+      (size, ) <$> go size
+      where
+      go arraySize =
+        do
+        nextOffset <- deserialize @ChUInt64 revivion
+        if arraySize >= nextOffset
+          then pure [nextOffset]
+          else (nextOffset :) <$> go arraySize
 
 
 
