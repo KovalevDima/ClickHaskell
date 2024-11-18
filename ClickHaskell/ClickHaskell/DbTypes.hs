@@ -579,6 +579,7 @@ type MyColumn = Column "myColumn" ChString
 data Column (name :: Symbol) (chType :: Type) where
   RegularColumn :: IsChType chType => UVarInt -> [chType] -> Column name chType
   NullableColumn :: IsChType chType => UVarInt -> [chType] -> Column name chType
+  LowCardinalityColumn :: IsChType chType => UVarInt -> [chType] -> Column name chType
 
 type family GetColumnName column :: Symbol
   where
@@ -606,12 +607,14 @@ columnSize :: Column name chType -> UVarInt
 columnSize column = case column of
   (RegularColumn size _listValues) -> size
   (NullableColumn size _nullableValues) -> size
+  (LowCardinalityColumn size _lowCardinalityValues) -> size
 
 {-# INLINE [0] columnValues #-}
 columnValues :: Column name chType -> [chType]
 columnValues column = case column of
   (RegularColumn _size values) -> values
   (NullableColumn _size nullableValues) -> nullableValues
+  (LowCardinalityColumn _size lowCardinalityValues) -> lowCardinalityValues
 
 instance KnownSymbol name => KnownColumn (Column name ChUInt8) where mkColumn = RegularColumn
 instance KnownSymbol name => KnownColumn (Column name ChUInt16) where mkColumn = RegularColumn

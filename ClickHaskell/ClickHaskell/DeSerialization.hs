@@ -203,7 +203,9 @@ instance {-# OVERLAPPING #-}
     _columnName <- deserialize @ChString rev
     _columnType <- deserialize @ChString rev
     _isCustom <- deserialize @(ChUInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION) rev
-    _statePrefix <- deserialize @ChUInt64 rev
+    _serializationType <- (.&. 0xf) <$> deserialize @ChUInt64 rev
+    _index_size <- deserialize @ChInt64 rev
+    -- error $ "Trace | " <> show _serializationType <> " : " <> show _index_size
     lc <- replicateM (fromIntegral rows) (toChType <$> deserialize @chType rev)
     pure $ mkColumn @(Column name (LowCardinality chType)) rows lc
 
@@ -334,6 +336,19 @@ instance {-# OVERLAPPING #-}
     <> mconcat (Prelude.map (serialize @ChUInt8 rev . maybe 1 (const 0)) (columnValues column))
     -- Values
     <> mconcat (Prelude.map (serialize @chType rev . maybe defaultValueOfTypeName id) (columnValues column))
+
+instance {-# OVERLAPPING #-}
+  ( KnownColumn (Column name (Nullable chType))
+  , IsChType chType
+  , Serializable chType
+  ) => Serializable (Column name (LowCardinality chType)) where
+  {-# INLINE serialize #-}
+  serialize rev column
+    =  serialize rev (toChType @ChString $ renderColumnName @(Column name (Nullable chType)))
+    <> serialize rev (toChType @ChString $ renderColumnType @(Column name (Nullable chType)))
+    -- serialization is not custom
+    <> afterRevision @DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION rev (serialize @ChUInt8 rev 0)
+    <> undefined column
 
 
 -- ** Generics
