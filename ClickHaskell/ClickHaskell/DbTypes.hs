@@ -188,6 +188,15 @@ instance
   where
   toChType = MkLowCardinality . toChType
 
+instance {-# OVERLAPPING #-}
+  ( IsChType (LowCardinality chType)
+  , IsLowCardinalitySupported chType
+  )
+  =>
+  ToChType (LowCardinality chType) chType
+  where
+  toChType = MkLowCardinality
+
 instance IsLowCardinalitySupported chType => ToChType chType (LowCardinality chType)
   where
   toChType (MkLowCardinality value) = value
@@ -205,6 +214,15 @@ instance
   FromChType (LowCardinality chType) outputType
   where
   fromChType (MkLowCardinality value) = fromChType value
+
+instance {-# OVERLAPPING #-}
+  ( IsChType (LowCardinality chType)
+  , IsLowCardinalitySupported chType
+  )
+  =>
+  FromChType (LowCardinality chType) chType
+  where
+  fromChType (MkLowCardinality value) = value
 
 instance
   ( ToQueryPart chType

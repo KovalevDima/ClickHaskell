@@ -203,6 +203,7 @@ instance {-# OVERLAPPING #-}
     _columnName <- deserialize @ChString rev
     _columnType <- deserialize @ChString rev
     _isCustom <- deserialize @(ChUInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION) rev
+    _statePrefix <- deserialize @ChUInt64 rev
     lc <- replicateM (fromIntegral rows) (toChType <$> deserialize @chType rev)
     pure $ mkColumn @(Column name (LowCardinality chType)) rows lc
 
@@ -298,10 +299,9 @@ instance
 
 instance
   ( Serializable (Columns columns)
-  , Serializable (Column name chType)
-  )
-  =>
-  Serializable (Columns (Column name chType ': columns))
+  , Serializable col
+  ) =>
+  Serializable (Columns (col ': columns))
   where
   {-# INLINE serialize #-}
   serialize rev (AddColumn col columns) = serialize rev col <> serialize rev columns

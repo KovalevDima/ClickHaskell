@@ -37,6 +37,7 @@ main = do
   querySerializationTest @ChUInt64 connection [minBound, toEnum 0, maxBound]
   -- ToDo: querySerializationTest @ChUUID connection [minBound, toEnum 0, maxBound]
   querySerializationTest @ChString connection (map (toChType . BS.singleton) [1..255])
+  -- ToDo: querySerializationTest @(LowCardinality ChString) connection (map (toChType . BS.singleton) [0..255])
   -- ToDo: querySerializationTest @(ChArray ChString) connection [toChType $ map BS.singleton [0..255]]
   -- ToDo: querySerializationTest @(ChArray ChInt64) connection [toChType [0 :: ChInt64 .. 255]]
   runWriteReadEqualityTest connection
