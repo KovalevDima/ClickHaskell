@@ -19,7 +19,7 @@ main = do
           >>= loadAndApplyTemplate "hakyll/templates/default.html" defaultContext
           >>= relativizeUrls
 
-    match "*.lhs" $ do
+    match "**.lhs" $ do
       route $ customRoute ((<.> "html") . takeDirectory . toFilePath)
       compile $
         pandocCompiler
