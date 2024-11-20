@@ -11,7 +11,7 @@
   , TypeFamilies
 #-}
 
-module IntegrationTests.WriteReadEquality
+module T2WriteReadEquality
   ( runWriteReadEqualityTest
   ) where
 
