@@ -53,7 +53,7 @@
           services.clickhouse."dev-database" = wrapDefaultClickHouse [
             (extractSqlFromMarkdown ./documentation/parametrized-view/README.lhs)
             (extractSqlFromMarkdown ./documentation/writing/Writing.lhs)
-            ./integration-testing/clickhouse/writeReadEquality.sql
+            (extractSqlFromMarkdown ./integration-testing/T2WriteReadEquality.hs)
           ];
         };
         # Integration testing wrapper
@@ -66,7 +66,7 @@
             depends_on.integration-testing-db.condition = "process_healthy";
           };
           services.clickhouse."integration-testing-db" = wrapDefaultClickHouse [
-            ./integration-testing/clickhouse/writeReadEquality.sql
+            (extractSqlFromMarkdown ./integration-testing/T2WriteReadEquality.hs)
           ];
         };
         # Profiling wrapper

@@ -12,7 +12,7 @@
   , ScopedTypeVariables
 #-}
 
-module IntegrationTests.QuerySerialization
+module T1QuerySerialization
   ( querySerializationTest
   ) where
 

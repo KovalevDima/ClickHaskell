@@ -10,8 +10,8 @@ module IntegrationTests
 -- Internal
 import ClickHaskell (ChCredential(..), openNativeConnection)
 import ClickHaskell.DbTypes
-import IntegrationTests.QuerySerialization (querySerializationTest)
-import IntegrationTests.WriteReadEquality (runWriteReadEqualityTest)
+import T1QuerySerialization (querySerializationTest)
+import T2WriteReadEquality (runWriteReadEqualityTest)
 
 -- GHC included
 import Data.ByteString as BS (singleton)
