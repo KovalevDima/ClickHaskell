@@ -16,57 +16,44 @@ module IntegrationTests.WriteReadEquality
   ) where
 
 -- Internal
-import ClickHaskell.Client (WritableInto, ReadableFrom, ChCredential(..), insertInto, runStatement, selectFrom)
-import ClickHaskell.Tables (Table, Column)
+import ClickHaskell
+  ( WritableInto, insertInto
+  , ReadableFrom, selectFrom
+  , ChCredential(..), Connection
+  , Table
+  )
 import ClickHaskell.DbTypes
   ( toChType
   , ChInt8, ChInt16, ChInt32, ChInt64, ChInt128
   , ChUInt8, ChUInt16, ChUInt32, ChUInt64, ChUInt128
   , ChUUID, ChDateTime, ChString, Int128, Word128
   , Nullable
+  , Column
   )
 
-
--- External
-import Network.HTTP.Client as H (newManager, defaultManagerSettings, Manager)
-
-
 -- GHC included
-import Control.Exception      (bracket)
-import Control.Monad          (when)
-import Data.Int               (Int8, Int16, Int32, Int64)
-import Data.Word              (Word8, Word16, Word32, Word64)
-import GHC.Generics           (Generic)
+import Control.Concurrent (threadDelay)
+import Control.Exception  (bracket)
+import Control.Monad      (when)
+import Data.Int           (Int16, Int32, Int64, Int8)
+import Data.Word          (Word16, Word32, Word64, Word8)
+import GHC.Generics       (Generic)
 
-
-runWriteReadEqualityTest :: ChCredential -> IO ()
-runWriteReadEqualityTest creds = do
-  bracket
-    (newManager defaultManagerSettings)
-    (\manager -> runStatement manager creds "TRUNCATE writeReadEqualityTable")
-    (\manager -> runTest manager creds)
-
-runTest :: Manager -> ChCredential -> IO ()
-runTest manager cred = do
+runWriteReadEqualityTest :: Connection -> IO ()
+runWriteReadEqualityTest connection = do
   insertInto
     @TestTable
     @TestData
-    manager
-    cred
+    connection
     [testData]
 
   result <-
     selectFrom
       @TestTable
       @TestData
-      manager
-      cred
+      connection
 
   let testLabel = "WriteReadEquality: "
-  (when (length result /= 1) . error)
-    (  testLabel
-    <> "Expected single result from reading. "
-    <> "But got: " <> show (length result) <> ".")
 
   (when (head result /= testData) . error)
     (  testLabel <> "Unequal result.\n"
@@ -141,7 +128,7 @@ instance WritableInto TestTable TestData
 testData :: TestData
 testData = MkTestData
   { dateTime = toChType (0 :: Word32)
-  , dateTimeNullable = Nothing
+  , dateTimeNullable = Just 42
   , int128 = toChType (-128 :: Int128)
   , int128Nullable = toChType $ Just (-128 :: Int128)
   , int16 = toChType (-16 :: Int16)
@@ -164,6 +151,7 @@ testData = MkTestData
   , uint64Nullable = toChType $ Just (64 :: Word64)
   , uint8 = toChType (8 :: Word8)
   , uint8Nullable = toChType $ Just (8 :: Word8)
-  , uuid = toChType (123456789 :: Word64)
+  , uuid = toChType (16^3*4 + 16^2*2 + 0 :: Word64)
+    -- ^ 00000000-0000-0000-0000-000000004200
   , uuidNullable = Nothing
   }

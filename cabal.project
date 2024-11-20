@@ -1,6 +1,5 @@
 packages:
     ./ClickHaskell
-    ./ClickHaskell-http-client
     ./documentation
     ./documentation/writing
     ./documentation/parametrized-view

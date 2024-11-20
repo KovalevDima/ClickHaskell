@@ -19,29 +19,32 @@ To perform a SELECT from such view you can use this snippet
   , OverloadedStrings
 #-}
 
-import ClickHaskell.Client (ReadableFrom, ChCredential(..), selectFromView)
-import ClickHaskell.Tables (parameter, View, Parameter, Column)
-import ClickHaskell.DbTypes (ChInt32, ChString)
+import ClickHaskell
+  ( ReadableFrom, selectFromView, Column
+  , ChCredential(..)
+  , View, Parameter, parameter
+  , openNativeConnection
+  )
+import ClickHaskell.DbTypes (ChString, ChInt32)
 import Data.Int (Int32)
 import GHC.Generics (Generic)
-import Network.HTTP.Client (defaultManagerSettings, newManager)
 
 main :: IO ()
 main = do
-  let credential = MkChCredential
+  let credentials = MkChCredential
         { chLogin = "default"
         , chPass = ""
-        , chUrl = "http://localhost:8123"
+        , chHost = "localhost"
         , chDatabase = "default"
+        , chPort = "9000"
         }
-  manager <- newManager defaultManagerSettings
+  connection <- openNativeConnection credentials
   mapM_ print
     =<<
       selectFromView
         @ExampleView
         @ExampleViewRecord
-        manager
-        credential
+        connection
         ( parameter @"a1MoreThan" @ChInt32 ((-100_000) :: Int32)
         . parameter @"a1LessThan" @ChInt32 ((100_000) :: Int32)
         )
@@ -63,17 +66,4 @@ newtype ExampleViewRecord = MkExampleViewRecord
   deriving (Generic, Show)
 
 instance ReadableFrom ExampleView ExampleViewRecord
-```
-
-To try out this example in repl: setup [development environment](https://github.com/GetShopTV/ClickHaskell#development-environment) and then run
-
-```bash
-cabal run example-parametrized-view
-
-# output
-MkExampleViewRecord {a1 = -23652}
-MkExampleViewRecord {a1 = -82405}
-MkExampleViewRecord {a1 = 92847}
-MkExampleViewRecord {a1 = 6575}
-MkExampleViewRecord {a1 = -80663}
 ```

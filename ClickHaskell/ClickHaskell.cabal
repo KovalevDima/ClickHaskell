@@ -2,7 +2,7 @@ Cabal-version: 3.4
 
 
 Name:           ClickHaskell
-Version:        0.0.0.1
+Version:        0.1.0
 
 Author:         Kovalev Dmitry
 Maintainer:     Kovalev Dmitry
@@ -38,16 +38,29 @@ Library
   Autogen-Modules:
     Paths_ClickHaskell
   Exposed-Modules:
+    ClickHaskell
+    ClickHaskell.Columns
     ClickHaskell.DbTypes
-    ClickHaskell.HTTP
-    ClickHaskell.Reading
-    ClickHaskell.Writing
-    ClickHaskell.Lock
-    ClickHaskell.Tables
+    ClickHaskell.Parameters
+    ClickHaskell.NativeProtocol
+    ClickHaskell.DeSerialization
+    ClickHaskell.Versioning
   Other-Modules:
     Paths_ClickHaskell
   HS-Source-Dirs:
     ./
+  default-extensions:
+    AllowAmbiguousTypes
+    DataKinds
+    DefaultSignatures
+    DeriveAnyClass
+    DeriveGeneric
+    DerivingStrategies
+    InstanceSigs
+    GADTs
+    NamedFieldPuns
+    StandaloneDeriving
+    UndecidableInstances
   GHC-Options:
     -Wall
     -fno-warn-type-defaults
@@ -72,13 +85,15 @@ Library
     -- GHC included libraries
       base >= 4.7 && <5
     , bytestring < 0.13
+    , binary < 9
     , deepseq < 1.6
     , text < 2.2
     , time < 1.13
     , vector < 0.14
+    , template-haskell < 2.22
 
     -- External dependencies
-    , uuid < 1.4
+    , network
     , wide-word < 0.2
   Default-language: Haskell2010
   Default-Extensions:

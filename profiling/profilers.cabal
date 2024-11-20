@@ -29,31 +29,31 @@ executable profiler
   ghc-options:
     -O2
     -threaded
-    -rtsopts "-with-rtsopts=-s -A32m -AL256m -p -hy -L250 -l-agu -N1"
-    -fprof-late
     -main-is Profiler
+    -- * Dump core
+    -ddump-to-file
+    -ddump-simpl
+    -dsuppress-type-applications
+    -dsuppress-coercions
+    -dsuppress-idinfo
+    -dsuppress-type-signatures
+    -dsuppress-var-kinds
+    -dsuppress-module-prefixes
+    -dsuppress-uniques
+    -ddump-simpl-stats
+    -ddump-rule-firings
 
-  if flag(dev)
-    ghc-options: 
-      -ddump-to-file
-      -ddump-simpl
-      -dsuppress-type-applications
-      -dsuppress-coercions
-      -dsuppress-idinfo
-      -dsuppress-type-signatures
-      -dsuppress-var-kinds
-      -dsuppress-module-prefixes
-      -dsuppress-uniques
+  ghc-prof-options:
+    -fprof-late
+    -rtsopts "-with-rtsopts=-s -A32m -AL256m -p -hy -L250 -l-agu -N1"
 
   build-depends:
     -- Internal
       ClickHaskell
-    , ClickHaskell-http-client
 
     -- GHC included
     , base
     , bytestring
     , stm
-
-    -- External
-    , http-client
+    , time
+    , template-haskell

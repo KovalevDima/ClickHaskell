@@ -45,8 +45,6 @@ jobs:
               - 'documentation/**'
             isChangedClickHaskell:
               - 'ClickHaskell/**'
-            isChangedClickHaskellHttpClient:
-              - 'ClickHaskell-http-client/**'
 
       - name: Build ClickHaskell-dist
         if: steps.srcChanges.outputs.isChangedClickHaskell == 'true'
@@ -54,19 +52,6 @@ jobs:
       
       - name: Deploy ClickHaskell release candidate
         if: steps.srcChanges.outputs.isChangedClickHaskell == 'true'
-        uses: haskell-actions/hackage-publish@v1
-        with:
-          hackageToken: ${{ secrets.HACKAGE_API_KEY }}
-          packagesPath: result/packages
-          docsPath: result/docs
-          publish: false
-
-      - name: Build ClickHaskell-http-client-dist
-        if: steps.srcChanges.outputs.isChangedClickHaskellHttpClient == 'true'
-        run: nix build .#ClickHaskell-http-client-dist
-      
-      - name: Deploy ClickHaskell-http-client release candidate
-        if: steps.srcChanges.outputs.isChangedClickHaskellHttpClient == 'true'
         uses: haskell-actions/hackage-publish@v1
         with:
           hackageToken: ${{ secrets.HACKAGE_API_KEY }}
