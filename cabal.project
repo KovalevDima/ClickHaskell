@@ -1,7 +1,5 @@
 packages:
     ./ClickHaskell
     ./documentation
-    ./documentation/writing
-    ./documentation/parametrized-view
     ./integration-testing
     ./profiling

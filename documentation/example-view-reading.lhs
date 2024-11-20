@@ -1,5 +1,5 @@
 ---
-title: Parametrized view
+title: Reading from view
 ---
 
 Lets imagine we have database with parametrized view `exampleParametrizedView` 
