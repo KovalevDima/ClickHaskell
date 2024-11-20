@@ -78,6 +78,8 @@ class IsChType chType => ToChType chType inputType    where toChType    :: input
 class IsChType chType => FromChType chType outputType where fromChType  :: chType -> outputType
 class IsChType chType => ToQueryPart chType           where toQueryPart :: chType -> BS.Builder
 
+instance {-# OVERLAPPABLE #-} (IsChType chType, chType ~ inputType) => ToChType chType inputType where toChType = id
+instance {-# OVERLAPPABLE #-} (IsChType chType, chType ~ inputType) => FromChType chType inputType where fromChType = id
 
 
 

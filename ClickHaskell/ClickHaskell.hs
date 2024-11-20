@@ -44,9 +44,9 @@ import ClickHaskell.NativeProtocol
   , ServerPacketType(..), HelloResponse(..), ExceptionPacket, latestSupportedRevision
   )
 import ClickHaskell.Versioning (ProtocolRevision)
-import ClickHaskell.Columns (HasColumns (..), KnownColumns (..), rowsCount, WritableInto (..), ReadableFrom (..))
+import ClickHaskell.Columns (HasColumns (..), WritableInto (..), ReadableFrom (..))
 import ClickHaskell.Parameters (Parameter, parameter, parameters, Parameters, CheckParameters)
-import ClickHaskell.DeSerialization (Serializable(..), Deserializable(..), DeserializableColumns(..))
+import ClickHaskell.DeSerialization (Serializable(..), Deserializable(..), DeserializableColumns (..))
 
 -- GHC included
 import Control.Exception (Exception, SomeException, bracketOnError, catch, finally, throwIO)
@@ -217,7 +217,7 @@ selectFromView conn@MkConnection{..} interpreter = do
   handleSelect @view conn emptyBuffer
 
 
-handleSelect :: forall hasColumns record . (HasCallStack, ReadableFrom hasColumns record) => Connection -> Buffer -> IO [record]
+handleSelect :: forall hasColumns record . ReadableFrom hasColumns record => Connection -> Buffer -> IO [record]
 handleSelect conn previousBuffer = do
   (packet, buffer) <- continueReadDeserializable @ServerPacketType conn previousBuffer
   case packet of
@@ -225,11 +225,11 @@ handleSelect conn previousBuffer = do
       case (columns_count, rows_count) of
         (0, 0) -> handleSelect @hasColumns conn buffer
         (_, 0) -> do
-          (_, nextBuffer) <- continueReadColumns @(Columns (GetColumns hasColumns)) conn buffer 0
+          (_, nextBuffer) <- continueReadColumns @hasColumns @record conn buffer 0
           handleSelect @hasColumns conn nextBuffer
         (_, rows) -> do
-          (columns, nextBuffer) <- continueReadColumns @(Columns (GetColumns hasColumns)) conn buffer rows
-          ((fromColumns @hasColumns) columns ++) <$> handleSelect @hasColumns conn nextBuffer
+          (columns, nextBuffer) <- continueReadColumns @hasColumns conn buffer rows
+          (columns ++) <$> handleSelect @hasColumns conn nextBuffer
     Progress          _ -> handleSelect @hasColumns conn buffer
     ProfileInfo       _ -> handleSelect @hasColumns conn buffer
     EndOfStream         -> pure []
@@ -257,25 +257,19 @@ insertInto conn@MkConnection{sock, user, revision} columnsData = do
     )
   handleInsertResult @table conn emptyBuffer columnsData
 
-handleInsertResult ::
-  forall hasColumns record
-  .
-  (HasCallStack, WritableInto hasColumns record)
-  =>
-  Connection -> Buffer -> [record] -> IO ()
+handleInsertResult :: forall columns record . WritableInto columns record => Connection -> Buffer -> [record] -> IO ()
 handleInsertResult conn@MkConnection{..} buffer records = do
   (firstPacket, buffer1) <- continueReadDeserializable @ServerPacketType conn buffer
   case firstPacket of
-    TableColumns      _ -> handleInsertResult @hasColumns conn buffer1 records
+    TableColumns      _ -> handleInsertResult @columns conn buffer1 records
     DataResponse packet -> do
-      (_emptyDataPacket, buffer2) <- continueReadColumns @(Columns (GetColumns hasColumns)) conn buffer1 (rows_count packet)
-      let columns = toColumns @hasColumns (fromIntegral $ length records) records
+      (_emptyDataPacket, buffer2) <- continueReadRawColumns @(Columns (GetColumns columns)) conn buffer1 (rows_count packet)
       (sendAll sock . toLazyByteString)
-        (  serialize revision (mkDataPacket "" (columnsCount @(Columns (GetColumns hasColumns))) (rowsCount columns))
-        <> serialize revision columns
+        (  serialize revision (mkDataPacket "" (columnsCount @columns @record) (fromIntegral $ length records))
+        <> serializeRecords @columns revision (fromIntegral $ length records) records
         <> serialize revision (mkDataPacket "" 0 0)
         )
-      handleInsertResult @hasColumns @record conn buffer2 []
+      handleInsertResult @columns @record conn buffer2 []
     EndOfStream         -> pure ()
     Exception exception -> throwIO (DatabaseException exception)
     otherPacket         -> throwIO (ProtocolImplementationError $ UnexpectedPacketType otherPacket)
@@ -288,8 +282,11 @@ handleInsertResult conn@MkConnection{..} buffer records = do
 continueReadDeserializable :: Deserializable packet => Connection -> Buffer -> IO (packet, Buffer)
 continueReadDeserializable MkConnection{..} buffer = rawBufferizedRead buffer (deserialize revision) sock bufferSize
 
-continueReadColumns :: DeserializableColumns columns => Connection -> Buffer -> UVarInt -> IO (columns, Buffer)
-continueReadColumns MkConnection{..} buffer rows = rawBufferizedRead buffer (deserializeColumns revision rows) sock bufferSize
+continueReadColumns :: forall columns record . ReadableFrom columns record => Connection -> Buffer -> UVarInt -> IO ([record], Buffer)
+continueReadColumns MkConnection{..} buffer rows = rawBufferizedRead buffer (deserializeColumns @columns revision rows) sock bufferSize
+
+continueReadRawColumns :: forall columns . DeserializableColumns columns => Connection -> Buffer -> UVarInt -> IO (columns, Buffer)
+continueReadRawColumns MkConnection{..} buffer rows = rawBufferizedRead buffer (deserializeRawColumns @columns revision rows) sock bufferSize
 
 -- ** Bufferization
 

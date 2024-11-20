@@ -127,16 +127,16 @@ instance Deserializable UVarInt where
     go _ _ = fail "input exceeds varuint size"
 
 
--- ** Columns deserialization
+-- ** Raw columns deserialization
 
 class DeserializableColumns columns where
-  deserializeColumns :: ProtocolRevision -> UVarInt -> Get columns
+  deserializeRawColumns :: ProtocolRevision -> UVarInt -> Get columns
 
 instance
   DeserializableColumns (Columns '[])
   where
-  {-# INLINE deserializeColumns #-}
-  deserializeColumns _rev _rows = pure Empty
+  {-# INLINE deserializeRawColumns #-}
+  deserializeRawColumns _rev _rows = pure Empty
 
 instance 
   ( KnownColumn (Column name chType)
@@ -146,11 +146,11 @@ instance
   =>
   DeserializableColumns (Columns (Column name chType ': extraColumns))
   where
-  {-# INLINE deserializeColumns #-}
-  deserializeColumns rev rows =
+  {-# INLINE deserializeRawColumns #-}
+  deserializeRawColumns rev rows =
     AddColumn
       <$> deserializeColumn rev rows
-      <*> deserializeColumns @(Columns extraColumns) rev rows
+      <*> deserializeRawColumns @(Columns extraColumns) rev rows
 
 
 -- ** Column deserialization

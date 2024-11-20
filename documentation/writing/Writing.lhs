@@ -8,12 +8,12 @@ Lets imagine we want build integration with table
 CREATE TABLE exampleWriteRead
 (
     `a1` Int64,
-    `a2` LowCardinality(String),
+    `a2` String,
     `a3` DateTime,
     `a4` UUID,
     `a5` Int32,
-    `a6` LowCardinality(Nullable(String)),
-    `a7` LowCardinality(String)
+    `a6` Nullable(String),
+    `a7` String
 )
 ENGINE = MergeTree
 PARTITION BY ()
@@ -39,6 +39,7 @@ import ClickHaskell
   , Table
   )
 import ClickHaskell.DbTypes
+import Data.ByteString
 import Data.Int (Int32, Int64)
 import Data.Word (Word32, Word64)
 import GHC.Generics (Generic)
@@ -49,28 +50,24 @@ type ExampleTable =
   Table
     "exampleWriteRead"
    '[ Column "a1" ChInt64
-    {- FIXME:
-    , Column "a2" (LowCardinality ChString)
-    , Column "a6" (LowCardinality (Nullable ChString))
-    , Column "a7" (LowCardinality ChString)
-    -}
+    , Column "a2" ChString
     , Column "a3" ChDateTime
     , Column "a4" ChUUID
     , Column "a5" ChInt32
+    , Column "a6" (Nullable ChString)
+    , Column "a7" ChString
     ]
 
 -- Define your model
 
 data ExampleData = MkExampleData
   { a1 :: ChInt64
-  {- FIXME:
-  , a2 :: StrictByteString
-  , a6 :: Nullable ChString
-  , a7 :: LowCardinality ChString
-  -}
+  , a2 :: ByteString
   , a3 :: Word32
   , a4 :: ChUUID
   , a5 :: Int32
+  , a6 :: Nullable ChString
+  , a7 :: LowCardinality ChString
   }
   deriving (Generic, Show)
 
@@ -97,15 +94,12 @@ main = do
     connection
     [ MkExampleData
         { a1 = toChType (42 :: Int64)
-        {- FIXME:
         , a2 = "text"
-        , a6 = Just "500"
-        , a7 = ""
-        -}
         , a4 = toChType (0 :: Word64)
         , a3 = 42 
         , a5 = 42
+        , a6 = Just "500"
+        , a7 = ""
       }
     ]
-
 ```

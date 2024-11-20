@@ -25,7 +25,7 @@ import ClickHaskell
   , View, Parameter, parameter
   , openNativeConnection
   )
-import ClickHaskell.DbTypes (ChInt32)
+import ClickHaskell.DbTypes (ChString, ChInt32)
 import Data.Int (Int32)
 import GHC.Generics (Generic)
 
@@ -53,10 +53,8 @@ type ExampleView =
   View
     "exampleParametrizedView"
    '[ Column "a1" ChInt32
-    {- FIXME:
     , Column "a2" ChInt32
     , Column "a3" ChString
-    -}
     ]
    '[ Parameter "a1MoreThan" ChInt32
     , Parameter "a1LessThan" ChInt32
