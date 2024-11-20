@@ -51,8 +51,8 @@
         process-compose."default" = {
           imports = [inputs.services-flake.processComposeModules.default];
           services.clickhouse."dev-database" = wrapDefaultClickHouse [
-            (extractSqlFromMarkdown ./documentation/parametrized-view/README.lhs)
-            (extractSqlFromMarkdown ./documentation/writing/Writing.lhs)
+            (extractSqlFromMarkdown ./documentation/example-view-reading.lhs)
+            (extractSqlFromMarkdown ./documentation/example-writing.lhs)
             (extractSqlFromMarkdown ./integration-testing/T2WriteReadEquality.hs)
           ];
         };
@@ -75,7 +75,7 @@
         in {
           imports = [inputs.services-flake.processComposeModules.default];
           services.clickhouse."profiler-db" = wrapDefaultClickHouse [
-            (extractSqlFromMarkdown ./documentation/writing/Writing.lhs)
+            (extractSqlFromMarkdown ./documentation/example-writing.lhs)
           ];
           settings.processes.profiling = {
             command = "${self'.apps.${programName}.program}";
@@ -119,7 +119,7 @@
           src = pkgs.nix-gitignore.gitignoreSourcePure [] ./.;
 
           buildPhase = ''
-            ${lib.getExe' self'.packages.ClickHaskell-documentation "ClickHaskell-documentation"} build --verbose
+            ${lib.getExe' self'.packages.documentation-compiler "documentation-compiler"} build --verbose
           '';
 
           installPhase = ''
