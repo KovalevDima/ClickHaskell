@@ -119,7 +119,7 @@
           src = pkgs.nix-gitignore.gitignoreSourcePure [] ./.;
 
           buildPhase = ''
-            ${lib.getExe' self'.packages.ClickHaskell-documentation "ClickHaskell-documentation"} build --verbose
+            ${lib.getExe' self'.packages.documentation-compiler "documentation-compiler"} build --verbose
           '';
 
           installPhase = ''
