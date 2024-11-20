@@ -16,15 +16,15 @@ main = do
       route (constRoute "index.html")
       compile $
         pandocCompiler
-          >>= loadAndApplyTemplate "hakyll/templates/default.html" defaultContext
+          >>= loadAndApplyTemplate "compiler/tmpl-default.html" defaultContext
           >>= relativizeUrls
 
-    match "**.lhs" $ do
-      route $ customRoute ((<.> "html") . takeDirectory . toFilePath)
+    match "example**.lhs" $ do
+      route $ setExtension "html"
       compile $
         pandocCompiler
-          >>= loadAndApplyTemplate "hakyll/templates/article.html" defaultContext
-          >>= loadAndApplyTemplate "hakyll/templates/default.html" defaultContext
+          >>= loadAndApplyTemplate "compiler/tmpl-article.html" defaultContext
+          >>= loadAndApplyTemplate "compiler/tmpl-default.html" defaultContext
           >>= relativizeUrls
 
-    match "hakyll/templates/*" $ compile templateCompiler
+    match "compiler/tmpl-*" $ compile templateCompiler

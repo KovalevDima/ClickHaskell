@@ -10,13 +10,13 @@ license-file:       LICENSE
 data-files:
   example-view-reading.lhs
   example-writing.lhs
-  hakyll/**/*.html
+  compiler/*.html
   README.md
 
 executable documentation-compiler
   default-language: GHC2021
-  hs-source-dirs: hakyll/
-  main-is: Main.hs
+  hs-source-dirs: .
+  main-is: documentation-compiler.hs
   ghc-options: -threaded
   
   build-depends:
