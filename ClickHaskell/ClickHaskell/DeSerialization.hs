@@ -341,9 +341,10 @@ instance {-# OVERLAPPING #-}
   ( KnownColumn (Column name (Nullable chType))
   , IsChType chType
   , Serializable chType
+  , TypeError ('Text "LowCardinality serialization still unsupported")
   ) => Serializable (Column name (LowCardinality chType)) where
   {-# INLINE serialize #-}
-  serialize rev column
+  serialize rev (LowCardinalityColumn _ column)
     =  serialize rev (toChType @ChString $ renderColumnName @(Column name (Nullable chType)))
     <> serialize rev (toChType @ChString $ renderColumnType @(Column name (Nullable chType)))
     -- serialization is not custom
