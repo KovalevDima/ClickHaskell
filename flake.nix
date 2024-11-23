@@ -53,20 +53,20 @@
           services.clickhouse."dev-database" = wrapDefaultClickHouse [
             (extractSqlFromMarkdown ./documentation/example-view-reading.lhs)
             (extractSqlFromMarkdown ./documentation/example-writing.lhs)
-            (extractSqlFromMarkdown ./integration-testing/T2WriteReadEquality.hs)
+            (extractSqlFromMarkdown ./testing/T2WriteReadEquality.hs)
           ];
         };
-        # Integration testing wrapper
-        process-compose."integration-testing" = {
+        # Testing wrapper
+        process-compose."testing" = {
           imports = [inputs.services-flake.processComposeModules.default];
           cli.environment.PC_DISABLE_TUI = true; # GitHub Actions doesn't work with TUI. Don't enable it
           settings.processes.integration-test = {
-            command = "${self'.apps.integration-tests.program}";
+            command = "${self'.apps.tests.program}";
             availability.exit_on_end = true;
-            depends_on.integration-testing-db.condition = "process_healthy";
+            depends_on.testing-db.condition = "process_healthy";
           };
-          services.clickhouse."integration-testing-db" = wrapDefaultClickHouse [
-            (extractSqlFromMarkdown ./integration-testing/T2WriteReadEquality.hs)
+          services.clickhouse."testing-db" = wrapDefaultClickHouse [
+            (extractSqlFromMarkdown ./testing/T2WriteReadEquality.hs)
           ];
         };
         # Profiling wrapper

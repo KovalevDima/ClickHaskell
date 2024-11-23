@@ -1,5 +1,5 @@
 packages:
     ./ClickHaskell
     ./documentation
-    ./integration-testing
+    ./testing
     ./profiling
