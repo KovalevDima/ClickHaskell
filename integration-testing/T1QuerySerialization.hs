@@ -24,8 +24,8 @@ import ClickHaskell
 import ClickHaskell.DbTypes
   ( IsChType(..), ToChType(..), FromChType
   , ToQueryPart(..)
-  , ChUInt32, ChUInt64
-  , ChInt32, ChInt64
+  , ChUInt8, ChUInt16, ChUInt32, ChUInt64
+  , ChInt8, ChInt16, ChInt32, ChInt64
   , ChString, ChArray
   , Column, Columns, KnownColumn
   )
@@ -39,7 +39,24 @@ import GHC.Generics (Generic)
 import GHC.TypeLits (KnownSymbol, symbolVal)
 
 
-querySerializationTest ::
+querySerializationTest :: Connection -> IO ()
+querySerializationTest conn = do
+  runTestForType @ChInt8 conn [minBound, toEnum 0, maxBound]
+  runTestForType @ChInt16 conn [minBound, toEnum 0, maxBound]
+  runTestForType @ChInt32 conn [minBound, toEnum 0, maxBound]
+  runTestForType @ChInt64 conn [minBound, toEnum 0, maxBound]
+  runTestForType @ChUInt8 conn [minBound, toEnum 0, maxBound]
+  runTestForType @ChUInt16 conn [minBound, toEnum 0, maxBound]
+  runTestForType @ChUInt32 conn [minBound, toEnum 0, maxBound]
+  runTestForType @ChUInt64 conn [minBound, toEnum 0, maxBound]
+  -- ToDo: querySerializationTest @ChUUID connection [minBound, toEnum 0, maxBound]
+  runTestForType @ChString conn (map (toChType . BS.singleton) [1..255])
+  -- ToDo: querySerializationTest @(LowCardinality ChString) connection (map (toChType . BS.singleton) [0..255])
+  -- ToDo: querySerializationTest @(ChArray ChString) connection [toChType $ map BS.singleton [0..255]]
+  -- ToDo: querySerializationTest @(ChArray ChInt64) connection [toChType [0 :: ChInt64 .. 255]]
+
+
+runTestForType ::
   forall chType
   .
   ( ToQueryPart chType
@@ -49,7 +66,7 @@ querySerializationTest ::
   )
   =>
   Connection -> [chType] -> IO ()
-querySerializationTest connection testValues = do
+runTestForType connection testValues = do
   mapM_
     (\chType -> do
       selectChType <-
