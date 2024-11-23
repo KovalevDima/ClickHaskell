@@ -1,10 +1,4 @@
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
-
-{-# OPTIONS_GHC
-  -Wno-orphans
-#-}
 
 module ClickHaskell.DeSerialization where
 

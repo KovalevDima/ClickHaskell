@@ -1,11 +1,15 @@
 {-# LANGUAGE
-    OverloadedStrings
+    ConstraintKinds
+  , OverloadedStrings
   , TemplateHaskell
   , TypeFamilyDependencies
+  , TupleSections
+  , LambdaCase
 #-}
-{-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE TupleSections #-}
+
+{-# OPTIONS_GHC
+  -Wno-orphans
+#-}
 
 module ClickHaskell.Columns where
 
