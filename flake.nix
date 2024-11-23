@@ -56,7 +56,7 @@
             (extractSqlFromMarkdown ./testing/T2WriteReadEquality.hs)
           ];
         };
-        # Integration testing wrapper
+        # Testing wrapper
         process-compose."testing" = {
           imports = [inputs.services-flake.processComposeModules.default];
           cli.environment.PC_DISABLE_TUI = true; # GitHub Actions doesn't work with TUI. Don't enable it

@@ -5,7 +5,7 @@ name:               tests
 version:            0.0.0.1
 author:             Kovalev Dmitry
 maintainer:         https://github.com/KovalevDima
-description:        Integration testing
+description:        Tests runner
 homepage:           https://github.com/KovalevDima/ClickHaskell/testing#readme
 bug-reports:        https://github.com/KovalevDima/ClickHaskell/issues
 License:            BSD-3-Clause

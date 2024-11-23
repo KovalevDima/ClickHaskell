@@ -17,11 +17,11 @@ jobs:
         with:
           nix_path: nixpkgs=channel:nixos-unstable
 
-      - name: Build documntation
-        run: nix build .#documentation
-
-      - name: Build integration tests runner
+      - name: Build tests runner
         run: nix build .#testing
 
-      - name: Run integration testing
+      - name: Run tests
         run: nix run .#testing
+
+      - name: Build documntation
+        run: nix build .#documentation
