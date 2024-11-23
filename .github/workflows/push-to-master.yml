@@ -22,10 +22,10 @@ jobs:
           nix_path: nixpkgs=channel:nixos-unstable
 
       - name: Build integration tests
-        run: nix build .#integration-testing
+        run: nix build .#testing
 
       - name: Run integration tests
-        run: nix run .#integration-testing
+        run: nix run .#testing
 
       - name: Build documntation
         run: nix build .#documentation

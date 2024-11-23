@@ -21,7 +21,7 @@ jobs:
         run: nix build .#documentation
 
       - name: Build integration tests runner
-        run: nix build .#integration-testing
+        run: nix build .#testing
 
       - name: Run integration testing
-        run: nix run .#integration-testing
+        run: nix run .#testing

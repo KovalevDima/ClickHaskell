@@ -1,12 +1,12 @@
 cabal-version: 3.4
 
 
-name:               integration-tests
+name:               tests
 version:            0.0.0.1
 author:             Kovalev Dmitry
 maintainer:         https://github.com/KovalevDima
 description:        Integration testing
-homepage:           https://github.com/KovalevDima/ClickHaskell/integration-testing#readme
+homepage:           https://github.com/KovalevDima/ClickHaskell/testing#readme
 bug-reports:        https://github.com/KovalevDima/ClickHaskell/issues
 License:            BSD-3-Clause
 License-File:       ./LICENSE
@@ -16,9 +16,9 @@ build-type:         Simple
 source-repository head
   type: git
   location: https://github.com/KovalevDima/ClickHaskell
-  subdir: integration-testing
+  subdir: testing
 
-executable integration-tests
+executable tests
   main-is: IntegrationTests.hs
   hs-source-dirs: .
   ghc-options: -O2 -threaded -rtsopts -main-is IntegrationTests
@@ -31,7 +31,7 @@ executable integration-tests
     , bytestring
 
   other-modules:
-      Paths_integration_tests
+      Paths_tests
       T1QuerySerialization
       T2WriteReadEquality
   default-language: Haskell2010
