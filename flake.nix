@@ -59,7 +59,7 @@
         # Integration testing wrapper
         process-compose."integration-testing" = {
           imports = [inputs.services-flake.processComposeModules.default];
-          cli.up.tui = false; # GitHub Actions doesn't work with TUI. Don't enable it
+          cli.environment.PC_DISABLE_TUI = true; # GitHub Actions doesn't work with TUI. Don't enable it
           settings.processes.integration-test = {
             command = "${self'.apps.integration-tests.program}";
             availability.exit_on_end = true;
