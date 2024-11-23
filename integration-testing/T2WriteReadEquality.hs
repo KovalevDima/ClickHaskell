@@ -21,6 +21,7 @@ import ClickHaskell
   , ReadableFrom, selectFrom
   , ChCredential(..), Connection
   , Table
+  , Column
   )
 import ClickHaskell.DbTypes
   ( toChType
@@ -28,7 +29,6 @@ import ClickHaskell.DbTypes
   , ChUInt8, ChUInt16, ChUInt32, ChUInt64, ChUInt128
   , ChUUID, ChDateTime, ChString, Int128, Word128
   , Nullable
-  , Column
   )
 
 -- GHC included

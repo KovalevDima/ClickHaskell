@@ -39,7 +39,6 @@ Library
     Paths_ClickHaskell
   Exposed-Modules:
     ClickHaskell
-    ClickHaskell.Columns
     ClickHaskell.DbTypes
     ClickHaskell.Parameters
     ClickHaskell.NativeProtocol
@@ -47,6 +46,7 @@ Library
     ClickHaskell.Versioning
   Other-Modules:
     Paths_ClickHaskell
+    ClickHaskell.Columns
   HS-Source-Dirs:
     ./
   default-extensions:

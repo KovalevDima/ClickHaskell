@@ -2,7 +2,6 @@
     GeneralizedNewtypeDeriving
   , LambdaCase
   , OverloadedStrings
-  , TupleSections
 #-}
 
 module ClickHaskell.DbTypes
@@ -25,8 +24,6 @@ module ClickHaskell.DbTypes
 , LowCardinality, IsLowCardinalitySupported
 
 , UVarInt(..)
-, Columns(..)
-, KnownColumn(..), Column(..), columnValues, columnSize
 , module Data.WideWord
 ) where
 
@@ -39,11 +36,10 @@ import Data.WideWord (Int128 (..), Word128(..))
 import Control.DeepSeq (NFData)
 import Data.Bits (Bits (..))
 import Data.ByteString as BS (StrictByteString, toStrict)
-import Data.ByteString.Builder as BS (Builder, byteString, toLazyByteString, stringUtf8)
+import Data.ByteString.Builder as BS (Builder, byteString, toLazyByteString)
 import Data.ByteString.Char8 as BS8 (concatMap, length, pack, replicate, singleton)
 import Data.Coerce (coerce)
 import Data.Int (Int16, Int32, Int64, Int8)
-import Data.Kind (Type)
 import Data.List (uncons)
 import Data.String (IsString)
 import Data.Text as Text (Text)
@@ -555,92 +551,3 @@ instance
 -}
 newtype UVarInt = MkUVarInt Word64
   deriving newtype (Show, Eq, Num, Prim, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
-
-
-
-
--- * Columns
-
-data Columns (columns :: [Type]) where
-  Empty :: Columns '[]
-  AddColumn
-    :: KnownColumn (Column name chType)
-    => Column name chType
-    -> Columns columns
-    -> Columns (Column name chType ': columns)
-
-{- |
-Column declaration
-
-For example:
-
-@
-type MyColumn = Column "myColumn" ChString
-@
--}
-data Column (name :: Symbol) (chType :: Type) where
-  RegularColumn :: IsChType chType => UVarInt -> [chType] -> Column name chType
-  NullableColumn :: IsChType chType => UVarInt -> [chType] -> Column name chType
-  LowCardinalityColumn :: IsChType chType => UVarInt -> [chType] -> Column name chType
-
-type family GetColumnName column :: Symbol
-  where
-  GetColumnName (Column name columnType) = name
-
-type family GetColumnType column :: Type
-  where
-  GetColumnType (Column name columnType) = columnType
-
-class
-  ( IsChType (GetColumnType column)
-  , KnownSymbol (GetColumnName column)
-  ) =>
-  KnownColumn column where
-  renderColumnName :: Builder
-  renderColumnName = (stringUtf8 . symbolVal @(GetColumnName column)) Proxy
-
-  renderColumnType :: Builder
-  renderColumnType = chTypeName @(GetColumnType column)
-
-  mkColumn :: UVarInt -> [GetColumnType column] -> Column (GetColumnName column) (GetColumnType column)
-
-{-# INLINE [0] columnSize #-}
-columnSize :: Column name chType -> UVarInt
-columnSize column = case column of
-  (RegularColumn size _listValues) -> size
-  (NullableColumn size _nullableValues) -> size
-  (LowCardinalityColumn size _lowCardinalityValues) -> size
-
-{-# INLINE [0] columnValues #-}
-columnValues :: Column name chType -> [chType]
-columnValues column = case column of
-  (RegularColumn _size values) -> values
-  (NullableColumn _size nullableValues) -> nullableValues
-  (LowCardinalityColumn _size lowCardinalityValues) -> lowCardinalityValues
-
-instance KnownSymbol name => KnownColumn (Column name ChUInt8) where mkColumn = RegularColumn
-instance KnownSymbol name => KnownColumn (Column name ChUInt16) where mkColumn = RegularColumn
-instance KnownSymbol name => KnownColumn (Column name ChUInt32) where mkColumn = RegularColumn
-instance KnownSymbol name => KnownColumn (Column name ChUInt64) where mkColumn = RegularColumn
-instance KnownSymbol name => KnownColumn (Column name ChUInt128) where mkColumn = RegularColumn
-instance KnownSymbol name => KnownColumn (Column name ChInt8)  where mkColumn = RegularColumn
-instance KnownSymbol name => KnownColumn (Column name ChInt16) where mkColumn = RegularColumn
-instance KnownSymbol name => KnownColumn (Column name ChInt32) where mkColumn = RegularColumn
-instance KnownSymbol name => KnownColumn (Column name ChInt64) where mkColumn = RegularColumn
-instance KnownSymbol name => KnownColumn (Column name ChInt128) where mkColumn = RegularColumn
-instance KnownSymbol name => KnownColumn (Column name ChDate) where mkColumn = RegularColumn
-instance KnownSymbol name => KnownColumn (Column name ChDateTime) where mkColumn = RegularColumn
-instance KnownSymbol name => KnownColumn (Column name ChUUID) where mkColumn = RegularColumn
-instance
-  ( KnownSymbol name
-  , IsChType (Nullable chType)
-  ) =>
-  KnownColumn (Column name (Nullable chType)) where mkColumn = RegularColumn
-instance KnownSymbol name => KnownColumn (Column name ChString) where mkColumn = RegularColumn
-instance
-  ( KnownSymbol name
-  , IsChType (LowCardinality chType)
-  , IsLowCardinalitySupported chType
-  ) =>
-  KnownColumn (Column name (LowCardinality chType)) where mkColumn = RegularColumn
-instance KnownSymbol name => KnownColumn (Column name (ChArray ChString)) where mkColumn = RegularColumn

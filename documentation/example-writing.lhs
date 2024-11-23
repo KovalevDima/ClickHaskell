@@ -36,7 +36,7 @@ module Writing where
 import ClickHaskell
   ( WritableInto, insertInto
   , ChCredential(..), openNativeConnection
-  , Table
+  , Table, Column
   )
 import ClickHaskell.DbTypes
 import Data.ByteString
