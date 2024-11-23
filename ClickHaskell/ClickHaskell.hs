@@ -15,7 +15,7 @@ module ClickHaskell
 
   -- * Reading and writing
   , Table
-  , Column
+  , Columns, Column, KnownColumn(..), DeserializableColumn
 
   -- ** Reading
   , ReadableFrom(..)
@@ -44,9 +44,9 @@ import ClickHaskell.NativeProtocol
   , ServerPacketType(..), HelloResponse(..), ExceptionPacket, latestSupportedRevision
   )
 import ClickHaskell.Versioning (ProtocolRevision)
-import ClickHaskell.Columns (HasColumns (..), WritableInto (..), ReadableFrom (..))
+import ClickHaskell.Columns (HasColumns (..), WritableInto (..), ReadableFrom (..), DeserializableColumns (..), Columns, Column, KnownColumn(..), DeserializableColumn)
 import ClickHaskell.Parameters (Parameter, parameter, parameters, Parameters, CheckParameters)
-import ClickHaskell.DeSerialization (Serializable(..), Deserializable(..), DeserializableColumns (..))
+import ClickHaskell.DeSerialization (Serializable(..), Deserializable(..))
 
 -- GHC included
 import Control.Exception (Exception, SomeException, bracketOnError, catch, finally, throwIO)

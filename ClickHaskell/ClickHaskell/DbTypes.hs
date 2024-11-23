@@ -2,7 +2,6 @@
     GeneralizedNewtypeDeriving
   , LambdaCase
   , OverloadedStrings
-  , TupleSections
 #-}
 
 module ClickHaskell.DbTypes
@@ -25,8 +24,6 @@ module ClickHaskell.DbTypes
 , LowCardinality, IsLowCardinalitySupported
 
 , UVarInt(..)
-, Columns(..)
-, KnownColumn(..), Column(..), columnValues, columnSize
 , module Data.WideWord
 ) where
 
@@ -39,11 +36,10 @@ import Data.WideWord (Int128 (..), Word128(..))
 import Control.DeepSeq (NFData)
 import Data.Bits (Bits (..))
 import Data.ByteString as BS (StrictByteString, toStrict)
-import Data.ByteString.Builder as BS (Builder, byteString, toLazyByteString, stringUtf8)
+import Data.ByteString.Builder as BS (Builder, byteString, toLazyByteString)
 import Data.ByteString.Char8 as BS8 (concatMap, length, pack, replicate, singleton)
 import Data.Coerce (coerce)
 import Data.Int (Int16, Int32, Int64, Int8)
-import Data.Kind (Type)
 import Data.List (uncons)
 import Data.String (IsString)
 import Data.Text as Text (Text)
@@ -555,135 +551,3 @@ instance
 -}
 newtype UVarInt = MkUVarInt Word64
   deriving newtype (Show, Eq, Num, Prim, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
-
-
-
-
--- * Columns
-
-data Columns (columns :: [Type]) where
-  Empty :: Columns '[]
-  AddColumn
-    :: KnownColumn (Column name chType)
-    => Column name chType
-    -> Columns columns
-    -> Columns (Column name chType ': columns)
-
-{- |
-Column declaration
-
-For example:
-
-@
-type MyColumn = Column "myColumn" ChString
-@
--}
-data Column (name :: Symbol) (chType :: Type) where
-  ChUInt8Column :: UVarInt -> [ChUInt8] -> Column name ChUInt8
-  ChUInt16Column :: UVarInt -> [ChUInt16] -> Column name ChUInt16
-  ChUInt32Column :: UVarInt -> [ChUInt32] -> Column name ChUInt32
-  ChUInt64Column :: UVarInt -> [ChUInt64] -> Column name ChUInt64
-  ChUInt128Column :: UVarInt -> [ChUInt128] -> Column name ChUInt128
-  ChInt8Column :: UVarInt -> [ChInt8] -> Column name ChInt8
-  ChInt16Column :: UVarInt -> [ChInt16] -> Column name ChInt16
-  ChInt32Column :: UVarInt -> [ChInt32] -> Column name ChInt32
-  ChInt64Column :: UVarInt -> [ChInt64] -> Column name ChInt64
-  ChInt128Column :: UVarInt -> [ChInt128] -> Column name ChInt128
-  ChDateColumn :: UVarInt -> [ChDate] -> Column name ChDate
-  ChDateTimeColumn :: UVarInt -> [ChDateTime] -> Column name ChDateTime
-  ChUUIDColumn :: UVarInt -> [ChUUID] -> Column name ChUUID
-  ChStringColumn :: UVarInt -> [ChString] -> Column name ChString
-  ChArrayColumn :: IsChType chType => UVarInt -> [ChArray chType] -> Column name (ChArray chType)
-  NullableColumn :: IsChType chType => UVarInt -> [Nullable chType] -> Column name (Nullable chType)
-  LowCardinalityColumn :: (IsLowCardinalitySupported chType, IsChType chType) => UVarInt -> [chType] -> Column name (LowCardinality chType)
-
-type family GetColumnName column :: Symbol
-  where
-  GetColumnName (Column name columnType) = name
-
-type family GetColumnType column :: Type
-  where
-  GetColumnType (Column name columnType) = columnType
-
-class
-  ( IsChType (GetColumnType column)
-  , KnownSymbol (GetColumnName column)
-  ) =>
-  KnownColumn column where
-  renderColumnName :: Builder
-  renderColumnName = (stringUtf8 . symbolVal @(GetColumnName column)) Proxy
-
-  renderColumnType :: Builder
-  renderColumnType = chTypeName @(GetColumnType column)
-
-  mkColumn :: UVarInt -> [GetColumnType column] -> Column (GetColumnName column) (GetColumnType column)
-
-{-# INLINE [0] columnSize #-}
-columnSize :: Column name chType -> UVarInt
-columnSize column = case column of
-  (ChUInt8Column size _listValues) -> size
-  (ChUInt16Column size _listValues) -> size
-  (ChUInt32Column size _listValues) -> size
-  (ChUInt64Column size _listValues) -> size
-  (ChUInt128Column size _listValues) -> size
-  (ChInt8Column size _listValues) -> size
-  (ChInt16Column size _listValues) -> size
-  (ChInt32Column size _listValues) -> size
-  (ChInt64Column size _listValues) -> size
-  (ChInt128Column size _listValues) -> size
-  (ChDateColumn size _nullableValues) -> size
-  (ChDateTimeColumn size _nullableValues) -> size
-  (ChUUIDColumn size _nullableValues) -> size
-  (ChStringColumn size _values) -> size
-  (ChArrayColumn size _nullableValues) -> size
-  (NullableColumn size _nullableValues) -> size
-  (LowCardinalityColumn size _lowCardinalityValues) -> size
-
-{-# INLINE [0] columnValues #-}
-columnValues :: Column name chType -> [chType]
-columnValues column = case column of
-  (ChUInt8Column _size values) -> values
-  (ChUInt16Column _size values) -> values
-  (ChUInt32Column _size values) -> values
-  (ChUInt64Column _size values) -> values
-  (ChUInt128Column _size values) -> values
-  (ChInt8Column _size values) -> values
-  (ChInt16Column _size values) -> values
-  (ChInt32Column _size values) -> values
-  (ChInt64Column _size values) -> values
-  (ChInt128Column _size values) -> values
-  (ChDateColumn _size values) -> values
-  (ChDateTimeColumn _size values) -> values
-  (ChUUIDColumn _size values) -> values
-  (ChStringColumn _size values) -> values
-  (ChArrayColumn _size arrayValues) -> arrayValues
-  (NullableColumn _size nullableValues) ->  nullableValues
-  (LowCardinalityColumn _size lowCardinalityValues) -> map fromChType lowCardinalityValues
-
-instance KnownSymbol name => KnownColumn (Column name ChUInt8) where mkColumn = ChUInt8Column
-instance KnownSymbol name => KnownColumn (Column name ChUInt16) where mkColumn = ChUInt16Column
-instance KnownSymbol name => KnownColumn (Column name ChUInt32) where mkColumn = ChUInt32Column
-instance KnownSymbol name => KnownColumn (Column name ChUInt64) where mkColumn = ChUInt64Column
-instance KnownSymbol name => KnownColumn (Column name ChUInt128) where mkColumn = ChUInt128Column
-instance KnownSymbol name => KnownColumn (Column name ChInt8)  where mkColumn = ChInt8Column
-instance KnownSymbol name => KnownColumn (Column name ChInt16) where mkColumn = ChInt16Column
-instance KnownSymbol name => KnownColumn (Column name ChInt32) where mkColumn = ChInt32Column
-instance KnownSymbol name => KnownColumn (Column name ChInt64) where mkColumn = ChInt64Column
-instance KnownSymbol name => KnownColumn (Column name ChInt128) where mkColumn = ChInt128Column
-instance KnownSymbol name => KnownColumn (Column name ChDate) where mkColumn = ChDateColumn
-instance KnownSymbol name => KnownColumn (Column name ChDateTime) where mkColumn = ChDateTimeColumn
-instance KnownSymbol name => KnownColumn (Column name ChUUID) where mkColumn = ChUUIDColumn
-instance
-  ( KnownSymbol name
-  , IsChType chType
-  , IsChType (Nullable chType)
-  ) =>
-  KnownColumn (Column name (Nullable chType)) where mkColumn = NullableColumn
-instance KnownSymbol name => KnownColumn (Column name ChString) where mkColumn = ChStringColumn
-instance
-  ( KnownSymbol name
-  , IsChType (LowCardinality chType)
-  , IsLowCardinalitySupported chType
-  ) =>
-  KnownColumn (Column name (LowCardinality chType)) where mkColumn size = LowCardinalityColumn size . map fromChType
-instance KnownSymbol name => KnownColumn (Column name (ChArray ChString)) where mkColumn = ChArrayColumn
