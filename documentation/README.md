@@ -1,19 +1,39 @@
-# ClickHaskell 
-[![built with nix](https://img.shields.io/badge/Built_With-Nix-5277C3.svg?logo=nixos&labelColor=73C3D5)](https://builtwithnix.org)
+---
+title: Documentation
+---
 
-ClickHaskell is a Haskell implementation of [ClickHouse](https://clickhouse.com/) DBMS client
+Want to contribute to library?\
+Follow [developer](/documentation/developer.html) documentation
 
-ClickHaskell provides for users:
+Want to use library?\
+Follow [user](/documentation/user.html) documentation
 
-1. Type safe developer-friendly interface
-2. Always up-to-date [documentation](https://kovalevdima.github.io/ClickHaskell/)
-3. End-to-end tests before distribution
-4. Very low dependency footprint
+# Design
 
-ClickHaskell provides for contributors:
+ClickHaskell was designed to **avoid boilerplate** code\
+and **decouple business logic** from DBMS protocol implementation
 
-1. Reproducable and complete dev environment
-2. Documnetation autogeneration
-3. Easy to run profiling environment
-4. Easy to track breaking changes project structure
-5. Low boilerplate abstractions
+The key idea is to specilize database **table**/**query**/**view** interface\
+as a Haskell type and then to constuct a correspondence\
+(**decoder**/**encoder** and **query**) from **record generic representation**
+
+For example in case of
+```text
+Table              <--    Record
+├name1 : Type1   encoder  ├name1 : Type1
+├name2 : Type2            ├name2 : Type2
+...              decoder  ...        
+└nameN : TypeN     -->    └nameM : TypeM
+```
+we can construct a decoders/encoders for server/client\
+packets with data
+
+Also we can construct queries like
+```sql
+SELECT name1, name2, ..., nameN FROM tableName
+SELECT name1, name2, ..., nameN FROM viewName(...)
+INSERT name1, name2, ..., nameN INTO tableName
+```
+and combine it with encoder/decoder to generate\
+end-to-end database communication functions which\
+only takes a data on runtime

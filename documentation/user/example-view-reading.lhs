@@ -2,7 +2,8 @@
 title: Reading from view
 ---
 
-Lets imagine we have database with parametrized view `exampleParametrizedView` 
+Lets imagine we have database with parametrized view `exampleParametrizedView`
+
 ```sql
 CREATE VIEW exampleParametrizedView
 AS SELECT *
@@ -16,6 +17,8 @@ To perform a SELECT from such view you can use this snippet
 ```haskell
 {-# LANGUAGE
     DataKinds
+  , DeriveAnyClass
+  , DerivingStrategies
   , OverloadedStrings
 #-}
 
@@ -49,6 +52,11 @@ main = do
         . parameter @"a1LessThan" @ChInt32 ((100_000) :: Int32)
         )
 
+{- Before GHC 9.8 its better to use standalone deriving
+   since type errors occures exact on deriving declaration.
+-}
+deriving anyclass instance ReadableFrom ExampleView ExampleViewRecord
+
 type ExampleView =
   View
     "exampleParametrizedView"
@@ -64,6 +72,4 @@ newtype ExampleViewRecord = MkExampleViewRecord
   { a1 :: Int32
   }
   deriving (Generic, Show)
-
-instance ReadableFrom ExampleView ExampleViewRecord
 ```
