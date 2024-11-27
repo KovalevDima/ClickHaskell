@@ -28,7 +28,7 @@ Table              <--    Record
 we can construct a decoders/encoders for server/client\
 packets with data
 
-Moreover we can construct queries like
+Also we can construct queries like
 ```sql
 SELECT name1, name2, ..., nameN FROM tableName
 SELECT name1, name2, ..., nameN FROM viewName(...)
