@@ -8,8 +8,7 @@ license:            BSD-3-Clause
 license-file:       LICENSE
 
 data-files:
-  example-view-reading.lhs
-  example-writing.lhs
+  user/*.lhs
   compiler/*.html
   README.md
 
@@ -29,7 +28,7 @@ executable documentation-compiler
 
 executable example-writing
   default-language: GHC2021
-  main-is: example-writing.lhs
+  main-is: user/example-writing.lhs
   build-depends:
     -- Internal
       ClickHaskell
@@ -50,7 +49,7 @@ executable example-writing
 
 executable example-view-reading
   default-language: GHC2021
-  main-is: example-view-reading.lhs
+  main-is: user/example-view-reading.lhs
   build-depends:
     -- Internal
       ClickHaskell

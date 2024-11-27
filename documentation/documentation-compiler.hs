@@ -1,30 +1,39 @@
 {-# LANGUAGE OverloadedStrings #-}
 
+import Data.List (stripPrefix)
+import Data.Maybe (fromMaybe)
 import GHC.IO.Encoding as Encoding (setLocaleEncoding, utf8)
 import Hakyll
 import System.FilePath
 
 configuration :: Configuration
-configuration = defaultConfiguration{providerDirectory = "documentation"}
+configuration = defaultConfiguration{providerDirectory = "."}
 
 main :: IO ()
 main = do
   Encoding.setLocaleEncoding Encoding.utf8
 
   hakyllWith configuration $ do
-    match "README.md" $ do
+    match "./documentation/README.md" $ do
       route (constRoute "index.html")
       compile $
         pandocCompiler
-          >>= loadAndApplyTemplate "compiler/tmpl-default.html" defaultContext
+          >>= loadAndApplyTemplate "documentation/compiler/tmpl-code.html" defaultContext
+          >>= loadAndApplyTemplate "documentation/compiler/tmpl-main.html" defaultContext
           >>= relativizeUrls
 
-    match "example**.lhs" $ do
-      route $ setExtension "html"
+    match (
+      foldr1 (.||.)
+        [ "documentation/*.md"
+        , "documentation/user/**.lhs"
+        , "documentation/developer/**.md"
+        ]
+      ) $ do
+      route (setExtension "html")
       compile $
         pandocCompiler
-          >>= loadAndApplyTemplate "compiler/tmpl-article.html" defaultContext
-          >>= loadAndApplyTemplate "compiler/tmpl-default.html" defaultContext
+          >>= loadAndApplyTemplate "documentation/compiler/tmpl-code.html" defaultContext
+          >>= loadAndApplyTemplate "documentation/compiler/tmpl-main.html" defaultContext
           >>= relativizeUrls
 
-    match "compiler/tmpl-*" $ compile templateCompiler
+    match "documentation/compiler/tmpl-*" $ compile templateCompiler
