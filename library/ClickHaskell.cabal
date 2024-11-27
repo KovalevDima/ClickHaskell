@@ -16,6 +16,9 @@ License-File:   LICENSE
 Copyright:      2023 Kovalev Dmitry
 Build-Type:     Simple
 
+extra-doc-files:
+  README.md
+  ChangeLog.md
 
 Flag release
   Description: Pre-release build options
