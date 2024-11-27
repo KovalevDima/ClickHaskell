@@ -1,1 +1,1 @@
-./ClickHaskell/README.md
+./library/README.md
