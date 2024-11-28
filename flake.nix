@@ -51,9 +51,10 @@
         process-compose."default" = {
           imports = [inputs.services-flake.processComposeModules.default];
           services.clickhouse."dev-database" = wrapDefaultClickHouse [
-            (extractSqlFromMarkdown ./documentation/example-view-reading.lhs)
-            (extractSqlFromMarkdown ./documentation/example-writing.lhs)
+            (extractSqlFromMarkdown ./documentation/user/example-view-reading.lhs)
+            (extractSqlFromMarkdown ./documentation/user/example-writing.lhs)
             (extractSqlFromMarkdown ./testing/T2WriteReadEquality.hs)
+            (extractSqlFromMarkdown ./profiling/Profiler.hs)
           ];
         };
         # Testing wrapper
@@ -75,11 +76,26 @@
         in {
           imports = [inputs.services-flake.processComposeModules.default];
           services.clickhouse."profiler-db" = wrapDefaultClickHouse [
-            (extractSqlFromMarkdown ./documentation/example-writing.lhs)
+            (extractSqlFromMarkdown ./profiling/Profiler.hs)
           ];
           settings.processes.profiling = {
             command = "${self'.apps.${programName}.program}";
             depends_on.profiler-db.condition = "process_healthy";
+          };
+          settings.processes.dump-artifacts = {
+            command = "${lib.getExe' pkgs.haskellPackages.eventlog2html "eventlog2html"} ./${programName}.eventlog";
+            # availability.exit_on_end = true;
+            depends_on.profiling.condition = "process_completed_successfully";
+          };
+        };
+        process-compose."one-billion-streaming" = let
+          programName = "one-billion-stream";
+        in {
+          imports = [inputs.services-flake.processComposeModules.default];
+          services.clickhouse."one-billion-streaming-db" = wrapDefaultClickHouse [];
+          settings.processes.profiling = {
+            command = "${self'.apps.${programName}.program}";
+            depends_on.one-billion-streaming-db.condition = "process_healthy";
           };
           settings.processes.dump-artifacts = {
             command = "${lib.getExe' pkgs.haskellPackages.eventlog2html "eventlog2html"} ./${programName}.eventlog";

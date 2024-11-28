@@ -1,5 +1,6 @@
 {-# LANGUAGE
-    ConstraintKinds
+    BangPatterns
+  , ConstraintKinds
   , LambdaCase
   , NumericUnderscores
   , OverloadedStrings
@@ -21,9 +22,9 @@ module ClickHaskell
   , ReadableFrom(..)
   , select
   , selectFrom
-
-  -- *** Reading from view
   , selectFromView
+  , streamSelect
+  , streamSelectFrom
   , View, parameter, Parameter
 
   -- ** Writing
@@ -173,7 +174,7 @@ selectFrom conn@MkConnection{sock, user, revision} = do
     (  serialize revision (mkQueryPacket revision user (toChType query))
     <> serialize revision (mkDataPacket "" 0 0)
     )
-  handleSelect @table conn emptyBuffer
+  handleSelect @table conn emptyBuffer pure
 
 
 select ::
@@ -187,10 +188,8 @@ select conn@MkConnection{sock, user, revision} query = do
     (  serialize revision (mkQueryPacket revision user query)
     <> serialize revision (mkDataPacket "" 0 0)
     )
-  handleSelect @(Columns columns) conn emptyBuffer
+  handleSelect @(Columns columns) conn emptyBuffer pure
 
-
--- *** View
 
 instance HasColumns (View name columns parameters) where
   type GetColumns (View _ columns _) = columns
@@ -214,24 +213,62 @@ selectFromView conn@MkConnection{..} interpreter = do
     (  serialize revision (mkQueryPacket revision user (toChType query))
     <> serialize revision (mkDataPacket "" 0 0)
     )
-  handleSelect @view conn emptyBuffer
+  handleSelect @view conn emptyBuffer pure
+
+streamSelectFrom ::
+  forall table record name columns a
+  .
+  ( table ~ Table name columns
+  , KnownSymbol name
+  , ReadableFrom table record
+  )
+  =>
+  Connection -> ([record] -> IO [a]) -> IO [a]
+streamSelectFrom conn@MkConnection{sock, user, revision} f = do
+  let query
+        = "SELECT " <> readingColumns @table @record
+        <> " FROM " <> (byteString . BS8.pack) (symbolVal $ Proxy @name)
+  (sendAll sock . toLazyByteString)
+    (  serialize revision (mkQueryPacket revision user (toChType query))
+    <> serialize revision (mkDataPacket "" 0 0)
+    )
+  handleSelect @table conn emptyBuffer f
+
+streamSelect ::
+  forall columns record a
+  .
+  ReadableFrom (Columns columns) record
+  =>
+  Connection -> ChString -> ([record] -> IO [a]) -> IO [a]
+streamSelect conn@MkConnection{sock, user, revision} query f = do
+  (sendAll sock . toLazyByteString)
+    (  serialize revision (mkQueryPacket revision user query)
+    <> serialize revision (mkDataPacket "" 0 0)
+    )
+  handleSelect @(Columns columns) conn emptyBuffer f
 
 
-handleSelect :: forall hasColumns record . ReadableFrom hasColumns record => Connection -> Buffer -> IO [record]
-handleSelect conn previousBuffer = do
+handleSelect ::
+  forall hasColumns record a
+  .
+  ReadableFrom hasColumns record
+  =>
+  Connection -> Buffer -> ([record] -> IO [a])  -> IO [a]
+handleSelect conn previousBuffer f = do
   (packet, buffer) <- continueReadDeserializable @ServerPacketType conn previousBuffer
   case packet of
     DataResponse MkDataPacket{columns_count, rows_count} -> do
       case (columns_count, rows_count) of
-        (0, 0) -> handleSelect @hasColumns conn buffer
+        (0, 0) -> handleSelect @hasColumns conn buffer f
         (_, 0) -> do
           (_, nextBuffer) <- continueReadColumns @hasColumns @record conn buffer 0
-          handleSelect @hasColumns conn nextBuffer
+          handleSelect @hasColumns conn nextBuffer f
         (_, rows) -> do
           (columns, nextBuffer) <- continueReadColumns @hasColumns conn buffer rows
-          (columns ++) <$> handleSelect @hasColumns conn nextBuffer
-    Progress          _ -> handleSelect @hasColumns conn buffer
-    ProfileInfo       _ -> handleSelect @hasColumns conn buffer
+          processedColumns <- f columns
+          (processedColumns ++) <$> handleSelect @hasColumns conn nextBuffer f 
+    Progress          _ -> handleSelect @hasColumns conn buffer f
+    ProfileInfo       _ -> handleSelect @hasColumns conn buffer f
     EndOfStream         -> pure []
     Exception exception -> throwIO (DatabaseException exception)
     otherPacket         -> throwIO (ProtocolImplementationError $ UnexpectedPacketType otherPacket)

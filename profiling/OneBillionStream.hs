@@ -8,25 +8,7 @@
   , TypeApplications
 #-}
 
-{-
-```sql
-CREATE TABLE profiler
-(
-    `a1` Int64,
-    `a2` String,
-    `a3` DateTime,
-    `a4` UUID,
-    `a5` Int32,
-    `a6` Nullable(String),
-    `a7` String
-)
-ENGINE = MergeTree
-PARTITION BY ()
-ORDER BY ();
-```
--}
-
-module Profiler (main) where
+module OneBillionStream (main) where
 
 import ClickHaskell
 -- Internal
@@ -48,6 +30,7 @@ import Debug.Trace (traceMarkerIO)
 import GHC.Conc (atomically, newTVarIO, readTVarIO)
 import GHC.Generics (Generic)
 import GHC.Natural (Natural)
+import Control.DeepSeq (($!!), NFData)
 
 
 main :: IO ()
@@ -56,14 +39,14 @@ main = do
   let credentials = MkChCredential "default" "" "" "localhost" "9000"
   connection <- openNativeConnection credentials
 
-  let totalRows = 1_000_000
+  let totalRows = 1_000_000_000
 
   threadDelay 250_000
   traceMarkerIO "Push data"
 
   traceMarkerIO "Starting reading"
-  selectedData <-
-    select
+  result <-
+    streamSelect
       @ExampleColumns
       @ExampleData
       connection
@@ -75,18 +58,13 @@ main = do
       \a4 UUID, \
       \a5 Int32, \
       \a6 Nullable(String), \
-      \a7 String\
+      \a7 String \
       \', 1, 10, 2) LIMIT " <> (string8 . show) totalRows)
-
-  threadDelay 1_000_000
-  traceMarkerIO "Starting writing"
-  insertInto
-    @(Table "profiler" ExampleColumns)
-    connection
-    selectedData
+      (\records -> pure $!! [length records])
+  print result
 
   traceMarkerIO "Completion"
-  print $ "Writing done. " <> show totalRows <> " rows was written"
+  print $ "Processing done. " <> show totalRows <> " rows was processed"
   threadDelay 1_000_000
 
 
@@ -99,8 +77,8 @@ data ExampleData = MkExampleData
   , a6 :: Nullable ChString
   , a7 :: ChString
   }
-  deriving (Generic, Show)
-  deriving anyclass (ReadableFrom (Columns ExampleColumns), WritableInto (Table "profiler" ExampleColumns))
+  deriving (Generic, Show, NFData)
+  deriving anyclass (ReadableFrom (Columns ExampleColumns), WritableInto (Table "oneBillionStream" ExampleColumns))
 
 
 type ExampleColumns =

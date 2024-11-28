@@ -54,6 +54,43 @@ executable profiler
     -- GHC included
     , base
     , bytestring
+    , deepseq
+    , stm
+    , time
+    , template-haskell
+
+executable one-billion-stream
+  main-is: OneBillionStream.hs
+  hs-source-dirs: ./
+  ghc-options:
+    -O2
+    -threaded
+    -main-is OneBillionStream
+    -- * Dump core
+    -ddump-to-file
+    -ddump-simpl
+    -dsuppress-type-applications
+    -dsuppress-coercions
+    -dsuppress-idinfo
+    -dsuppress-type-signatures
+    -dsuppress-var-kinds
+    -dsuppress-module-prefixes
+    -dsuppress-uniques
+    -ddump-simpl-stats
+    -ddump-rule-firings
+
+  ghc-prof-options:
+    -fprof-late
+    -rtsopts "-with-rtsopts=-s -A8m -AL256m -p -hy -L250 -l-agu -N1"
+
+  build-depends:
+    -- Internal
+      ClickHaskell
+
+    -- GHC included
+    , base
+    , bytestring
+    , deepseq
     , stm
     , time
     , template-haskell
