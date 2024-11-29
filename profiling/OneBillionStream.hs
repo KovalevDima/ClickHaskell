@@ -52,13 +52,7 @@ main = do
       connection
       (toChType $
       "SELECT * FROM generateRandom('\
-      \a1 Int64, \
-      \a2 String, \
-      \a3 DateTime, \
-      \a4 UUID, \
-      \a5 Int32, \
-      \a6 Nullable(String), \
-      \a7 String \
+      \a1 Int64 \
       \', 1, 10, 2) LIMIT " <> (string8 . show) totalRows)
       (\records -> pure $!! [length records])
   print result
@@ -70,12 +64,6 @@ main = do
 
 data ExampleData = MkExampleData
   { a1 :: ChInt64
-  , a2 :: StrictByteString
-  , a3 :: Word32
-  , a4 :: ChUUID
-  , a5 :: Int32
-  , a6 :: Nullable ChString
-  , a7 :: ChString
   }
   deriving (Generic, Show, NFData)
   deriving anyclass (ReadableFrom (Columns ExampleColumns), WritableInto (Table "oneBillionStream" ExampleColumns))
@@ -83,10 +71,4 @@ data ExampleData = MkExampleData
 
 type ExampleColumns =
  '[ Column "a1" ChInt64
-  , Column "a2" ChString
-  , Column "a3" ChDateTime
-  , Column "a4" ChUUID
-  , Column "a5" ChInt32
-  , Column "a6" (Nullable ChString)
-  , Column "a7" ChString
   ]
