@@ -67,11 +67,6 @@ main = do
       @ExampleColumns
       @ExampleData
       connection
-      {- FIXME:
-      \a2 LowCardinality(String), \
-      \a6 LowCardinality(Nullable(String)), \
-      \a7 LowCardinality(String)\
-      -}
       (toChType $
       "SELECT * FROM generateRandom('\
       \a1 Int64, \
