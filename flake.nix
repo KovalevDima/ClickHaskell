@@ -75,7 +75,7 @@
         in {
           imports = [inputs.services-flake.processComposeModules.default];
           services.clickhouse."profiler-db" = wrapDefaultClickHouse [
-            (extractSqlFromMarkdown ./documentation/example-writing.lhs)
+            (extractSqlFromMarkdown ./profiling/Profiler.hs)
           ];
           settings.processes.profiling = {
             command = "${self'.apps.${programName}.program}";
