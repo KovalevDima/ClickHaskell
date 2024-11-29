@@ -8,6 +8,24 @@
   , TypeApplications
 #-}
 
+{-
+```sql
+CREATE TABLE profiler
+(
+    `a1` Int64,
+    `a2` String,
+    `a3` DateTime,
+    `a4` UUID,
+    `a5` Int32,
+    `a6` Nullable(String),
+    `a7` String
+)
+ENGINE = MergeTree
+PARTITION BY ()
+ORDER BY ();
+```
+-}
+
 module Profiler (main) where
 
 import ClickHaskell
@@ -49,23 +67,21 @@ main = do
       @ExampleColumns
       @ExampleData
       connection
-      {- FIXME:
-      \a2 LowCardinality(String), \
-      \a6 LowCardinality(Nullable(String)), \
-      \a7 LowCardinality(String)\
-      -}
       (toChType $
       "SELECT * FROM generateRandom('\
       \a1 Int64, \
+      \a2 String, \
       \a3 DateTime, \
       \a4 UUID, \
-      \a5 Int32 \
+      \a5 Int32, \
+      \a6 Nullable(String), \
+      \a7 String\
       \', 1, 10, 2) LIMIT " <> (string8 . show) totalRows)
 
   threadDelay 1_000_000
   traceMarkerIO "Starting writing"
   insertInto
-    @(Table "exampleWriteRead" ExampleColumns)
+    @(Table "profiler" ExampleColumns)
     connection
     selectedData
 
@@ -76,27 +92,23 @@ main = do
 
 data ExampleData = MkExampleData
   { a1 :: ChInt64
-  {- FIXME:
   , a2 :: StrictByteString
-  , a6 :: Nullable ChString
-  , a7 :: ChString
-  -}
   , a3 :: Word32
   , a4 :: ChUUID
   , a5 :: Int32
+  , a6 :: Nullable ChString
+  , a7 :: ChString
   }
   deriving (Generic, Show)
-  deriving anyclass (ReadableFrom (Columns ExampleColumns), WritableInto (Table "exampleWriteRead" ExampleColumns))
+  deriving anyclass (ReadableFrom (Columns ExampleColumns), WritableInto (Table "profiler" ExampleColumns))
 
 
 type ExampleColumns =
  '[ Column "a1" ChInt64
-  {- FIXME:
-  , Column "a2" (LowCardinality ChString)
-  , Column "a6" (LowCardinality (Nullable ChString))
-  , Column "a7" (LowCardinality ChString)
-  -}
+  , Column "a2" ChString
   , Column "a3" ChDateTime
   , Column "a4" ChUUID
   , Column "a5" ChInt32
+  , Column "a6" (Nullable ChString)
+  , Column "a7" ChString
   ]
