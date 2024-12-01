@@ -28,26 +28,22 @@ ORDER BY ();
 
 module Profiler (main) where
 
-import ClickHaskell
 -- Internal
+import ClickHaskell
 import ClickHaskell.DbTypes
   ( toChType
   , ChUUID, ChDateTime, ChInt32, ChInt64, ChString
-  , LowCardinality, Nullable
+  , Nullable
   )
 
 -- GHC included
-import Control.Concurrent (forkIO, killThread, threadDelay)
-import Control.Monad (forever, replicateM_)
+import Control.Concurrent (threadDelay)
 import Data.ByteString (StrictByteString)
 import Data.ByteString.Builder (string8)
-import Data.IORef (atomicModifyIORef, newIORef)
-import Data.Int (Int32, Int64)
-import Data.Word (Word32, Word64)
+import Data.Int (Int32)
+import Data.Word (Word32)
 import Debug.Trace (traceMarkerIO)
-import GHC.Conc (atomically, newTVarIO, readTVarIO)
 import GHC.Generics (Generic)
-import GHC.Natural (Natural)
 
 
 main :: IO ()
@@ -56,7 +52,7 @@ main = do
   let credentials = MkChCredential "default" "" "" "localhost" "9000"
   connection <- openNativeConnection credentials
 
-  let totalRows = 1_000_000
+  let totalRows = 1_000_000 :: Integer
 
   threadDelay 250_000
   traceMarkerIO "Push data"
@@ -68,15 +64,16 @@ main = do
       @ExampleData
       connection
       (toChType $
-      "SELECT * FROM generateRandom('\
-      \a1 Int64, \
-      \a2 String, \
-      \a3 DateTime, \
-      \a4 UUID, \
-      \a5 Int32, \
-      \a6 Nullable(String), \
-      \a7 String\
-      \', 1, 10, 2) LIMIT " <> (string8 . show) totalRows)
+        "SELECT * FROM generateRandom('\
+        \a1 Int64, \
+        \a2 String, \
+        \a3 DateTime, \
+        \a4 UUID, \
+        \a5 Int32, \
+        \a6 Nullable(String), \
+        \a7 String\
+        \', 1, 10, 2) LIMIT " <> (string8 . show) totalRows
+      )
 
   threadDelay 1_000_000
   traceMarkerIO "Starting writing"
@@ -100,7 +97,10 @@ data ExampleData = MkExampleData
   , a7 :: ChString
   }
   deriving (Generic, Show)
-  deriving anyclass (ReadableFrom (Columns ExampleColumns), WritableInto (Table "profiler" ExampleColumns))
+  deriving anyclass
+    ( ReadableFrom (Columns ExampleColumns)
+    , WritableInto (Table "profiler" ExampleColumns)
+    )
 
 
 type ExampleColumns =

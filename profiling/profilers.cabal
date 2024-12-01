@@ -18,19 +18,8 @@ source-repository head
   location: https://github.com/KovalevDima/ClickHaskell
   subdir: dev
 
-Flag dev
-  Description: Dump core
-  Manual: True
-  Default: False
-
-executable profiler
-  main-is: Profiler.hs
-  hs-source-dirs: ./
+common dump-core
   ghc-options:
-    -O2
-    -threaded
-    -main-is Profiler
-    -- * Dump core
     -ddump-to-file
     -ddump-simpl
     -dsuppress-type-applications
@@ -43,9 +32,23 @@ executable profiler
     -ddump-simpl-stats
     -ddump-rule-firings
 
+Flag dev
+  Description: Dump core
+  Manual: True
+  Default: False
+
+executable profiler
+  main-is: Profiler.hs
+  hs-source-dirs: ./
+  ghc-options:
+    -O2
+    -threaded
+    -main-is Profiler
+    -Wall -Wunused-packages
   ghc-prof-options:
     -fprof-late
     -rtsopts "-with-rtsopts=-s -A32m -AL256m -p -hy -L250 -l-agu -N1"
+  import: dump-core
 
   build-depends:
     -- Internal
@@ -54,6 +57,25 @@ executable profiler
     -- GHC included
     , base
     , bytestring
-    , stm
-    , time
-    , template-haskell
+
+executable one-billion-stream
+  main-is: OneBillionStream.hs
+  hs-source-dirs: ./
+  ghc-options:
+    -O2
+    -threaded
+    -main-is OneBillionStream
+    -Wall -Wunused-packages
+  ghc-prof-options:
+    -fprof-late
+    -rtsopts "-with-rtsopts=-s -A8m -AL256m -p -hy -L250 -l-agu -N1"
+  import: dump-core
+
+  build-depends:
+    -- Internal
+      ClickHaskell
+
+    -- GHC included
+    , base
+    , bytestring
+    , deepseq
