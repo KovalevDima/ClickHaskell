@@ -89,9 +89,9 @@ main = do
 
 data ExampleData = MkExampleData
   { a1 :: ChInt64
-  , a2 :: StrictByteString
   , a3 :: Word32
   , a4 :: ChUUID
+  , a2 :: StrictByteString
   , a5 :: Int32
   , a6 :: Nullable ChString
   , a7 :: ChString
