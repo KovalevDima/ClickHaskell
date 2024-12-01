@@ -42,4 +42,4 @@ You can also setup [direnv]() to automatically enter the shell \
 when you enter the project directory in `terminal` or `VSCode` ([via extention](https://marketplace.visualstudio.com/items?itemName=mkhl.direnv))
 
 # What next?
-Read [routines](/documentation/developer/routines.html)
+Read [routines](/development/routines.html)

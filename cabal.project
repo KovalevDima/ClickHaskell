@@ -1,5 +1,3 @@
 packages:
-    ./library
-    ./documentation
-    ./testing
-    ./profiling
+    ./distribution
+    ./QA

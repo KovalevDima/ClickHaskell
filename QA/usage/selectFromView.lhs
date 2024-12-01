@@ -22,6 +22,8 @@ To perform a SELECT from such view you can use this snippet
   , OverloadedStrings
 #-}
 
+module ReadingView where
+
 import ClickHaskell
   ( ReadableFrom, selectFromView, Column
   , ChCredential(..)

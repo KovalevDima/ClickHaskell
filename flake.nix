@@ -51,10 +51,10 @@
         process-compose."default" = {
           imports = [inputs.services-flake.processComposeModules.default];
           services.clickhouse."dev-database" = wrapDefaultClickHouse [
-            (extractSqlFromMarkdown ./documentation/user/example-view-reading.lhs)
-            (extractSqlFromMarkdown ./documentation/user/example-writing.lhs)
-            (extractSqlFromMarkdown ./testing/T2WriteReadEquality.hs)
-            (extractSqlFromMarkdown ./profiling/Profiler.hs)
+            (extractSqlFromMarkdown ./QA/usage/example-view-reading.lhs)
+            (extractSqlFromMarkdown ./QA/usage/example-writing.lhs)
+            (extractSqlFromMarkdown ./QA/profiling/Simple.hs)
+            (extractSqlFromMarkdown ./QA/testing/T2WriteReadEquality.hs)
           ];
         };
         # Testing wrapper
@@ -67,40 +67,40 @@
             depends_on.testing-db.condition = "process_healthy";
           };
           services.clickhouse."testing-db" = wrapDefaultClickHouse [
-            (extractSqlFromMarkdown ./testing/T2WriteReadEquality.hs)
+            (extractSqlFromMarkdown ./QA/testing/T2WriteReadEquality.hs)
           ];
         };
         # Profiling wrapper
         process-compose."profiling" = let
-          programName = "profiler";
+          programName = "prof-simple";
         in {
           imports = [inputs.services-flake.processComposeModules.default];
-          services.clickhouse."profiler-db" = wrapDefaultClickHouse [
-            (extractSqlFromMarkdown ./profiling/Profiler.hs)
+          services.clickhouse."${programName}-db" = wrapDefaultClickHouse [
+            (extractSqlFromMarkdown ./QA/profiling/Simple.hs)
           ];
-          settings.processes.profiling = {
+          settings.processes.${programName} = {
             command = "${self'.apps.${programName}.program}";
-            depends_on.profiler-db.condition = "process_healthy";
+            depends_on."${programName}-db".condition = "process_healthy";
           };
           settings.processes.dump-artifacts = {
             command = "${lib.getExe' pkgs.haskellPackages.eventlog2html "eventlog2html"} ./${programName}.eventlog";
             # availability.exit_on_end = true;
-            depends_on.profiling.condition = "process_completed_successfully";
+            depends_on.${programName}.condition = "process_completed_successfully";
           };
         };
         process-compose."one-billion-streaming" = let
-          programName = "one-billion-stream";
+          programName = "prof-1bil-stream";
         in {
           imports = [inputs.services-flake.processComposeModules.default];
-          services.clickhouse."one-billion-streaming-db" = wrapDefaultClickHouse [];
-          settings.processes.profiling = {
+          services.clickhouse."${programName}-db" = wrapDefaultClickHouse [];
+          settings.processes.${programName} = {
             command = "${self'.apps.${programName}.program}";
-            depends_on.one-billion-streaming-db.condition = "process_healthy";
+            depends_on."${programName}-db".condition = "process_healthy";
           };
           settings.processes.dump-artifacts = {
             command = "${lib.getExe' pkgs.haskellPackages.eventlog2html "eventlog2html"} ./${programName}.eventlog";
             # availability.exit_on_end = true;
-            depends_on.profiling.condition = "process_completed_successfully";
+            depends_on.${programName}.condition = "process_completed_successfully";
           };
         };
         # ClickHaskell project itself with Haskell env
@@ -135,7 +135,7 @@
           src = pkgs.nix-gitignore.gitignoreSourcePure [] ./.;
 
           buildPhase = ''
-            ${lib.getExe' self'.packages.documentation-compiler "documentation-compiler"} build --verbose
+            ${lib.getExe' self'.packages.QA "documentation-compiler"} build --verbose
           '';
 
           installPhase = ''
