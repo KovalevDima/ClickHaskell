@@ -129,8 +129,8 @@
           ];
         };
         # Build documnetation
-        packages."documentation-dist" = pkgs.stdenv.mkDerivation {
-          name = "documentation-dist";
+        packages."documentation" = pkgs.stdenv.mkDerivation {
+          name = "documentation";
           buildInputs = [];
           src = pkgs.nix-gitignore.gitignoreSourcePure [] ./.;
 

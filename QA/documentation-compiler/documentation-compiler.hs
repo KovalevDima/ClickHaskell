@@ -19,8 +19,8 @@ main = do
       route (constRoute "index.html")
       compile $
         pandocCompiler
-          >>= loadAndApplyTemplate "compiler/tmpl-code.html" defaultContext
-          >>= loadAndApplyTemplate "compiler/tmpl-main.html" defaultContext
+          >>= loadAndApplyTemplate "documentation-compiler/tmpl-code.html" defaultContext
+          >>= loadAndApplyTemplate "documentation-compiler/tmpl-main.html" defaultContext
           >>= relativizeUrls
 
     match
@@ -31,8 +31,8 @@ main = do
         route (setExtension "html")
         compile $
           pandocCompiler
-            >>= loadAndApplyTemplate "compiler/tmpl-code.html" defaultContext
-            >>= loadAndApplyTemplate "compiler/tmpl-main.html" defaultContext
+            >>= loadAndApplyTemplate "documentation-compiler/tmpl-code.html" defaultContext
+            >>= loadAndApplyTemplate "documentation-compiler/tmpl-main.html" defaultContext
             >>= relativizeUrls
       )
 
@@ -41,8 +41,8 @@ main = do
       route $ customRoute ((</> "index.html") . takeDirectory . toFilePath)
       compile $
         pandocCompiler
-          >>= loadAndApplyTemplate "compiler/tmpl-code.html" defaultContext
-          >>= loadAndApplyTemplate "compiler/tmpl-main.html" defaultContext
+          >>= loadAndApplyTemplate "documentation-compiler/tmpl-code.html" defaultContext
+          >>= loadAndApplyTemplate "documentation-compiler/tmpl-main.html" defaultContext
           >>= relativizeUrls
 
-    match "compiler/tmpl-*" $ compile templateCompiler
+    match "documentation-compiler/tmpl-*" $ compile templateCompiler
