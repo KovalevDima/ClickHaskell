@@ -44,7 +44,7 @@ jobs:
             isChangedDocs:
               - 'documentation/**'
             isChangedClickHaskell:
-              - 'library/**'
+              - 'distribution/**'
 
       - name: Build ClickHaskell-dist
         if: steps.srcChanges.outputs.isChangedClickHaskell == 'true'

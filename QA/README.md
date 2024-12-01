@@ -2,11 +2,10 @@
 title: Documentation
 ---
 
-Want to contribute to library?\
-Follow [developer](/documentation/developer.html) documentation
+Want to contribute to library?
 
-Want to use library?\
-Follow [user](/documentation/user.html) documentation
+- [development](/development)
+- [usage](/usage)
 
 # Design
 

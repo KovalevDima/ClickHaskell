@@ -26,7 +26,7 @@ ORDER BY ();
 ```
 -}
 
-module Profiler (main) where
+module Simple (main) where
 
 -- Internal
 import ClickHaskell
