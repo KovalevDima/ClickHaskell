@@ -86,6 +86,15 @@ data ChCredential = MkChCredential
   , chPort     :: ServiceName
   }
 
+defaultCredentials :: ChCredential
+defaultCredentials = MkChCredential
+  { chLogin    = "default"
+  , chPass     = ""
+  , chHost     = "localhost"
+  , chDatabase = "default"
+  , chPort     = "9000"
+  }
+
 data Connection = MkConnection
   { sock       :: Socket
   , user       :: ChString
@@ -137,15 +146,6 @@ openNativeConnection MkChCredential{chHost, chPort, chLogin, chPass, chDatabase}
         }
     Exception exception -> throwIO (DatabaseException exception)
     otherPacket         -> throwIO (ProtocolImplementationError $ UnexpectedPacketType otherPacket)
-
-defaultCredentials :: ChCredential
-defaultCredentials = MkChCredential
-  { chLogin    = "default"
-  , chPass     = ""
-  , chHost     = "localhost"
-  , chDatabase = "default"
-  , chPort     = "9000"
-  }
 
 
 -- * Ping
