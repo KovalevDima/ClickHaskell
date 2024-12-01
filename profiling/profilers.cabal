@@ -18,6 +18,20 @@ source-repository head
   location: https://github.com/KovalevDima/ClickHaskell
   subdir: dev
 
+common dump-core
+  ghc-options:
+    -ddump-to-file
+    -ddump-simpl
+    -dsuppress-type-applications
+    -dsuppress-coercions
+    -dsuppress-idinfo
+    -dsuppress-type-signatures
+    -dsuppress-var-kinds
+    -dsuppress-module-prefixes
+    -dsuppress-uniques
+    -ddump-simpl-stats
+    -ddump-rule-firings
+
 Flag dev
   Description: Dump core
   Manual: True
@@ -30,22 +44,11 @@ executable profiler
     -O2
     -threaded
     -main-is Profiler
-    -- * Dump core
-    -ddump-to-file
-    -ddump-simpl
-    -dsuppress-type-applications
-    -dsuppress-coercions
-    -dsuppress-idinfo
-    -dsuppress-type-signatures
-    -dsuppress-var-kinds
-    -dsuppress-module-prefixes
-    -dsuppress-uniques
-    -ddump-simpl-stats
-    -ddump-rule-firings
-
+    -Wall -Wunused-packages
   ghc-prof-options:
     -fprof-late
     -rtsopts "-with-rtsopts=-s -A32m -AL256m -p -hy -L250 -l-agu -N1"
+  import: dump-core
 
   build-depends:
     -- Internal
@@ -54,10 +57,6 @@ executable profiler
     -- GHC included
     , base
     , bytestring
-    , deepseq
-    , stm
-    , time
-    , template-haskell
 
 executable one-billion-stream
   main-is: OneBillionStream.hs
@@ -66,22 +65,11 @@ executable one-billion-stream
     -O2
     -threaded
     -main-is OneBillionStream
-    -- * Dump core
-    -ddump-to-file
-    -ddump-simpl
-    -dsuppress-type-applications
-    -dsuppress-coercions
-    -dsuppress-idinfo
-    -dsuppress-type-signatures
-    -dsuppress-var-kinds
-    -dsuppress-module-prefixes
-    -dsuppress-uniques
-    -ddump-simpl-stats
-    -ddump-rule-firings
-
+    -Wall -Wunused-packages
   ghc-prof-options:
     -fprof-late
     -rtsopts "-with-rtsopts=-s -A8m -AL256m -p -hy -L250 -l-agu -N1"
+  import: dump-core
 
   build-depends:
     -- Internal
@@ -91,6 +79,3 @@ executable one-billion-stream
     , base
     , bytestring
     , deepseq
-    , stm
-    , time
-    , template-haskell

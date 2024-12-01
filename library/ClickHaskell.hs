@@ -16,16 +16,20 @@ module ClickHaskell
 
   -- * Reading and writing
   , Table
-  , Columns, Column, KnownColumn(..), DeserializableColumn
+  , Columns, Column, KnownColumn(..), DeserializableColumn(..)
 
   -- ** Reading
   , ReadableFrom(..)
+  -- *** Simple
   , select
   , selectFrom
-  , selectFromView
+  , selectFromView, View, parameter, Parameter
+  -- *** Streaming
   , streamSelect
   , streamSelectFrom
-  , View, parameter, Parameter
+  , streamSelectFromView
+  -- *** Internal
+  , handleSelect
 
   -- ** Writing
   , WritableInto(..)
@@ -45,12 +49,17 @@ import ClickHaskell.NativeProtocol
   , ServerPacketType(..), HelloResponse(..), ExceptionPacket, latestSupportedRevision
   )
 import ClickHaskell.Versioning (ProtocolRevision)
-import ClickHaskell.Columns (HasColumns (..), WritableInto (..), ReadableFrom (..), DeserializableColumns (..), Columns, Column, KnownColumn(..), DeserializableColumn)
+import ClickHaskell.Columns
+  ( HasColumns (..), WritableInto (..), ReadableFrom (..)
+  , Columns, DeserializableColumns (..)
+  , Column, DeserializableColumn(..), KnownColumn(..)
+  )
 import ClickHaskell.Parameters (Parameter, parameter, parameters, Parameters, CheckParameters)
 import ClickHaskell.DeSerialization (Serializable(..), Deserializable(..))
 
 -- GHC included
 import Control.Exception (Exception, SomeException, bracketOnError, catch, finally, throwIO)
+import Control.DeepSeq (NFData, (<$!!>))
 import Data.Binary.Get (Decoder (..), Get, runGetIncremental)
 import Data.ByteString.Builder (byteString, toLazyByteString)
 import Data.ByteString.Char8 as BS8 (fromStrict, pack)
@@ -157,6 +166,8 @@ instance HasColumns (Table name columns) where
 
 -- ** Selecting
 
+-- *** Simple
+
 selectFrom ::
   forall table record name columns
   .
@@ -176,7 +187,6 @@ selectFrom conn@MkConnection{sock, user, revision} = do
     )
   handleSelect @table conn emptyBuffer pure
 
-
 select ::
   forall columns record
   .
@@ -189,7 +199,6 @@ select conn@MkConnection{sock, user, revision} query = do
     <> serialize revision (mkDataPacket "" 0 0)
     )
   handleSelect @(Columns columns) conn emptyBuffer pure
-
 
 instance HasColumns (View name columns parameters) where
   type GetColumns (View _ columns _) = columns
@@ -215,12 +224,15 @@ selectFromView conn@MkConnection{..} interpreter = do
     )
   handleSelect @view conn emptyBuffer pure
 
+-- *** Streaming
+
 streamSelectFrom ::
   forall table record name columns a
   .
   ( table ~ Table name columns
   , KnownSymbol name
   , ReadableFrom table record
+  , NFData a
   )
   =>
   Connection -> ([record] -> IO [a]) -> IO [a]
@@ -232,12 +244,13 @@ streamSelectFrom conn@MkConnection{sock, user, revision} f = do
     (  serialize revision (mkQueryPacket revision user (toChType query))
     <> serialize revision (mkDataPacket "" 0 0)
     )
-  handleSelect @table conn emptyBuffer f
+  let f' x = id <$!!> f x
+  handleSelect @table conn emptyBuffer f'
 
 streamSelect ::
   forall columns record a
   .
-  ReadableFrom (Columns columns) record
+  (ReadableFrom (Columns columns) record, NFData a)
   =>
   Connection -> ChString -> ([record] -> IO [a]) -> IO [a]
 streamSelect conn@MkConnection{sock, user, revision} query f = do
@@ -245,8 +258,31 @@ streamSelect conn@MkConnection{sock, user, revision} query f = do
     (  serialize revision (mkQueryPacket revision user query)
     <> serialize revision (mkDataPacket "" 0 0)
     )
-  handleSelect @(Columns columns) conn emptyBuffer f
+  let f' x = id <$!!> f x
+  handleSelect @(Columns columns) conn emptyBuffer f'
 
+streamSelectFromView ::
+  forall view record name columns parameters passedParameters a
+  .
+  ( ReadableFrom view record
+  , KnownSymbol name
+  , view ~ View name columns parameters
+  , NFData a
+  , CheckParameters parameters passedParameters
+  )
+  => Connection -> (Parameters '[] -> Parameters passedParameters) -> ([record] -> IO [a]) -> IO [a]
+streamSelectFromView conn@MkConnection{..} interpreter f = do
+  let query =
+        "SELECT " <> readingColumns @view @record <>
+        " FROM " <> (byteString . BS8.pack . symbolVal @name) Proxy <> parameters interpreter
+  (sendAll sock . toLazyByteString)
+    (  serialize revision (mkQueryPacket revision user (toChType query))
+    <> serialize revision (mkDataPacket "" 0 0)
+    )
+  let f' x = id <$!!> f x
+  handleSelect @view conn emptyBuffer f'
+
+-- *** Internal
 
 handleSelect ::
   forall hasColumns record a

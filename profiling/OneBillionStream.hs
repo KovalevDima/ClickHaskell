@@ -10,36 +10,28 @@
 
 module OneBillionStream (main) where
 
-import ClickHaskell
 -- Internal
+import ClickHaskell
 import ClickHaskell.DbTypes
   ( toChType
-  , ChUUID, ChDateTime, ChInt32, ChInt64, ChString
-  , LowCardinality, Nullable
+  , ChInt64
   )
 
 -- GHC included
-import Control.Concurrent (forkIO, killThread, threadDelay)
-import Control.Monad (forever, replicateM_)
-import Data.ByteString (StrictByteString)
+import Control.Concurrent (threadDelay)
 import Data.ByteString.Builder (string8)
-import Data.IORef (atomicModifyIORef, newIORef)
-import Data.Int (Int32, Int64)
-import Data.Word (Word32, Word64)
 import Debug.Trace (traceMarkerIO)
-import GHC.Conc (atomically, newTVarIO, readTVarIO)
 import GHC.Generics (Generic)
-import GHC.Natural (Natural)
-import Control.DeepSeq (($!!), NFData)
+import Control.DeepSeq (NFData)
 
 
 main :: IO ()
 main = do
-  traceMarkerIO "Initialization"  
+  traceMarkerIO "Initialization" 
   let credentials = MkChCredential "default" "" "" "localhost" "9000"
   connection <- openNativeConnection credentials
 
-  let totalRows = 1_000_000_000
+  let totalRows = 1_000_000_000 :: Integer
 
   threadDelay 250_000
   traceMarkerIO "Push data"
@@ -51,11 +43,12 @@ main = do
       @ExampleData
       connection
       (toChType $
-      "SELECT * FROM generateRandom('\
-      \a1 Int64 \
-      \', 1, 10, 2) LIMIT " <> (string8 . show) totalRows)
-      (\records -> pure $!! [length records])
-  print result
+        "SELECT * FROM generateRandom('\
+        \a1 Int64 \
+        \', 1, 10, 2) LIMIT " <> (string8 . show) totalRows
+      )
+      (\records -> pure [length records])
+  print $ sum result
 
   traceMarkerIO "Completion"
   print $ "Processing done. " <> show totalRows <> " rows was processed"
@@ -66,7 +59,7 @@ data ExampleData = MkExampleData
   { a1 :: ChInt64
   }
   deriving (Generic, Show, NFData)
-  deriving anyclass (ReadableFrom (Columns ExampleColumns), WritableInto (Table "oneBillionStream" ExampleColumns))
+  deriving anyclass (ReadableFrom (Columns ExampleColumns))
 
 
 type ExampleColumns =
