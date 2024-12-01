@@ -10,9 +10,8 @@
 module ClickHaskell
   (
   -- * Connection
-    ChCredential(..)
-  , Connection(..)
-  , openNativeConnection
+    ChCredential(..), defaultCredentials
+  , Connection(..), openNativeConnection
 
   -- * Reading and writing
   , Table
@@ -139,7 +138,14 @@ openNativeConnection MkChCredential{chHost, chPort, chLogin, chPass, chDatabase}
     Exception exception -> throwIO (DatabaseException exception)
     otherPacket         -> throwIO (ProtocolImplementationError $ UnexpectedPacketType otherPacket)
 
-
+defaultCredentials :: ChCredential
+defaultCredentials = MkChCredential
+  { chLogin    = "default"
+  , chPass     = ""
+  , chHost     = "localhost"
+  , chDatabase = "default"
+  , chPort     = "9000"
+  }
 
 
 -- * Ping
