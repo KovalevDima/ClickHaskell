@@ -390,13 +390,12 @@ instance
 
 instance
   ( KnownColumn (Column name chType)
-  , GReadable '[Column name chType] (S1 sel rec)
+  , GReadable '[Column name chType] (S1 (MetaSel (Just name) a b f) rec)
   , GReadable restColumns right
+  , '(Column name chType, restColumns) ~ TakeColumn name columns
   )
   =>
-  GReadable
-    (Column name chType ': restColumns)
-    (S1 sel rec :*: right)
+  GReadable columns (S1 (MetaSel (Just name) a b f) rec :*: right)
   where
   {-# INLINE gFromColumns #-}
   gFromColumns rev size = do
