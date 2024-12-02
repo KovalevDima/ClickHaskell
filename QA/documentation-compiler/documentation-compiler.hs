@@ -4,17 +4,11 @@
 import Data.List (stripPrefix)
 import Data.Maybe (fromMaybe)
 import GHC.IO.Encoding as Encoding (setLocaleEncoding, utf8)
+import System.FilePath ( (</>), takeDirectory )
 import Hakyll
-import System.FilePath
-import Debug.Trace (traceShowWith, traceShowId)
-import Text.Pandoc.Extensions
-import Text.Pandoc (ReaderOptions(readerExtensions))
-
-runDir :: FilePath
-runDir = "QA"
 
 configuration :: Configuration
-configuration = defaultConfiguration{providerDirectory=runDir}
+configuration = defaultConfiguration{providerDirectory="QA"}
 
 main :: IO ()
 main = do
