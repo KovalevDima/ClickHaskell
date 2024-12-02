@@ -1,7 +1,4 @@
----
-title: Writing
----
-
+<h1>insertInto</h1>
 
 Lets imagine we want insert data into table
 

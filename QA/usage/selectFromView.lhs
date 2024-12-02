@@ -1,6 +1,5 @@
----
-title: Reading from view
----
+<h1>selectFromView</h1>
+
 
 Lets imagine we have database with parametrized view `exampleParametrizedView`
 
