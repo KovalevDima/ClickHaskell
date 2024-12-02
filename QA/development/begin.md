@@ -1,6 +1,4 @@
----
-title: Begin
----
+# Setup Nix
 
 ClickHaskell contributors using `Nix` package manager to setup everything we need for development without Docker
 

@@ -1,4 +1,4 @@
-{-#LANGUAGE
+{-# LANGUAGE
     DataKinds
   , AllowAmbiguousTypes
   , DeriveGeneric
@@ -12,7 +12,7 @@
 #-}
 
 module T2WriteReadEquality
-  ( writeReadEqualityTest
+  ( t2
   ) where
 
 -- Internal
@@ -39,8 +39,8 @@ import Data.Int           (Int16, Int32, Int64, Int8)
 import Data.Word          (Word16, Word32, Word64, Word8)
 import GHC.Generics       (Generic)
 
-writeReadEqualityTest :: Connection -> IO ()
-writeReadEqualityTest connection = do
+t2 :: Connection -> IO ()
+t2 connection = do
   insertInto
     @TestTable
     @TestData

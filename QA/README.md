@@ -1,11 +1,10 @@
----
-title: Documentation
----
+# Documentation
 
 Want to contribute to library?
 
 - [development](/development)
 - [usage](/usage)
+- [testing](/testing)
 
 # Design
 
@@ -24,8 +23,8 @@ Table              <--    Record
 ...              decoder  ...        
 └nameN : TypeN     -->    └nameM : TypeM
 ```
-we can construct a decoders/encoders for server/client\
-packets with data
+we can construct queries and decoders/encoders \
+for server/client packets with data
 
 Also we can construct queries like
 ```sql

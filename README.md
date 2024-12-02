@@ -1,1 +1,1 @@
-./QA/README.md
+./distribution/README.md
