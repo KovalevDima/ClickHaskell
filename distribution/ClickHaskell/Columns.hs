@@ -1,7 +1,6 @@
 {-# LANGUAGE
     ConstraintKinds
   , OverloadedStrings
-  , TemplateHaskell
   , TypeFamilyDependencies
   , TupleSections
   , LambdaCase
