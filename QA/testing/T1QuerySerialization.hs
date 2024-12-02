@@ -13,7 +13,7 @@
 #-}
 
 module T1QuerySerialization
-  ( querySerializationTest
+  ( t1
   ) where
 
 -- Internal
@@ -39,8 +39,8 @@ import GHC.Generics (Generic)
 import GHC.TypeLits (KnownSymbol, symbolVal)
 
 
-querySerializationTest :: Connection -> IO ()
-querySerializationTest conn = do
+t1 :: Connection -> IO ()
+t1 conn = do
   runTestForType @ChInt8 conn [minBound, toEnum 0, maxBound]
   runTestForType @ChInt16 conn [minBound, toEnum 0, maxBound]
   runTestForType @ChInt32 conn [minBound, toEnum 0, maxBound]

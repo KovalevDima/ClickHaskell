@@ -36,25 +36,26 @@ executable documentation-compiler
     , bytestring
     , filepath
     , time
+    , pandoc
   ghc-options: -threaded
 
 -- * Testing
 
 executable tests
-  main-is: IntegrationTests.hs
+  main-is: README.lhs
   hs-source-dirs: testing
-  ghc-options: -O2 -threaded -rtsopts -main-is IntegrationTests
+  ghc-options:
+    -O2 -threaded -rtsopts
+    -main-is Tests
+    -pgmL markdown-unlit
   build-depends:
-    -- Internal
       ClickHaskell
-
-    -- GHC included
     , base >=4.7 && <5
     , bytestring
-
   other-modules:
-      T1QuerySerialization
-      T2WriteReadEquality
+    T1QuerySerialization
+    T2WriteReadEquality
+  build-tool-depends: markdown-unlit:markdown-unlit
   default-language: Haskell2010
 
 

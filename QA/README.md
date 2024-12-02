@@ -6,6 +6,7 @@ Want to contribute to library?
 
 - [development](/development)
 - [usage](/usage)
+- [testing](/testing)
 
 # Design
 

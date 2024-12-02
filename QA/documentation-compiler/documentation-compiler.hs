@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 
 import Data.List (stripPrefix)
 import Data.Maybe (fromMaybe)
@@ -6,9 +7,14 @@ import GHC.IO.Encoding as Encoding (setLocaleEncoding, utf8)
 import Hakyll
 import System.FilePath
 import Debug.Trace (traceShowWith, traceShowId)
+import Text.Pandoc.Extensions
+import Text.Pandoc (ReaderOptions(readerExtensions))
+
+runDir :: FilePath
+runDir = "QA"
 
 configuration :: Configuration
-configuration = defaultConfiguration{providerDirectory = "QA"}
+configuration = defaultConfiguration{providerDirectory=runDir}
 
 main :: IO ()
 main = do
@@ -23,10 +29,11 @@ main = do
           >>= loadAndApplyTemplate "documentation-compiler/tmpl-main.html" defaultContext
           >>= relativizeUrls
 
+    let indexFilePattern    = "**/README.md" .||. "**/README.lhs"
+        nonIndexFilePattern = "**.lhs" .||. "**.md"
+
     match
-      (    ("**.lhs" .||. "**.md")
-      .&&. complement "**/README.md"
-      )
+      (nonIndexFilePattern .&&. complement indexFilePattern)
       (do
         route (setExtension "html")
         compile $
@@ -36,7 +43,7 @@ main = do
             >>= relativizeUrls
       )
 
-    match "**/README.md"
+    match indexFilePattern
       $ do
       route $ customRoute ((</> "index.html") . takeDirectory . toFilePath)
       compile $

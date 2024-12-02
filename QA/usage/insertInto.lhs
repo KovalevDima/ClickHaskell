@@ -2,6 +2,7 @@
 title: Writing
 ---
 
+
 Lets imagine we want insert data into table
 
 ```sql
