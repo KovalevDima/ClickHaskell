@@ -2,7 +2,6 @@
     DuplicateRecordFields
   , OverloadedStrings
   , RecordWildCards
-  , TemplateHaskell
 #-}
 
 module ClickHaskell.NativeProtocol where
@@ -17,10 +16,10 @@ import Paths_ClickHaskell (version)
 import Control.Monad (replicateM)
 import Data.Text (Text)
 import Data.Typeable (Proxy (..))
-import Data.Version (Version (..), showVersion)
-import Language.Haskell.TH.Syntax (lift)
+import Data.Version (Version (..))
 import GHC.Generics (Generic)
 import GHC.TypeLits (KnownNat, natVal)
+import Data.String (IsString(..))
 
 -- * Compatibility
 
@@ -432,9 +431,13 @@ data TableColumns = MkTableColumns
 -- * Versioning
 
 clientMajorVersion, clientMinorVersion, clientPatchVersion :: UVarInt
-clientMajorVersion = fromIntegral $(lift (versionBranch version !! 0))
-clientMinorVersion = fromIntegral $(lift (versionBranch version !! 1))
-clientPatchVersion = fromIntegral $(lift (versionBranch version !! 2))
+clientMajorVersion = case versionBranch version of (x:_) -> fromIntegral x; _ -> 0
+clientMinorVersion = case versionBranch version of (_:x:_) -> fromIntegral x; _ -> 0
+clientPatchVersion = case versionBranch version of (_:_:x:_) -> fromIntegral x; _ -> 0
 
 clientNameAndVersion :: ChString
-clientNameAndVersion = $(lift ("ClickHaskell-" <> showVersion version))
+clientNameAndVersion = fromString $
+  "ClickHaskell-"
+  <> show clientMajorVersion <> "."
+  <> show clientMinorVersion <> "."
+  <> show clientPatchVersion <> "." 

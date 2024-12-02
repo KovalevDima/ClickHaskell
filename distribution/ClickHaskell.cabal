@@ -93,7 +93,6 @@ Library
     , text < 2.2
     , time < 1.13
     , vector < 0.14
-    , template-haskell < 2.22
 
     -- External dependencies
     , network
