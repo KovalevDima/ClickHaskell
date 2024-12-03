@@ -1,11 +1,13 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
 
 import Data.List (stripPrefix)
 import Data.Maybe (fromMaybe)
 import GHC.IO.Encoding as Encoding (setLocaleEncoding, utf8)
-import System.FilePath ( (</>), takeDirectory )
+import System.FilePath ((</>), takeDirectory, takeFileName, replaceExtensions, replaceExtension)
 import Hakyll
+import Hakyll.Core.Compiler.Internal
+import Debug.Trace (traceShowId)
+import Control.Monad ((<$!>))
 
 configuration :: Configuration
 configuration = defaultConfiguration{providerDirectory="QA"}
@@ -15,35 +17,27 @@ main = do
   Encoding.setLocaleEncoding Encoding.utf8
 
   hakyllWith configuration $ do
-    match "./README.md" $ do
-      route (constRoute "index.html")
-      compile $
-        pandocCompiler
-          >>= loadAndApplyTemplate "documentation-compiler/tmpl-code.html" defaultContext
-          >>= loadAndApplyTemplate "documentation-compiler/tmpl-main.html" defaultContext
-          >>= relativizeUrls
-
-    let indexFilePattern    = "**/README.md" .||. "**/README.lhs"
-        nonIndexFilePattern = "**.lhs" .||. "**.md"
-
-    match
-      (nonIndexFilePattern .&&. complement indexFilePattern)
-      (do
-        route (setExtension "html")
-        compile $
-          pandocCompiler
-            >>= loadAndApplyTemplate "documentation-compiler/tmpl-code.html" defaultContext
-            >>= loadAndApplyTemplate "documentation-compiler/tmpl-main.html" defaultContext
-            >>= relativizeUrls
-      )
-
-    match indexFilePattern
-      $ do
-      route $ customRoute ((</> "index.html") . takeDirectory . toFilePath)
-      compile $
-        pandocCompiler
-          >>= loadAndApplyTemplate "documentation-compiler/tmpl-code.html" defaultContext
-          >>= loadAndApplyTemplate "documentation-compiler/tmpl-main.html" defaultContext
-          >>= relativizeUrls
 
     match "documentation-compiler/tmpl-*" $ compile templateCompiler
+
+    let pattern = ("**.lhs" .||. "**.md")
+
+    match pattern $ do
+      let 
+        filePathToUrlPath =
+          (\filePath ->
+            case takeFileName filePath of
+              "README.html" -> takeDirectory filePath </> "index.html"
+              _ -> filePath
+          )
+
+      route (customRoute $ filePathToUrlPath . toFilePath)
+      compile $ do
+        navigation <-
+          map (filePathToUrlPath . (`replaceExtension` "html") . toFilePath)
+          <$> getMatches pattern
+
+        pandocCompiler
+          >>= loadAndApplyTemplate "documentation-compiler/tmpl-code.html" defaultContext
+          >>= loadAndApplyTemplate "documentation-compiler/tmpl-main.html" defaultContext
+          >>= relativizeUrls
