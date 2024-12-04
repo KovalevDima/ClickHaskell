@@ -30,7 +30,7 @@
 
 <body>
     <style type="text/css">
-        nav {
+        header {
             padding: 4px 8px;
             align-items: center;
             display: flex;
@@ -42,7 +42,7 @@
         };
         ol li p {margin: 0;}
     </style>
-    <nav>
+    <header>
             <a href="https://github.com/KovalevDima/ClickHaskell">
                 <svg width="36px" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
                     <g fill="rgb(240, 246, 252)">
@@ -54,6 +54,13 @@
         <div>
             <a style="font-size:24px; color: rgb(240, 246, 252); text-decoration: none;" href="/">ClickHaskell</a>
         </div>
+    </header>
+    <nav>
+        <ul>
+        $for(nav)$
+            <li><a href="$link$">$link$</a></li>
+        $endfor$
+        </ul>
     </nav>
     <main role="main">
         $body$
