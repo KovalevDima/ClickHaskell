@@ -1,4 +1,8 @@
+
+```haskell
 {-# LANGUAGE OverloadedStrings #-}
+
+module DocumentationCompiler where
 
 import GHC.IO.Encoding as Encoding (setLocaleEncoding, utf8)
 import System.FilePath ((</>), takeFileName, replaceExtension, takeBaseName, normalise, dropFileName, replaceFileName)
@@ -40,3 +44,4 @@ data NavigationLink = MkNavigationLink { link :: FilePath }
 
 mkNavigationCtx :: [Item NavigationLink] -> Context String
 mkNavigationCtx navigation = listField "nav" (mconcat [field "link" (pure . link . itemBody)]) (pure navigation)
+```
