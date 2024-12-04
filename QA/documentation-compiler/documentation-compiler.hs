@@ -1,13 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-import Data.List (stripPrefix)
-import Data.Maybe (fromMaybe)
 import GHC.IO.Encoding as Encoding (setLocaleEncoding, utf8)
-import System.FilePath ((</>), takeDirectory, takeFileName, replaceExtensions, replaceExtension)
+import System.FilePath ((</>), takeFileName, replaceExtension, takeBaseName, normalise, dropFileName, replaceFileName)
 import Hakyll
-import Hakyll.Core.Compiler.Internal
-import Debug.Trace (traceShowId)
-import Control.Monad ((<$!>))
 
 configuration :: Configuration
 configuration = defaultConfiguration{providerDirectory="QA"}
@@ -23,21 +18,28 @@ main = do
     let pattern = ("**.lhs" .||. "**.md")
 
     match pattern $ do
-      let 
-        filePathToUrlPath =
-          (\filePath ->
-            case takeFileName filePath of
-              "README.html" -> takeDirectory filePath </> "index.html"
-              _ -> filePath
-          )
+      let
+        filePathToUrlPath filePath =
+          case takeBaseName filePath of
+            "README" -> replaceFileName filePath "index.html"
+            _        -> replaceExtension filePath "html" 
+
+        trailIndexHtml path
+          | takeFileName path == "index.html" = dropFileName path
+          | otherwise                         = path
 
       route (customRoute $ filePathToUrlPath . toFilePath)
       compile $ do
         navigation <-
-          map (filePathToUrlPath . (`replaceExtension` "html") . toFilePath)
-          <$> getMatches pattern
+          traverse (makeItem . MkNavigationLink . normalise . ("/" </>) . trailIndexHtml . filePathToUrlPath . toFilePath)
+            =<< getMatches pattern
 
         pandocCompiler
           >>= loadAndApplyTemplate "documentation-compiler/tmpl-code.html" defaultContext
-          >>= loadAndApplyTemplate "documentation-compiler/tmpl-main.html" defaultContext
+          >>= loadAndApplyTemplate "documentation-compiler/tmpl-main.html" (defaultContext <> listField "nav" mkLinkCtx (pure navigation))
           >>= relativizeUrls
+
+data NavigationLink = MkNavigationLink { link :: FilePath }
+
+mkLinkCtx :: Context NavigationLink
+mkLinkCtx = mconcat [field "link" (pure . link . itemBody)]

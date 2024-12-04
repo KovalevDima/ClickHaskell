@@ -37,7 +37,7 @@ executable documentation-compiler
     , filepath
     , time
     , pandoc
-  ghc-options: -threaded
+  ghc-options: -threaded -Wall
 
 -- * Testing
 

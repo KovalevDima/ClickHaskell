@@ -1,11 +1,3 @@
-# Documentation
-
-Want to contribute to library?
-
-- [development](/development)
-- [usage](/usage)
-- [testing](/testing)
-
 # Design
 
 ClickHaskell was designed to **avoid boilerplate** code\
