@@ -5,11 +5,11 @@ name:               QA
 version:            0.0.0.1
 build-type:         Simple
 license:            BSD-3-Clause
-license-file:       documentation-compiler/LICENSE
+license-file:       documentation/LICENSE
 
 data-files:
   usage/*.lhs
-  ./documentation-compiler/*.html
+  ./documentation/*.html
   README.md
 
 common dump-core
@@ -29,7 +29,7 @@ common dump-core
 executable documentation-compiler
   default-language: GHC2021
   hs-source-dirs: .
-  main-is: documentation-compiler/documentation-compiler.hs
+  main-is: documentation/documentation-compiler.hs
   build-depends:
       base
     , hakyll

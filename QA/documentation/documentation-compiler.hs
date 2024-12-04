@@ -4,16 +4,13 @@ import GHC.IO.Encoding as Encoding (setLocaleEncoding, utf8)
 import System.FilePath ((</>), takeFileName, replaceExtension, takeBaseName, normalise, dropFileName, replaceFileName)
 import Hakyll
 
-configuration :: Configuration
-configuration = defaultConfiguration{providerDirectory="QA"}
-
 main :: IO ()
 main = do
   Encoding.setLocaleEncoding Encoding.utf8
 
-  hakyllWith configuration $ do
+  hakyllWith defaultConfiguration{providerDirectory="QA"} $ do
 
-    match "documentation-compiler/tmpl-*" $ compile templateCompiler
+    match "documentation/tmpl-*" $ compile templateCompiler
 
     let pattern = ("**.lhs" .||. "**.md")
 
@@ -35,11 +32,11 @@ main = do
             =<< getMatches pattern
 
         pandocCompiler
-          >>= loadAndApplyTemplate "documentation-compiler/tmpl-code.html" defaultContext
-          >>= loadAndApplyTemplate "documentation-compiler/tmpl-main.html" (defaultContext <> listField "nav" mkLinkCtx (pure navigation))
+          >>= loadAndApplyTemplate "documentation/tmpl-code.html" defaultContext
+          >>= loadAndApplyTemplate "documentation/tmpl-main.html" (defaultContext <> mkNavigationCtx navigation)
           >>= relativizeUrls
 
 data NavigationLink = MkNavigationLink { link :: FilePath }
 
-mkLinkCtx :: Context NavigationLink
-mkLinkCtx = mconcat [field "link" (pure . link . itemBody)]
+mkNavigationCtx :: [Item NavigationLink] -> Context String
+mkNavigationCtx navigation = listField "nav" (mconcat [field "link" (pure . link . itemBody)]) (pure navigation)
