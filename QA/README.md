@@ -1,3 +1,9 @@
+# ClickHaskell
+
+Haskell implementation of [ClickHouse](https://clickhouse.com/) DBMS Native protocol and client
+
+Surf across [Home page](https://kovalevdima.github.io/ClickHaskell/) to learn everything you need
+
 # Design
 
 ClickHaskell was designed to **avoid boilerplate** code\
