@@ -23,7 +23,7 @@ nix build .#documentation
 module DocumentationCompiler where
 
 import GHC.IO.Encoding as Encoding (setLocaleEncoding, utf8)
-import System.FilePath ((</>), replaceExtension, takeBaseName, normalise, dropFileName, replaceFileName)
+import System.FilePath ((</>), replaceExtension, takeBaseName, normalise, dropFileName, replaceFileName, dropExtension)
 import Hakyll
 
 main :: IO ()
@@ -70,7 +70,7 @@ mkNavigationCtx navigation =
     "nav"
     (mconcat
       [ field "link"     (pure . itemBody)
-      , field "linkName" (pure . itemBody)
+      , field "linkName" (pure . dropExtension . itemBody)
       ]
     )
     (pure navigation)
