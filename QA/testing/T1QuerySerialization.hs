@@ -29,7 +29,6 @@ import ClickHaskell.DbTypes
   , ChInt8, ChInt16, ChInt32, ChInt64
   , ChString, ChArray
   )
-import ClickHaskell.DeSerialization (Deserializable)
 
 -- GHC included
 import Control.Monad (void, when)
