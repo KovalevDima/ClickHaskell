@@ -8,8 +8,7 @@ module ClickHaskell.NativeProtocol where
 
 -- Internal dependencies
 import ClickHaskell.DbTypes
-import ClickHaskell.DeSerialization (Serializable(..), Deserializable(..))
-import ClickHaskell.Versioning
+import ClickHaskell.DeSerialization
 import Paths_ClickHaskell (version)
 
 -- GHC included
