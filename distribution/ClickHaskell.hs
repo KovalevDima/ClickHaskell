@@ -47,14 +47,13 @@ import ClickHaskell.NativeProtocol
   , mkQueryPacket
   , ServerPacketType(..), HelloResponse(..), ExceptionPacket, latestSupportedRevision
   )
-import ClickHaskell.Versioning (ProtocolRevision)
 import ClickHaskell.Columns
   ( HasColumns (..), WritableInto (..), ReadableFrom (..)
   , Columns, DeserializableColumns (..)
   , Column, DeserializableColumn(..), KnownColumn(..)
   )
 import ClickHaskell.Parameters (Parameter, parameter, parameters, Parameters, CheckParameters)
-import ClickHaskell.DeSerialization (Serializable(..), Deserializable(..))
+import ClickHaskell.DeSerialization (Serializable(..), Deserializable(..), ProtocolRevision)
 
 -- GHC included
 import Control.Exception (Exception, SomeException, bracketOnError, catch, finally, throwIO)

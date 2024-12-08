@@ -14,8 +14,7 @@ module ClickHaskell.Columns where
 
 -- Internal dependencies
 import ClickHaskell.DbTypes
-import ClickHaskell.DeSerialization (Serializable (..), Deserializable(..))
-import ClickHaskell.Versioning (ProtocolRevision, SinceRevision, DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION, afterRevision)
+import ClickHaskell.DeSerialization
 
 -- GHC included
 import Control.Monad (forM, replicateM)
