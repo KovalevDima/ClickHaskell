@@ -67,6 +67,7 @@ executable tests
 -- * API
 
 executable insertInto
+  import: dump-core
   default-language: GHC2021
   main-is: usage/insertInto.lhs
   build-depends:
@@ -78,9 +79,9 @@ executable insertInto
     -main-is Writing
     -Wall
   build-tool-depends: markdown-unlit:markdown-unlit
-  import: dump-core
 
 executable selectFromView
+  import: dump-core
   default-language: GHC2021
   main-is: usage/selectFromView.lhs
   build-depends:
@@ -91,12 +92,12 @@ executable selectFromView
     -main-is ReadingView
     -Wall
   build-tool-depends: markdown-unlit:markdown-unlit
-  import: dump-core
 
 
 -- * Profiling
 
 executable prof-simple
+  import: dump-core
   main-is: Simple.hs
   hs-source-dirs: profiling
   ghc-options:
@@ -110,9 +111,9 @@ executable prof-simple
       ClickHaskell
     , base
     , bytestring
-  import: dump-core
 
 executable prof-1bil-stream
+  import: dump-core
   main-is: OneBillionStream.hs
   hs-source-dirs: profiling
   ghc-options:
@@ -127,4 +128,3 @@ executable prof-1bil-stream
     , base
     , bytestring
     , deepseq
-  import: dump-core
