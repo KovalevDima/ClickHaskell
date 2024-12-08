@@ -66,9 +66,9 @@ main = do
       (toChType $
         "SELECT * FROM generateRandom('\
         \a1 Int64, \
-        \a2 String, \
         \a3 DateTime, \
         \a4 UUID, \
+        \a2 String, \
         \a5 Int32, \
         \a6 Nullable(String), \
         \a7 String\

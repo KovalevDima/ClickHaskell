@@ -51,8 +51,8 @@
         process-compose."default" = {
           imports = [inputs.services-flake.processComposeModules.default];
           services.clickhouse."dev-database" = wrapDefaultClickHouse [
-            (extractSqlFromMarkdown ./QA/usage/example-view-reading.lhs)
-            (extractSqlFromMarkdown ./QA/usage/example-writing.lhs)
+            (extractSqlFromMarkdown ./QA/usage/insertInto.lhs)
+            (extractSqlFromMarkdown ./QA/usage/selectFromView.lhs)
             (extractSqlFromMarkdown ./QA/profiling/Simple.hs)
             (extractSqlFromMarkdown ./QA/testing/T2WriteReadEquality.hs)
           ];
@@ -111,7 +111,7 @@
               libraryProfiling = true;
               haddock = true;
             };
-            profilers = {
+            QA = {
               executableProfiling = true;
               libraryProfiling = true;
             };
