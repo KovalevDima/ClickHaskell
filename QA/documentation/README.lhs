@@ -23,7 +23,10 @@ nix build .#documentation
 module DocumentationCompiler where
 
 import GHC.IO.Encoding as Encoding (setLocaleEncoding, utf8)
-import System.FilePath ((</>), replaceExtension, takeBaseName, normalise, dropFileName, replaceFileName, dropExtension)
+import System.FilePath
+  ( (</>), normalise, dropFileName, dropExtension
+  , replaceExtension, takeBaseName, replaceFileName
+  )
 import Hakyll
 
 main :: IO ()
@@ -60,8 +63,10 @@ main = do
 
         -- compile every file
         pandocCompiler
-          >>= loadAndApplyTemplate "documentation/tmpl-code.html" defaultContext
-          >>= loadAndApplyTemplate "documentation/tmpl-main.html" (defaultContext <> mkNavigationCtx navigation)
+          >>=
+            loadAndApplyTemplate
+              "documentation/tmpl-main.html"
+              (defaultContext <> mkNavigationCtx navigation)
           >>= relativizeUrls
 
 mkNavigationCtx :: [Item FilePath] -> Context String
