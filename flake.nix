@@ -115,6 +115,7 @@
               executableProfiling = true;
               libraryProfiling = true;
             };
+            stan = { super, ...}: { custom = null; };
           };
           devShell.tools = hp: {
             inherit (hp) eventlog2html graphmod cabal-plan;
