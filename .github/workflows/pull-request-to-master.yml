@@ -6,8 +6,10 @@ on:
 
 jobs:
   handle-pull-request-to-master:
-    runs-on: ubuntu-latest
-
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Fetch repo
         uses: actions/checkout@v4
