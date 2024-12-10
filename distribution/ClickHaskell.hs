@@ -364,16 +364,15 @@ rawBufferizedRead :: Buffer -> Get packet -> Socket -> Int64 -> IO (packet, Buff
 rawBufferizedRead buffer parser sock bufSize = runBufferReader (recv sock bufSize) buffer (runGetIncremental parser)
 
 runBufferReader :: IO LazyByteString -> Buffer -> Decoder packet -> IO (packet, Buffer)
-runBufferReader bufferFiller buffer = do
-  \case
-    (Partial decoder) -> case buffer of
-      BL.Chunk bs mChunk -> runBufferReader bufferFiller mChunk (decoder $ Just bs)
-      BL.Empty ->
-        bufferFiller >>= \case
-          BL.Chunk bs mChunk -> runBufferReader bufferFiller mChunk (decoder $ Just bs)
-          BL.Empty -> throwIO (DeserializationError "Expected more bytes while reading packet")
-    (Done !leftover _consumed !packet) -> pure (packet, fromStrict leftover)
-    (Fail _leftover _consumed msg) -> throwIO (DeserializationError msg)
+runBufferReader bufferFiller buffer = \case
+  (Partial decoder) -> case buffer of
+    BL.Chunk bs mChunk -> runBufferReader bufferFiller mChunk (decoder $ Just bs)
+    BL.Empty ->
+      bufferFiller >>= \case
+        BL.Chunk bs mChunk -> runBufferReader bufferFiller mChunk (decoder $ Just bs)
+        BL.Empty -> throwIO (DeserializationError "Expected more bytes while reading packet")
+  (Done !leftover _consumed !packet) -> pure (packet, fromStrict leftover)
+  (Fail _leftover _consumed msg) -> throwIO (DeserializationError msg)
 
 
 
