@@ -51,6 +51,7 @@ import Data.Vector.Primitive.Mutable (Prim)
 import Data.Word (Word16, Word32, Word64, Word8)
 import GHC.Generics
 import GHC.TypeLits (AppendSymbol, ErrorMessage (..), KnownSymbol, Symbol, TypeError, symbolVal)
+import Data.Char (intToDigit)
 
 
 class
@@ -251,6 +252,32 @@ instance FromChType ChUUID (Word64, Word64) where fromChType (MkChUUID (Word128 
 
 
 
+instance ToQueryPart ChUUID where
+  -- The main function to create the query part string
+  toQueryPart :: ChUUID -> Builder
+  toQueryPart (MkChUUID w128) =  "'" <> (byteString . BS8.pack $ hexw0 w0 $ hexw1 w1 "") <> "'"
+    where
+      hexw0 :: Word64 -> String -> String
+      hexw0 w s =     hexn w 60 : hexn w 56 : hexn w 52 : hexn w 48
+                    : hexn w 44 : hexn w 40 : hexn w 36 : hexn w 32
+                    : '-' : hexn w 28 : hexn w 24 : hexn w 20 : hexn w 16
+                    : '-' : hexn w 12 : hexn w  8 : hexn w  8 : hexn w  0
+                    : s
+
+      hexw1 :: Word64 -> String -> String
+      hexw1 w s =     '-' : hexn w 60 : hexn w 56 : hexn w 52 : hexn w 48
+                    : '-' : hexn w 44 : hexn w 40 : hexn w 36 : hexn w 32
+                    : hexn w 28 : hexn w 24 : hexn w 20 : hexn w 16
+                    : hexn w 12 : hexn w  8 : hexn w  4 : hexn w  0
+                    : s
+
+      hexn :: Word64 -> Int -> Char
+      hexn w r = intToDigit $ fromIntegral ((w `shiftR` r) .&. 0xf)
+
+      (w0,w1) = toWords128 (MkChUUID w128)
+
+      toWords128 :: ChUUID -> (Word64, Word64)
+      toWords128 (MkChUUID (Word128 w64hi w64lo)) = (w64hi, w64lo)
 
 -- | ClickHouse String column type
 newtype ChString = MkChString StrictByteString

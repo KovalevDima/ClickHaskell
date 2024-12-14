@@ -27,7 +27,7 @@ import ClickHaskell.DbTypes
   , ToQueryPart(..)
   , ChUInt8, ChUInt16, ChUInt32, ChUInt64
   , ChInt8, ChInt16, ChInt32, ChInt64
-  , ChString, ChArray
+  , ChString, ChArray, ChUUID
   )
 
 -- GHC included
@@ -48,7 +48,7 @@ t1 conn = do
   runTestForType @ChUInt16 conn [minBound, toEnum 0, maxBound]
   runTestForType @ChUInt32 conn [minBound, toEnum 0, maxBound]
   runTestForType @ChUInt64 conn [minBound, toEnum 0, maxBound]
-  -- ToDo: querySerializationTest @ChUUID connection [minBound, toEnum 0, maxBound]
+  runTestForType @ChUUID conn [minBound, toEnum 0, maxBound]
   runTestForType @ChString conn (map (toChType . BS.singleton) [1..255])
   -- ToDo: querySerializationTest @(LowCardinality ChString) connection (map (toChType . BS.singleton) [0..255])
   -- ToDo: querySerializationTest @(ChArray ChString) connection [toChType $ map BS.singleton [0..255]]
