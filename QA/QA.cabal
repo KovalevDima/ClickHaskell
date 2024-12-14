@@ -14,8 +14,12 @@ data-files:
 
 common dump-core
   ghc-options:
+    -dlint
     -ddump-to-file
     -ddump-simpl
+    -ddump-spec
+    -ddump-simpl-stats
+    -ddump-rule-firings
     -dsuppress-type-applications
     -dsuppress-coercions
     -dsuppress-idinfo
@@ -23,8 +27,6 @@ common dump-core
     -dsuppress-var-kinds
     -dsuppress-module-prefixes
     -dsuppress-uniques
-    -ddump-simpl-stats
-    -ddump-rule-firings
 
 executable documentation-compiler
   default-language: GHC2021
