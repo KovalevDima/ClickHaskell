@@ -15,109 +15,56 @@ import Data.ByteString.Char8   as BS8 (pack)
 import Data.Data               (Proxy (Proxy))
 import Data.Kind               (Type, Constraint)
 import GHC.TypeLits            (TypeError, ErrorMessage (..), Symbol, KnownSymbol, symbolVal)
-import Data.Type.Bool          (If)
-import Data.Type.Equality      (type(==))
 
-data Parameter (name :: Symbol) (chType :: Type)
+type family KnownParameter param
+  where
+  KnownParameter (Parameter name parType) = (KnownSymbol name, ToQueryPart parType)
 
--- |
--- >>> parameters (parameter @"a3" @ChString ("a3Val" :: String) . parameter @"a2" @ChString ("a2Val" :: String))
--- "(a2='a2Val', a3='a3Val')"
-parameters :: forall (params :: [Type]) . (Parameters '[] -> Parameters params) -> Builder
-parameters interpreter = renderParameters $ interpreter (MkParametersInterpreter [])
+data Parameter (name :: Symbol) (chType :: Type) = MkParamater chType
+
+data Parameters parameters where
+  NoParameters :: Parameters '[]
+  AddParameter
+    :: KnownParameter (Parameter name chType)
+    => Parameter name chType
+    -> Parameters parameters
+    -> Parameters (Parameter name chType ': parameters)
+
+-- >>> import ClickHaskell.DbTypes
+{- |
+>>> parameters (parameter @"a3" @ChString ("a3Val" :: String) . parameter @"a2" @ChString ("a2Val" :: String))
+"(a3='a3Val', a2='a2Val')"
+-}
+parameters :: (Parameters '[] -> Parameters passedParameters) -> Builder
+parameters interpreter = "(" <> renderParameters (interpreter NoParameters) <> ")"
+
+renderParameters :: Parameters params -> Builder
+renderParameters NoParameters                      = ""
+renderParameters (AddParameter param NoParameters) = renderParameter param
+renderParameters (AddParameter param moreParams)   = renderParameter param <> ", " <> renderParameters moreParams
+
 
 parameter
   :: forall name chType parameters userType
-  . (InterpretableParameters parameters, ToChType chType userType, KnownSymbol name, ToQueryPart chType)
-  => userType -> Parameters parameters -> WithPassedParameter (Parameter name chType) parameters
-parameter = interpretParameter . toChType
+  . (ToChType chType userType, KnownParameter (Parameter name chType))
+  => userType -> Parameters parameters -> Parameters (Parameter name chType ': parameters)
+parameter val = AddParameter (MkParamater $ toChType val)
 
-renderParameters :: Parameters parameters -> Builder
-renderParameters (MkParametersInterpreter (param:ps)) = "(" <> foldr (\p1 p2 -> p1 <> ", " <> p2) param ps <> ")"
-renderParameters (MkParametersInterpreter [])         = ""
+renderParameter :: forall name chType . KnownParameter (Parameter name chType) => Parameter name chType -> Builder
+renderParameter (MkParamater chType) = (BS.byteString . BS8.pack . symbolVal @name) Proxy <> "=" <> toQueryPart chType
 
-
-{-# DEPRECATED ParametersInterpreter "This type would be removed in next major release. Use Parameters instead" #-}
-type ParametersInterpreter a = Parameters a
-
-newtype Parameters (parameters :: [Type]) =
-  MkParametersInterpreter
-    { evaluatedParameters :: [Builder]
-    }
-
-class InterpretableParameters (ps :: [Type]) where
-  type WithPassedParameter p ps = withPassedParameter | withPassedParameter -> ps p
-  interpretParameter
-    :: forall name chType
-    . (KnownSymbol name, ToQueryPart chType)
-    => chType -> (Parameters ps -> WithPassedParameter (Parameter name chType) ps)
-
-instance InterpretableParameters '[]
+type family CheckParameters (required :: [Type]) (passed :: [Type]) :: Constraint
   where
-  type WithPassedParameter p '[] = Parameters '[p]
-  interpretParameter
-    :: forall name chType
-    . (KnownSymbol name, ToQueryPart chType)
-    => chType -> Parameters '[] -> WithPassedParameter (Parameter name chType) '[]
-  interpretParameter userType _ = MkParametersInterpreter [renderParameter @name @chType userType]
+  CheckParameters required passed = GoCheckParameters required passed '[] 
 
-instance InterpretableParameters (x ': xs)
+type family GoCheckParameters required passed acc :: Constraint
   where
-  type WithPassedParameter p (x ': xs) = Parameters (p ': (x ': xs))
-  interpretParameter
-    :: forall name chType
-    . (KnownSymbol name, ToQueryPart chType)
-    => chType -> Parameters (x : xs) -> WithPassedParameter (Parameter name chType) (x : xs)
-  interpretParameter chType (MkParametersInterpreter{evaluatedParameters}) =
-    MkParametersInterpreter $ renderParameter @name @chType chType : evaluatedParameters
-
-renderParameter :: forall name chType . (KnownSymbol name, ToQueryPart chType) => chType -> Builder
-renderParameter chType = (BS.byteString . BS8.pack . symbolVal @name) Proxy <> "=" <> toQueryPart chType
-
-type family CheckParameters
-  (tableFunctionParams :: [Type])
-  (passedParams :: [Type])
-  :: Constraint
-  where
-  CheckParameters tfs ps = (CheckDuplicates ps, GoCheckParameters tfs ps '[] True)
-
-type family CheckDuplicates
-  (passedParams :: [Type])
-  :: Constraint
-  where
-  CheckDuplicates '[] = ()
-  CheckDuplicates (p ': ps) = (CheckParamDuplicates p ps, CheckDuplicates ps)
-
-type family CheckParamDuplicates
-  (param :: Type)
-  (passedParams :: [Type])
-  :: Constraint
-  where
-  CheckParamDuplicates _ '[] = ()
-  CheckParamDuplicates (Parameter name1 chType) (Parameter name2 _ ': ps) = If
-    (name1 == name2)
-    (TypeError ('Text "Duplicated parameter \"" :<>: 'Text name1 :<>: 'Text "\" in passed parameters"))
-    (CheckParamDuplicates (Parameter name1 chType) ps)
-
-type family GoCheckParameters
-  (tableFunctionParams :: [Type])
-  (passedParams :: [Type])
-  (acc :: [Type])
-  (firstRound :: Bool)
-  :: Constraint
-  where
-  GoCheckParameters '[] '[] '[] _ = ()
-  GoCheckParameters (Parameter name _ ': _) '[] '[] _ = TypeError
-    ('Text "Missing  \"" :<>: 'Text name :<>: 'Text "\" in passed parameters.")
-  GoCheckParameters '[] (p ': _) _ _ =
-    TypeError ('Text "More parameters passed than used in the view")
-  GoCheckParameters '[] '[] (p ': _) _ =
-    TypeError ('Text "More parameters passed than used in the view")
-  GoCheckParameters (Parameter name1 _ ': ps) '[] (Parameter name2 _ ': ps') False =
-    TypeError ('Text "Missing  \"" :<>: 'Text name1 :<>: 'Text "\" in passed parameters")
-  GoCheckParameters (p ': ps) '[] (p' ': ps') True =
-    GoCheckParameters (p ': ps) (p' ': ps') '[] False
-  GoCheckParameters (Parameter name1 _ ': ps) (Parameter name1 _ ': ps') acc b =
-    (GoCheckParameters ps ps' acc True)
-  GoCheckParameters (Parameter name1 chType1 ': ps) (Parameter name2 chType2 ': ps') acc b =
-    (GoCheckParameters (Parameter name1 chType1 ': ps) ps' (Parameter name2 chType2 ': acc) b)
+  GoCheckParameters '[] '[] '[] = ()
+  GoCheckParameters (Parameter name _ ': _) '[] '[] = TypeError ('Text "Missing parameter \"" :<>: 'Text name :<>: 'Text "\".")
+  GoCheckParameters '[] (p ': _) _ = TypeError ('Text "More parameters passed than used in the view")
+  GoCheckParameters '[] '[] (p ': _) = TypeError ('Text "More parameters passed than used in the view")
+  GoCheckParameters (Parameter name1 _ ': ps) '[] (Parameter name2 _ ': ps') = TypeError ('Text "Missing  \"" :<>: 'Text name1 :<>: 'Text "\" in passed parameters")
+  GoCheckParameters (p ': ps) '[] (p' ': ps') = GoCheckParameters (p ': ps) (p' ': ps') '[]
+  GoCheckParameters (Parameter name1 _ ': ps) (Parameter name1 _ ': ps') acc = (GoCheckParameters ps ps' acc)
+  GoCheckParameters (Parameter name1 chType1 ': ps) (Parameter name2 chType2 ': ps') acc
+    = (GoCheckParameters (Parameter name1 chType1 ': ps) ps' (Parameter name2 chType2 ': acc))
