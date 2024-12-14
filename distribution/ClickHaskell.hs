@@ -49,8 +49,8 @@ import ClickHaskell.NativeProtocol
   , HasColumns (..), WritableInto (..), ReadableFrom (..)
   , Columns, DeserializableColumns (..), Column, DeserializableColumn(..), KnownColumn(..)
   , Serializable(..), Deserializable(..), ProtocolRevision
+  , Parameter, parameter, Parameters, CheckParameters, viewParameters
   )
-import ClickHaskell.Parameters (Parameter, parameter, parameters, Parameters, CheckParameters)
 
 -- GHC included
 import Control.Exception (Exception, SomeException, bracketOnError, catch, finally, throwIO)
@@ -219,7 +219,7 @@ selectFromView ::
 selectFromView conn@MkConnection{..} interpreter = do
   let query =
         "SELECT " <> readingColumns @view @record <>
-        " FROM " <> (byteString . BS8.pack . symbolVal @name) Proxy <> parameters interpreter
+        " FROM " <> (byteString . BS8.pack . symbolVal @name) Proxy <> viewParameters interpreter
   (sendAll sock . toLazyByteString)
     (  serialize revision (mkQueryPacket revision user (toChType query))
     <> serialize revision (mkDataPacket "" 0 0)
@@ -276,7 +276,7 @@ streamSelectFromView ::
 streamSelectFromView conn@MkConnection{..} interpreter f = do
   let query =
         "SELECT " <> readingColumns @view @record <>
-        " FROM " <> (byteString . BS8.pack . symbolVal @name) Proxy <> parameters interpreter
+        " FROM " <> (byteString . BS8.pack . symbolVal @name) Proxy <> viewParameters interpreter
   (sendAll sock . toLazyByteString)
     (  serialize revision (mkQueryPacket revision user (toChType query))
     <> serialize revision (mkDataPacket "" 0 0)
