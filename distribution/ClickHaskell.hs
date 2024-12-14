@@ -46,14 +46,11 @@ import ClickHaskell.NativeProtocol
   , mkPingPacket
   , mkQueryPacket
   , ServerPacketType(..), HelloResponse(..), ExceptionPacket, latestSupportedRevision
-  )
-import ClickHaskell.Columns
-  ( HasColumns (..), WritableInto (..), ReadableFrom (..)
-  , Columns, DeserializableColumns (..)
-  , Column, DeserializableColumn(..), KnownColumn(..)
+  , HasColumns (..), WritableInto (..), ReadableFrom (..)
+  , Columns, DeserializableColumns (..), Column, DeserializableColumn(..), KnownColumn(..)
+  , Serializable(..), Deserializable(..), ProtocolRevision
   )
 import ClickHaskell.Parameters (Parameter, parameter, parameters, Parameters, CheckParameters)
-import ClickHaskell.DeSerialization (Serializable(..), Deserializable(..), ProtocolRevision)
 
 -- GHC included
 import Control.Exception (Exception, SomeException, bracketOnError, catch, finally, throwIO)
@@ -150,10 +147,10 @@ openNativeConnection MkChCredential{chHost, chPort, chLogin, chPass, chDatabase}
 -- * Ping
 
 ping :: HasCallStack => Connection -> IO ()
-ping conn@MkConnection{sock, revision} = do
+ping MkConnection{sock, revision, bufferSize} = do
   (sendAll sock . toLazyByteString)
     (serialize revision mkPingPacket)
-  (responsePacket, _) <- continueReadDeserializable conn emptyBuffer
+  (responsePacket, _) <- rawBufferizedRead emptyBuffer (deserialize revision) sock bufferSize
   case responsePacket of
     Pong                -> pure ()
     Exception exception -> throwIO (DatabaseException exception)
@@ -295,17 +292,14 @@ handleSelect ::
   ReadableFrom hasColumns record
   =>
   Connection -> Buffer -> ([record] -> IO [a])  -> IO [a]
-handleSelect conn previousBuffer f = do
-  (packet, buffer) <- continueReadDeserializable @ServerPacketType conn previousBuffer
+handleSelect conn@MkConnection{..} previousBuffer f = do
+  (packet, buffer) <- rawBufferizedRead previousBuffer (deserialize revision) sock bufferSize  
   case packet of
     DataResponse MkDataPacket{columns_count, rows_count} -> do
       case (columns_count, rows_count) of
         (0, 0) -> handleSelect @hasColumns conn buffer f
-        (_, 0) -> do
-          (_, nextBuffer) <- continueReadColumns @hasColumns @record conn buffer 0
-          handleSelect @hasColumns conn nextBuffer f
         (_, rows) -> do
-          (columns, nextBuffer) <- continueReadColumns @hasColumns conn buffer rows
+          (columns, nextBuffer) <- rawBufferizedRead buffer (deserializeColumns @hasColumns revision rows) sock bufferSize
           processedColumns <- f columns
           (processedColumns ++) <$> handleSelect @hasColumns conn nextBuffer f 
     Progress          _ -> handleSelect @hasColumns conn buffer f
@@ -337,11 +331,12 @@ insertInto conn@MkConnection{sock, user, revision} columnsData = do
 
 handleInsertResult :: forall columns record . WritableInto columns record => Connection -> Buffer -> [record] -> IO ()
 handleInsertResult conn@MkConnection{..} buffer records = do
-  (firstPacket, buffer1) <- continueReadDeserializable @ServerPacketType conn buffer
+  (firstPacket, buffer1) <- rawBufferizedRead buffer (deserialize revision) sock bufferSize
   case firstPacket of
     TableColumns      _ -> handleInsertResult @columns conn buffer1 records
-    DataResponse packet -> do
-      (_emptyDataPacket, buffer2) <- continueReadRawColumns @(Columns (GetColumns columns)) conn buffer1 (rows_count packet)
+    DataResponse (MkDataPacket{rows_count}) -> do
+      (_emptyDataPacket, buffer2)
+        <- rawBufferizedRead buffer1 (deserializeRawColumns @(Columns (GetColumns columns)) revision rows_count) sock bufferSize
       (sendAll sock . toLazyByteString)
         (  serialize revision (mkDataPacket "" (columnsCount @columns @record) (fromIntegral $ length records))
         <> serializeRecords @columns revision (fromIntegral $ length records) records
@@ -355,18 +350,7 @@ handleInsertResult conn@MkConnection{..} buffer records = do
 
 
 
--- * Reading
-
-continueReadDeserializable :: Deserializable packet => Connection -> Buffer -> IO (packet, Buffer)
-continueReadDeserializable MkConnection{..} buffer = rawBufferizedRead buffer (deserialize revision) sock bufferSize
-
-continueReadColumns :: forall columns record . ReadableFrom columns record => Connection -> Buffer -> UVarInt -> IO ([record], Buffer)
-continueReadColumns MkConnection{..} buffer rows = rawBufferizedRead buffer (deserializeColumns @columns revision rows) sock bufferSize
-
-continueReadRawColumns :: forall columns . DeserializableColumns columns => Connection -> Buffer -> UVarInt -> IO (columns, Buffer)
-continueReadRawColumns MkConnection{..} buffer rows = rawBufferizedRead buffer (deserializeRawColumns @columns revision rows) sock bufferSize
-
--- ** Bufferization
+-- * Bufferization
 
 type Buffer = LazyByteString
 
@@ -374,17 +358,18 @@ emptyBuffer :: Buffer
 emptyBuffer = BL.Empty
 
 rawBufferizedRead :: Buffer -> Get packet -> Socket -> Int64 -> IO (packet, Buffer)
-rawBufferizedRead buffer parser sock bufSize = runBufferReader (recv sock bufSize) (runGetIncremental parser) buffer
+rawBufferizedRead buffer parser sock bufSize = runBufferReader (recv sock bufSize) buffer (runGetIncremental parser)
 
-runBufferReader :: IO LazyByteString -> Decoder packet -> Buffer -> IO (packet, Buffer)
-runBufferReader bufferFiller (Partial decoder) (BL.Chunk bs mChunk)
-  = runBufferReader bufferFiller (decoder $ Just bs) mChunk
-runBufferReader bufferFiller (Partial decoder) BL.Empty = do
-  bufferFiller >>= \case
-    BL.Empty -> throwIO (DeserializationError "Expected more bytes while reading packet")
-    BL.Chunk bs mChunk -> runBufferReader bufferFiller (decoder $ Just bs) mChunk
-runBufferReader _bufferFiller (Done leftover _consumed packet) _input = pure (packet, fromStrict leftover)
-runBufferReader _initBuf (Fail _leftover _consumed msg) _buffer = throwIO (DeserializationError msg)
+runBufferReader :: IO LazyByteString -> Buffer -> Decoder packet -> IO (packet, Buffer)
+runBufferReader bufferFiller buffer = \case
+  (Partial decoder) -> case buffer of
+    BL.Chunk bs mChunk -> runBufferReader bufferFiller mChunk (decoder $ Just bs)
+    BL.Empty ->
+      bufferFiller >>= \case
+        BL.Chunk bs mChunk -> runBufferReader bufferFiller mChunk (decoder $ Just bs)
+        BL.Empty -> throwIO (DeserializationError "Expected more bytes while reading packet")
+  (Done !leftover _consumed !packet) -> pure (packet, fromStrict leftover)
+  (Fail _leftover _consumed msg) -> throwIO (DeserializationError msg)
 
 
 
