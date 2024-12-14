@@ -46,14 +46,11 @@ import ClickHaskell.NativeProtocol
   , mkPingPacket
   , mkQueryPacket
   , ServerPacketType(..), HelloResponse(..), ExceptionPacket, latestSupportedRevision
-  )
-import ClickHaskell.Columns
-  ( HasColumns (..), WritableInto (..), ReadableFrom (..)
-  , Columns, DeserializableColumns (..)
-  , Column, DeserializableColumn(..), KnownColumn(..)
+  , HasColumns (..), WritableInto (..), ReadableFrom (..)
+  , Columns, DeserializableColumns (..), Column, DeserializableColumn(..), KnownColumn(..)
+  , Serializable(..), Deserializable(..), ProtocolRevision
   )
 import ClickHaskell.Parameters (Parameter, parameter, parameters, Parameters, CheckParameters)
-import ClickHaskell.DeSerialization (Serializable(..), Deserializable(..), ProtocolRevision)
 
 -- GHC included
 import Control.Exception (Exception, SomeException, bracketOnError, catch, finally, throwIO)
@@ -337,9 +334,9 @@ handleInsertResult conn@MkConnection{..} buffer records = do
   (firstPacket, buffer1) <- rawBufferizedRead buffer (deserialize revision) sock bufferSize
   case firstPacket of
     TableColumns      _ -> handleInsertResult @columns conn buffer1 records
-    DataResponse packet -> do
+    DataResponse (MkDataPacket{rows_count}) -> do
       (_emptyDataPacket, buffer2)
-        <- rawBufferizedRead buffer1 (deserializeRawColumns @(Columns (GetColumns columns)) revision (rows_count packet)) sock bufferSize
+        <- rawBufferizedRead buffer1 (deserializeRawColumns @(Columns (GetColumns columns)) revision rows_count) sock bufferSize
       (sendAll sock . toLazyByteString)
         (  serialize revision (mkDataPacket "" (columnsCount @columns @record) (fromIntegral $ length records))
         <> serializeRecords @columns revision (fromIntegral $ length records) records
