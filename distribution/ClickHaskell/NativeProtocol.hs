@@ -1209,7 +1209,7 @@ client_name :: ChString
 client_name = fromString $
   "ClickHaskell-"
   <> show client_version_major <> "."
-  <> show client_version_major <> "."
+  <> show client_version_minor <> "."
   <> show client_version_patch
 
 newtype ProtocolRevision = MkProtocolRevision Word64
