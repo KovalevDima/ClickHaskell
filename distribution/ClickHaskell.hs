@@ -339,7 +339,7 @@ handleInsertResult conn@MkConnection{..} buffer records = do
         <- rawBufferizedRead buffer1 (deserializeRawColumns @(Columns (GetColumns columns)) revision rows_count) sock bufferSize
       (sendAll sock . toLazyByteString)
         (  serialize revision (mkDataPacket "" (columnsCount @columns @record) (fromIntegral $ length records))
-        <> serializeRecords @columns revision (fromIntegral $ length records) records
+        <> serializeRecords @columns revision records
         <> serialize revision (mkDataPacket "" 0 0)
         )
       handleInsertResult @columns @record conn buffer2 []
