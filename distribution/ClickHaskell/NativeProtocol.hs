@@ -569,7 +569,7 @@ instance
     _columnType <- deserialize @ChString rev
     _isCustom <- deserialize @(ChUInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION) rev
     column <- replicateM (fromIntegral rows) (deserialize @chType rev)
-    pure $ mkColumn @(Column name chType) rows column
+    pure $ mkColumn @(Column name chType) column
 
 instance {-# OVERLAPPING #-}
   ( KnownColumn (Column name (Nullable chType))
@@ -588,7 +588,7 @@ instance {-# OVERLAPPING #-}
           0 -> Just <$> deserialize @chType rev
           _ -> (Nothing <$ deserialize @chType rev)
         )
-    pure $ mkColumn @(Column name (Nullable chType)) rows nullable
+    pure $ mkColumn @(Column name (Nullable chType)) nullable
 
 instance {-# OVERLAPPING #-}
   ( KnownColumn (Column name (LowCardinality chType))
@@ -606,7 +606,7 @@ instance {-# OVERLAPPING #-}
     _index_size <- deserialize @ChInt64 rev
     -- error $ "Trace | " <> show _serializationType <> " : " <> show _index_size
     lc <- replicateM (fromIntegral rows) (toChType <$> deserialize @chType rev)
-    pure $ mkColumn @(Column name (LowCardinality chType)) rows lc
+    pure $ mkColumn @(Column name (LowCardinality chType)) lc
 
 instance {-# OVERLAPPING #-}
   ( KnownColumn (Column name (ChArray chType))
@@ -614,13 +614,13 @@ instance {-# OVERLAPPING #-}
   , TypeError ('Text "Arrays deserialization still unsupported")
   )
   => DeserializableColumn (Column name (ChArray chType)) where
-  deserializeColumn rev rows = do
+  deserializeColumn rev _rows = do
     _columnName <- deserialize @ChString rev
     _columnType <- deserialize @ChString rev
     _isCustom <- deserialize @(ChUInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION) rev
     (arraySize, _offsets) <- traceShowId <$> readOffsets rev
     _types <- replicateM (fromIntegral arraySize) (deserialize @chType rev)
-    pure $ mkColumn @(Column name (ChArray chType)) rows []
+    pure $ mkColumn @(Column name (ChArray chType)) []
     where
     readOffsets :: ProtocolRevision -> Get (ChUInt64, [ChUInt64])
     readOffsets revivion = do
@@ -762,10 +762,6 @@ type family
 emptyColumns :: Columns '[]
 emptyColumns = Empty
 
-rowsCount ::  Columns columns -> UVarInt
-rowsCount (AddColumn col _) = columnSize col
-rowsCount Empty = 0
-
 {-# INLINE [0] appendColumn #-}
 appendColumn
   :: KnownColumn (Column name chType)
@@ -793,23 +789,23 @@ type MyColumn = Column "myColumn" ChString
 @
 -}
 data Column (name :: Symbol) (chType :: Type) where
-  ChUInt8Column :: UVarInt -> [ChUInt8] -> Column name ChUInt8
-  ChUInt16Column :: UVarInt -> [ChUInt16] -> Column name ChUInt16
-  ChUInt32Column :: UVarInt -> [ChUInt32] -> Column name ChUInt32
-  ChUInt64Column :: UVarInt -> [ChUInt64] -> Column name ChUInt64
-  ChUInt128Column :: UVarInt -> [ChUInt128] -> Column name ChUInt128
-  ChInt8Column :: UVarInt -> [ChInt8] -> Column name ChInt8
-  ChInt16Column :: UVarInt -> [ChInt16] -> Column name ChInt16
-  ChInt32Column :: UVarInt -> [ChInt32] -> Column name ChInt32
-  ChInt64Column :: UVarInt -> [ChInt64] -> Column name ChInt64
-  ChInt128Column :: UVarInt -> [ChInt128] -> Column name ChInt128
-  ChDateColumn :: UVarInt -> [ChDate] -> Column name ChDate
-  ChDateTimeColumn :: UVarInt -> [ChDateTime] -> Column name ChDateTime
-  ChUUIDColumn :: UVarInt -> [ChUUID] -> Column name ChUUID
-  ChStringColumn :: UVarInt -> [ChString] -> Column name ChString
-  ChArrayColumn :: IsChType chType => UVarInt -> [ChArray chType] -> Column name (ChArray chType)
-  NullableColumn :: IsChType chType => UVarInt -> [Nullable chType] -> Column name (Nullable chType)
-  LowCardinalityColumn :: (IsLowCardinalitySupported chType, IsChType chType) => UVarInt -> [chType] -> Column name (LowCardinality chType)
+  ChUInt8Column :: [ChUInt8] -> Column name ChUInt8
+  ChUInt16Column :: [ChUInt16] -> Column name ChUInt16
+  ChUInt32Column :: [ChUInt32] -> Column name ChUInt32
+  ChUInt64Column :: [ChUInt64] -> Column name ChUInt64
+  ChUInt128Column :: [ChUInt128] -> Column name ChUInt128
+  ChInt8Column :: [ChInt8] -> Column name ChInt8
+  ChInt16Column :: [ChInt16] -> Column name ChInt16
+  ChInt32Column :: [ChInt32] -> Column name ChInt32
+  ChInt64Column :: [ChInt64] -> Column name ChInt64
+  ChInt128Column :: [ChInt128] -> Column name ChInt128
+  ChDateColumn :: [ChDate] -> Column name ChDate
+  ChDateTimeColumn :: [ChDateTime] -> Column name ChDateTime
+  ChUUIDColumn :: [ChUUID] -> Column name ChUUID
+  ChStringColumn :: [ChString] -> Column name ChString
+  ChArrayColumn :: IsChType chType => [ChArray chType] -> Column name (ChArray chType)
+  NullableColumn :: IsChType chType => [Nullable chType] -> Column name (Nullable chType)
+  LowCardinalityColumn :: (IsLowCardinalitySupported chType, IsChType chType) => [chType] -> Column name (LowCardinality chType)
 
 type family GetColumnName column :: Symbol
   where
@@ -830,49 +826,28 @@ class
   renderColumnType :: Builder
   renderColumnType = chTypeName @(GetColumnType column)
 
-  mkColumn :: UVarInt -> [GetColumnType column] -> Column (GetColumnName column) (GetColumnType column)
-
-{-# INLINE [0] columnSize #-}
-columnSize :: Column name chType -> UVarInt
-columnSize column = case column of
-  (ChUInt8Column size _listValues) -> size
-  (ChUInt16Column size _listValues) -> size
-  (ChUInt32Column size _listValues) -> size
-  (ChUInt64Column size _listValues) -> size
-  (ChUInt128Column size _listValues) -> size
-  (ChInt8Column size _listValues) -> size
-  (ChInt16Column size _listValues) -> size
-  (ChInt32Column size _listValues) -> size
-  (ChInt64Column size _listValues) -> size
-  (ChInt128Column size _listValues) -> size
-  (ChDateColumn size _nullableValues) -> size
-  (ChDateTimeColumn size _nullableValues) -> size
-  (ChUUIDColumn size _nullableValues) -> size
-  (ChStringColumn size _values) -> size
-  (ChArrayColumn size _nullableValues) -> size
-  (NullableColumn size _nullableValues) -> size
-  (LowCardinalityColumn size _lowCardinalityValues) -> size
+  mkColumn :: [GetColumnType column] -> Column (GetColumnName column) (GetColumnType column)
 
 {-# INLINE [0] columnValues #-}
 columnValues :: Column name chType -> [chType]
 columnValues column = case column of
-  (ChUInt8Column _size values) -> values
-  (ChUInt16Column _size values) -> values
-  (ChUInt32Column _size values) -> values
-  (ChUInt64Column _size values) -> values
-  (ChUInt128Column _size values) -> values
-  (ChInt8Column _size values) -> values
-  (ChInt16Column _size values) -> values
-  (ChInt32Column _size values) -> values
-  (ChInt64Column _size values) -> values
-  (ChInt128Column _size values) -> values
-  (ChDateColumn _size values) -> values
-  (ChDateTimeColumn _size values) -> values
-  (ChUUIDColumn _size values) -> values
-  (ChStringColumn _size values) -> values
-  (ChArrayColumn _size arrayValues) -> arrayValues
-  (NullableColumn _size nullableValues) ->  nullableValues
-  (LowCardinalityColumn _size lowCardinalityValues) -> map fromChType lowCardinalityValues
+  (ChUInt8Column values) -> values
+  (ChUInt16Column values) -> values
+  (ChUInt32Column values) -> values
+  (ChUInt64Column values) -> values
+  (ChUInt128Column values) -> values
+  (ChInt8Column values) -> values
+  (ChInt16Column values) -> values
+  (ChInt32Column values) -> values
+  (ChInt64Column values) -> values
+  (ChInt128Column values) -> values
+  (ChDateColumn values) -> values
+  (ChDateTimeColumn values) -> values
+  (ChUUIDColumn values) -> values
+  (ChStringColumn values) -> values
+  (ChArrayColumn arrayValues) -> arrayValues
+  (NullableColumn nullableValues) ->  nullableValues
+  (LowCardinalityColumn lowCardinalityValues) -> map fromChType lowCardinalityValues
 
 instance KnownSymbol name => KnownColumn (Column name ChUInt8) where mkColumn = ChUInt8Column
 instance KnownSymbol name => KnownColumn (Column name ChUInt16) where mkColumn = ChUInt16Column
@@ -899,7 +874,7 @@ instance
   , IsChType (LowCardinality chType)
   , IsLowCardinalitySupported chType
   ) =>
-  KnownColumn (Column name (LowCardinality chType)) where mkColumn size = LowCardinalityColumn size . map fromChType
+  KnownColumn (Column name (LowCardinality chType)) where mkColumn = LowCardinalityColumn . map fromChType
 instance KnownSymbol name => KnownColumn (Column name (ChArray ChString)) where mkColumn = ChArrayColumn
 
 
@@ -956,7 +931,7 @@ instance {-# OVERLAPPING #-}
   , TypeError ('Text "LowCardinality serialization still unsupported")
   ) => Serializable (Column name (LowCardinality chType)) where
   {-# INLINE serialize #-}
-  serialize rev (LowCardinalityColumn _ column)
+  serialize rev (LowCardinalityColumn column)
     =  serialize rev (toChType @ChString $ renderColumnName @(Column name (Nullable chType)))
     <> serialize rev (toChType @ChString $ renderColumnType @(Column name (Nullable chType)))
     -- serialization is not custom
@@ -1048,9 +1023,9 @@ class
   ) =>
   WritableInto columns record
   where
-  default serializeRecords :: GenericWritable record (GetColumns columns) => ProtocolRevision -> UVarInt -> [record] -> Builder
-  serializeRecords :: ProtocolRevision -> UVarInt -> [record] -> Builder
-  serializeRecords rev size = gSerializeRecords @(GetColumns columns) rev size . map from
+  default serializeRecords :: GenericWritable record (GetColumns columns) => ProtocolRevision -> [record] -> Builder
+  serializeRecords :: ProtocolRevision -> [record] -> Builder
+  serializeRecords rev = gSerializeRecords @(GetColumns columns) rev . map from
 
   default writingColumns :: GenericWritable record (GetColumns columns) => Builder
   writingColumns :: Builder
@@ -1062,7 +1037,7 @@ class
 
 class GWritable (columns :: [Type]) f
   where
-  gSerializeRecords :: ProtocolRevision -> UVarInt -> [f p] -> Builder
+  gSerializeRecords :: ProtocolRevision -> [f p] -> Builder
   gWritingColumns :: Builder
   gColumnsCount :: UVarInt
 
@@ -1072,7 +1047,7 @@ instance
   GWritable columns (D1 c (C1 c2 f))
   where
   {-# INLINE gSerializeRecords #-}
-  gSerializeRecords rev size = gSerializeRecords @columns rev size . map (unM1 . unM1)
+  gSerializeRecords rev = gSerializeRecords @columns rev . map (unM1 . unM1)
   gWritingColumns = gWritingColumns @columns @f
   gColumnsCount = gColumnsCount @columns @f
 
@@ -1082,7 +1057,7 @@ instance
   GWritable columns ((left1 :*: left2) :*: right)
   where
   {-# INLINE gSerializeRecords #-}
-  gSerializeRecords rev size = gSerializeRecords @columns rev size . map (\((l1 :*: l2) :*: r) -> l1 :*: (l2 :*: r))
+  gSerializeRecords rev = gSerializeRecords @columns rev . map (\((l1 :*: l2) :*: r) -> l1 :*: (l2 :*: r))
   gWritingColumns = gWritingColumns @columns @(left1 :*: (left2 :*: right))
   gColumnsCount = gColumnsCount @columns @(left1 :*: (left2 :*: right))
 
@@ -1095,8 +1070,8 @@ instance
   GWritable columns (S1 (MetaSel (Just name) a b f) rec :*: right)
   where
   {-# INLINE gSerializeRecords #-}
-  gSerializeRecords rev size
-    = (\(a, b) -> gSerializeRecords @'[Column name chType] rev size a <> gSerializeRecords @restColumns rev size b)
+  gSerializeRecords rev
+    = (\(a, b) -> gSerializeRecords @'[Column name chType] rev a <> gSerializeRecords @restColumns rev b)
     . unzip . map (\(l :*: r) -> (l, r))
   gWritingColumns =
     gWritingColumns @'[Column name chType] @(S1 (MetaSel (Just name) a b f) rec)
@@ -1112,7 +1087,7 @@ instance {-# OVERLAPPING #-}
   GWritable columns (S1 (MetaSel (Just name) a b f) (Rec0 inputType))
   where
   {-# INLINE gSerializeRecords #-}
-  gSerializeRecords rev size = serialize rev . mkColumn @(Column name chType) size . map (toChType . unK1 . unM1)
+  gSerializeRecords rev = serialize rev . mkColumn @(Column name chType) . map (toChType . unK1 . unM1)
   gWritingColumns = renderColumnName @(Column name chType)
   gColumnsCount = 1
 
