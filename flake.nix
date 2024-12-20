@@ -83,7 +83,11 @@
             depends_on."${programName}-db".condition = "process_healthy";
           };
           settings.processes.dump-artifacts = {
-            command = "${lib.getExe' pkgs.haskellPackages.eventlog2html "eventlog2html"} ./${programName}.eventlog";
+            command = "
+              ${lib.getExe' pkgs.haskellPackages.eventlog2html "eventlog2html"} ./${programName}.eventlog
+              rm ./${programName}.eventlog
+              rm ./${programName}.hp
+            ";
             # availability.exit_on_end = true;
             depends_on.${programName}.condition = "process_completed_successfully";
           };
@@ -98,7 +102,11 @@
             depends_on."${programName}-db".condition = "process_healthy";
           };
           settings.processes.dump-artifacts = {
-            command = "${lib.getExe' pkgs.haskellPackages.eventlog2html "eventlog2html"} ./${programName}.eventlog";
+            command = "
+              ${lib.getExe' pkgs.haskellPackages.eventlog2html "eventlog2html"} ./${programName}.eventlog
+              rm ./${programName}.eventlog
+              rm ./${programName}.hp
+            ";
             # availability.exit_on_end = true;
             depends_on.${programName}.condition = "process_completed_successfully";
           };
