@@ -48,7 +48,7 @@ main = do
         \', 1, 10, 2) LIMIT " <> (string8 . show) totalRows
       )
       (\records -> pure [length records])
-  print $ sum result
+  print $ sum $ mconcat result
 
   traceMarkerIO "Completion"
   print $ "Processing done. " <> show totalRows <> " rows was processed"

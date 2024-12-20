@@ -52,12 +52,13 @@ main = do
     @ExampleTable
     @ExampleData
     connection
-    [ MkExampleData
-        { a1 = 42
-        , a2 = "text"
-        , a4 = toChType (0 :: Word64)
-        , a3 = 42
-        }
+    [ [ MkExampleData
+          { a1 = 42
+          , a2 = "text"
+          , a4 = toChType (0 :: Word64)
+          , a3 = 42
+          }
+      ]
     ]
 
 {- Before GHC 9.8 its better to use standalone deriving

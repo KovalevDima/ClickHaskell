@@ -178,7 +178,7 @@ selectFrom ::
   , ReadableFrom table record
   )
   =>
-  Connection -> IO [record]
+  Connection -> IO [[record]]
 selectFrom conn@MkConnection{sock, user, revision} = do
   let query
         = "SELECT " <> readingColumns @table @record
@@ -194,7 +194,7 @@ select ::
   .
   ReadableFrom (Columns columns) record
   =>
-  Connection -> ChString -> IO [record]
+  Connection -> ChString -> IO [[record]]
 select conn@MkConnection{sock, user, revision} query = do
   (sendAll sock . toLazyByteString)
     (  serialize revision (mkQueryPacket revision user query)
@@ -215,7 +215,7 @@ selectFromView ::
   , view ~ View name columns parameters
   , CheckParameters parameters passedParameters
   )
-  => Connection -> (Parameters '[] -> Parameters passedParameters) -> IO [record]
+  => Connection -> (Parameters '[] -> Parameters passedParameters) -> IO [[record]]
 selectFromView conn@MkConnection{..} interpreter = do
   let query =
         "SELECT " <> readingColumns @view @record <>
@@ -237,7 +237,7 @@ streamSelectFrom ::
   , NFData a
   )
   =>
-  Connection -> ([record] -> IO [a]) -> IO [a]
+  Connection -> ([record] -> IO [a]) -> IO [[a]]
 streamSelectFrom conn@MkConnection{sock, user, revision} f = do
   let query
         = "SELECT " <> readingColumns @table @record
@@ -254,7 +254,7 @@ streamSelect ::
   .
   (ReadableFrom (Columns columns) record, NFData a)
   =>
-  Connection -> ChString -> ([record] -> IO [a]) -> IO [a]
+  Connection -> ChString -> ([record] -> IO a) -> IO [a]
 streamSelect conn@MkConnection{sock, user, revision} query f = do
   (sendAll sock . toLazyByteString)
     (  serialize revision (mkQueryPacket revision user query)
@@ -272,7 +272,7 @@ streamSelectFromView ::
   , NFData a
   , CheckParameters parameters passedParameters
   )
-  => Connection -> (Parameters '[] -> Parameters passedParameters) -> ([record] -> IO [a]) -> IO [a]
+  => Connection -> (Parameters '[] -> Parameters passedParameters) -> ([record] -> IO [a]) -> IO [[a]]
 streamSelectFromView conn@MkConnection{..} interpreter f = do
   let query =
         "SELECT " <> readingColumns @view @record <>
@@ -291,7 +291,7 @@ handleSelect ::
   .
   ReadableFrom hasColumns record
   =>
-  Connection -> Buffer -> ([record] -> IO [a])  -> IO [a]
+  Connection -> Buffer -> ([record] -> IO a)  -> IO [a]
 handleSelect conn@MkConnection{..} previousBuffer f = do
   (packet, buffer) <- rawBufferizedRead previousBuffer (deserialize revision) sock bufferSize  
   case packet of
@@ -301,7 +301,7 @@ handleSelect conn@MkConnection{..} previousBuffer f = do
         (_, rows) -> do
           (columns, nextBuffer) <- rawBufferizedRead buffer (deserializeColumns @hasColumns revision rows) sock bufferSize
           processedColumns <- f columns
-          (processedColumns ++) <$> handleSelect @hasColumns conn nextBuffer f 
+          (processedColumns :) <$> handleSelect @hasColumns conn nextBuffer f
     Progress          _ -> handleSelect @hasColumns conn buffer f
     ProfileInfo       _ -> handleSelect @hasColumns conn buffer f
     EndOfStream         -> pure []
@@ -318,7 +318,7 @@ insertInto ::
   , WritableInto table record
   , KnownSymbol name
   )
-  => Connection -> [record] -> IO ()
+  => Connection -> [[record]] -> IO ()
 insertInto conn@MkConnection{sock, user, revision} columnsData = do
   let query =
         "INSERT INTO " <> (byteString . BS8.pack) (symbolVal $ Proxy @name)
@@ -329,7 +329,7 @@ insertInto conn@MkConnection{sock, user, revision} columnsData = do
     )
   handleInsertResult @table conn emptyBuffer columnsData
 
-handleInsertResult :: forall columns record . WritableInto columns record => Connection -> Buffer -> [record] -> IO ()
+handleInsertResult :: forall columns record . WritableInto columns record => Connection -> Buffer -> [[record]] -> IO ()
 handleInsertResult conn@MkConnection{..} buffer records = do
   (firstPacket, buffer1) <- rawBufferizedRead buffer (deserialize revision) sock bufferSize
   case firstPacket of
@@ -337,11 +337,16 @@ handleInsertResult conn@MkConnection{..} buffer records = do
     DataResponse (MkDataPacket{rows_count}) -> do
       (_emptyDataPacket, buffer2)
         <- rawBufferizedRead buffer1 (deserializeRawColumns @(Columns (GetColumns columns)) revision rows_count) sock bufferSize
-      (sendAll sock . toLazyByteString)
-        (  serialize revision (mkDataPacket "" (columnsCount @columns @record) (fromIntegral $ length records))
-        <> serializeRecords @columns revision records
-        <> serialize revision (mkDataPacket "" 0 0)
+      mapM_
+        (\block ->
+          (sendAll sock . toLazyByteString)
+            (  serialize revision (mkDataPacket "" (columnsCount @columns @record) (fromIntegral $ length block))
+            <> serializeRecords @columns revision block
+            )
         )
+        records
+      (sendAll sock . toLazyByteString)
+        (serialize revision (mkDataPacket "" 0 0))
       handleInsertResult @columns @record conn buffer2 []
     EndOfStream         -> pure ()
     Exception exception -> throwIO (DatabaseException exception)
