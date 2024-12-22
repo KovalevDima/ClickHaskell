@@ -23,7 +23,7 @@ import Paths_ClickHaskell (version)
 import Data.Text (Text)
 import Data.Version (Version (..))
 import Data.String (IsString(..))
-import Control.Monad (forM, replicateM)
+import Control.Monad (forM, replicateM, (<$!>))
 import Data.Binary.Get
 import Data.Binary.Get.Internal (readN)
 import Data.Binary.Put
@@ -689,7 +689,7 @@ instance
 -- ** Database types
 
 instance Deserializable ChUUID where
-  deserialize _ = MkChUUID <$> (flip Word128 <$> getWord64le <*> getWord64le)
+  deserialize _ = MkChUUID <$!> (flip Word128 <$> getWord64le <*> getWord64le)
 
 instance Deserializable ChString where
   deserialize rev = do
