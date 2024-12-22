@@ -12,10 +12,6 @@ module OneBillionStream (main) where
 
 -- Internal
 import ClickHaskell
-import ClickHaskell.DbTypes
-  ( toChType
-  , ChInt64
-  )
 
 -- GHC included
 import Control.Concurrent (threadDelay)

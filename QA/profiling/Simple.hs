@@ -30,11 +30,6 @@ module Simple (main) where
 
 -- Internal
 import ClickHaskell
-import ClickHaskell.DbTypes
-  ( toChType
-  , ChUUID, ChDateTime, ChInt32, ChInt64, ChString
-  , Nullable
-  )
 
 -- GHC included
 import Control.Concurrent (threadDelay)

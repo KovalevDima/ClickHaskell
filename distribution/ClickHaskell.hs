@@ -36,10 +36,31 @@ module ClickHaskell
 
   -- * Ping database connection
   , ping
+
+  -- * ClickHouse types
+  , IsChType(ToChTypeName, chTypeName, defaultValueOfTypeName)
+  , ToChType(toChType)
+  , FromChType(fromChType)
+  , ToQueryPart(toQueryPart)
+  
+  , ChDateTime(..)
+  , ChDate(..)
+  
+  , ChInt8(..), ChInt16(..), ChInt32(..), ChInt64(..), ChInt128(..)
+  , ChUInt8(..), ChUInt16(..), ChUInt32(..), ChUInt64(..), ChUInt128(..)
+  
+  , ChString(..)
+  , ChUUID(..)
+  
+  , ChArray(..)
+  , Nullable
+  , LowCardinality, IsLowCardinalitySupported
+  
+  , UVarInt(..)
+  , module Data.WideWord
   ) where
 
 -- Internal dependencies
-import ClickHaskell.DbTypes
 import ClickHaskell.NativeProtocol
   ( mkDataPacket, DataPacket(..)
   , mkHelloPacket, HelloParameters(..), mkAddendum
@@ -50,6 +71,26 @@ import ClickHaskell.NativeProtocol
   , Columns, DeserializableColumns (..), Column, DeserializableColumn(..), KnownColumn(..)
   , Serializable(..), Deserializable(..), ProtocolRevision
   , Parameter, parameter, Parameters, CheckParameters, viewParameters
+
+  , IsChType(ToChTypeName, chTypeName, defaultValueOfTypeName)
+  , ToChType(toChType)
+  , FromChType(fromChType)
+  , ToQueryPart(toQueryPart)
+  
+  , ChDateTime(..)
+  , ChDate(..)
+  
+  , ChInt8(..), ChInt16(..), ChInt32(..), ChInt64(..), ChInt128(..)
+  , ChUInt8(..), ChUInt16(..), ChUInt32(..), ChUInt64(..), ChUInt128(..)
+  
+  , ChString(..)
+  , ChUUID(..)
+  
+  , ChArray(..)
+  , Nullable
+  , LowCardinality, IsLowCardinalitySupported
+  
+  , UVarInt(..)
   )
 
 -- GHC included
@@ -69,6 +110,7 @@ import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
 import System.Timeout (timeout)
 
 -- External
+import Data.WideWord (Int128 (..), Word128(..))
 import Network.Socket as Sock
 import Network.Socket.ByteString.Lazy (recv, sendAll)
 

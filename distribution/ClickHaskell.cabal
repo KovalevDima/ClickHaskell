@@ -42,8 +42,8 @@ Library
     Paths_ClickHaskell
   Exposed-Modules:
     ClickHaskell
-    ClickHaskell.DbTypes
     -- Deprecated:
+    ClickHaskell.DbTypes
     ClickHaskell.Parameters
     ClickHaskell.DeSerialization
     ClickHaskell.Versioning
