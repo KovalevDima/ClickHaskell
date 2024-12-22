@@ -463,7 +463,11 @@ class
   where
   default deserializeColumns :: GenericReadable record hasColumns => ProtocolRevision -> UVarInt -> Get [record]
   deserializeColumns :: ProtocolRevision -> UVarInt -> Get [record]
-  deserializeColumns rev size = map to <$> gFromColumns @(GetColumns hasColumns) rev size
+  deserializeColumns rev size = do
+    list <- gFromColumns @(GetColumns hasColumns) rev size
+    pure $ do
+      element <- list
+      case to element of res -> pure $! res
 
   default readingColumns :: GenericReadable record hasColumns => Builder
   readingColumns :: Builder
