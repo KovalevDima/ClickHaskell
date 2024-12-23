@@ -42,10 +42,13 @@ Library
     Paths_ClickHaskell
   Exposed-Modules:
     ClickHaskell
+    -- Deprecated:
     ClickHaskell.DbTypes
+    ClickHaskell.Parameters
+    ClickHaskell.DeSerialization
+    ClickHaskell.Versioning
   Other-Modules:
     Paths_ClickHaskell
-    ClickHaskell.Parameters
     ClickHaskell.NativeProtocol
   HS-Source-Dirs:
     ./

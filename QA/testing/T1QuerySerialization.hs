@@ -21,9 +21,7 @@ import ClickHaskell
   ( ChCredential(..), Connection(..), openNativeConnection
   , ReadableFrom, select
   , Column, Columns, KnownColumn, DeserializableColumn
-  )
-import ClickHaskell.DbTypes
-  ( IsChType(..), ToChType(..), FromChType
+  , IsChType(..), ToChType(..), FromChType
   , ToQueryPart(..)
   , ChUInt8, ChUInt16, ChUInt32, ChUInt64
   , ChInt8, ChInt16, ChInt32, ChInt64

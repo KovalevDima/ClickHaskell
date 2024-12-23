@@ -30,8 +30,9 @@ import ClickHaskell
   ( WritableInto, insertInto
   , ChCredential(..), openNativeConnection
   , Table, Column
+  , toChType
+  , ChDateTime, ChInt64, ChString, ChUUID
   )
-import ClickHaskell.DbTypes
 import Data.ByteString (ByteString)
 import Data.Int (Int64)
 import Data.Word (Word32, Word64)

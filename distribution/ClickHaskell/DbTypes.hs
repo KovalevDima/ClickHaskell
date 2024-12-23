@@ -5,6 +5,10 @@
 #-}
 
 module ClickHaskell.DbTypes
+  {-# DEPRECATED "\
+  \This module would be deleted in next minor release\
+  \Please move its imports to ClickHaskell module\
+  \" #-}
 ( IsChType(ToChTypeName, chTypeName, defaultValueOfTypeName)
 , ToChType(toChType)
 , FromChType(fromChType)
@@ -33,6 +37,7 @@ module ClickHaskell.DbTypes
 import Data.WideWord (Int128 (..), Word128(..))
 
 -- GHC included
+<<<<<<< HEAD
 import Control.DeepSeq (NFData)
 import Data.Bits (Bits (..))
 import Data.ByteString as BS (StrictByteString, toStrict)
@@ -578,3 +583,7 @@ instance
 -}
 newtype UVarInt = MkUVarInt Word64
   deriving newtype (Show, Eq, Num, Prim, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
+=======
+
+import ClickHaskell
+>>>>>>> master

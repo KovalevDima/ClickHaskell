@@ -28,8 +28,8 @@ import ClickHaskell
   , ChCredential(..)
   , View, Parameter, parameter
   , openNativeConnection
+  , ChString, ChInt32
   )
-import ClickHaskell.DbTypes (ChString, ChInt32)
 import Data.Int (Int32)
 import GHC.Generics (Generic)
 
