@@ -22,9 +22,7 @@ import ClickHaskell
   , ChCredential(..), Connection
   , Table
   , Column
-  )
-import ClickHaskell.DbTypes
-  ( toChType
+  , toChType
   , ChInt8, ChInt16, ChInt32, ChInt64, ChInt128
   , ChUInt8, ChUInt16, ChUInt32, ChUInt64, ChUInt128
   , ChUUID, ChDateTime, ChString, Int128, Word128

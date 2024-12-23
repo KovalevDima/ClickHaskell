@@ -36,10 +36,31 @@ module ClickHaskell
 
   -- * Ping database connection
   , ping
+
+  -- * ClickHouse types
+  , IsChType(ToChTypeName, chTypeName, defaultValueOfTypeName)
+  , ToChType(toChType)
+  , FromChType(fromChType)
+  , ToQueryPart(toQueryPart)
+  
+  , ChDateTime(..)
+  , ChDate(..)
+  
+  , ChInt8(..), ChInt16(..), ChInt32(..), ChInt64(..), ChInt128(..)
+  , ChUInt8(..), ChUInt16(..), ChUInt32(..), ChUInt64(..), ChUInt128(..)
+  
+  , ChString(..)
+  , ChUUID(..)
+  
+  , ChArray(..)
+  , Nullable
+  , LowCardinality, IsLowCardinalitySupported
+  
+  , UVarInt(..)
+  , module Data.WideWord
   ) where
 
 -- Internal dependencies
-import ClickHaskell.DbTypes
 import ClickHaskell.NativeProtocol
   ( mkDataPacket, DataPacket(..)
   , mkHelloPacket, HelloParameters(..), mkAddendum
@@ -49,8 +70,28 @@ import ClickHaskell.NativeProtocol
   , HasColumns (..), WritableInto (..), ReadableFrom (..)
   , Columns, DeserializableColumns (..), Column, DeserializableColumn(..), KnownColumn(..)
   , Serializable(..), Deserializable(..), ProtocolRevision
+  , Parameter, parameter, Parameters, CheckParameters, viewParameters
+
+  , IsChType(ToChTypeName, chTypeName, defaultValueOfTypeName)
+  , ToChType(toChType)
+  , FromChType(fromChType)
+  , ToQueryPart(toQueryPart)
+  
+  , ChDateTime(..)
+  , ChDate(..)
+  
+  , ChInt8(..), ChInt16(..), ChInt32(..), ChInt64(..), ChInt128(..)
+  , ChUInt8(..), ChUInt16(..), ChUInt32(..), ChUInt64(..), ChUInt128(..)
+  
+  , ChString(..)
+  , ChUUID(..)
+  
+  , ChArray(..)
+  , Nullable
+  , LowCardinality, IsLowCardinalitySupported
+  
+  , UVarInt(..)
   )
-import ClickHaskell.Parameters (Parameter, parameter, parameters, Parameters, CheckParameters)
 
 -- GHC included
 import Control.Exception (Exception, SomeException, bracketOnError, catch, finally, throwIO)
@@ -69,6 +110,7 @@ import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
 import System.Timeout (timeout)
 
 -- External
+import Data.WideWord (Int128 (..), Word128(..))
 import Network.Socket as Sock
 import Network.Socket.ByteString.Lazy (recv, sendAll)
 
@@ -219,7 +261,7 @@ selectFromView ::
 selectFromView conn@MkConnection{..} interpreter = do
   let query =
         "SELECT " <> readingColumns @view @record <>
-        " FROM " <> (byteString . BS8.pack . symbolVal @name) Proxy <> parameters interpreter
+        " FROM " <> (byteString . BS8.pack . symbolVal @name) Proxy <> viewParameters interpreter
   (sendAll sock . toLazyByteString)
     (  serialize revision (mkQueryPacket revision user (toChType query))
     <> serialize revision (mkDataPacket "" 0 0)
@@ -276,7 +318,7 @@ streamSelectFromView ::
 streamSelectFromView conn@MkConnection{..} interpreter f = do
   let query =
         "SELECT " <> readingColumns @view @record <>
-        " FROM " <> (byteString . BS8.pack . symbolVal @name) Proxy <> parameters interpreter
+        " FROM " <> (byteString . BS8.pack . symbolVal @name) Proxy <> viewParameters interpreter
   (sendAll sock . toLazyByteString)
     (  serialize revision (mkQueryPacket revision user (toChType query))
     <> serialize revision (mkDataPacket "" 0 0)
@@ -339,7 +381,7 @@ handleInsertResult conn@MkConnection{..} buffer records = do
         <- rawBufferizedRead buffer1 (deserializeRawColumns @(Columns (GetColumns columns)) revision rows_count) sock bufferSize
       (sendAll sock . toLazyByteString)
         (  serialize revision (mkDataPacket "" (columnsCount @columns @record) (fromIntegral $ length records))
-        <> serializeRecords @columns revision (fromIntegral $ length records) records
+        <> serializeRecords @columns revision records
         <> serialize revision (mkDataPacket "" 0 0)
         )
       handleInsertResult @columns @record conn buffer2 []

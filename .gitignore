@@ -8,6 +8,10 @@ dist-newstyle
 *.ps
 *.eventlog
 *.eventlog.html
+*.dump-rule-firings
+*.dump-simpl
+*.dump-simpl-stats
+*.dump-spec
 
 data
 *~

@@ -60,6 +60,7 @@
 - ignore: {name: Use newtype instead of data}
 - ignore: {name: Use head}
 - ignore: {name: Redundant lambda}
+- ignore: {name: Use camelCase}
 # - ignore: {name: Use const, within: SpecialModule} # Only within certain modules
 
 
