@@ -11,4 +11,3 @@ module ClickHaskell.DeSerialization
   ) where
 
 import ClickHaskell.NativeProtocol
-
