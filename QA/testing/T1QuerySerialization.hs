@@ -67,7 +67,7 @@ runTestForType connection testValues = do
   mapM_
     (\chType -> do
       selectChType <-
-        head <$>
+        head . mconcat <$>
           select
             @'[Column "testSample" chType]
             @(TestSample chType)

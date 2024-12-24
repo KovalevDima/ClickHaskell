@@ -43,9 +43,10 @@ t2 connection = do
     @TestTable
     @TestData
     connection
-    [testData]
+    [[testData]]
 
   result <-
+    head . mconcat <$>
     selectFrom
       @TestTable
       @TestData
@@ -53,10 +54,10 @@ t2 connection = do
 
   let testLabel = "WriteReadEquality: "
 
-  (when (head result /= testData) . error)
+  (when (result /= testData) . error)
     (  testLabel <> "Unequal result.\n"
     <> "Writed data: " <> show testData <> "\n"
-    <> "Readed data: " <> show (head result))
+    <> "Readed data: " <> show result)
 
   print $ testLabel <> "Ok"
 

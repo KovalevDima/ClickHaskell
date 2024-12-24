@@ -45,7 +45,8 @@ main :: IO ()
 main = do
   traceMarkerIO "Initialization"  
   let credentials = MkChCredential "default" "" "" "localhost" "9000"
-  connection <- openNativeConnection credentials
+  readConnection <- openNativeConnection credentials
+  writeConnection <- openNativeConnection credentials
 
   let totalRows = 1_000_000 :: Integer
 
@@ -57,7 +58,7 @@ main = do
     select
       @ExampleColumns
       @ExampleData
-      connection
+      readConnection
       (toChType $
         "SELECT * FROM generateRandom('\
         \a1 Int64, \
@@ -74,7 +75,7 @@ main = do
   traceMarkerIO "Starting writing"
   insertInto
     @(Table "profiler" ExampleColumns)
-    connection
+    writeConnection
     selectedData
 
   traceMarkerIO "Completion"

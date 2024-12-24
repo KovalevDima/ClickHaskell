@@ -19,6 +19,7 @@ import Data.ByteString.Builder (string8)
 import Debug.Trace (traceMarkerIO)
 import GHC.Generics (Generic)
 import Control.DeepSeq (NFData)
+import Control.Monad ((<$!>))
 
 
 main :: IO ()
@@ -34,17 +35,17 @@ main = do
 
   traceMarkerIO "Starting reading"
   result <-
-    streamSelect
-      @ExampleColumns
-      @ExampleData
-      connection
-      (toChType $
-        "SELECT * FROM generateRandom('\
-        \a1 Int64 \
-        \', 1, 10, 2) LIMIT " <> (string8 . show) totalRows
-      )
-      (\records -> pure [length records])
-  print $ sum result
+    map length <$!>
+      select
+        @ExampleColumns
+        @ExampleData
+        connection
+        (toChType $
+          "SELECT * FROM generateRandom('\
+          \a1 Int64 \
+          \', 1, 10, 2) LIMIT " <> (string8 . show) totalRows
+        )
+  print $! sum result
 
   traceMarkerIO "Completion"
   print $ "Processing done. " <> show totalRows <> " rows was processed"
