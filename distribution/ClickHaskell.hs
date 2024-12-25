@@ -271,7 +271,7 @@ handleSelect ::
   ReadableFrom hasColumns record
   =>
   Connection -> Buffer -> IO [[record]]
-handleSelect conn@MkConnection{..} previousBuffer = unsafeInterleaveIO $ do
+handleSelect conn@MkConnection{..} previousBuffer = do
   (packet, buffer) <- rawBufferizedRead previousBuffer (deserialize revision) sock bufferSize  
   case packet of
     DataResponse MkDataPacket{columns_count, rows_count} -> do
@@ -279,7 +279,7 @@ handleSelect conn@MkConnection{..} previousBuffer = unsafeInterleaveIO $ do
         (0, 0) -> handleSelect @hasColumns conn buffer
         (_, rows) -> do
           (columns, nextBuffer) <- rawBufferizedRead buffer (deserializeColumns @hasColumns revision rows) sock bufferSize
-          (columns :) <$> handleSelect @hasColumns conn nextBuffer
+          unsafeInterleaveIO $ (columns :) <$> handleSelect @hasColumns conn nextBuffer
     Progress          _ -> handleSelect @hasColumns conn buffer
     ProfileInfo       _ -> handleSelect @hasColumns conn buffer
     EndOfStream         -> pure []
