@@ -97,10 +97,11 @@ import ClickHaskell.NativeProtocol
 import Control.Exception (Exception, SomeException, bracketOnError, catch, finally, throwIO)
 import Control.DeepSeq (NFData, (<$!!>))
 import Data.Binary.Get (Decoder (..), Get, runGetIncremental)
+import Data.ByteString as BS (StrictByteString, length)
 import Data.ByteString.Builder (byteString, toLazyByteString)
-import Data.ByteString.Char8 as BS8 (fromStrict, pack)
-import Data.ByteString.Lazy.Internal as BL (ByteString (..), LazyByteString)
-import Data.Int (Int64)
+import Data.ByteString.Char8 as BS8 (pack)
+import Data.Functor (($>))
+import Data.IORef (IORef, readIORef, newIORef, atomicWriteIORef)
 import Data.Kind (Type)
 import Data.Maybe (listToMaybe)
 import Data.Text (Text)
@@ -112,7 +113,8 @@ import System.Timeout (timeout)
 -- External
 import Data.WideWord (Int128 (..), Word128(..))
 import Network.Socket as Sock
-import Network.Socket.ByteString.Lazy (recv, sendAll)
+import Network.Socket.ByteString (recv)
+import Network.Socket.ByteString.Lazy (sendAll)
 
 -- * Connection
 
@@ -134,10 +136,10 @@ defaultCredentials = MkChCredential
   }
 
 data Connection = MkConnection
-  { sock       :: Socket
-  , user       :: ChString
-  , bufferSize :: Int64
-  , revision   :: ProtocolRevision
+  { sock     :: Socket
+  , user     :: ChString
+  , buffer   :: Buffer
+  , revision :: ProtocolRevision
   }
 
 openNativeConnection :: HasCallStack => ChCredential -> IO Connection
@@ -171,7 +173,8 @@ openNativeConnection MkChCredential{chHost, chPort, chLogin, chPass, chDatabase}
   (sendAll sock . toLazyByteString . serialize latestSupportedRevision)
     (mkHelloPacket MkHelloParameters{..})
 
-  (serverPacketType, _) <- rawBufferizedRead emptyBuffer (deserialize latestSupportedRevision) sock 4096
+  buffer <- initBuffer 4096 sock
+  serverPacketType <- rawBufferizedRead buffer (deserialize latestSupportedRevision)
   case serverPacketType of
     HelloResponse MkHelloResponse{server_revision} -> do
       let revision = min server_revision latestSupportedRevision
@@ -180,7 +183,7 @@ openNativeConnection MkChCredential{chHost, chPort, chLogin, chPass, chDatabase}
         { user = toChType chLogin
         , revision
         , sock
-        , bufferSize = 4096
+        , buffer
         }
     Exception exception -> throwIO (DatabaseException exception)
     otherPacket         -> throwIO (ProtocolImplementationError $ UnexpectedPacketType otherPacket)
@@ -189,10 +192,10 @@ openNativeConnection MkChCredential{chHost, chPort, chLogin, chPass, chDatabase}
 -- * Ping
 
 ping :: HasCallStack => Connection -> IO ()
-ping MkConnection{sock, revision, bufferSize} = do
+ping MkConnection{sock, revision, buffer} = do
   (sendAll sock . toLazyByteString)
     (serialize revision mkPingPacket)
-  (responsePacket, _) <- rawBufferizedRead emptyBuffer (deserialize revision) sock bufferSize
+  responsePacket <- rawBufferizedRead buffer (deserialize revision)
   case responsePacket of
     Pong                -> pure ()
     Exception exception -> throwIO (DatabaseException exception)
@@ -229,7 +232,7 @@ selectFrom conn@MkConnection{sock, user, revision} = do
     (  serialize revision (mkQueryPacket revision user (toChType query))
     <> serialize revision (mkDataPacket "" 0 0)
     )
-  handleSelect @table conn emptyBuffer pure
+  handleSelect @table conn pure
 
 select ::
   forall columns record
@@ -242,7 +245,7 @@ select conn@MkConnection{sock, user, revision} query = do
     (  serialize revision (mkQueryPacket revision user query)
     <> serialize revision (mkDataPacket "" 0 0)
     )
-  handleSelect @(Columns columns) conn emptyBuffer pure
+  handleSelect @(Columns columns) conn pure
 
 instance HasColumns (View name columns parameters) where
   type GetColumns (View _ columns _) = columns
@@ -266,7 +269,7 @@ selectFromView conn@MkConnection{..} interpreter = do
     (  serialize revision (mkQueryPacket revision user (toChType query))
     <> serialize revision (mkDataPacket "" 0 0)
     )
-  handleSelect @view conn emptyBuffer pure
+  handleSelect @view conn pure
 
 -- *** Streaming
 
@@ -289,7 +292,7 @@ streamSelectFrom conn@MkConnection{sock, user, revision} f = do
     <> serialize revision (mkDataPacket "" 0 0)
     )
   let f' x = id <$!!> f x
-  handleSelect @table conn emptyBuffer f'
+  handleSelect @table conn f'
 
 streamSelect ::
   forall columns record a
@@ -303,7 +306,7 @@ streamSelect conn@MkConnection{sock, user, revision} query f = do
     <> serialize revision (mkDataPacket "" 0 0)
     )
   let f' x = id <$!!> f x
-  handleSelect @(Columns columns) conn emptyBuffer f'
+  handleSelect @(Columns columns) conn f'
 
 streamSelectFromView ::
   forall view record name columns parameters passedParameters a
@@ -324,7 +327,7 @@ streamSelectFromView conn@MkConnection{..} interpreter f = do
     <> serialize revision (mkDataPacket "" 0 0)
     )
   let f' x = id <$!!> f x
-  handleSelect @view conn emptyBuffer f'
+  handleSelect @view conn f'
 
 -- *** Internal
 
@@ -333,19 +336,19 @@ handleSelect ::
   .
   ReadableFrom hasColumns record
   =>
-  Connection -> Buffer -> ([record] -> IO [a])  -> IO [a]
-handleSelect conn@MkConnection{..} previousBuffer f = do
-  (packet, buffer) <- rawBufferizedRead previousBuffer (deserialize revision) sock bufferSize  
+  Connection -> ([record] -> IO [a])  -> IO [a]
+handleSelect conn@MkConnection{..} f = do
+  packet <- rawBufferizedRead buffer (deserialize revision)
   case packet of
     DataResponse MkDataPacket{columns_count, rows_count} -> do
       case (columns_count, rows_count) of
-        (0, 0) -> handleSelect @hasColumns conn buffer f
+        (0, 0) -> handleSelect @hasColumns conn f
         (_, rows) -> do
-          (columns, nextBuffer) <- rawBufferizedRead buffer (deserializeColumns @hasColumns revision rows) sock bufferSize
+          columns <- rawBufferizedRead buffer (deserializeColumns @hasColumns revision rows)
           processedColumns <- f columns
-          (processedColumns ++) <$> handleSelect @hasColumns conn nextBuffer f 
-    Progress          _ -> handleSelect @hasColumns conn buffer f
-    ProfileInfo       _ -> handleSelect @hasColumns conn buffer f
+          (processedColumns ++) <$> handleSelect @hasColumns conn f
+    Progress          _ -> handleSelect @hasColumns conn f
+    ProfileInfo       _ -> handleSelect @hasColumns conn f
     EndOfStream         -> pure []
     Exception exception -> throwIO (DatabaseException exception)
     otherPacket         -> throwIO (ProtocolImplementationError $ UnexpectedPacketType otherPacket)
@@ -369,22 +372,21 @@ insertInto conn@MkConnection{sock, user, revision} columnsData = do
     (  serialize revision (mkQueryPacket revision user (toChType query))
     <> serialize revision (mkDataPacket "" 0 0)
     )
-  handleInsertResult @table conn emptyBuffer columnsData
+  handleInsertResult @table conn columnsData
 
-handleInsertResult :: forall columns record . WritableInto columns record => Connection -> Buffer -> [record] -> IO ()
-handleInsertResult conn@MkConnection{..} buffer records = do
-  (firstPacket, buffer1) <- rawBufferizedRead buffer (deserialize revision) sock bufferSize
+handleInsertResult :: forall columns record . WritableInto columns record => Connection -> [record] -> IO ()
+handleInsertResult conn@MkConnection{..} records = do
+  firstPacket <- rawBufferizedRead buffer (deserialize revision)
   case firstPacket of
-    TableColumns      _ -> handleInsertResult @columns conn buffer1 records
+    TableColumns      _ -> handleInsertResult @columns conn records
     DataResponse (MkDataPacket{rows_count}) -> do
-      (_emptyDataPacket, buffer2)
-        <- rawBufferizedRead buffer1 (deserializeRawColumns @(Columns (GetColumns columns)) revision rows_count) sock bufferSize
+      _emptyDataPacket <- rawBufferizedRead buffer (deserializeRawColumns @(Columns (GetColumns columns)) revision rows_count)
       (sendAll sock . toLazyByteString)
-        (  serialize revision (mkDataPacket "" (columnsCount @columns @record) (fromIntegral $ length records))
+        (  serialize revision (mkDataPacket "" (columnsCount @columns @record) (fromIntegral $ Prelude.length records))
         <> serializeRecords @columns revision records
         <> serialize revision (mkDataPacket "" 0 0)
         )
-      handleInsertResult @columns @record conn buffer2 []
+      handleInsertResult @columns @record conn []
     EndOfStream         -> pure ()
     Exception exception -> throwIO (DatabaseException exception)
     otherPacket         -> throwIO (ProtocolImplementationError $ UnexpectedPacketType otherPacket)
@@ -394,23 +396,30 @@ handleInsertResult conn@MkConnection{..} buffer records = do
 
 -- * Bufferization
 
-type Buffer = LazyByteString
+data Buffer = MkBuffer
+  { bufferSize :: Int
+  , bufferSocket :: Socket
+  , buff :: IORef StrictByteString
+  }
 
-emptyBuffer :: Buffer
-emptyBuffer = BL.Empty
+initBuffer :: Int -> Socket -> IO Buffer
+initBuffer size sock = MkBuffer size sock <$> newIORef ""
 
-rawBufferizedRead :: Buffer -> Get packet -> Socket -> Int64 -> IO (packet, Buffer)
-rawBufferizedRead buffer parser sock bufSize = runBufferReader (recv sock bufSize) buffer (runGetIncremental parser)
 
-runBufferReader :: IO LazyByteString -> Buffer -> Decoder packet -> IO (packet, Buffer)
-runBufferReader bufferFiller buffer = \case
-  (Partial decoder) -> case buffer of
-    BL.Chunk bs mChunk -> runBufferReader bufferFiller mChunk (decoder $ Just bs)
-    BL.Empty ->
-      bufferFiller >>= \case
-        BL.Chunk bs mChunk -> runBufferReader bufferFiller mChunk (decoder $ Just bs)
-        BL.Empty -> throwIO (DeserializationError "Expected more bytes while reading packet")
-  (Done !leftover _consumed !packet) -> pure (packet, fromStrict leftover)
+rawBufferizedRead :: Buffer -> Get packet -> IO packet
+rawBufferizedRead buffer parser = runBufferReader buffer (runGetIncremental parser)
+
+runBufferReader :: Buffer -> Decoder packet -> IO packet
+runBufferReader buffer@MkBuffer{bufferSocket, bufferSize, buff} = \case
+  (Partial decoder) -> do
+    currentBuffer <- readIORef buff
+    chosenBuffer <- case BS.length currentBuffer of
+      0 -> recv bufferSocket bufferSize
+      _ -> atomicWriteIORef buff "" $> currentBuffer
+    case BS.length chosenBuffer of
+      0 -> throwIO (DeserializationError "Expected more bytes while reading packet")
+      _ -> runBufferReader buffer (decoder $ Just $! chosenBuffer)
+  (Done leftover _consumed packet) -> atomicWriteIORef buff leftover $> packet
   (Fail _leftover _consumed msg) -> throwIO (DeserializationError msg)
 
 
