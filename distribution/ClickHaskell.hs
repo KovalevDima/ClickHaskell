@@ -94,8 +94,9 @@ import ClickHaskell.NativeProtocol
   )
 
 -- GHC included
-import Control.Exception (Exception, SomeException, bracketOnError, catch, finally, throwIO)
+import Control.Concurrent (MVar, takeMVar, newMVar, putMVar)
 import Control.DeepSeq (NFData, (<$!!>))
+import Control.Exception (Exception, SomeException, bracketOnError, catch, finally, throwIO)
 import Data.Binary.Get (Decoder (..), Get, runGetIncremental)
 import Data.ByteString as BS (StrictByteString, length)
 import Data.ByteString.Builder (byteString, toLazyByteString)
@@ -135,7 +136,16 @@ defaultCredentials = MkChCredential
   , chPort     = "9000"
   }
 
-data Connection = MkConnection
+data Connection where MkConnection :: (MVar ConnectionState) -> Connection
+
+withConnection :: Connection -> (ConnectionState -> IO a) -> IO a
+withConnection (MkConnection connStateMVar) f = do
+  connState <- takeMVar connStateMVar
+  res <- f connState
+  putMVar connStateMVar connState
+  pure res
+
+data ConnectionState = MkConnectionState
   { sock     :: Socket
   , user     :: ChString
   , buffer   :: Buffer
@@ -179,12 +189,13 @@ openNativeConnection MkChCredential{chHost, chPort, chLogin, chPass, chDatabase}
     HelloResponse MkHelloResponse{server_revision} -> do
       let revision = min server_revision latestSupportedRevision
       (sendAll sock . toLazyByteString) (serialize revision mkAddendum)
-      pure MkConnection
+      a <- newMVar MkConnectionState
         { user = toChType chLogin
         , revision
         , sock
         , buffer
         }
+      pure (MkConnection a)
     Exception exception -> throwIO (DatabaseException exception)
     otherPacket         -> throwIO (ProtocolImplementationError $ UnexpectedPacketType otherPacket)
 
@@ -192,14 +203,15 @@ openNativeConnection MkChCredential{chHost, chPort, chLogin, chPass, chDatabase}
 -- * Ping
 
 ping :: HasCallStack => Connection -> IO ()
-ping MkConnection{sock, revision, buffer} = do
-  (sendAll sock . toLazyByteString)
-    (serialize revision mkPingPacket)
-  responsePacket <- rawBufferizedRead buffer (deserialize revision)
-  case responsePacket of
-    Pong                -> pure ()
-    Exception exception -> throwIO (DatabaseException exception)
-    otherPacket         -> throwIO (ProtocolImplementationError . UnexpectedPacketType $ otherPacket)
+ping conn = do
+  withConnection conn $ \MkConnectionState{sock, revision, buffer} -> do
+    (sendAll sock . toLazyByteString)
+      (serialize revision mkPingPacket)
+    responsePacket <- rawBufferizedRead buffer (deserialize revision)
+    case responsePacket of
+      Pong                -> pure ()
+      Exception exception -> throwIO (DatabaseException exception)
+      otherPacket         -> throwIO (ProtocolImplementationError . UnexpectedPacketType $ otherPacket)
 
 
 
@@ -224,15 +236,16 @@ selectFrom ::
   )
   =>
   Connection -> IO [record]
-selectFrom conn@MkConnection{sock, user, revision} = do
-  let query
-        = "SELECT " <> readingColumns @table @record
-        <> " FROM " <> (byteString . BS8.pack) (symbolVal $ Proxy @name)
-  (sendAll sock . toLazyByteString)
-    (  serialize revision (mkQueryPacket revision user (toChType query))
-    <> serialize revision (mkDataPacket "" 0 0)
-    )
-  handleSelect @table conn pure
+selectFrom conn = do
+  withConnection conn $ \connState@MkConnectionState{sock, revision, user} -> do
+    let query
+          = "SELECT " <> readingColumns @table @record
+          <> " FROM " <> (byteString . BS8.pack) (symbolVal $ Proxy @name)
+    (sendAll sock . toLazyByteString)
+      (  serialize revision (mkQueryPacket revision user (toChType query))
+      <> serialize revision (mkDataPacket "" 0 0)
+      )
+    handleSelect @table connState pure
 
 select ::
   forall columns record
@@ -240,12 +253,13 @@ select ::
   ReadableFrom (Columns columns) record
   =>
   Connection -> ChString -> IO [record]
-select conn@MkConnection{sock, user, revision} query = do
-  (sendAll sock . toLazyByteString)
-    (  serialize revision (mkQueryPacket revision user query)
-    <> serialize revision (mkDataPacket "" 0 0)
-    )
-  handleSelect @(Columns columns) conn pure
+select conn query = do
+  withConnection conn $ \connState@MkConnectionState{sock, revision, user} -> do
+    (sendAll sock . toLazyByteString)
+      (  serialize revision (mkQueryPacket revision user query)
+      <> serialize revision (mkDataPacket "" 0 0)
+      )
+    handleSelect @(Columns columns) connState pure
 
 instance HasColumns (View name columns parameters) where
   type GetColumns (View _ columns _) = columns
@@ -261,15 +275,16 @@ selectFromView ::
   , CheckParameters parameters passedParameters
   )
   => Connection -> (Parameters '[] -> Parameters passedParameters) -> IO [record]
-selectFromView conn@MkConnection{..} interpreter = do
-  let query =
-        "SELECT " <> readingColumns @view @record <>
-        " FROM " <> (byteString . BS8.pack . symbolVal @name) Proxy <> viewParameters interpreter
-  (sendAll sock . toLazyByteString)
-    (  serialize revision (mkQueryPacket revision user (toChType query))
-    <> serialize revision (mkDataPacket "" 0 0)
-    )
-  handleSelect @view conn pure
+selectFromView conn interpreter = do
+  withConnection conn $ \connState@MkConnectionState{sock, revision, user} -> do
+    let query =
+          "SELECT " <> readingColumns @view @record <>
+          " FROM " <> (byteString . BS8.pack . symbolVal @name) Proxy <> viewParameters interpreter
+    (sendAll sock . toLazyByteString)
+      (  serialize revision (mkQueryPacket revision user (toChType query))
+      <> serialize revision (mkDataPacket "" 0 0)
+      )
+    handleSelect @view connState pure
 
 -- *** Streaming
 
@@ -283,16 +298,17 @@ streamSelectFrom ::
   )
   =>
   Connection -> ([record] -> IO [a]) -> IO [a]
-streamSelectFrom conn@MkConnection{sock, user, revision} f = do
-  let query
-        = "SELECT " <> readingColumns @table @record
-        <> " FROM " <> (byteString . BS8.pack) (symbolVal $ Proxy @name)
-  (sendAll sock . toLazyByteString)
-    (  serialize revision (mkQueryPacket revision user (toChType query))
-    <> serialize revision (mkDataPacket "" 0 0)
-    )
-  let f' x = id <$!!> f x
-  handleSelect @table conn f'
+streamSelectFrom conn f = do
+  withConnection conn $ \connState@MkConnectionState{sock, revision, user} -> do
+    let query
+          = "SELECT " <> readingColumns @table @record
+          <> " FROM " <> (byteString . BS8.pack) (symbolVal $ Proxy @name)
+    (sendAll sock . toLazyByteString)
+      (  serialize revision (mkQueryPacket revision user (toChType query))
+      <> serialize revision (mkDataPacket "" 0 0)
+      )
+    let f' x = id <$!!> f x
+    handleSelect @table connState f'
 
 streamSelect ::
   forall columns record a
@@ -300,13 +316,14 @@ streamSelect ::
   (ReadableFrom (Columns columns) record, NFData a)
   =>
   Connection -> ChString -> ([record] -> IO [a]) -> IO [a]
-streamSelect conn@MkConnection{sock, user, revision} query f = do
-  (sendAll sock . toLazyByteString)
-    (  serialize revision (mkQueryPacket revision user query)
-    <> serialize revision (mkDataPacket "" 0 0)
-    )
-  let f' x = id <$!!> f x
-  handleSelect @(Columns columns) conn f'
+streamSelect conn query f = do
+  withConnection conn $ \connState@MkConnectionState{sock, revision, user} -> do
+    (sendAll sock . toLazyByteString)
+      (  serialize revision (mkQueryPacket revision user query)
+      <> serialize revision (mkDataPacket "" 0 0)
+      )
+    let f' x = id <$!!> f x
+    handleSelect @(Columns columns) connState f'
 
 streamSelectFromView ::
   forall view record name columns parameters passedParameters a
@@ -318,16 +335,17 @@ streamSelectFromView ::
   , CheckParameters parameters passedParameters
   )
   => Connection -> (Parameters '[] -> Parameters passedParameters) -> ([record] -> IO [a]) -> IO [a]
-streamSelectFromView conn@MkConnection{..} interpreter f = do
-  let query =
-        "SELECT " <> readingColumns @view @record <>
-        " FROM " <> (byteString . BS8.pack . symbolVal @name) Proxy <> viewParameters interpreter
-  (sendAll sock . toLazyByteString)
-    (  serialize revision (mkQueryPacket revision user (toChType query))
-    <> serialize revision (mkDataPacket "" 0 0)
-    )
-  let f' x = id <$!!> f x
-  handleSelect @view conn f'
+streamSelectFromView conn interpreter f = do
+  withConnection conn $ \connState@MkConnectionState{sock, revision, user} -> do
+    let query =
+          "SELECT " <> readingColumns @view @record <>
+          " FROM " <> (byteString . BS8.pack . symbolVal @name) Proxy <> viewParameters interpreter
+    (sendAll sock . toLazyByteString)
+      (  serialize revision (mkQueryPacket revision user (toChType query))
+      <> serialize revision (mkDataPacket "" 0 0)
+      )
+    let f' x = id <$!!> f x
+    handleSelect @view connState f'
 
 -- *** Internal
 
@@ -336,8 +354,8 @@ handleSelect ::
   .
   ReadableFrom hasColumns record
   =>
-  Connection -> ([record] -> IO [a])  -> IO [a]
-handleSelect conn@MkConnection{..} f = do
+  ConnectionState -> ([record] -> IO [a])  -> IO [a]
+handleSelect conn@MkConnectionState{..} f = do
   packet <- rawBufferizedRead buffer (deserialize revision)
   case packet of
     DataResponse MkDataPacket{columns_count, rows_count} -> do
@@ -364,18 +382,19 @@ insertInto ::
   , KnownSymbol name
   )
   => Connection -> [record] -> IO ()
-insertInto conn@MkConnection{sock, user, revision} columnsData = do
-  let query =
-        "INSERT INTO " <> (byteString . BS8.pack) (symbolVal $ Proxy @name)
-        <> " (" <> writingColumns @table @record <> ") VALUES"
-  (sendAll sock . toLazyByteString)
-    (  serialize revision (mkQueryPacket revision user (toChType query))
-    <> serialize revision (mkDataPacket "" 0 0)
-    )
-  handleInsertResult @table conn columnsData
+insertInto conn columnsData = do
+  withConnection conn $ \connState@MkConnectionState{sock, user, revision} -> do
+    let query =
+          "INSERT INTO " <> (byteString . BS8.pack) (symbolVal $ Proxy @name)
+          <> " (" <> writingColumns @table @record <> ") VALUES"
+    (sendAll sock . toLazyByteString)
+      (  serialize revision (mkQueryPacket revision user (toChType query))
+      <> serialize revision (mkDataPacket "" 0 0)
+      )
+    handleInsertResult @table connState columnsData
 
-handleInsertResult :: forall columns record . WritableInto columns record => Connection -> [record] -> IO ()
-handleInsertResult conn@MkConnection{..} records = do
+handleInsertResult :: forall columns record . WritableInto columns record => ConnectionState -> [record] -> IO ()
+handleInsertResult conn@MkConnectionState{..} records = do
   firstPacket <- rawBufferizedRead buffer (deserialize revision)
   case firstPacket of
     TableColumns      _ -> handleInsertResult @columns conn records
