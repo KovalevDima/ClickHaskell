@@ -1,17 +1,23 @@
-{-# LANGUAGE DerivingStrategies #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE
+    DataKinds
+  , DeriveAnyClass
+  , DeriveGeneric
+  , DerivingStrategies
+  , TypeApplications
+#-}
+
 module T3Multithreading where
 
+-- Internal
 import ClickHaskell
 
-import Control.Concurrent.Async
+-- GHC included
+import Control.Concurrent.Async (replicateConcurrently_)
 import GHC.Generics (Generic)
+import GHC.Stack (HasCallStack)
 
 
-t3 :: Connection -> IO ()
+t3 :: HasCallStack => Connection -> IO ()
 t3 connection = do
   replicateConcurrently_ 10000 (
     select
