@@ -56,11 +56,13 @@ executable tests
     -pgmL markdown-unlit
   build-depends:
       ClickHaskell
+    , async
     , base >=4.7 && <5
     , bytestring
   other-modules:
     T1QuerySerialization
     T2WriteReadEquality
+    T3Multithreading
   build-tool-depends: markdown-unlit:markdown-unlit
   default-language: Haskell2010
 
