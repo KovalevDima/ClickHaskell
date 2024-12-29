@@ -37,11 +37,12 @@ nix run .#testing
 
 ```haskell
 import ClickHaskell (ChCredential(..), openNativeConnection, defaultCredentials)
+import T3Multithreading (t3)
 
 main :: IO ()
 main = do
   connection <- openNativeConnection defaultCredentials
   mapM_
     (\runner -> runner connection) 
-    [t1,t2] 
+    [t1,t2,t3]
 ```
