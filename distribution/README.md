@@ -2,7 +2,7 @@
 
 Haskell implementation of [ClickHouse](https://clickhouse.com/) DBMS Native protocol and client
 
-Surf across [Home page](https://kovalevdima.github.io/ClickHaskell/) to learn everything you need
+Surf across [Home page](https://clickhaskell.dev/) to learn everything you need
 
 # Design
 

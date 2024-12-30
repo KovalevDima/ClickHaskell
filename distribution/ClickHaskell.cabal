@@ -9,7 +9,7 @@ Maintainer:     Kovalev Dmitry
 Category:       ClickHouse
 Synopsis:       ClickHouse driver
 Description:    Small dependency footprint highlevel ClickHouse driver 
-Homepage:       https://github.com/KovalevDima/ClickHaskell#readme
+Homepage:       https://clickhaskell.dev/
 Bug-reports:    https://github.com/KovalevDima/ClickHaskell/issues
 License:        BSD-3-Clause
 License-File:   LICENSE
@@ -34,7 +34,6 @@ Flag dev
 Source-repository head
   Type: git
   Location: https://github.com/KovalevDima/ClickHaskell
-  Subdir: ClickHaskell
 
 
 Library
