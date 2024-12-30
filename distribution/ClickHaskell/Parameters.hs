@@ -6,13 +6,10 @@ module ClickHaskell.Parameters
   ( Parameter
   , parameters
   , parameter
-  , renderParameters
-  , Parameters(..)
-  , renderParameter
-  , CheckParameters
+  , Parameters
   ) where
 
-import ClickHaskell.NativeProtocol
+import ClickHaskell
 import Data.Binary.Builder (Builder)
 
 {-# DEPRECATED parameters "\
