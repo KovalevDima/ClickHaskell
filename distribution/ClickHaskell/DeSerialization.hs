@@ -2,12 +2,7 @@
 module ClickHaskell.DeSerialization
   {-# DEPRECATED "\
   \This module would be deleted in next minor release\
-  \Please move its imports to ClickHaskell module\
+  \Please don't use it's imports\
   \" #-}
-  ( Deserializable(..)
-  , GDeserializable(..)
-  , Serializable(..)
-  , GSerializable(..)
-  ) where
+  () where
 
-import ClickHaskell.NativeProtocol
