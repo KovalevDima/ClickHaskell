@@ -82,7 +82,7 @@ import Data.Binary.Put
 import Data.Bits
 import Data.ByteString as BS (StrictByteString, length, take, toStrict)
 import Data.ByteString.Builder (Builder, byteString, stringUtf8, toLazyByteString, word8)
-import Data.ByteString.Builder as BS (Builder, byteString)
+import Data.ByteString.Builder as BS (Builder, byteString, word16HexFixed)
 import Data.ByteString.Char8 as BS8 (concatMap, length, pack, replicate, singleton)
 import Data.Coerce (coerce)
 import Data.Functor (($>))
@@ -1792,6 +1792,13 @@ newtype ChUUID = MkChUUID Word128
 instance IsChType ChUUID where
   type ToChTypeName ChUUID = "UUID"
   defaultValueOfTypeName = MkChUUID 0
+
+instance ToQueryPart ChUUID where
+  toQueryPart (MkChUUID (Word128 hi lo)) = mconcat
+    ["'", p 3 hi, p 2 hi, "-", p 1 hi, "-", p 0 hi, "-", p 3 lo, "-", p 2 lo, p 1 lo, p 0 lo, "'"]
+    where
+    p :: Int -> Word64 -> Builder
+    p shiftN word = word16HexFixed $ fromIntegral (word `unsafeShiftR` (shiftN*16))
 
 
 instance ToChType ChUUID Word64 where toChType = MkChUUID . flip Word128 0
