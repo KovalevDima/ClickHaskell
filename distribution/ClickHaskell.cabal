@@ -49,7 +49,6 @@ Library
     ClickHaskell.Versioning
   Other-Modules:
     Paths_ClickHaskell
-    ClickHaskell.NativeProtocol
   HS-Source-Dirs:
     ./
   default-extensions:
