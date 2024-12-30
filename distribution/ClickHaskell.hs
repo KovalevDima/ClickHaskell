@@ -82,10 +82,9 @@ import Data.Binary.Put
 import Data.Bits
 import Data.ByteString as BS (StrictByteString, length, take, toStrict)
 import Data.ByteString.Builder (Builder, byteString, stringUtf8, toLazyByteString, word8)
-import Data.ByteString.Builder as BS (Builder, byteString)
+import Data.ByteString.Builder as BS (Builder, byteString, word16HexFixed)
 import Data.ByteString.Char8 as BS8 (concatMap, length, pack, replicate, singleton)
 import Data.Coerce (coerce)
-import Data.Char (intToDigit)
 import Data.Functor (($>))
 import Data.IORef (IORef, atomicWriteIORef, newIORef, readIORef)
 import Data.Int (Int16, Int32, Int64, Int8)
@@ -1795,31 +1794,12 @@ instance IsChType ChUUID where
   defaultValueOfTypeName = MkChUUID 0
 
 instance ToQueryPart ChUUID where
-  -- The main function to create the query part string
-  toQueryPart :: ChUUID -> Builder
-  toQueryPart (MkChUUID w128) =  "'" <> (byteString . BS8.pack $ hexw0 w0 $ hexw1 w1 "") <> "'"
+  toQueryPart (MkChUUID (Word128 hi lo)) = mconcat
+    ["'", p 3 hi, p 2 hi, "-", p 1 hi, "-", p 0 hi, "-", p 3 lo, "-", p 2 lo, p 1 lo, p 0 lo, "'"]
     where
-      hexw0 :: Word64 -> String -> String
-      hexw0 w s =     hexn w 60 : hexn w 56 : hexn w 52 : hexn w 48
-                    : hexn w 44 : hexn w 40 : hexn w 36 : hexn w 32
-                    : '-' : hexn w 28 : hexn w 24 : hexn w 20 : hexn w 16
-                    : '-' : hexn w 12 : hexn w  8 : hexn w  8 : hexn w  0
-                    : s
+    p :: Int -> Word64 -> Builder
+    p shiftN word = word16HexFixed $ fromIntegral (word `unsafeShiftR` (shiftN*16))
 
-      hexw1 :: Word64 -> String -> String
-      hexw1 w s =     '-' : hexn w 60 : hexn w 56 : hexn w 52 : hexn w 48
-                    : '-' : hexn w 44 : hexn w 40 : hexn w 36 : hexn w 32
-                    : hexn w 28 : hexn w 24 : hexn w 20 : hexn w 16
-                    : hexn w 12 : hexn w  8 : hexn w  4 : hexn w  0
-                    : s
-
-      hexn :: Word64 -> Int -> Char
-      hexn w r = intToDigit $ fromIntegral ((w `shiftR` r) .&. 0xf)
-
-      (w0,w1) = toWords128 (MkChUUID w128)
-
-      toWords128 :: ChUUID -> (Word64, Word64)
-      toWords128 (MkChUUID (Word128 w64hi w64lo)) = (w64hi, w64lo)
 
 instance ToChType ChUUID Word64 where toChType = MkChUUID . flip Word128 0
 instance ToChType ChUUID (Word64, Word64) where toChType = MkChUUID . uncurry (flip Word128)
