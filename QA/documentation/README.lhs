@@ -65,7 +65,7 @@ main = do
         pandocCompiler
           >>=
             loadAndApplyTemplate
-              "documentation/tmpl-main.html"
+              "documentation/template.html"
               (defaultContext <> mkNavigationCtx navigation)
           >>= relativizeUrls
 
