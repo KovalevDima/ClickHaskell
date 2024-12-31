@@ -43,15 +43,11 @@ jobs:
           filters: |
             isChangedDocs:
               - 'QA/**'
-            isChangedClickHaskell:
-              - 'distribution/**'
 
       - name: Build ClickHaskell-dist
-        if: steps.srcChanges.outputs.isChangedClickHaskell == 'true'
         run: nix build .#ClickHaskell-dist
       
       - name: Deploy ClickHaskell release candidate
-        if: steps.srcChanges.outputs.isChangedClickHaskell == 'true'
         uses: haskell-actions/hackage-publish@v1
         with:
           hackageToken: ${{ secrets.HACKAGE_API_KEY }}
