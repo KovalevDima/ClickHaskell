@@ -1,3 +1,5 @@
 packages:
     ./
-    ./QA
+    ./QA/contribution
+    ./QA/usage
+    ./QA/testing
