@@ -76,7 +76,7 @@
         in {
           imports = [inputs.services-flake.processComposeModules.default];
           services.clickhouse."${programName}-db" = wrapDefaultClickHouse [
-            (extractSqlFromMarkdown ./QA/profiling/PT1Simple.hs)
+            (extractSqlFromMarkdown ./QA/testing/PT1Simple.hs)
           ];
           settings.processes.${programName} = {
             command = "${self'.apps.${programName}.program}";
@@ -119,7 +119,7 @@
               libraryProfiling = true;
               haddock = true;
             };
-            QA = {
+            tests = {
               executableProfiling = true;
               libraryProfiling = true;
             };
@@ -143,7 +143,7 @@
           src = pkgs.nix-gitignore.gitignoreSourcePure [] ./.;
 
           buildPhase = ''
-            ${lib.getExe' self'.packages.QA "documentation-compiler"} build --verbose
+            ${lib.getExe' self'.packages.contribution "documentation-compiler"} build --verbose
           '';
 
           installPhase = ''

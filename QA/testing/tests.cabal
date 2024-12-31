@@ -47,7 +47,7 @@ executable tests
 executable prof-simple
   import: dump-core
   main-is: PT1Simple.hs
-  hs-source-dirs: testing
+  hs-source-dirs: .
   ghc-options:
     -O2 -threaded
     -main-is PT1Simple
@@ -63,7 +63,7 @@ executable prof-simple
 executable prof-1bil-stream
   import: dump-core
   main-is: PT2OneBillionStream.hs
-  hs-source-dirs: testing
+  hs-source-dirs: .
   ghc-options:
     -O2 -threaded
     -main-is PT2OneBillionStream

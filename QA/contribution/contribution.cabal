@@ -1,0 +1,29 @@
+Cabal-version:      3.4
+
+
+name:               QA
+version:            0.0.0.1
+build-type:         Simple
+license:            BSD-3-Clause
+license-file:       LICENSE
+
+data-files:
+  *.html
+  documentation.lhs
+
+executable documentation-compiler
+  default-language: GHC2021
+  hs-source-dirs: .
+  main-is: documentation.lhs
+  build-depends:
+      base
+    , hakyll
+    , bytestring
+    , filepath
+    , time
+    , pandoc
+  ghc-options:
+    -threaded -Wall
+    -main-is DocumentationCompiler
+    -pgmL markdown-unlit
+  build-tool-depends: markdown-unlit:markdown-unlit
