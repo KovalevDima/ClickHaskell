@@ -9,13 +9,13 @@ license-file:       LICENSE
 
 data-files:
   usage/*.lhs
-  ./documentation/*.html
-  README.md
+  contribution/*.html
+  contribution/documentation.lhs
 
 executable documentation-compiler
   default-language: GHC2021
   hs-source-dirs: .
-  main-is: documentation/README.lhs
+  main-is: contribution/documentation.lhs
   build-depends:
       base
     , hakyll
