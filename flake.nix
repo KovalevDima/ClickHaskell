@@ -53,7 +53,7 @@
           services.clickhouse."dev-database" = wrapDefaultClickHouse [
             (extractSqlFromMarkdown ./QA/usage/insertInto.lhs)
             (extractSqlFromMarkdown ./QA/usage/selectFromView.lhs)
-            (extractSqlFromMarkdown ./QA/profiling/Simple.hs)
+            (extractSqlFromMarkdown ./QA/profiling/PT1Simple.hs)
             (extractSqlFromMarkdown ./QA/testing/T2WriteReadEquality.hs)
           ];
         };
@@ -76,7 +76,7 @@
         in {
           imports = [inputs.services-flake.processComposeModules.default];
           services.clickhouse."${programName}-db" = wrapDefaultClickHouse [
-            (extractSqlFromMarkdown ./QA/profiling/Simple.hs)
+            (extractSqlFromMarkdown ./QA/profiling/PT1Simple.hs)
           ];
           settings.processes.${programName} = {
             command = "${self'.apps.${programName}.program}";
