@@ -39,10 +39,6 @@ jobs:
       - name: Check if docs sources changed
         uses: dorny/paths-filter@v3
         id: srcChanges
-        with:
-          filters: |
-            isChangedDocs:
-              - 'QA/**'
 
       - name: Build ClickHaskell-dist
         run: nix build .#ClickHaskell-dist
@@ -55,14 +51,9 @@ jobs:
           docsPath: result/docs
           publish: false
 
-    outputs:
-      isDeployRequiredDocs:
-        ${{ steps.srcChanges.outputs.isChangedDocs }}
-
   deploy-docs:
     needs: [handle-push-to-master]
     runs-on: ubuntu-latest
-    if: needs.handle-push-to-master.outputs.isDeployRequiredDocs == 'true'
 
     steps:
       - name: Deploy to GitHub Pages

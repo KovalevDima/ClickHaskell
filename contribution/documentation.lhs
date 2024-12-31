@@ -33,13 +33,13 @@ main :: IO ()
 main = do
   Encoding.setLocaleEncoding Encoding.utf8
 
-  hakyllWith defaultConfiguration{providerDirectory="QA"} $ do
+  hakyllWith defaultConfiguration{providerDirectory="."} $ do
 
     -- html templates
     match "contribution/template.html" $ compile templateCompiler
 
     let -- documentation content
-        pattern = ("**.lhs" .||. "**.md")
+        pattern = ("**.lhs" .||. "**.md") .&&. (complement "ChangeLog.md")
 
         -- tranforms file paths to actual links
         filePathToUrlPath filePath =

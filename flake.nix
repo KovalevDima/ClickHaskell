@@ -51,10 +51,10 @@
         process-compose."default" = {
           imports = [inputs.services-flake.processComposeModules.default];
           services.clickhouse."dev-database" = wrapDefaultClickHouse [
-            (extractSqlFromMarkdown ./QA/usage/insertInto.lhs)
-            (extractSqlFromMarkdown ./QA/usage/selectFromView.lhs)
-            (extractSqlFromMarkdown ./QA/profiling/PT1Simple.hs)
-            (extractSqlFromMarkdown ./QA/testing/T2WriteReadEquality.hs)
+            (extractSqlFromMarkdown ./usage/insertInto.lhs)
+            (extractSqlFromMarkdown ./usage/selectFromView.lhs)
+            (extractSqlFromMarkdown ./profiling/PT1Simple.hs)
+            (extractSqlFromMarkdown ./testing/T2WriteReadEquality.hs)
           ];
         };
         # Testing wrapper
@@ -67,7 +67,7 @@
             depends_on.testing-db.condition = "process_healthy";
           };
           services.clickhouse."testing-db" = wrapDefaultClickHouse [
-            (extractSqlFromMarkdown ./QA/testing/T2WriteReadEquality.hs)
+            (extractSqlFromMarkdown ./testing/T2WriteReadEquality.hs)
           ];
         };
         # Profiling wrapper
@@ -76,7 +76,7 @@
         in {
           imports = [inputs.services-flake.processComposeModules.default];
           services.clickhouse."${programName}-db" = wrapDefaultClickHouse [
-            (extractSqlFromMarkdown ./QA/testing/PT1Simple.hs)
+            (extractSqlFromMarkdown ./testing/PT1Simple.hs)
           ];
           settings.processes.${programName} = {
             command = "${self'.apps.${programName}.program}";
