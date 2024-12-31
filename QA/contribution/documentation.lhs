@@ -36,7 +36,7 @@ main = do
   hakyllWith defaultConfiguration{providerDirectory="QA"} $ do
 
     -- html templates
-    match "documentation/template.html" $ compile templateCompiler
+    match "contribution/template.html" $ compile templateCompiler
 
     let -- documentation content
         pattern = ("**.lhs" .||. "**.md")
@@ -65,7 +65,7 @@ main = do
         pandocCompiler
           >>=
             loadAndApplyTemplate
-              "documentation/template.html"
+              "contribution/template.html"
               (defaultContext <> mkNavigationCtx navigation)
           >>= relativizeUrls
 
