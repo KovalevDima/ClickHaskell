@@ -8,7 +8,7 @@
   , TypeApplications
 #-}
 
-module OneBillionStream (main) where
+module PT2OneBillionStream (main) where
 
 -- Internal
 import ClickHaskell

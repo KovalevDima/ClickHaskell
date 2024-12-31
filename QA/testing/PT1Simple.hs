@@ -26,7 +26,7 @@ ORDER BY ();
 ```
 -}
 
-module Simple (main) where
+module PT1Simple (main) where
 
 -- Internal
 import ClickHaskell

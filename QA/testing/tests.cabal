@@ -1,0 +1,78 @@
+Cabal-version:      3.4
+
+
+name:               tests
+version:            0.0.0.1
+build-type:         Simple
+license:            BSD-3-Clause
+license-file:       LICENSE
+
+common dump-core
+  ghc-options:
+    -dlint
+    -ddump-to-file
+    -ddump-simpl
+    -ddump-spec
+    -ddump-simpl-stats
+    -ddump-rule-firings
+    -dsuppress-type-applications
+    -dsuppress-coercions
+    -dsuppress-idinfo
+    -dsuppress-type-signatures
+    -dsuppress-var-kinds
+    -dsuppress-module-prefixes
+    -dsuppress-uniques
+
+executable tests
+  main-is: README.lhs
+  hs-source-dirs: .
+  ghc-options:
+    -O2 -threaded -rtsopts
+    -main-is Tests
+    -pgmL markdown-unlit
+  build-depends:
+      ClickHaskell
+    , async
+    , base >=4.7 && <5
+    , bytestring
+  other-modules:
+    T1QuerySerialization
+    T2WriteReadEquality
+    T3Multithreading
+  build-tool-depends: markdown-unlit:markdown-unlit
+  default-language: Haskell2010
+
+-- * Profiling
+
+executable prof-simple
+  import: dump-core
+  main-is: PT1Simple.hs
+  hs-source-dirs: testing
+  ghc-options:
+    -O2 -threaded
+    -main-is PT1Simple
+    -Wall
+  ghc-prof-options:
+    -fprof-late
+    -rtsopts "-with-rtsopts=-s -A32m -AL256m -p -hy -L250 -l-agu -N1"
+  build-depends:
+      ClickHaskell
+    , base
+    , bytestring
+
+executable prof-1bil-stream
+  import: dump-core
+  main-is: PT2OneBillionStream.hs
+  hs-source-dirs: testing
+  ghc-options:
+    -O2 -threaded
+    -main-is PT2OneBillionStream
+    -Wall
+  ghc-prof-options:
+    -fprof-late
+    -rtsopts "-with-rtsopts=-s -A8m -AL256m -p -hy -L250 -l-agu -N1"
+  build-depends:
+      ClickHaskell
+    , base
+    , bytestring
+    , deepseq

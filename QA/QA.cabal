@@ -12,22 +12,6 @@ data-files:
   ./documentation/*.html
   README.md
 
-common dump-core
-  ghc-options:
-    -dlint
-    -ddump-to-file
-    -ddump-simpl
-    -ddump-spec
-    -ddump-simpl-stats
-    -ddump-rule-firings
-    -dsuppress-type-applications
-    -dsuppress-coercions
-    -dsuppress-idinfo
-    -dsuppress-type-signatures
-    -dsuppress-var-kinds
-    -dsuppress-module-prefixes
-    -dsuppress-uniques
-
 executable documentation-compiler
   default-language: GHC2021
   hs-source-dirs: .
@@ -71,7 +55,6 @@ executable tests
 -- * API
 
 executable insertInto
-  import: dump-core
   default-language: GHC2021
   main-is: usage/insertInto.lhs
   build-depends:
@@ -85,7 +68,6 @@ executable insertInto
   build-tool-depends: markdown-unlit:markdown-unlit
 
 executable selectFromView
-  import: dump-core
   default-language: GHC2021
   main-is: usage/selectFromView.lhs
   build-depends:
@@ -96,39 +78,3 @@ executable selectFromView
     -main-is ReadingView
     -Wall
   build-tool-depends: markdown-unlit:markdown-unlit
-
-
--- * Profiling
-
-executable prof-simple
-  import: dump-core
-  main-is: Simple.hs
-  hs-source-dirs: profiling
-  ghc-options:
-    -O2 -threaded
-    -main-is Simple
-    -Wall
-  ghc-prof-options:
-    -fprof-late
-    -rtsopts "-with-rtsopts=-s -A32m -AL256m -p -hy -L250 -l-agu -N1"
-  build-depends:
-      ClickHaskell
-    , base
-    , bytestring
-
-executable prof-1bil-stream
-  import: dump-core
-  main-is: OneBillionStream.hs
-  hs-source-dirs: profiling
-  ghc-options:
-    -O2 -threaded
-    -main-is OneBillionStream
-    -Wall
-  ghc-prof-options:
-    -fprof-late
-    -rtsopts "-with-rtsopts=-s -A8m -AL256m -p -hy -L250 -l-agu -N1"
-  build-depends:
-      ClickHaskell
-    , base
-    , bytestring
-    , deepseq
