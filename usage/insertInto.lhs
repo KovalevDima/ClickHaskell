@@ -71,7 +71,7 @@ type ExampleTable =
     "exampleWriteRead"
    '[ Column "a1" ChInt64
     , Column "a2" ChString
-    , Column "a3" ChDateTime
+    , Column "a3" (ChDateTime "UTC")
     , Column "a4" ChUUID
     ]
 

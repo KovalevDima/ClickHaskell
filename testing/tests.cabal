@@ -39,6 +39,7 @@ executable tests
     T1QuerySerialization
     T2WriteReadEquality
     T3Multithreading
+    T4MissmatchErrors
   build-tool-depends: markdown-unlit:markdown-unlit
   default-language: Haskell2010
 

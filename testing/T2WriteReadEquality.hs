@@ -62,8 +62,8 @@ t2 connection = do
 
 
 type TestTable = Table "writeReadEqualityTable"
-  '[ Column "dateTime" ChDateTime
-   , Column "dateTimeNullable" (Nullable ChDateTime)
+  '[ Column "dateTime" (ChDateTime "UTC")
+   , Column "dateTimeNullable" (Nullable (ChDateTime "UTC"))
    , Column "int128" ChInt128
    , Column "int128Nullable" (Nullable ChInt128)
    , Column "int16" ChInt16
@@ -91,8 +91,8 @@ type TestTable = Table "writeReadEqualityTable"
    ]
 
 data TestData = MkTestData
-  { dateTime :: ChDateTime
-  , dateTimeNullable :: Nullable ChDateTime
+  { dateTime :: ChDateTime "UTC"
+  , dateTimeNullable :: Nullable (ChDateTime "UTC")
   , int128 :: ChInt128
   , int128Nullable :: Nullable ChInt128
   , int16 :: ChInt16

@@ -57,6 +57,7 @@ runTestForType ::
   forall chType
   .
   ( ToQueryPart chType
+  , IsChType chType
   , Eq chType
   , Show chType
   , ReadableFrom (Columns '[Column "testSample" chType]) (TestSample chType)

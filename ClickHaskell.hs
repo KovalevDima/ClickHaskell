@@ -19,7 +19,7 @@ module ClickHaskell
   (
   -- * Connection
     ChCredential(..), defaultCredentials
-  , Connection(..), openNativeConnection
+  , Connection(..), openNativeConnection, closeConnection
 
   -- * Reading and writing
   , Table
@@ -38,6 +38,12 @@ module ClickHaskell
   -- *** Internal
   , handleSelect
 
+  -- * Errors
+  , ClientError(..)
+  , ConnectionError(..)
+  , UserError(..)
+  , InternalError(..)
+
   -- ** Writing
   , WritableInto(..)
   , insertInto
@@ -50,20 +56,20 @@ module ClickHaskell
   , ToChType(toChType)
   , FromChType(fromChType)
   , ToQueryPart(toQueryPart)
-  
+
   , ChDateTime(..)
   , ChDate(..)
-  
+
   , ChInt8(..), ChInt16(..), ChInt32(..), ChInt64(..), ChInt128(..)
   , ChUInt8(..), ChUInt16(..), ChUInt32(..), ChUInt64(..), ChUInt128(..)
-  
+
   , ChString(..)
   , ChUUID(..)
-  
+
   , ChArray(..)
   , Nullable
   , LowCardinality, IsLowCardinalitySupported
-  
+
   , UVarInt(..)
   , module Data.WideWord
   ) where
@@ -72,10 +78,10 @@ module ClickHaskell
 import Paths_ClickHaskell (version)
 
 -- GHC included
-import Control.Concurrent (MVar, newMVar, putMVar, takeMVar)
+import Control.Concurrent (MVar, newMVar, withMVar)
 import Control.DeepSeq (NFData, (<$!!>))
-import Control.Exception (Exception, SomeException, bracketOnError, catch, finally, throwIO)
-import Control.Monad (forM, replicateM, (<$!>))
+import Control.Exception (Exception, bracketOnError, catch, finally, throwIO, throw, SomeException)
+import Control.Monad (forM, replicateM, (<$!>), when)
 import Data.Binary.Get
 import Data.Binary.Get.Internal (readN)
 import Data.Binary.Put
@@ -134,12 +140,21 @@ defaultCredentials = MkChCredential
 
 data Connection where MkConnection :: (MVar ConnectionState) -> Connection
 
-withConnection :: Connection -> (ConnectionState -> IO a) -> IO a
-withConnection (MkConnection connStateMVar) f = do
-  connState <- takeMVar connStateMVar
-  res <- f connState
-  putMVar connStateMVar connState
-  pure res
+withConnection :: HasCallStack => Connection -> (ConnectionState -> IO a) -> IO a
+withConnection (MkConnection connStateMVar) f =
+  withMVar connStateMVar $ \connState ->
+    catch
+      @ClientError
+      (f connState)
+      (\e -> case e of
+        ConnectionError err -> throwIO (ConnectionError err)
+        UserError err       -> throwIO (UserError err)
+        InternalError err   -> throwIO (InternalError err)
+        unexpectedError     -> throwIO unexpectedError
+      )
+
+closeConnection :: HasCallStack => Connection -> IO ()
+closeConnection (MkConnection connStateMVar) = withMVar connStateMVar $ \MkConnectionState{sock} -> close sock
 
 data ConnectionState = MkConnectionState
   { sock     :: Socket
@@ -193,7 +208,7 @@ openNativeConnection MkChCredential{chHost, chPort, chLogin, chPass, chDatabase}
         }
       pure (MkConnection a)
     Exception exception -> throwIO (DatabaseException exception)
-    otherPacket         -> throwIO (ProtocolImplementationError $ UnexpectedPacketType otherPacket)
+    otherPacket         -> throwIO (InternalError $ UnexpectedPacketType otherPacket)
 
 
 -- * Ping
@@ -207,7 +222,7 @@ ping conn = do
     case responsePacket of
       Pong                -> pure ()
       Exception exception -> throwIO (DatabaseException exception)
-      otherPacket         -> throwIO (ProtocolImplementationError . UnexpectedPacketType $ otherPacket)
+      otherPacket         -> throwIO (InternalError $ UnexpectedPacketType otherPacket)
 
 
 
@@ -365,7 +380,7 @@ handleSelect conn@MkConnectionState{..} f = do
     ProfileInfo       _ -> handleSelect @hasColumns conn f
     EndOfStream         -> pure []
     Exception exception -> throwIO (DatabaseException exception)
-    otherPacket         -> throwIO (ProtocolImplementationError $ UnexpectedPacketType otherPacket)
+    otherPacket         -> throwIO (InternalError $ UnexpectedPacketType otherPacket)
 
 
 -- ** Inserting
@@ -404,7 +419,7 @@ handleInsertResult conn@MkConnectionState{..} records = do
       handleInsertResult @columns @record conn []
     EndOfStream         -> pure ()
     Exception exception -> throwIO (DatabaseException exception)
-    otherPacket         -> throwIO (ProtocolImplementationError $ UnexpectedPacketType otherPacket)
+    otherPacket         -> throwIO (InternalError $ UnexpectedPacketType otherPacket)
 
 
 
@@ -444,20 +459,22 @@ runBufferReader buffer@MkBuffer{bufferSocket, bufferSize, buff} = \case
 
 data ClientError where
   ConnectionError :: HasCallStack => ConnectionError -> ClientError
+  UserError :: HasCallStack => UserError -> ClientError
   DatabaseException :: HasCallStack => ExceptionPacket -> ClientError
-  ProtocolImplementationError :: HasCallStack => ProtocolImplementationError -> ClientError
+  InternalError :: HasCallStack => InternalError -> ClientError
 
 instance Show ClientError where
-  show (ConnectionError connError) = "ConnectionError" <> show connError <> "\n" <> prettyCallStack callStack
-  show (DatabaseException exception) = "DatabaseException" <> show exception <> "\n" <> prettyCallStack callStack
-  show (ProtocolImplementationError err) = "ConnectionError" <> show err <> "\n" <> prettyCallStack callStack
+  show (ConnectionError err)   = "ConnectionError " <> show err <> "\n" <> prettyCallStack callStack
+  show (UserError err)         = "UserError " <> show err <> "\n" <> prettyCallStack callStack
+  show (DatabaseException err) = "DatabaseException " <> show err <> "\n" <> prettyCallStack callStack
+  show (InternalError err)     = "InternalError " <> show err <> "\n" <> prettyCallStack callStack
 
 deriving anyclass instance Exception ClientError
 
 {- |
   You shouldn't see this exceptions. Please report a bug if it appears
 -}
-data ProtocolImplementationError
+data InternalError
   = UnexpectedPacketType ServerPacketType
   | DeserializationError String
   deriving (Show, Exception)
@@ -465,6 +482,11 @@ data ProtocolImplementationError
 data ConnectionError
   = NoAdressResolved
   | EstablishTimeout
+  deriving (Show, Exception)
+
+data UserError
+  = UnmatchedType String
+  | UnmatchedColumn String
   deriving (Show, Exception)
 
 
@@ -1001,14 +1023,27 @@ instance
 class DeserializableColumn column where
   deserializeColumn :: ProtocolRevision -> UVarInt -> Get column
 
+handleColumnHeader :: forall column . KnownColumn column => ProtocolRevision -> Get ()
+handleColumnHeader rev = do
+  let expectedColumnName = toChType (renderColumnName @column)
+      expectedType       = toChType (renderColumnType @column)
+  resultColumnName <- deserialize @ChString rev
+  resultType <- deserialize @ChString rev
+  when (resultColumnName /= expectedColumnName)
+    . throw . UserError . UnmatchedColumn
+      $ "Got column \"" <> show resultColumnName <> "\" but expected \"" <> show expectedColumnName <> "\""
+  when (resultType /= expectedType)
+    . throw . UserError . UnmatchedType
+      $  "Column " <> show resultColumnName <> " has type " <> show resultType
+      <> ". But expected type is " <> show expectedType
+
 instance
   ( KnownColumn (Column name chType)
   , Deserializable chType
   ) =>
   DeserializableColumn (Column name chType) where
   deserializeColumn rev rows = do
-    _columnName <- deserialize @ChString rev
-    _columnType <- deserialize @ChString rev
+    handleColumnHeader @(Column name chType) rev
     _isCustom <- deserialize @(ChUInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION) rev
     column <- replicateM (fromIntegral rows) (deserialize @chType rev)
     pure $ mkColumn @(Column name chType) column
@@ -1019,8 +1054,7 @@ instance {-# OVERLAPPING #-}
   ) =>
   DeserializableColumn (Column name (Nullable chType)) where
   deserializeColumn rev rows = do
-    _columnName <- deserialize @ChString rev
-    _columnType <- deserialize @ChString rev
+    handleColumnHeader @(Column name (Nullable chType)) rev
     _isCustom <- deserialize @(ChUInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION) rev
     nulls <- replicateM (fromIntegral rows) (deserialize @ChUInt8 rev)
     nullable <-
@@ -1041,8 +1075,7 @@ instance {-# OVERLAPPING #-}
   ) =>
   DeserializableColumn (Column name (LowCardinality chType)) where
   deserializeColumn rev rows = do
-    _columnName <- deserialize @ChString rev
-    _columnType <- deserialize @ChString rev
+    handleColumnHeader @(Column name (LowCardinality chType)) rev
     _isCustom <- deserialize @(ChUInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION) rev
     _serializationType <- (.&. 0xf) <$> deserialize @ChUInt64 rev
     _index_size <- deserialize @ChInt64 rev
@@ -1057,8 +1090,7 @@ instance {-# OVERLAPPING #-}
   )
   => DeserializableColumn (Column name (ChArray chType)) where
   deserializeColumn rev _rows = do
-    _columnName <- deserialize @ChString rev
-    _columnType <- deserialize @ChString rev
+    handleColumnHeader @(Column name (ChArray chType)) rev
     _isCustom <- deserialize @(ChUInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION) rev
     (arraySize, _offsets) <- traceShowId <$> readOffsets rev
     _types <- replicateM (fromIntegral arraySize) (deserialize @chType rev)
@@ -1145,7 +1177,7 @@ instance Deserializable ChUInt16 where deserialize _ = toChType <$> getWord16le
 instance Deserializable ChUInt32 where deserialize _ = toChType <$> getWord32le
 instance Deserializable ChUInt64 where deserialize _ = toChType <$> getWord64le
 instance Deserializable ChUInt128 where deserialize _ = toChType <$> (flip Word128 <$> getWord64le <*> getWord64le)
-instance Deserializable ChDateTime where deserialize _ = toChType <$> getWord32le
+instance Deserializable (ChDateTime tz) where deserialize _ = toChType <$> getWord32le
 instance Deserializable ChDate where deserialize _ = toChType <$> getWord16le
 
 instance Deserializable UVarInt where
@@ -1231,7 +1263,7 @@ data Column (name :: Symbol) (chType :: Type) where
   ChInt64Column :: [ChInt64] -> Column name ChInt64
   ChInt128Column :: [ChInt128] -> Column name ChInt128
   ChDateColumn :: [ChDate] -> Column name ChDate
-  ChDateTimeColumn :: [ChDateTime] -> Column name ChDateTime
+  ChDateTimeColumn :: [ChDateTime tz] -> Column name (ChDateTime tz)
   ChUUIDColumn :: [ChUUID] -> Column name ChUUID
   ChStringColumn :: [ChString] -> Column name ChString
   ChArrayColumn :: IsChType chType => [ChArray chType] -> Column name (ChArray chType)
@@ -1291,7 +1323,11 @@ instance KnownSymbol name => KnownColumn (Column name ChInt32) where mkColumn = 
 instance KnownSymbol name => KnownColumn (Column name ChInt64) where mkColumn = ChInt64Column
 instance KnownSymbol name => KnownColumn (Column name ChInt128) where mkColumn = ChInt128Column
 instance KnownSymbol name => KnownColumn (Column name ChDate) where mkColumn = ChDateColumn
-instance KnownSymbol name => KnownColumn (Column name ChDateTime) where mkColumn = ChDateTimeColumn
+instance
+  ( KnownSymbol name
+  , IsChType (ChDateTime tz)
+  ) =>
+  KnownColumn (Column name (ChDateTime tz)) where mkColumn = ChDateTimeColumn
 instance KnownSymbol name => KnownColumn (Column name ChUUID) where mkColumn = ChUUIDColumn
 instance
   ( KnownSymbol name
@@ -1553,7 +1589,7 @@ instance Serializable ChUInt16 where serialize _ = execPut . putWord16le . fromC
 instance Serializable ChUInt32 where serialize _ = execPut . putWord32le . fromChType
 instance Serializable ChUInt64 where serialize _ = execPut . putWord64le . fromChType
 instance Serializable ChUInt128 where serialize _ = execPut . (\(Word128 hi lo) -> putWord64le lo <> putWord64le hi) . fromChType
-instance Serializable ChDateTime where serialize _ = execPut . putWord32le . fromChType
+instance Serializable (ChDateTime tz) where serialize _ = execPut . putWord32le . fromChType
 instance Serializable ChDate where serialize _ = execPut . putWord16le . fromChType
 
 
@@ -1620,9 +1656,9 @@ class
 
   defaultValueOfTypeName :: chType
 
-class IsChType chType => ToChType chType inputType    where toChType    :: inputType -> chType
-class IsChType chType => FromChType chType outputType where fromChType  :: chType -> outputType
-class IsChType chType => ToQueryPart chType           where toQueryPart :: chType -> BS.Builder
+class ToChType chType inputType    where toChType    :: inputType -> chType
+class FromChType chType outputType where fromChType  :: chType -> outputType
+class ToQueryPart chType           where toQueryPart :: chType -> BS.Builder
 
 instance {-# OVERLAPPABLE #-} (IsChType chType, chType ~ inputType) => ToChType chType inputType where toChType = id
 instance {-# OVERLAPPABLE #-} (IsChType chType, chType ~ inputType) => FromChType chType inputType where fromChType = id
@@ -2021,25 +2057,25 @@ instance FromChType ChUInt128 Word128   where fromChType (MkChUInt128 w128) = w1
 
 
 -- | ClickHouse DateTime column type
-newtype ChDateTime = MkChDateTime Word32
+newtype ChDateTime (tz :: Symbol) = MkChDateTime Word32
   deriving newtype (Show, Eq, Prim, Num, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
 
-instance IsChType ChDateTime
+instance KnownSymbol (ToChTypeName (ChDateTime tz)) => IsChType (ChDateTime tz)
   where
-  type ToChTypeName ChDateTime = "DateTime"
+  type ToChTypeName (ChDateTime tz) = "DateTime('" `AppendSymbol` tz `AppendSymbol` "')"
   defaultValueOfTypeName = MkChDateTime 0
 
-instance ToQueryPart ChDateTime
+instance (IsChType (ChDateTime tz)) => ToQueryPart (ChDateTime tz)
   where
-  toQueryPart chDateTime = let time = BS8.pack . show . fromChType @ChDateTime @Word32 $ chDateTime
+  toQueryPart chDateTime = let time = BS8.pack . show . fromChType @(ChDateTime tz) @Word32 $ chDateTime
     in BS.byteString (BS8.replicate (10 - BS8.length time) '0' <> time)
 
-instance ToChType ChDateTime Word32     where toChType = MkChDateTime
-instance ToChType ChDateTime UTCTime    where toChType = MkChDateTime . floor . utcTimeToPOSIXSeconds
-instance ToChType ChDateTime ZonedTime  where toChType = MkChDateTime . floor . utcTimeToPOSIXSeconds . zonedTimeToUTC
+instance ToChType (ChDateTime tz) Word32     where toChType = MkChDateTime
+instance ToChType (ChDateTime tz) UTCTime    where toChType = MkChDateTime . floor . utcTimeToPOSIXSeconds
+instance ToChType (ChDateTime tz) ZonedTime  where toChType = MkChDateTime . floor . utcTimeToPOSIXSeconds . zonedTimeToUTC
 
-instance FromChType ChDateTime Word32     where fromChType = coerce
-instance FromChType ChDateTime UTCTime    where fromChType (MkChDateTime w32) = posixSecondsToUTCTime (fromIntegral w32)
+instance FromChType (ChDateTime tz) Word32     where fromChType = coerce
+instance FromChType (ChDateTime tz) UTCTime    where fromChType (MkChDateTime w32) = posixSecondsToUTCTime (fromIntegral w32)
 
 
 
@@ -2087,14 +2123,10 @@ instance
     . fromChType
 
 instance
-  ( IsChType chType
-  , IsChType (ChArray chType)
-  ) =>
   FromChType (ChArray chType) [chType] where fromChType (MkChArray values) = values
 
 instance
   ( ToChType chType inputType
-  , IsChType (ChArray chType)
   ) =>
   ToChType (ChArray chType) [inputType] where toChType = MkChArray . map toChType
 

@@ -4,6 +4,7 @@
 module Tests where
 ```
 
+
 ```haskell
 import T1QuerySerialization (t1)
 ```
@@ -19,6 +20,7 @@ import T1QuerySerialization (t1)
 3. Parses the result
 4. Checks if result equals initial value
 
+
 ```haskell
 import T2WriteReadEquality (t2)
 ```
@@ -26,10 +28,18 @@ import T2WriteReadEquality (t2)
 2. Runs **selectFrom** from the same table
 3. Checks if result equals sample value
 
+
 ```haskell
 import T3Multithreading (t3)
 ```
 1. Runs 10000 concurrent queries via single connection
+
+
+```haskell
+import T4MissmatchErrors (t4)
+```
+1. Runs queries with types and names missmatch and handles error
+
 
 <h2>How to run</h2>
 You can manually run database and tests:
@@ -37,6 +47,7 @@ You can manually run database and tests:
 ```bash
 nix run .#testing
 ```
+
 
 <h2>Main function</h2>
 
@@ -48,5 +59,5 @@ main = do
   connection <- openNativeConnection defaultCredentials
   mapM_
     (\runner -> runner connection) 
-    [t1,t2,t3]
+    [t1,t2,t3,t4]
 ```
