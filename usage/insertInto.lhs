@@ -28,7 +28,7 @@ module Writing where
 
 import ClickHaskell
   ( WritableInto, insertInto
-  , ChCredential(..), openNativeConnection
+  , openNativeConnection, defaultCredentials
   , Table, Column
   , toChType
   , ChDateTime, ChInt64, ChString, ChUUID
@@ -40,15 +40,7 @@ import GHC.Generics (Generic)
 
 main :: IO ()
 main = do
-  let credentials = MkChCredential
-        { chLogin = "default"
-        , chPass = ""
-        , chHost = "localhost"
-        , chDatabase = "default"
-        , chPort = "9000"
-        }
-  connection <- openNativeConnection credentials 
-
+  connection <- openNativeConnection defaultCredentials
   insertInto
     @ExampleTable
     @ExampleData

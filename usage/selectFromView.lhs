@@ -25,9 +25,8 @@ module ReadingView where
 
 import ClickHaskell
   ( ReadableFrom, selectFromView, Column
-  , ChCredential(..)
   , View, Parameter, parameter
-  , openNativeConnection
+  , openNativeConnection, defaultCredentials
   , ChString, ChInt32
   )
 import Data.Int (Int32)
@@ -35,14 +34,7 @@ import GHC.Generics (Generic)
 
 main :: IO ()
 main = do
-  let credentials = MkChCredential
-        { chLogin = "default"
-        , chPass = ""
-        , chHost = "localhost"
-        , chDatabase = "default"
-        , chPort = "9000"
-        }
-  connection <- openNativeConnection credentials
+  connection <- openNativeConnection defaultCredentials
   mapM_ print
     =<<
       selectFromView
