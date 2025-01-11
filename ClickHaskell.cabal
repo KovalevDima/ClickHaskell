@@ -9,6 +9,7 @@ Maintainer:     Kovalev Dmitry
 Category:       ClickHouse
 Synopsis:       ClickHouse driver
 Description:    Small dependency footprint highlevel ClickHouse driver 
+Tested-with:    GHC == 9.6.6
 Homepage:       https://clickhaskell.dev/
 Bug-reports:    https://github.com/KovalevDima/ClickHaskell/issues
 License:        BSD-3-Clause
