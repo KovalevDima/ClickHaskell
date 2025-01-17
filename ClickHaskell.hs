@@ -112,6 +112,8 @@ import GHC.Stack (HasCallStack, callStack, prettyCallStack)
 import GHC.TypeLits (AppendSymbol, ErrorMessage (..), KnownNat, KnownSymbol, Nat, Symbol, TypeError, natVal, symbolVal)
 import GHC.Word (Word64)
 import System.Timeout (timeout)
+import Data.Type.Equality (type(==))
+import Data.Type.Bool (If)
 
 -- External
 import Data.WideWord (Int128 (..), Word128(..))
@@ -391,6 +393,7 @@ insertInto ::
   ( table ~ Table name columns
   , WritableInto table record
   , KnownSymbol name
+  , Show record
   )
   => Connection -> [record] -> IO ()
 insertInto conn columnsData = do
@@ -404,13 +407,13 @@ insertInto conn columnsData = do
       )
     handleInsertResult @table connState columnsData
 
-handleInsertResult :: forall columns record . WritableInto columns record => ConnectionState -> [record] -> IO ()
+handleInsertResult :: forall columns record . (WritableInto columns record, Show record) => ConnectionState -> [record] -> IO ()
 handleInsertResult conn@MkConnectionState{..} records = do
   firstPacket <- rawBufferizedRead buffer (deserialize revision)
   case firstPacket of
     TableColumns      _ -> handleInsertResult @columns conn records
-    DataResponse (MkDataPacket{rows_count}) -> do
-      _emptyDataPacket <- rawBufferizedRead buffer (deserializeRawColumns @(Columns (GetColumns columns)) revision rows_count)
+    DataResponse MkDataPacket{} -> do
+      _emptyDataPacket <- rawBufferizedRead buffer (deserializeInsertHeader @columns @record revision)
       (sendAll sock . toLazyByteString)
         (  serialize revision (mkDataPacket "" (columnsCount @columns @record) (fromIntegral $ Prelude.length records))
         <> serializeRecords @columns revision records
@@ -435,6 +438,8 @@ data Buffer = MkBuffer
 initBuffer :: Int -> Socket -> IO Buffer
 initBuffer size sock = MkBuffer size sock <$> newIORef ""
 
+flushBuffer :: Buffer -> IO ()
+flushBuffer MkBuffer{buff} = atomicWriteIORef buff ""
 
 rawBufferizedRead :: Buffer -> Get packet -> IO packet
 rawBufferizedRead buffer parser = runBufferReader buffer (runGetIncremental parser)
@@ -445,12 +450,12 @@ runBufferReader buffer@MkBuffer{bufferSocket, bufferSize, buff} = \case
     currentBuffer <- readIORef buff
     chosenBuffer <- case BS.length currentBuffer of
       0 -> recv bufferSocket bufferSize
-      _ -> atomicWriteIORef buff "" $> currentBuffer
+      _ -> flushBuffer buffer $> currentBuffer
     case BS.length chosenBuffer of
-      0 -> throwIO (DeserializationError "Expected more bytes while reading packet")
+      0 -> throwIO (InternalError $ DeserializationError "Expected more bytes while reading packet")
       _ -> runBufferReader buffer (decoder $ Just $! chosenBuffer)
   (Done leftover _consumed packet) -> atomicWriteIORef buff leftover $> packet
-  (Fail _leftover _consumed msg) -> throwIO (DeserializationError msg)
+  (Fail _leftover _consumed msg) -> throwIO (InternalError $ DeserializationError msg)
 
 
 
@@ -915,11 +920,7 @@ type GenericReadable record hasColumns =
   , GReadable (GetColumns hasColumns) (Rep record)
   )
 
-class
-  ( HasColumns hasColumns
-  , DeserializableColumns (Columns (GetColumns hasColumns))
-  ) =>
-  ReadableFrom hasColumns record
+class HasColumns hasColumns => ReadableFrom hasColumns record
   where
   default deserializeColumns :: GenericReadable record hasColumns => ProtocolRevision -> UVarInt -> Get [record]
   deserializeColumns :: ProtocolRevision -> UVarInt -> Get [record]
@@ -990,30 +991,6 @@ instance
   gReadingColumns = renderColumnName @(Column name chType)
 
 
--- ** Raw columns deserialization
-
-class DeserializableColumns columns where
-  deserializeRawColumns :: ProtocolRevision -> UVarInt -> Get columns
-
-instance
-  DeserializableColumns (Columns '[])
-  where
-  {-# INLINE deserializeRawColumns #-}
-  deserializeRawColumns _rev _rows = pure Empty
-
-instance
-  ( KnownColumn (Column name chType)
-  , DeserializableColumn (Column name chType)
-  , DeserializableColumns (Columns extraColumns)
-  )
-  =>
-  DeserializableColumns (Columns (Column name chType ': extraColumns))
-  where
-  {-# INLINE deserializeRawColumns #-}
-  deserializeRawColumns rev rows =
-    AddColumn
-      <$> deserializeColumn rev rows
-      <*> deserializeRawColumns @(Columns extraColumns) rev rows
 
 
 -- ** Column deserialization
@@ -1026,16 +1003,16 @@ class DeserializableColumn column where
 handleColumnHeader :: forall column . KnownColumn column => ProtocolRevision -> Get ()
 handleColumnHeader rev = do
   let expectedColumnName = toChType (renderColumnName @column)
-      expectedType       = toChType (renderColumnType @column)
   resultColumnName <- deserialize @ChString rev
-  resultType <- deserialize @ChString rev
   when (resultColumnName /= expectedColumnName)
     . throw . UserError . UnmatchedColumn
       $ "Got column \"" <> show resultColumnName <> "\" but expected \"" <> show expectedColumnName <> "\""
+
+  let expectedType = toChType (renderColumnType @column)
+  resultType <- deserialize @ChString rev
   when (resultType /= expectedType)
     . throw . UserError . UnmatchedType
-      $  "Column " <> show resultColumnName <> " has type " <> show resultType
-      <> ". But expected type is " <> show expectedType
+      $  "Column " <> show resultColumnName <> " has type " <> show resultType <> ". But expected type is " <> show expectedType
 
 instance
   ( KnownColumn (Column name chType)
@@ -1486,10 +1463,13 @@ type GenericWritable record columns =
 class
   ( HasColumns (Columns (GetColumns columns))
   , Serializable (Columns (GetColumns columns))
-  , DeserializableColumns (Columns (GetColumns columns))
   ) =>
   WritableInto columns record
   where
+  default deserializeInsertHeader :: GenericWritable record (GetColumns columns) => ProtocolRevision -> Get ()
+  deserializeInsertHeader :: ProtocolRevision -> Get ()
+  deserializeInsertHeader rev = gDeserializeInsertHeader @(GetColumns columns) @(Rep record) rev
+
   default serializeRecords :: GenericWritable record (GetColumns columns) => ProtocolRevision -> [record] -> Builder
   serializeRecords :: ProtocolRevision -> [record] -> Builder
   serializeRecords rev = gSerializeRecords @(GetColumns columns) rev . map from
@@ -1504,6 +1484,7 @@ class
 
 class GWritable (columns :: [Type]) f
   where
+  gDeserializeInsertHeader :: ProtocolRevision -> Get ()
   gSerializeRecords :: ProtocolRevision -> [f p] -> Builder
   gWritingColumns :: Builder
   gColumnsCount :: UVarInt
@@ -1515,6 +1496,7 @@ instance
   where
   {-# INLINE gSerializeRecords #-}
   gSerializeRecords rev = gSerializeRecords @columns rev . map (unM1 . unM1)
+  gDeserializeInsertHeader rev = gDeserializeInsertHeader @columns @f rev
   gWritingColumns = gWritingColumns @columns @f
   gColumnsCount = gColumnsCount @columns @f
 
@@ -1525,6 +1507,7 @@ instance
   where
   {-# INLINE gSerializeRecords #-}
   gSerializeRecords rev = gSerializeRecords @columns rev . map (\((l1 :*: l2) :*: r) -> l1 :*: (l2 :*: r))
+  gDeserializeInsertHeader rev = const () <$> gDeserializeInsertHeader @columns @(left1 :*: (left2 :*: right)) rev
   gWritingColumns = gWritingColumns @columns @(left1 :*: (left2 :*: right))
   gColumnsCount = gColumnsCount @columns @(left1 :*: (left2 :*: right))
 
@@ -1540,6 +1523,9 @@ instance
   gSerializeRecords rev
     = (\(a, b) -> gSerializeRecords @'[Column name chType] rev a <> gSerializeRecords @restColumns rev b)
     . unzip . map (\(l :*: r) -> (l, r))
+  gDeserializeInsertHeader rev = do
+    gDeserializeInsertHeader @'[Column name chType] @(S1 (MetaSel (Just name) a b f) rec) rev
+    gDeserializeInsertHeader @restColumns @right rev
   gWritingColumns =
     gWritingColumns @'[Column name chType] @(S1 (MetaSel (Just name) a b f) rec)
     <> ", " <> gWritingColumns @restColumns @right
@@ -1549,12 +1535,14 @@ instance {-# OVERLAPPING #-}
   ( KnownColumn (Column name chType)
   , ToChType chType inputType
   , Serializable (Column name chType)
+  , DeserializableColumn (Column name chType)
   , '(Column name chType, restColumns) ~ TakeColumn name columns
   ) =>
   GWritable columns (S1 (MetaSel (Just name) a b f) (Rec0 inputType))
   where
   {-# INLINE gSerializeRecords #-}
   gSerializeRecords rev = serialize rev . mkColumn @(Column name chType) . map (toChType . unK1 . unM1)
+  gDeserializeInsertHeader rev = const () <$> deserializeColumn @(Column name chType) rev 0
   gWritingColumns = renderColumnName @(Column name chType)
   gColumnsCount = 1
 
@@ -2062,7 +2050,7 @@ newtype ChDateTime (tz :: Symbol) = MkChDateTime Word32
 
 instance KnownSymbol (ToChTypeName (ChDateTime tz)) => IsChType (ChDateTime tz)
   where
-  type ToChTypeName (ChDateTime tz) = "DateTime('" `AppendSymbol` tz `AppendSymbol` "')"
+  type ToChTypeName (ChDateTime tz) = If (tz == "") ("DateTime") ("DateTime('" `AppendSymbol` tz `AppendSymbol` "')")
   defaultValueOfTypeName = MkChDateTime 0
 
 instance (IsChType (ChDateTime tz)) => ToQueryPart (ChDateTime tz)
