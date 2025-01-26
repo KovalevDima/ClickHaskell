@@ -106,6 +106,8 @@ import GHC.Stack (HasCallStack, callStack, prettyCallStack)
 import GHC.TypeLits (AppendSymbol, ErrorMessage (..), KnownNat, KnownSymbol, Nat, Symbol, TypeError, natVal, symbolVal)
 import GHC.Word (Word64)
 import System.Timeout (timeout)
+import Data.Type.Equality (type(==))
+import Data.Type.Bool (If)
 
 -- External
 import Data.WideWord (Int128 (..), Word128(..))
@@ -1145,7 +1147,7 @@ instance Deserializable ChUInt16 where deserialize _ = toChType <$> getWord16le
 instance Deserializable ChUInt32 where deserialize _ = toChType <$> getWord32le
 instance Deserializable ChUInt64 where deserialize _ = toChType <$> getWord64le
 instance Deserializable ChUInt128 where deserialize _ = toChType <$> (flip Word128 <$> getWord64le <*> getWord64le)
-instance Deserializable ChDateTime where deserialize _ = toChType <$> getWord32le
+instance Deserializable (ChDateTime tz) where deserialize _ = toChType <$> getWord32le
 instance Deserializable ChDate where deserialize _ = toChType <$> getWord16le
 
 instance Deserializable UVarInt where
@@ -1231,7 +1233,7 @@ data Column (name :: Symbol) (chType :: Type) where
   ChInt64Column :: [ChInt64] -> Column name ChInt64
   ChInt128Column :: [ChInt128] -> Column name ChInt128
   ChDateColumn :: [ChDate] -> Column name ChDate
-  ChDateTimeColumn :: [ChDateTime] -> Column name ChDateTime
+  ChDateTimeColumn :: [ChDateTime tz] -> Column name (ChDateTime tz)
   ChUUIDColumn :: [ChUUID] -> Column name ChUUID
   ChStringColumn :: [ChString] -> Column name ChString
   ChArrayColumn :: IsChType chType => [ChArray chType] -> Column name (ChArray chType)
@@ -1291,7 +1293,11 @@ instance KnownSymbol name => KnownColumn (Column name ChInt32) where mkColumn = 
 instance KnownSymbol name => KnownColumn (Column name ChInt64) where mkColumn = ChInt64Column
 instance KnownSymbol name => KnownColumn (Column name ChInt128) where mkColumn = ChInt128Column
 instance KnownSymbol name => KnownColumn (Column name ChDate) where mkColumn = ChDateColumn
-instance KnownSymbol name => KnownColumn (Column name ChDateTime) where mkColumn = ChDateTimeColumn
+instance
+  ( KnownSymbol name
+  , IsChType (ChDateTime tz)
+  ) =>
+  KnownColumn (Column name (ChDateTime tz)) where mkColumn = ChDateTimeColumn
 instance KnownSymbol name => KnownColumn (Column name ChUUID) where mkColumn = ChUUIDColumn
 instance
   ( KnownSymbol name
@@ -1553,7 +1559,7 @@ instance Serializable ChUInt16 where serialize _ = execPut . putWord16le . fromC
 instance Serializable ChUInt32 where serialize _ = execPut . putWord32le . fromChType
 instance Serializable ChUInt64 where serialize _ = execPut . putWord64le . fromChType
 instance Serializable ChUInt128 where serialize _ = execPut . (\(Word128 hi lo) -> putWord64le lo <> putWord64le hi) . fromChType
-instance Serializable ChDateTime where serialize _ = execPut . putWord32le . fromChType
+instance Serializable (ChDateTime tz) where serialize _ = execPut . putWord32le . fromChType
 instance Serializable ChDate where serialize _ = execPut . putWord16le . fromChType
 
 
@@ -1620,9 +1626,9 @@ class
 
   defaultValueOfTypeName :: chType
 
-class IsChType chType => ToChType chType inputType    where toChType    :: inputType -> chType
-class IsChType chType => FromChType chType outputType where fromChType  :: chType -> outputType
-class IsChType chType => ToQueryPart chType           where toQueryPart :: chType -> BS.Builder
+class ToChType chType inputType    where toChType    :: inputType -> chType
+class FromChType chType outputType where fromChType  :: chType -> outputType
+class ToQueryPart chType           where toQueryPart :: chType -> BS.Builder
 
 instance {-# OVERLAPPABLE #-} (IsChType chType, chType ~ inputType) => ToChType chType inputType where toChType = id
 instance {-# OVERLAPPABLE #-} (IsChType chType, chType ~ inputType) => FromChType chType inputType where fromChType = id
@@ -2020,26 +2026,33 @@ instance FromChType ChUInt128 Word128   where fromChType (MkChUInt128 w128) = w1
 
 
 
--- | ClickHouse DateTime column type
-newtype ChDateTime = MkChDateTime Word32
+{- |
+ClickHouse DateTime column type (paramtrized with timezone)
+
+>>> chTypeName @(ChDateTime "")
+"DateTime"
+>>> chTypeName @(ChDateTime "UTC")
+"DateTime('UTC')"
+-}
+newtype ChDateTime (tz :: Symbol) = MkChDateTime Word32
   deriving newtype (Show, Eq, Prim, Num, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
 
-instance IsChType ChDateTime
+instance KnownSymbol (ToChTypeName (ChDateTime tz)) => IsChType (ChDateTime tz)
   where
-  type ToChTypeName ChDateTime = "DateTime"
+  type ToChTypeName (ChDateTime tz) = If (tz == "") ("DateTime") ("DateTime('" `AppendSymbol` tz `AppendSymbol` "')")
   defaultValueOfTypeName = MkChDateTime 0
 
-instance ToQueryPart ChDateTime
+instance (IsChType (ChDateTime tz)) => ToQueryPart (ChDateTime tz)
   where
-  toQueryPart chDateTime = let time = BS8.pack . show . fromChType @ChDateTime @Word32 $ chDateTime
+  toQueryPart chDateTime = let time = BS8.pack . show . fromChType @(ChDateTime tz) @Word32 $ chDateTime
     in BS.byteString (BS8.replicate (10 - BS8.length time) '0' <> time)
 
-instance ToChType ChDateTime Word32     where toChType = MkChDateTime
-instance ToChType ChDateTime UTCTime    where toChType = MkChDateTime . floor . utcTimeToPOSIXSeconds
-instance ToChType ChDateTime ZonedTime  where toChType = MkChDateTime . floor . utcTimeToPOSIXSeconds . zonedTimeToUTC
+instance ToChType (ChDateTime tz) Word32     where toChType = MkChDateTime
+instance ToChType (ChDateTime tz) UTCTime    where toChType = MkChDateTime . floor . utcTimeToPOSIXSeconds
+instance ToChType (ChDateTime tz) ZonedTime  where toChType = MkChDateTime . floor . utcTimeToPOSIXSeconds . zonedTimeToUTC
 
-instance FromChType ChDateTime Word32     where fromChType = coerce
-instance FromChType ChDateTime UTCTime    where fromChType (MkChDateTime w32) = posixSecondsToUTCTime (fromIntegral w32)
+instance FromChType (ChDateTime tz) Word32     where fromChType = coerce
+instance FromChType (ChDateTime tz) UTCTime    where fromChType (MkChDateTime w32) = posixSecondsToUTCTime (fromIntegral w32)
 
 
 
@@ -2087,14 +2100,10 @@ instance
     . fromChType
 
 instance
-  ( IsChType chType
-  , IsChType (ChArray chType)
-  ) =>
   FromChType (ChArray chType) [chType] where fromChType (MkChArray values) = values
 
 instance
   ( ToChType chType inputType
-  , IsChType (ChArray chType)
   ) =>
   ToChType (ChArray chType) [inputType] where toChType = MkChArray . map toChType
 

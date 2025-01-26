@@ -101,7 +101,7 @@ data ExampleData = MkExampleData
 type ExampleColumns =
  '[ Column "a1" ChInt64
   , Column "a2" ChString
-  , Column "a3" ChDateTime
+  , Column "a3" (ChDateTime "")
   , Column "a4" ChUUID
   , Column "a5" ChInt32
   , Column "a6" (Nullable ChString)
