@@ -38,6 +38,12 @@ module ClickHaskell
   -- *** Internal
   , handleSelect
 
+  -- * Errors
+  , ClientError(..)
+  , ConnectionError(..)
+  , UserError(..)
+  , InternalError(..)
+
   -- ** Writing
   , WritableInto(..)
   , insertInto
@@ -50,20 +56,20 @@ module ClickHaskell
   , ToChType(toChType)
   , FromChType(fromChType)
   , ToQueryPart(toQueryPart)
-  
+
   , ChDateTime(..)
   , ChDate(..)
-  
+
   , ChInt8(..), ChInt16(..), ChInt32(..), ChInt64(..), ChInt128(..)
   , ChUInt8(..), ChUInt16(..), ChUInt32(..), ChUInt64(..), ChUInt128(..)
-  
+
   , ChString(..)
   , ChUUID(..)
-  
+
   , ChArray(..)
   , Nullable
   , LowCardinality, IsLowCardinalitySupported
-  
+
   , UVarInt(..)
   , module Data.WideWord
   ) where
