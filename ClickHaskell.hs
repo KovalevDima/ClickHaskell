@@ -376,7 +376,7 @@ handleSelect conn@MkConnectionState{..} f = do
     Progress          _ -> handleSelect @hasColumns conn f
     ProfileInfo       _ -> handleSelect @hasColumns conn f
     EndOfStream         -> pure []
-    Exception exception -> throwIO (DatabaseException exception)
+    Exception exception -> throwIO (UserError $ DatabaseException exception)
     otherPacket         -> throwIO (InternalError $ UnexpectedPacketType otherPacket)
 
 
@@ -416,7 +416,7 @@ handleInsertResult conn@MkConnectionState{..} records = do
         )
       handleInsertResult @columns @record conn []
     EndOfStream         -> pure ()
-    Exception exception -> throwIO (DatabaseException exception)
+    Exception exception -> throwIO (UserError $ DatabaseException exception)
     otherPacket         -> throwIO (InternalError $ UnexpectedPacketType otherPacket)
 
 
@@ -458,12 +458,10 @@ runBufferReader buffer@MkBuffer{bufferSocket, bufferSize, buff} = \case
 -- * Errors handling
 
 data ClientError where
-  ConnectionError :: HasCallStack => ConnectionError -> ClientError
   UserError :: HasCallStack => UserError -> ClientError
   InternalError :: HasCallStack => InternalError -> ClientError
 
 instance Show ClientError where
-  show (ConnectionError err)   = "ConnectionError " <> show err <> "\n" <> prettyCallStack callStack
   show (UserError err)         = "UserError " <> show err <> "\n" <> prettyCallStack callStack
   show (InternalError err)     = "InternalError " <> show err <> "\n" <> prettyCallStack callStack
 
