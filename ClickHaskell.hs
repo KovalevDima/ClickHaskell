@@ -72,9 +72,9 @@ module ClickHaskell
 import Paths_ClickHaskell (version)
 
 -- GHC included
-import Control.Concurrent (MVar, newMVar, putMVar, takeMVar)
+import Control.Concurrent (MVar, newMVar, withMVar)
 import Control.DeepSeq (NFData, (<$!!>))
-import Control.Exception (Exception, SomeException, bracketOnError, catch, finally, throwIO)
+import Control.Exception (Exception, bracketOnError, catch, finally, throwIO, SomeException)
 import Control.Monad (forM, replicateM, (<$!>))
 import Data.Binary.Get
 import Data.Binary.Get.Internal (readN)
@@ -137,11 +137,12 @@ defaultCredentials = MkChCredential
 data Connection where MkConnection :: (MVar ConnectionState) -> Connection
 
 withConnection :: Connection -> (ConnectionState -> IO a) -> IO a
-withConnection (MkConnection connStateMVar) f = do
-  connState <- takeMVar connStateMVar
-  res <- f connState
-  putMVar connStateMVar connState
-  pure res
+withConnection (MkConnection connStateMVar) f =
+  withMVar connStateMVar $ \connState ->
+    catch
+      @ClientError
+      (f connState)
+      (\err -> throwIO err)
 
 data ConnectionState = MkConnectionState
   { sock     :: Socket
@@ -194,8 +195,8 @@ openNativeConnection MkChCredential{chHost, chPort, chLogin, chPass, chDatabase}
         , buffer
         }
       pure (MkConnection a)
-    Exception exception -> throwIO (DatabaseException exception)
-    otherPacket         -> throwIO (ProtocolImplementationError $ UnexpectedPacketType otherPacket)
+    Exception exception -> throwIO (UserError $ DatabaseException exception)
+    otherPacket         -> throwIO (InternalError $ UnexpectedPacketType otherPacket)
 
 
 -- * Ping
@@ -208,8 +209,8 @@ ping conn = do
     responsePacket <- rawBufferizedRead buffer (deserialize revision)
     case responsePacket of
       Pong                -> pure ()
-      Exception exception -> throwIO (DatabaseException exception)
-      otherPacket         -> throwIO (ProtocolImplementationError . UnexpectedPacketType $ otherPacket)
+      Exception exception -> throwIO (UserError $ DatabaseException exception)
+      otherPacket         -> throwIO (InternalError $ UnexpectedPacketType otherPacket)
 
 
 
@@ -366,8 +367,8 @@ handleSelect conn@MkConnectionState{..} f = do
     Progress          _ -> handleSelect @hasColumns conn f
     ProfileInfo       _ -> handleSelect @hasColumns conn f
     EndOfStream         -> pure []
-    Exception exception -> throwIO (DatabaseException exception)
-    otherPacket         -> throwIO (ProtocolImplementationError $ UnexpectedPacketType otherPacket)
+    Exception exception -> throwIO (UserError $ DatabaseException exception)
+    otherPacket         -> throwIO (InternalError $ UnexpectedPacketType otherPacket)
 
 
 -- ** Inserting
@@ -405,8 +406,8 @@ handleInsertResult conn@MkConnectionState{..} records = do
         )
       handleInsertResult @columns @record conn []
     EndOfStream         -> pure ()
-    Exception exception -> throwIO (DatabaseException exception)
-    otherPacket         -> throwIO (ProtocolImplementationError $ UnexpectedPacketType otherPacket)
+    Exception exception -> throwIO (UserError $ DatabaseException exception)
+    otherPacket         -> throwIO (InternalError $ UnexpectedPacketType otherPacket)
 
 
 
@@ -422,6 +423,8 @@ data Buffer = MkBuffer
 initBuffer :: Int -> Socket -> IO Buffer
 initBuffer size sock = MkBuffer size sock <$> newIORef ""
 
+flushBuffer :: Buffer -> IO ()
+flushBuffer MkBuffer{buff} = atomicWriteIORef buff ""
 
 rawBufferizedRead :: Buffer -> Get packet -> IO packet
 rawBufferizedRead buffer parser = runBufferReader buffer (runGetIncremental parser)
@@ -432,7 +435,7 @@ runBufferReader buffer@MkBuffer{bufferSocket, bufferSize, buff} = \case
     currentBuffer <- readIORef buff
     chosenBuffer <- case BS.length currentBuffer of
       0 -> recv bufferSocket bufferSize
-      _ -> atomicWriteIORef buff "" $> currentBuffer
+      _ -> flushBuffer buffer $> currentBuffer
     case BS.length chosenBuffer of
       0 -> throwIO (DeserializationError "Expected more bytes while reading packet")
       _ -> runBufferReader buffer (decoder $ Just $! chosenBuffer)
@@ -446,20 +449,20 @@ runBufferReader buffer@MkBuffer{bufferSocket, bufferSize, buff} = \case
 
 data ClientError where
   ConnectionError :: HasCallStack => ConnectionError -> ClientError
-  DatabaseException :: HasCallStack => ExceptionPacket -> ClientError
-  ProtocolImplementationError :: HasCallStack => ProtocolImplementationError -> ClientError
+  UserError :: HasCallStack => UserError -> ClientError
+  InternalError :: HasCallStack => InternalError -> ClientError
 
 instance Show ClientError where
-  show (ConnectionError connError) = "ConnectionError" <> show connError <> "\n" <> prettyCallStack callStack
-  show (DatabaseException exception) = "DatabaseException" <> show exception <> "\n" <> prettyCallStack callStack
-  show (ProtocolImplementationError err) = "ConnectionError" <> show err <> "\n" <> prettyCallStack callStack
+  show (ConnectionError err)   = "ConnectionError " <> show err <> "\n" <> prettyCallStack callStack
+  show (UserError err)         = "UserError " <> show err <> "\n" <> prettyCallStack callStack
+  show (InternalError err)     = "InternalError " <> show err <> "\n" <> prettyCallStack callStack
 
 deriving anyclass instance Exception ClientError
 
 {- |
   You shouldn't see this exceptions. Please report a bug if it appears
 -}
-data ProtocolImplementationError
+data InternalError
   = UnexpectedPacketType ServerPacketType
   | DeserializationError String
   deriving (Show, Exception)
@@ -467,6 +470,12 @@ data ProtocolImplementationError
 data ConnectionError
   = NoAdressResolved
   | EstablishTimeout
+  deriving (Show, Exception)
+
+data UserError
+  = UnmatchedType String
+  | UnmatchedColumn String
+  | DatabaseException ExceptionPacket
   deriving (Show, Exception)
 
 
