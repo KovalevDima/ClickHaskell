@@ -388,7 +388,6 @@ insertInto ::
   ( table ~ Table name columns
   , WritableInto table record
   , KnownSymbol name
-  , Show record
   )
   => Connection -> [record] -> IO ()
 insertInto conn columnsData = do
@@ -402,7 +401,7 @@ insertInto conn columnsData = do
       )
     handleInsertResult @table connState columnsData
 
-handleInsertResult :: forall columns record . (WritableInto columns record, Show record) => ConnectionState -> [record] -> IO ()
+handleInsertResult :: forall columns record . WritableInto columns record => ConnectionState -> [record] -> IO ()
 handleInsertResult conn@MkConnectionState{..} records = do
   firstPacket <- rawBufferizedRead buffer (deserialize revision)
   case firstPacket of
