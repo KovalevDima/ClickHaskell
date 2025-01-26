@@ -53,7 +53,7 @@
           services.clickhouse."dev-database" = wrapDefaultClickHouse [
             (extractSqlFromMarkdown ./usage/insertInto.lhs)
             (extractSqlFromMarkdown ./usage/selectFromView.lhs)
-            (extractSqlFromMarkdown ./profiling/PT1Simple.hs)
+            (extractSqlFromMarkdown ./testing/PT1Simple.hs)
             (extractSqlFromMarkdown ./testing/T2WriteReadEquality.hs)
           ];
         };
