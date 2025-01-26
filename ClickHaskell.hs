@@ -151,15 +151,18 @@ data ConnectionState = MkConnectionState
   , revision :: ProtocolRevision
   }
 
+data ConnectionError = NoAdressResolved | EstablishTimeout
+  deriving (Show, Exception)
+
 openNativeConnection :: HasCallStack => ChCredential -> IO Connection
 openNativeConnection MkChCredential{chHost, chPort, chLogin, chPass, chDatabase} = do
   AddrInfo{addrFamily, addrSocketType, addrProtocol, addrAddress}
-    <- (maybe (throwIO $ ConnectionError NoAdressResolved) pure . listToMaybe)
+    <- maybe (throwIO NoAdressResolved) pure . listToMaybe
     =<< getAddrInfo
       (Just defaultHints{addrFlags = [AI_ADDRCONFIG], addrSocketType = Stream})
       (Just chHost)
       (Just chPort)
-  sock <- maybe (throwIO $ ConnectionError EstablishTimeout) pure
+  sock <- maybe (throwIO EstablishTimeout) pure
     =<< timeout 3_000_000 (
       bracketOnError
         (socket addrFamily addrSocketType addrProtocol)
@@ -448,12 +451,10 @@ runBufferReader buffer@MkBuffer{bufferSocket, bufferSize, buff} = \case
 -- * Errors handling
 
 data ClientError where
-  ConnectionError :: HasCallStack => ConnectionError -> ClientError
   UserError :: HasCallStack => UserError -> ClientError
   InternalError :: HasCallStack => InternalError -> ClientError
 
 instance Show ClientError where
-  show (ConnectionError err)   = "ConnectionError " <> show err <> "\n" <> prettyCallStack callStack
   show (UserError err)         = "UserError " <> show err <> "\n" <> prettyCallStack callStack
   show (InternalError err)     = "InternalError " <> show err <> "\n" <> prettyCallStack callStack
 
@@ -465,11 +466,6 @@ deriving anyclass instance Exception ClientError
 data InternalError
   = UnexpectedPacketType ServerPacketType
   | DeserializationError String
-  deriving (Show, Exception)
-
-data ConnectionError
-  = NoAdressResolved
-  | EstablishTimeout
   deriving (Show, Exception)
 
 data UserError

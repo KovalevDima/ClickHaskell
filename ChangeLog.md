@@ -8,6 +8,7 @@ ClickHaskell documentation got it's own domain name: https://clickhaskell.dev/
 
 ## Features:
 - Query serialization support for UUID (+ add test)
+- Export of client errors for exception handling
 
 ## API changes:
 - ### DateTime type now parametrized with timezone
