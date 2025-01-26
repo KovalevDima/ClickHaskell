@@ -19,7 +19,7 @@ module ClickHaskell
   (
   -- * Connection
     ChCredential(..), defaultCredentials
-  , Connection(..), openNativeConnection, closeConnection
+  , Connection(..), openNativeConnection
 
   -- * Reading and writing
   , Table
@@ -142,21 +142,13 @@ defaultCredentials = MkChCredential
 
 data Connection where MkConnection :: (MVar ConnectionState) -> Connection
 
-withConnection :: HasCallStack => Connection -> (ConnectionState -> IO a) -> IO a
+withConnection :: Connection -> (ConnectionState -> IO a) -> IO a
 withConnection (MkConnection connStateMVar) f =
   withMVar connStateMVar $ \connState ->
     catch
       @ClientError
       (f connState)
-      (\e -> case e of
-        ConnectionError err -> throwIO (ConnectionError err)
-        UserError err       -> throwIO (UserError err)
-        InternalError err   -> throwIO (InternalError err)
-        unexpectedError     -> throwIO unexpectedError
-      )
-
-closeConnection :: HasCallStack => Connection -> IO ()
-closeConnection (MkConnection connStateMVar) = withMVar connStateMVar $ \MkConnectionState{sock} -> close sock
+      (\err -> throwIO err)
 
 data ConnectionState = MkConnectionState
   { sock     :: Socket
@@ -165,15 +157,18 @@ data ConnectionState = MkConnectionState
   , revision :: ProtocolRevision
   }
 
+data ConnectionError = NoAdressResolved | EstablishTimeout
+  deriving (Show, Exception)
+
 openNativeConnection :: HasCallStack => ChCredential -> IO Connection
 openNativeConnection MkChCredential{chHost, chPort, chLogin, chPass, chDatabase} = do
   AddrInfo{addrFamily, addrSocketType, addrProtocol, addrAddress}
-    <- (maybe (throwIO $ ConnectionError NoAdressResolved) pure . listToMaybe)
+    <- maybe (throwIO NoAdressResolved) pure . listToMaybe
     =<< getAddrInfo
       (Just defaultHints{addrFlags = [AI_ADDRCONFIG], addrSocketType = Stream})
       (Just chHost)
       (Just chPort)
-  sock <- maybe (throwIO $ ConnectionError EstablishTimeout) pure
+  sock <- maybe (throwIO EstablishTimeout) pure
     =<< timeout 3_000_000 (
       bracketOnError
         (socket addrFamily addrSocketType addrProtocol)
@@ -209,7 +204,7 @@ openNativeConnection MkChCredential{chHost, chPort, chLogin, chPass, chDatabase}
         , buffer
         }
       pure (MkConnection a)
-    Exception exception -> throwIO (DatabaseException exception)
+    Exception exception -> throwIO (UserError $ DatabaseException exception)
     otherPacket         -> throwIO (InternalError $ UnexpectedPacketType otherPacket)
 
 
@@ -223,7 +218,7 @@ ping conn = do
     responsePacket <- rawBufferizedRead buffer (deserialize revision)
     case responsePacket of
       Pong                -> pure ()
-      Exception exception -> throwIO (DatabaseException exception)
+      Exception exception -> throwIO (UserError $ DatabaseException exception)
       otherPacket         -> throwIO (InternalError $ UnexpectedPacketType otherPacket)
 
 
@@ -465,13 +460,11 @@ runBufferReader buffer@MkBuffer{bufferSocket, bufferSize, buff} = \case
 data ClientError where
   ConnectionError :: HasCallStack => ConnectionError -> ClientError
   UserError :: HasCallStack => UserError -> ClientError
-  DatabaseException :: HasCallStack => ExceptionPacket -> ClientError
   InternalError :: HasCallStack => InternalError -> ClientError
 
 instance Show ClientError where
   show (ConnectionError err)   = "ConnectionError " <> show err <> "\n" <> prettyCallStack callStack
   show (UserError err)         = "UserError " <> show err <> "\n" <> prettyCallStack callStack
-  show (DatabaseException err) = "DatabaseException " <> show err <> "\n" <> prettyCallStack callStack
   show (InternalError err)     = "InternalError " <> show err <> "\n" <> prettyCallStack callStack
 
 deriving anyclass instance Exception ClientError
@@ -484,14 +477,10 @@ data InternalError
   | DeserializationError String
   deriving (Show, Exception)
 
-data ConnectionError
-  = NoAdressResolved
-  | EstablishTimeout
-  deriving (Show, Exception)
-
 data UserError
   = UnmatchedType String
   | UnmatchedColumn String
+  | DatabaseException ExceptionPacket
   deriving (Show, Exception)
 
 
