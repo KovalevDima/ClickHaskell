@@ -2044,7 +2044,14 @@ instance FromChType ChUInt128 Word128   where fromChType (MkChUInt128 w128) = w1
 
 
 
--- | ClickHouse DateTime column type
+{- |
+ClickHouse DateTime column type (paramtrized with timezone)
+
+>>> chTypeName @(ChDateTime "")
+"DateTime"
+>>> chTypeName @(ChDateTime "UTC")
+"DateTime('UTC')"
+-}
 newtype ChDateTime (tz :: Symbol) = MkChDateTime Word32
   deriving newtype (Show, Eq, Prim, Num, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
 
