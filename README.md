@@ -18,11 +18,11 @@ as a Haskell type and then to constuct a correspondence\
 
 For example in case of
 ```text
-Table              <--    Record
-├name1 : Type1   encoder  ├name1 : Type1
+Table              <-     Record
+├name1 : Type1   encode   ├name1 : Type1
 ├name2 : Type2            ├name2 : Type2
-...              decoder  ...        
-└nameN : TypeN     -->    └nameM : TypeM
+...              decode   ...        
+└nameN : TypeN     ->     └nameM : TypeM
 ```
 we can construct queries and decoders/encoders \
 for server/client packets with data
