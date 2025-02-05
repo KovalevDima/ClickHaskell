@@ -28,14 +28,22 @@
         .catch(console.error);
     </script>
     <style type="text/css">
+        @font-face {
+            font-family: 'Hasklig';
+            src:
+                local('Hasklig'),
+                url('/contribution/assets/Hasklig-Regular.ttf') format('truetype');
+        }
         html {
             align-items: center;
             background-color: #121212;
             color: rgb(155, 155, 155);
-            display: row;
+            display: flex;
             margin: 0px;
-            justify-items: center;
+            justify-content: center;
+            font-family: 'Hasklig', monospace;
         }
+        code {font-family: 'Hasklig', monospace}
         header {
             padding: 4px 8px;
             align-items: center;

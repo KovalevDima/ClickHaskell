@@ -8,8 +8,9 @@ license:            BSD-3-Clause
 license-file:       LICENSE
 
 data-files:
-  *.html
-  documentation.lhs
+  ./*.html
+  ./documentation.lhs
+  ./assets/*.ttf
 
 executable documentation-compiler
   default-language: GHC2021
