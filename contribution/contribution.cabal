@@ -5,7 +5,6 @@ name:               QA
 version:            0.0.0.1
 build-type:         Simple
 license:            BSD-3-Clause
-license-file:       LICENSE
 
 data-files:
   ./*.html
