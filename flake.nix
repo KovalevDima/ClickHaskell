@@ -8,34 +8,19 @@
     services-flake.url = "github:juspay/services-flake";
   };
 
-  outputs = inputs @ {
-    self,
-    flake-parts,
-    nixpkgs,
-    ...
-  }:
+  outputs = inputs @ {self, flake-parts, nixpkgs, ...}:
     flake-parts.lib.mkFlake {inherit inputs;} {
       systems = nixpkgs.lib.systems.flakeExposed;
       imports = [
         inputs.haskell-flake.flakeModule
         inputs.process-compose-flake.flakeModule
       ];
-      perSystem = {
-        self',
-        pkgs,
-        config,
-        lib,
-        ...
-      }: let
+      perSystem = {self', pkgs, config, lib, ...}:
+      let
         wrapDefaultClickHouse = inputSchemas: {
           enable = true;
           extraConfig.http_port = 8123;
-          initialDatabases = [
-            {
-              name = "default";
-              schemas = inputSchemas;
-            }
-          ];
+          initialDatabases = [ {name="default"; schemas=inputSchemas;} ];
         };
         extractSqlFromMarkdown = path:
           builtins.toFile (builtins.baseNameOf path) (
@@ -44,8 +29,25 @@
               (builtins.readFile path)
             )
           );
-        extractDist = pkg: "${pkgs.haskell.lib.sdistTarball pkg}/${pkg.name}.tar.gz";
-        extractDocs = pkg: "${pkgs.haskell.lib.documentationTarball pkg}/${pkg.name}-docs.tar.gz";
+        dbAndExecutable = {programName, schemas}: {
+          imports = [inputs.services-flake.processComposeModules.default];
+          services.clickhouse."${programName}-db" = wrapDefaultClickHouse schemas;
+          settings.processes = {
+            ${programName} = {
+              command = "${self'.apps.${programName}.program}";
+              depends_on."${programName}-db".condition = "process_healthy";
+            };
+            dump-artifacts = {
+              command = "
+                ${lib.getExe' pkgs.haskellPackages.eventlog2html "eventlog2html"} ./${programName}.eventlog
+                rm ./${programName}.eventlog
+                rm ./${programName}.hp
+              ";
+              availability.exit_on_end = true;
+              depends_on.${programName}.condition = "process_completed_successfully";
+            };
+          };
+        };
       in {
         # Database wrapper with all schemas initialization
         process-compose."default" = {
@@ -60,7 +62,6 @@
         # Testing wrapper
         process-compose."testing" = {
           imports = [inputs.services-flake.processComposeModules.default];
-          cli.environment.PC_DISABLE_TUI = true; # GitHub Actions doesn't work with TUI. Don't enable it
           settings.processes.integration-test = {
             command = "${self'.apps.tests.program}";
             availability.exit_on_end = true;
@@ -71,75 +72,32 @@
           ];
         };
         # Profiling wrapper
-        process-compose."profiling" = let
-          programName = "prof-simple";
-        in {
-          imports = [inputs.services-flake.processComposeModules.default];
-          services.clickhouse."${programName}-db" = wrapDefaultClickHouse [
-            (extractSqlFromMarkdown ./testing/PT1Simple.hs)
-          ];
-          settings.processes.${programName} = {
-            command = "${self'.apps.${programName}.program}";
-            depends_on."${programName}-db".condition = "process_healthy";
-          };
-          settings.processes.dump-artifacts = {
-            command = "
-              ${lib.getExe' pkgs.haskellPackages.eventlog2html "eventlog2html"} ./${programName}.eventlog
-              rm ./${programName}.eventlog
-              rm ./${programName}.hp
-            ";
-            # availability.exit_on_end = true;
-            depends_on.${programName}.condition = "process_completed_successfully";
-          };
+        process-compose."profiling" = dbAndExecutable {
+          programName = "prof-simple"; 
+          schemas = [(extractSqlFromMarkdown ./testing/PT1Simple.hs)];
         };
-        process-compose."one-billion-streaming" = let
+        process-compose."one-billion-streaming" = dbAndExecutable {
           programName = "prof-1bil-stream";
-        in {
-          imports = [inputs.services-flake.processComposeModules.default];
-          services.clickhouse."${programName}-db" = wrapDefaultClickHouse [];
-          settings.processes.${programName} = {
-            command = "${self'.apps.${programName}.program}";
-            depends_on."${programName}-db".condition = "process_healthy";
-          };
-          settings.processes.dump-artifacts = {
-            command = "
-              ${lib.getExe' pkgs.haskellPackages.eventlog2html "eventlog2html"} ./${programName}.eventlog
-              rm ./${programName}.eventlog
-              rm ./${programName}.hp
-            ";
-            # availability.exit_on_end = true;
-            depends_on.${programName}.condition = "process_completed_successfully";
-          };
+          schemas = [];
         };
         # ClickHaskell project itself with Haskell env
         haskellProjects.default = {
           autoWire = ["packages" "apps"];
           settings = {
-            ClickHaskell = {
-              libraryProfiling = true;
-              haddock = true;
-            };
-            tests = {
-              executableProfiling = true;
-              libraryProfiling = true;
-            };
+            ClickHaskell = {libraryProfiling = true; haddock = true;};
+            tests        = {libraryProfiling = true; executableProfiling = true;};
           };
           devShell.tools = hp: {
             inherit (hp) eventlog2html graphmod cabal-plan;
           };
         };
         devShells.default = pkgs.mkShell {
-          inputsFrom = [
-            config.haskellProjects.default.outputs.devShell
-          ];
-          packages = [
-            pkgs.clickhouse
-          ];
+          inputsFrom = [config.haskellProjects.default.outputs.devShell];
+          packages = [pkgs.clickhouse pkgs.nixfmt];
         };
         # Build documnetation
         packages."documentation" = pkgs.stdenv.mkDerivation {
           name = "documentation";
-          buildInputs = [];
           src = pkgs.nix-gitignore.gitignoreSourcePure [] ./.;
 
           buildPhase = ''
@@ -152,12 +110,14 @@
           '';
         };
         packages."ClickHaskell-dist" =
+          with pkgs.haskell.lib;
+          with self'.packages;
           pkgs.runCommand "ClickHaskell-dist" {} ''
             mkdir $out
             mkdir -m 777 $out/packages $out/docs
-            cp -r ${extractDist self'.packages.ClickHaskell} $out/packages
-            cp -r ${extractDocs self'.packages.ClickHaskell} $out/docs
-        '';
+            cp -r ${sdistTarball ClickHaskell}/${ClickHaskell.name}.tar.gz $out/packages
+            cp -r ${documentationTarball ClickHaskell}/${ClickHaskell.name}-docs.tar.gz $out/docs
+          '';
       };
     };
 }

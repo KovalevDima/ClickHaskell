@@ -23,7 +23,7 @@ jobs:
         run: nix build .#testing
 
       - name: Run tests
-        run: nix run .#testing
+        run: PC_DISABLE_TUI=1 nix run .#testing
 
       - name: Build documntation
         run: nix build .#documentation
