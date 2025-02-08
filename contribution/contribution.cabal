@@ -18,10 +18,7 @@ executable documentation-compiler
   build-depends:
       base
     , hakyll
-    , bytestring
     , filepath
-    , time
-    , pandoc
   ghc-options:
     -threaded -Wall
     -main-is DocumentationCompiler
