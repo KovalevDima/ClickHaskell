@@ -93,21 +93,12 @@
         };
         devShells.default = pkgs.mkShell {
           inputsFrom = [config.haskellProjects.default.outputs.devShell];
-          packages = [pkgs.clickhouse pkgs.nixfmt];
+          packages = [pkgs.clickhouse pkgs.nixfmt pkgs.nil];
         };
         # Build documnetation
-        packages."documentation" = pkgs.stdenv.mkDerivation {
-          name = "documentation";
-          src = pkgs.nix-gitignore.gitignoreSourcePure [] ./.;
-
-          buildPhase = ''
-            ${lib.getExe' self'.packages.contribution "documentation-compiler"} build --verbose
-          '';
-
-          installPhase = ''
-            mkdir -p "$out"
-            cp -r ./_site "$out"
-          '';
+        packages."documentation" = import ./contribution/documentation.nix {
+          inherit pkgs;
+          compiler = lib.getExe' self'.packages.contribution "documentation-compiler";
         };
         packages."ClickHaskell-dist" =
           with pkgs.haskell.lib;
