@@ -32,18 +32,20 @@
         dbAndExecutable = {programName, schemas}: {
           imports = [inputs.services-flake.processComposeModules.default];
           services.clickhouse."${programName}-db" = wrapDefaultClickHouse schemas;
-          settings.processes.${programName} = {
-            command = "${self'.apps.${programName}.program}";
-            depends_on."${programName}-db".condition = "process_healthy";
-          };
-          settings.processes.dump-artifacts = {
-            command = "
-              ${lib.getExe' pkgs.haskellPackages.eventlog2html "eventlog2html"} ./${programName}.eventlog
-              rm ./${programName}.eventlog
-              rm ./${programName}.hp
-            ";
-            # availability.exit_on_end = true;
-            depends_on.${programName}.condition = "process_completed_successfully";
+          settings.processes = {
+            ${programName} = {
+              command = "${self'.apps.${programName}.program}";
+              depends_on."${programName}-db".condition = "process_healthy";
+            };
+            dump-artifacts = {
+              command = "
+                ${lib.getExe' pkgs.haskellPackages.eventlog2html "eventlog2html"} ./${programName}.eventlog
+                rm ./${programName}.eventlog
+                rm ./${programName}.hp
+              ";
+              availability.exit_on_end = true;
+              depends_on.${programName}.condition = "process_completed_successfully";
+            };
           };
         };
       in {
@@ -108,16 +110,14 @@
           '';
         };
         packages."ClickHaskell-dist" =
-          let
-            extractDist = pkg: "${pkgs.haskell.lib.sdistTarball pkg}/${pkg.name}.tar.gz";
-            extractDocs = pkg: "${pkgs.haskell.lib.documentationTarball pkg}/${pkg.name}-docs.tar.gz";
-          in
+          with pkgs.haskell.lib;
+          with self'.packages;
           pkgs.runCommand "ClickHaskell-dist" {} ''
             mkdir $out
             mkdir -m 777 $out/packages $out/docs
-            cp -r ${extractDist self'.packages.ClickHaskell} $out/packages
-            cp -r ${extractDocs self'.packages.ClickHaskell} $out/docs
-        '';
+            cp -r ${sdistTarball ClickHaskell}/${ClickHaskell.name}.tar.gz $out/packages
+            cp -r ${documentationTarball ClickHaskell}/${ClickHaskell.name}-docs.tar.gz $out/docs
+          '';
       };
     };
 }
