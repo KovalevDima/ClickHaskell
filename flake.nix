@@ -29,56 +29,38 @@
               (builtins.readFile path)
             )
           );
-        dbAndExecutable = {programName, schemas}: {
-          imports = [inputs.services-flake.processComposeModules.default];
-          services.clickhouse."${programName}-db" = wrapDefaultClickHouse schemas;
-          settings.processes = {
-            ${programName} = {
-              command = "${self'.apps.${programName}.program}";
-              depends_on."${programName}-db".condition = "process_healthy";
-            };
-            dump-artifacts = {
-              command = "
-                ${lib.getExe' pkgs.haskellPackages.eventlog2html "eventlog2html"} ./${programName}.eventlog
-                rm ./${programName}.eventlog
-                rm ./${programName}.hp
-              ";
+      in
+      {
+        process-compose = {
+          default = {
+            imports = [inputs.services-flake.processComposeModules.default];
+            services.clickhouse."dev-database" = wrapDefaultClickHouse [
+              (extractSqlFromMarkdown ./usage/insertInto.lhs)
+              (extractSqlFromMarkdown ./usage/selectFromView.lhs)
+              (extractSqlFromMarkdown ./testing/PT1Simple.hs)
+              (extractSqlFromMarkdown ./testing/T2WriteReadEquality.hs)
+            ];
+          };
+          "testing" = {
+            imports = [inputs.services-flake.processComposeModules.default];
+            settings.processes.integration-test = {
+              command = "${self'.apps.tests.program}";
               availability.exit_on_end = true;
-              depends_on.${programName}.condition = "process_completed_successfully";
+              depends_on.testing-db.condition = "process_healthy";
             };
+            services.clickhouse."testing-db" = wrapDefaultClickHouse [
+              (extractSqlFromMarkdown ./testing/T2WriteReadEquality.hs)
+            ];
           };
-        };
-      in {
-        # Database wrapper with all schemas initialization
-        process-compose."default" = {
-          imports = [inputs.services-flake.processComposeModules.default];
-          services.clickhouse."dev-database" = wrapDefaultClickHouse [
-            (extractSqlFromMarkdown ./usage/insertInto.lhs)
-            (extractSqlFromMarkdown ./usage/selectFromView.lhs)
-            (extractSqlFromMarkdown ./testing/PT1Simple.hs)
-            (extractSqlFromMarkdown ./testing/T2WriteReadEquality.hs)
-          ];
-        };
-        # Testing wrapper
-        process-compose."testing" = {
-          imports = [inputs.services-flake.processComposeModules.default];
-          settings.processes.integration-test = {
-            command = "${self'.apps.tests.program}";
-            availability.exit_on_end = true;
-            depends_on.testing-db.condition = "process_healthy";
+          "profiling" = import ./testing/performance.nix {
+            inherit pkgs inputs;
+            app = self'.apps."prof-simple"; 
+            schemas = [(extractSqlFromMarkdown ./testing/PT1Simple.hs)];
           };
-          services.clickhouse."testing-db" = wrapDefaultClickHouse [
-            (extractSqlFromMarkdown ./testing/T2WriteReadEquality.hs)
-          ];
-        };
-        # Profiling wrapper
-        process-compose."profiling" = dbAndExecutable {
-          programName = "prof-simple"; 
-          schemas = [(extractSqlFromMarkdown ./testing/PT1Simple.hs)];
-        };
-        process-compose."one-billion-streaming" = dbAndExecutable {
-          programName = "prof-1bil-stream";
-          schemas = [];
+          "one-billion-streaming" = import ./testing/performance.nix {
+            inherit pkgs inputs;
+            app = self'.apps."prof-1bil-stream";
+          };
         };
         # ClickHaskell project itself with Haskell env
         haskellProjects.default = {
@@ -87,28 +69,23 @@
             ClickHaskell = {libraryProfiling = true; haddock = true;};
             tests        = {libraryProfiling = true; executableProfiling = true;};
           };
-          devShell.tools = hp: {
-            inherit (hp) eventlog2html graphmod cabal-plan;
-          };
         };
         devShells.default = pkgs.mkShell {
           inputsFrom = [config.haskellProjects.default.outputs.devShell];
-          packages = [pkgs.clickhouse pkgs.nixfmt pkgs.nil];
+          packages = with pkgs; with haskellPackages;
+            [clickhouse nixfmt nil eventlog2html graphmod cabal-plan];
         };
         # Build documnetation
-        packages."documentation" = import ./contribution/documentation.nix {
-          inherit pkgs;
-          compiler = lib.getExe' self'.packages.contribution "documentation-compiler";
+        packages = {
+          "documentation" = import ./contribution/documentation.nix {
+            inherit pkgs;
+            compiler = lib.getExe' self'.packages.contribution "documentation-compiler";
+          };
+          "ClickHaskell-dist" = import ./hackage.nix {
+            inherit pkgs;
+            distPackage = self'.packages.ClickHaskell;
+          };
         };
-        packages."ClickHaskell-dist" =
-          with pkgs.haskell.lib;
-          with self'.packages;
-          pkgs.runCommand "ClickHaskell-dist" {} ''
-            mkdir $out
-            mkdir -m 777 $out/packages $out/docs
-            cp -r ${sdistTarball ClickHaskell}/${ClickHaskell.name}.tar.gz $out/packages
-            cp -r ${documentationTarball ClickHaskell}/${ClickHaskell.name}-docs.tar.gz $out/docs
-          '';
       };
     };
 }
