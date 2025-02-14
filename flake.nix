@@ -8,7 +8,7 @@
     services-flake.url = "github:juspay/services-flake";
   };
 
-  outputs = inputs @ {self, flake-parts, nixpkgs, ...}:
+  outputs = {self, flake-parts, nixpkgs, ...} @ inputs:
     flake-parts.lib.mkFlake {inherit inputs;} {
       systems = nixpkgs.lib.systems.flakeExposed;
       imports = [
@@ -86,6 +86,11 @@
             distPackage = self'.packages.ClickHaskell;
           };
         };
+      };
+    }//
+    {
+      nixosModules = {
+        default = ./distribution/systemModule.nix;
       };
     };
 }
