@@ -1,4 +1,6 @@
 { config
+, self
+, pkgs
 , lib
 , ...
 }:
@@ -17,6 +19,10 @@ in
       type = lib.types.str;
       default = "clickhaskell.dev";
       description = "Domain name for ClickHaskell infrastructure";
+    };
+    pagePackage = lib.mkOption {
+      type = lib.types.package;
+      default = self.packages.${pkgs.system}."documentation";
     };
   };
   config = {
