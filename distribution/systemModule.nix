@@ -42,7 +42,6 @@ in
         "${domain}" = {
           group = "ClickHaskell";
           email = "letsencrypt@${domain}";
-          directory = "${path}/certs";
         };
       };
     };
