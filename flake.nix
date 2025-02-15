@@ -87,7 +87,8 @@
           };
         };
       };
-    }//
+    }
+    //
     {
       nixosModules = {
         default = ./distribution/systemModule.nix;
