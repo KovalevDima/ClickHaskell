@@ -36,10 +36,12 @@ in
       };
     };
 
+
     security.acme = {
       acceptTerms = true;
       certs = {
         "${domain}" = {
+          dnsProvider = "rfc2136";
           group = "ClickHaskell";
           email = "letsencrypt@${domain}";
           domain = "*.${domain}";
