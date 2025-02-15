@@ -43,7 +43,7 @@ in
         "${domain}" = {
           group = "ClickHaskell";
           email = "letsencrypt@${domain}";
-          extraDomainNames = [ "*.${domain}" ];
+          extraDomainNames = [ "git.${domain}" ];
         };
       };
     };
