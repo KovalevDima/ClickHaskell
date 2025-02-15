@@ -41,7 +41,6 @@ in
       acceptTerms = true;
       certs = {
         "${domain}" = {
-          dnsProvider = "rfc2136";
           group = "ClickHaskell";
           email = "letsencrypt@${domain}";
           extraDomainNames = [ "*.${domain}" ];
