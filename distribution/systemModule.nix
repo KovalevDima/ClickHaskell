@@ -31,6 +31,7 @@ in
       users.ClickHaskell = {
         group = "ClickHaskell";
         homeMode = "755";
+        home = "${path}";
         isSystemUser = true;
       };
     };
