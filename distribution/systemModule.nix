@@ -29,6 +29,7 @@ in
     users = {
       groups.ClickHaskell = {};
       users.ClickHaskell = {
+        group = "ClickHaskell";
         homeMode = "755";
         isSystemUser = true;
       };
