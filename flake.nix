@@ -61,13 +61,21 @@
           default = import ./distribution/project.nix {
             inherit pkgs;
           };
-          "ghc-926" = import ./distribution/project.nix {
+          "ghc926" = import ./distribution/project.nix {
             inherit pkgs;
             basePackages = pkgs.haskell.packages.ghc926;
           };
-          "ghc-948" = import ./distribution/project.nix {
+          "ghc948" = import ./distribution/project.nix {
             inherit pkgs;
             basePackages = pkgs.haskell.packages.ghc948;
+          };
+          "ghc984" = import ./distribution/project.nix {
+            inherit pkgs;
+            basePackages = pkgs.haskell.packages.ghc984;
+          };
+          "ghc9101" = import ./distribution/project.nix {
+            inherit pkgs;
+            basePackages = pkgs.haskell.packages.ghc9101;
           };
         };
         devShells.default = pkgs.mkShell {
