@@ -63,11 +63,21 @@
           };
         };
         # ClickHaskell project itself with Haskell env
-        haskellProjects.default = {
-          autoWire = ["packages" "apps"];
-          settings = {
-            ClickHaskell = {libraryProfiling = true; haddock = true;};
-            tests        = {libraryProfiling = true; executableProfiling = true;};
+        haskellProjects = {
+          default = {
+            autoWire = ["packages" "apps"];
+            settings = {
+              ClickHaskell = {libraryProfiling = true; haddock = true;};
+              tests        = {libraryProfiling = true; executableProfiling = true;};
+            };
+          };
+          ghc925 = {
+            autoWire = ["packages" "apps"];
+            basePackages = pkgs.haskell.packages.ghc925;
+            settings = {
+              ClickHaskell = {libraryProfiling = true; haddock = true;};
+              tests        = {libraryProfiling = true; executableProfiling = true;};
+            };
           };
         };
         devShells.default = pkgs.mkShell {
