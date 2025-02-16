@@ -41,16 +41,10 @@
               (extractSqlFromMarkdown ./testing/T2WriteReadEquality.hs)
             ];
           };
-          "testing" = {
-            imports = [inputs.services-flake.processComposeModules.default];
-            settings.processes.integration-test = {
-              command = "${self'.apps.tests.program}";
-              availability.exit_on_end = true;
-              depends_on.testing-db.condition = "process_healthy";
-            };
-            services.clickhouse."testing-db" = wrapDefaultClickHouse [
-              (extractSqlFromMarkdown ./testing/T2WriteReadEquality.hs)
-            ];
+          "testing" = import ./testing/testing.nix {
+            inherit inputs;
+            app = self'.apps."tests";
+            schemas = [(extractSqlFromMarkdown ./testing/T2WriteReadEquality.hs)];
           };
           "profiling" = import ./testing/performance.nix {
             inherit pkgs inputs;
@@ -64,21 +58,7 @@
         };
         # ClickHaskell project itself with Haskell env
         haskellProjects = {
-          default = {
-            autoWire = ["packages" "apps"];
-            settings = {
-              ClickHaskell = {libraryProfiling = true; haddock = true;};
-              tests        = {libraryProfiling = true; executableProfiling = true;};
-            };
-          };
-          ghc925 = {
-            autoWire = ["packages" "apps"];
-            basePackages = pkgs.haskell.packages.ghc925;
-            settings = {
-              ClickHaskell = {libraryProfiling = true; haddock = true;};
-              tests        = {libraryProfiling = true; executableProfiling = true;};
-            };
-          };
+          default = import ./distribution/project.nix {inherit pkgs;};
         };
         devShells.default = pkgs.mkShell {
           inputsFrom = [config.haskellProjects.default.outputs.devShell];

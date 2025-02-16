@@ -6,9 +6,9 @@
     availability.exit_on_end = true;
     depends_on.testing-db.condition = "process_healthy";
   };
-  services.clickhouse."database" = {
+  services.clickhouse."testing-db" = {
     enable = true;
     extraConfig.http_port = 8123;
-    initialDatabases = schemas;
+    initialDatabases = [ {name="default";schemas=schemas;} ];
   };
 }
