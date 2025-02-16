@@ -81,7 +81,7 @@
             inherit pkgs;
             compiler = lib.getExe' self'.packages.contribution "documentation-compiler";
           };
-          "ClickHaskell-dist" = import ./hackage.nix {
+          "ClickHaskell-dist" = import ./distribution/hackage.nix {
             inherit pkgs;
             distPackage = self'.packages.ClickHaskell;
           };
