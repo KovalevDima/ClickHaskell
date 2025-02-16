@@ -1,4 +1,4 @@
-name: "Docs"
+name: "Handle push to master"
 
 on:
   push:
