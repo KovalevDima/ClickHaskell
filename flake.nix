@@ -58,7 +58,17 @@
         };
         # ClickHaskell project itself with Haskell env
         haskellProjects = {
-          default = import ./distribution/project.nix {inherit pkgs;};
+          default = import ./distribution/project.nix {
+            inherit pkgs;
+          };
+          "ghc-926" = import ./distribution/project.nix {
+            inherit pkgs;
+            basePackages = pkgs.haskell.packages.ghc926;
+          };
+          "ghc-948" = import ./distribution/project.nix {
+            inherit pkgs;
+            basePackages = pkgs.haskell.packages.ghc948;
+          };
         };
         devShells.default = pkgs.mkShell {
           inputsFrom = [config.haskellProjects.default.outputs.devShell];
