@@ -86,7 +86,6 @@ Library
     , deepseq < 1.6
     , text < 2.2
     , time < 1.13
-    , vector < 0.14
 
     -- External dependencies
     , network
