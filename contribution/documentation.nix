@@ -8,6 +8,6 @@ pkgs.stdenv.mkDerivation {
 
   installPhase = ''
     mkdir -p "$out"
-    cp -r ./_site "$out"
+    cp -r ./_site/. "$out"
   '';
 }
