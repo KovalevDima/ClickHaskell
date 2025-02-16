@@ -43,12 +43,17 @@
           };
           "testing" = import ./testing/testing.nix {
             inherit inputs;
-            app = self'.apps."tests";
+            app = self'.apps."ghc966-tests";
             schemas = [(extractSqlFromMarkdown ./testing/T2WriteReadEquality.hs)];
           };
           "profiling" = import ./testing/performance.nix {
             inherit pkgs inputs;
-            app = self'.apps."prof-simple"; 
+            app = self'.apps."ghc966-prof-simple"; 
+            schemas = [(extractSqlFromMarkdown ./testing/PT1Simple.hs)];
+          };
+          "ghc9101-profiling" = import ./testing/performance.nix {
+            inherit pkgs inputs;
+            app = self'.apps."ghc9101-prof-simple";
             schemas = [(extractSqlFromMarkdown ./testing/PT1Simple.hs)];
           };
           "one-billion-streaming" = import ./testing/performance.nix {
@@ -58,9 +63,6 @@
         };
         # ClickHaskell project itself with Haskell env
         haskellProjects = {
-          default = import ./distribution/project.nix {
-            inherit pkgs;
-          };
           "ghc926" = import ./distribution/project.nix {
             inherit pkgs;
             basePackages = pkgs.haskell.packages.ghc926;
@@ -68,6 +70,10 @@
           "ghc948" = import ./distribution/project.nix {
             inherit pkgs;
             basePackages = pkgs.haskell.packages.ghc948;
+          };
+          "ghc966" = import ./distribution/project.nix {
+            inherit pkgs;
+            basePackages = pkgs.haskell.packages.ghc966;
           };
           "ghc984" = import ./distribution/project.nix {
             inherit pkgs;
@@ -79,7 +85,7 @@
           };
         };
         devShells.default = pkgs.mkShell {
-          inputsFrom = [config.haskellProjects.default.outputs.devShell];
+          inputsFrom = [config.haskellProjects.ghc966.outputs.devShell];
           packages = with pkgs; with haskellPackages;
             [clickhouse nixfmt nil eventlog2html graphmod cabal-plan];
         };
