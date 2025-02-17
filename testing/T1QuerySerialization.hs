@@ -68,12 +68,13 @@ runTestForType connection testValues = do
   mapM_
     (\chType -> do
       selectChType <-
-        head <$>
+        head . head <$>
           select
             @'[Column "testSample" chType]
             @(TestSample chType)
             connection
             (toChType ("SELECT CAST(" <> toQueryPart chType <> ", '" <> chTypeName @chType <> "') as testSample;"))
+            pure
 
       (when (chType /= testSample selectChType) . error)
         (  "Deserialized value of type " <> show (chTypeName @chType) <> " unmatched:"
