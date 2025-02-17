@@ -93,7 +93,7 @@
         packages = {
           "documentation" = import ./contribution/documentation.nix {
             inherit pkgs;
-            compiler = lib.getExe' self'.packages.contribution "documentation-compiler";
+            compiler = lib.getExe' self'.packages.ghc966-contribution "documentation-compiler";
           };
           "ClickHaskell-dist" = import ./distribution/hackage.nix {
             inherit pkgs;
