@@ -97,7 +97,7 @@
           };
           "ClickHaskell-dist" = import ./distribution/hackage.nix {
             inherit pkgs;
-            distPackage = self'.packages.ClickHaskell;
+            distPackage = self'.packages.ghc966-ClickHaskell;
           };
         };
       };
