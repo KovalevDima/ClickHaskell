@@ -45,19 +45,20 @@ t2 connection = do
     connection
     [testData]
 
-  result <-
-    selectFrom
-      @TestTable
-      @TestData
-      connection
-      pure
+  [result] <-
+    concat <$>
+      selectFrom
+        @TestTable
+        @TestData
+        connection
+        pure
 
   let testLabel = "WriteReadEquality: "
 
-  (when (head (head result) /= testData) . error)
+  (when (result /= testData) . error)
     (  testLabel <> "Unequal result.\n"
     <> "Writed data: " <> show testData <> "\n"
-    <> "Readed data: " <> show (head result))
+    <> "Readed data: " <> show result)
 
   print $ testLabel <> "Ok"
 
