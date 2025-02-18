@@ -26,7 +26,7 @@ ORDER BY ();
 ```
 -}
 
-module PT1Simple (main) where
+module Main (main) where
 
 -- Internal
 import ClickHaskell
@@ -47,7 +47,7 @@ main = do
   readingConnection <- openNativeConnection credentials
   writingConnection <- openNativeConnection credentials
 
-  let totalRows = 5_000_000 :: Integer
+  let totalRows = 1_000_000 :: Integer
 
   _ <-
     select

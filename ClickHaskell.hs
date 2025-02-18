@@ -9,7 +9,6 @@
   , OverloadedStrings
   , RecordWildCards
   , TupleSections
-  , StrictData
 #-}
 
 {-# OPTIONS_GHC
@@ -230,11 +229,11 @@ instance HasColumns (Table name columns) where
 -- ** Selecting
 
 select ::
-  forall columns record a
+  forall columns record result
   .
   (ReadableFrom (Columns columns) record)
   =>
-  Connection -> ChString -> ([record] -> IO a) -> IO [a]
+  Connection -> ChString -> ([record] -> IO result) -> IO [result]
 select conn query f = do
   withConnection conn $ \connState@MkConnectionState{sock, revision, user} -> do
     (sendAll sock . toLazyByteString)
@@ -271,14 +270,14 @@ instance HasColumns (View name columns parameters) where
 data View (name :: Symbol) (columns :: [Type]) (parameters :: [Type])
 
 selectFromView ::
-  forall view record name columns parameters passedParameters a
+  forall view record result name columns parameters passedParameters
   .
   ( ReadableFrom view record
   , KnownSymbol name
   , view ~ View name columns parameters
   , CheckParameters parameters passedParameters
   )
-  => Connection -> (Parameters '[] -> Parameters passedParameters) -> ([record] -> IO a) -> IO [a]
+  => Connection -> (Parameters '[] -> Parameters passedParameters) -> ([record] -> IO result) -> IO [result]
 selectFromView conn interpreter f = do
   withConnection conn $ \connState@MkConnectionState{sock, revision, user} -> do
     let query =
@@ -294,11 +293,11 @@ selectFromView conn interpreter f = do
 -- *** Internal
 
 handleSelect ::
-  forall hasColumns record a
+  forall hasColumns record result
   .
   ReadableFrom hasColumns record
   =>
-  ConnectionState -> ([record] -> IO a)  -> IO [a]
+  ConnectionState -> ([record] -> IO result)  -> IO [result]
 handleSelect conn@MkConnectionState{..} f = do
   packet <- rawBufferizedRead buffer (deserialize revision)
   case packet of
