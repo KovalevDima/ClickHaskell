@@ -48,12 +48,11 @@ executable prof-simple
   main-is: PT1Simple.hs
   hs-source-dirs: .
   ghc-options:
-    -O2 -threaded
-    -main-is PT1Simple
-    -Wall
+    -O2 -Wall
+    -rtsopts -threaded
   ghc-prof-options:
     -fprof-late
-    -rtsopts "-with-rtsopts=-s -A32m -AL256m -p -hy -L250 -l-agu -N1"
+    "-with-rtsopts=-s -A32m -AL256m -p -hy -L250 -l-agu -N1"
   build-depends:
       ClickHaskell
     , base

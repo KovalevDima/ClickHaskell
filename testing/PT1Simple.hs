@@ -26,13 +26,12 @@ ORDER BY ();
 ```
 -}
 
-module PT1Simple (main) where
+module Main (main) where
 
 -- Internal
 import ClickHaskell
 
 -- GHC included
-import Control.Concurrent (threadDelay)
 import Data.ByteString (StrictByteString)
 import Data.ByteString.Builder (string8)
 import Data.Int (Int32)
@@ -45,19 +44,16 @@ main :: IO ()
 main = do
   traceMarkerIO "Initialization"  
   let credentials = MkChCredential "default" "" "" "localhost" "9000"
-  connection <- openNativeConnection credentials
+  readingConnection <- openNativeConnection credentials
+  writingConnection <- openNativeConnection credentials
 
   let totalRows = 1_000_000 :: Integer
 
-  threadDelay 250_000
-  traceMarkerIO "Push data"
-
-  traceMarkerIO "Starting reading"
-  selectedData <-
+  _ <-
     select
       @ExampleColumns
       @ExampleData
-      connection
+      readingConnection
       (toChType $
         "SELECT * FROM generateRandom('\
         \a1 Int64, \
@@ -69,17 +65,9 @@ main = do
         \a7 String\
         \', 1, 10, 2) LIMIT " <> (string8 . show) totalRows
       )
+      (insertInto @(Table "profiler" ExampleColumns) writingConnection)
 
-  threadDelay 1_000_000
-  traceMarkerIO "Starting writing"
-  insertInto
-    @(Table "profiler" ExampleColumns)
-    connection
-    selectedData
-
-  traceMarkerIO "Completion"
   print $ "Writing done. " <> show totalRows <> " rows was written"
-  threadDelay 1_000_000
 
 
 data ExampleData = MkExampleData

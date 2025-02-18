@@ -60,6 +60,10 @@
             inherit pkgs inputs;
             app = self'.apps."prof-1bil-stream";
           };
+          "ghc9101-one-billion-streaming" = import ./testing/performance.nix {
+            inherit pkgs inputs;
+            app = self'.apps."ghc9101-prof-1bil-stream";
+          };
         };
         # ClickHaskell project itself with Haskell env
         haskellProjects = {

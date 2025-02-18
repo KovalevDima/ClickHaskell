@@ -35,15 +35,16 @@ import GHC.Generics (Generic)
 main :: IO ()
 main = do
   connection <- openNativeConnection defaultCredentials
-  mapM_ print
-    =<<
-      selectFromView
-        @ExampleView
-        @ExampleViewRecord
-        connection
-        ( parameter @"a1MoreThan" @ChInt32 ((-100_000) :: Int32)
-        . parameter @"a1LessThan" @ChInt32 ((100_000) :: Int32)
-        )
+  _ <-
+    selectFromView
+      @ExampleView
+      @ExampleViewRecord
+      connection
+      ( parameter @"a1MoreThan" @ChInt32 ((-100_000) :: Int32)
+      . parameter @"a1LessThan" @ChInt32 ((100_000) :: Int32)
+      )
+      print
+  pure ()
 
 {- Before GHC 9.8 its better to use standalone deriving
    since type errors occures exact on deriving declaration.

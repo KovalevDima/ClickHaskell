@@ -14,7 +14,6 @@ module PT2OneBillionStream (main) where
 import ClickHaskell
 
 -- GHC included
-import Control.Concurrent (threadDelay)
 import Data.ByteString.Builder (string8)
 import Debug.Trace (traceMarkerIO)
 import GHC.Generics (Generic)
@@ -27,14 +26,10 @@ main = do
   let credentials = MkChCredential "default" "" "" "localhost" "9000"
   connection <- openNativeConnection credentials
 
-  let totalRows = 1_000_000_000 :: Integer
+  let totalRows = 100_000_000 :: Integer
 
-  threadDelay 250_000
-  traceMarkerIO "Push data"
-
-  traceMarkerIO "Starting reading"
   result <-
-    streamSelect
+    sum <$> select
       @ExampleColumns
       @ExampleData
       connection
@@ -43,12 +38,9 @@ main = do
         \a1 Int64 \
         \', 1, 10, 2) LIMIT " <> (string8 . show) totalRows
       )
-      (\records -> pure [length records])
-  print $ sum result
+      (pure . length)
 
-  traceMarkerIO "Completion"
-  print $ "Processing done. " <> show totalRows <> " rows was processed"
-  threadDelay 1_000_000
+  print $ "Processing done. " <> show result <> " rows was processed"
 
 
 data ExampleData = MkExampleData
