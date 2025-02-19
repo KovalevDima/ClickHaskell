@@ -29,6 +29,7 @@
               (builtins.readFile path)
             )
           );
+        supportedGHCs = ["ghc926" "ghc948" "ghc966" "ghc984" "ghc9101"];
       in
       {
         process-compose = {
@@ -51,43 +52,36 @@
             app = self'.apps."ghc966-prof-simple"; 
             schemas = [(extractSqlFromMarkdown ./testing/PT1Simple.hs)];
           };
-          "ghc9101-profiling" = import ./testing/performance.nix {
-            inherit pkgs inputs;
-            app = self'.apps."ghc9101-prof-simple";
-            schemas = [(extractSqlFromMarkdown ./testing/PT1Simple.hs)];
-          };
           "one-billion-streaming" = import ./testing/performance.nix {
             inherit pkgs inputs;
             app = self'.apps."prof-1bil-stream";
           };
-          "ghc9101-one-billion-streaming" = import ./testing/performance.nix {
-            inherit pkgs inputs;
-            app = self'.apps."ghc9101-prof-1bil-stream";
-          };
-        };
+        }
+        //
+        lib.mergeAttrsList (
+          map (
+            {ghc, app}: {
+              "test-${ghc}-${app}" = import ./testing/performance.nix {
+                inherit pkgs inputs;
+                app = self'.apps."${ghc}-${app}";
+                schemas = [(extractSqlFromMarkdown ./testing/PT1Simple.hs)];
+              };
+            }
+          )
+          (lib.cartesianProduct { ghc = supportedGHCs; app = ["prof-1bil-stream" "prof-simple"]; })
+        );
         # ClickHaskell project itself with Haskell env
-        haskellProjects = {
-          "ghc926" = import ./distribution/project.nix {
-            inherit pkgs;
-            basePackages = pkgs.haskell.packages.ghc926;
-          };
-          "ghc948" = import ./distribution/project.nix {
-            inherit pkgs;
-            basePackages = pkgs.haskell.packages.ghc948;
-          };
-          "ghc966" = import ./distribution/project.nix {
-            inherit pkgs;
-            basePackages = pkgs.haskell.packages.ghc966;
-          };
-          "ghc984" = import ./distribution/project.nix {
-            inherit pkgs;
-            basePackages = pkgs.haskell.packages.ghc984;
-          };
-          "ghc9101" = import ./distribution/project.nix {
-            inherit pkgs;
-            basePackages = pkgs.haskell.packages.ghc9101;
-          };
-        };
+        haskellProjects = lib.mergeAttrsList (
+          map (
+            ghc: {
+              "${ghc}" = import ./distribution/project.nix {
+                inherit pkgs;
+                basePackages = pkgs.haskell.packages.${ghc};
+              };
+            }
+          )
+          supportedGHCs
+        );
         devShells.default = pkgs.mkShell {
           inputsFrom = [config.haskellProjects.ghc966.outputs.devShell];
           packages = with pkgs; with haskellPackages;
