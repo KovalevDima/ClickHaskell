@@ -21,7 +21,7 @@ jobs:
           nix_path: nixpkgs=channel:nixos-unstable
 
       - name: Build tests runner
-        run: nix build .#${ghc}-tests
+        run: nix build .#${{ matrix.ghc }}-tests
 
       - name: Run tests
-        run: PC_DISABLE_TUI=1 nix run .#test-${ghc}-tests
+        run: PC_DISABLE_TUI=1 nix run .#test-${{ matrix.ghc }}-tests
