@@ -109,10 +109,7 @@
     //
     {
       nixosModules = {
-        default = {config, pkgs, inputs}:  import ./distribution/systemModule.nix {
-          inherit config pkgs;
-          page = self.packages.${pkgs.system}."documentation";
-        };
+        default = import ./distribution/systemModule.nix self;
       };
     };
 }
