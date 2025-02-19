@@ -109,7 +109,7 @@
     //
     {
       nixosModules = {
-        default = ./distribution/systemModule.nix;
+        default = import ./distribution/systemModule.nix self;
       };
     };
 }

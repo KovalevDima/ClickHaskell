@@ -1,8 +1,8 @@
-{ config
-, self
-, pkgs
-, lib
-, ...
+self: {
+  config,
+  lib,
+  pkgs,
+  ...
 }:
 let
   path = config.ClickHaskell.path;
