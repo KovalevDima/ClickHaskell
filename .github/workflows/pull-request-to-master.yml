@@ -9,6 +9,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
+        ghc: [ghc926, ghc948, ghc966, ghc984, ghc9101]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Fetch repo
@@ -20,10 +21,7 @@ jobs:
           nix_path: nixpkgs=channel:nixos-unstable
 
       - name: Build tests runner
-        run: nix build .#testing
+        run: nix build .#${ghc}-tests
 
       - name: Run tests
-        run: PC_DISABLE_TUI=1 nix run .#testing
-
-      - name: Build documntation
-        run: nix build .#documentation
+        run: PC_DISABLE_TUI=1 nix run .#test-${ghc}-tests

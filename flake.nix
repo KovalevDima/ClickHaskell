@@ -42,33 +42,25 @@
               (extractSqlFromMarkdown ./testing/T2WriteReadEquality.hs)
             ];
           };
-          "testing" = import ./testing/testing.nix {
-            inherit inputs;
-            app = self'.apps."ghc966-tests";
-            schemas = [(extractSqlFromMarkdown ./testing/T2WriteReadEquality.hs)];
-          };
-          "profiling" = import ./testing/performance.nix {
-            inherit pkgs inputs;
-            app = self'.apps."ghc966-prof-simple"; 
-            schemas = [(extractSqlFromMarkdown ./testing/PT1Simple.hs)];
-          };
-          "one-billion-streaming" = import ./testing/performance.nix {
-            inherit pkgs inputs;
-            app = self'.apps."prof-1bil-stream";
-          };
         }
         //
         lib.mergeAttrsList (
           map (
             {ghc, app}: {
-              "test-${ghc}-${app}" = import ./testing/performance.nix {
+              "test-${ghc}-${app}" = import ./testing/testing.nix {
                 inherit pkgs inputs;
                 app = self'.apps."${ghc}-${app}";
-                schemas = [(extractSqlFromMarkdown ./testing/PT1Simple.hs)];
+                schemas = [
+                  (extractSqlFromMarkdown ./testing/PT1Simple.hs)
+                  (extractSqlFromMarkdown ./testing/T2WriteReadEquality.hs)
+                ];
               };
             }
           )
-          (lib.cartesianProduct { ghc = supportedGHCs; app = ["prof-1bil-stream" "prof-simple"]; })
+          (lib.cartesianProduct {
+            ghc = supportedGHCs; 
+            app = ["prof-1bil-stream" "prof-simple" "tests"];
+          })
         );
         # ClickHaskell project itself with Haskell env
         haskellProjects = lib.mergeAttrsList (
