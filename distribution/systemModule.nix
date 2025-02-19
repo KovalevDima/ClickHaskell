@@ -1,12 +1,12 @@
 { config
-, self
+, page
 , pkgs
-, lib
 , ...
 }:
 let
   path = config.ClickHaskell.path;
   domain = config.ClickHaskell.domain;
+  lib = pkgs.lib;
 in
 {
   options.ClickHaskell = {
@@ -22,7 +22,7 @@ in
     };
     pagePackage = lib.mkOption {
       type = lib.types.package;
-      default = self.packages.${pkgs.system}."documentation";
+      default = page;
     };
   };
   config = {
