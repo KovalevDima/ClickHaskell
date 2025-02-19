@@ -52,7 +52,7 @@ executable prof-simple
     -rtsopts -threaded
   ghc-prof-options:
     -fprof-late
-    "-with-rtsopts=-s -A32m -AL256m -p -hy -L250 -l-agu -N1"
+    "-with-rtsopts=-s -M32m -A4m -AL8m -p -hy -L250 -l-agu -N1"
   build-depends:
       ClickHaskell
     , base

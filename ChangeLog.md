@@ -10,6 +10,7 @@ ClickHaskell documentation got it's own domain name: https://clickhaskell.dev/
 - Query serialization support for UUID (+ add test)
 - Export of client errors for exception handling
 - Dropped vector dependency
+- Introduced memory consumption test (64M limit) on parallel reading and writing of 1 million rows
 
 ## API changes:
 - ### Migration to streaming API

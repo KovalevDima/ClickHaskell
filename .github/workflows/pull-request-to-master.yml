@@ -5,10 +5,31 @@ on:
     branches: [master]
 
 jobs:
-  handle-pr:
+  tests:
     strategy:
       matrix:
         ghc: [ghc948, ghc966, ghc984, ghc9101]
+    runs-on: ubuntu-latest
+    steps: 
+      - name: Fetch repo
+        uses: actions/checkout@v4
+
+      - name: Install nix
+        uses: cachix/install-nix-action@v26
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+
+      # Build and run
+      - name: Build tests runner
+        run: nix build .#${{ matrix.ghc }}-tests
+
+      - name: Run tests
+        run: PC_DISABLE_TUI=1 nix run .#test-${{ matrix.ghc }}-tests
+
+      - name: Run performance test
+        run: PC_DISABLE_TUI=1 nix run .#test-${{ matrix.ghc }}-prof-simple
+
+  delivery-builds-check:
     runs-on: ubuntu-latest
     steps:
       - name: Fetch repo
@@ -19,8 +40,9 @@ jobs:
         with:
           nix_path: nixpkgs=channel:nixos-unstable
 
-      - name: Build tests runner
-        run: nix build .#${{ matrix.ghc }}-tests
+      # Build and run
+      - name: Build ClickHaskell-dist
+        run: nix build .#ClickHaskell-dist
 
-      - name: Run tests
-        run: PC_DISABLE_TUI=1 nix run .#test-${{ matrix.ghc }}-tests
+      - name: Build documntation
+        run: nix build .#documentation
