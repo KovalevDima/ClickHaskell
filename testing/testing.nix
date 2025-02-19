@@ -22,7 +22,7 @@ in
         rm ./${programName}.eventlog
         rm ./${programName}.hp
       ";
-      #availability.exit_on_end = true;
+      availability.exit_on_end = true;
       depends_on."executable".condition = "process_completed_successfully";
     };
   };
