@@ -26,13 +26,15 @@ main = do
 
   staticFiles <- maybe (pure HM.empty) (flip withCurrentDirectory (listFilesWithContents ".")) mStaticFiles
   docsStatQueue <- newTBQueueIO 100_000
-  let settings = setPort 3000 $ defaultSettings
   case SockAddrUnix <$> mSocketPath of
-    Nothing -> runSettings settings (app MkServerState{..})
+    Nothing ->
+      runSettings
+        (setPort 3000 $ defaultSettings)
+        (app MkServerState{..})
     Just sockAddr -> do
       sock <- socket AF_UNIX Stream 0
       bind sock sockAddr
-      runSettingsSocket settings sock (app MkServerState{..})
+      runSettingsSocket defaultSettings sock (app MkServerState{..})
 
   forever $ threadDelay 60_000_000
 
