@@ -17,11 +17,6 @@
       ];
       perSystem = {self', pkgs, config, lib, ...}:
       let
-        wrapDefaultClickHouse = inputSchemas: {
-          enable = true;
-          extraConfig.http_port = 8123;
-          initialDatabases = [ {name="default"; schemas=inputSchemas;} ];
-        };
         extractSqlFromMarkdown = path:
           builtins.toFile (builtins.baseNameOf path) (
             lib.strings.concatStrings (
@@ -33,9 +28,11 @@
       in
       {
         process-compose = {
-          default = {
-            imports = [inputs.services-flake.processComposeModules.default];
-            services.clickhouse."dev-database" = wrapDefaultClickHouse [
+          default = import ./contribution/localServer.nix {
+            inherit inputs;
+            app = self'.apps.ghc966-server;
+            docDirPath = self'.packages."documentation";
+            schemas = [
               (extractSqlFromMarkdown ./usage/insertInto.lhs)
               (extractSqlFromMarkdown ./usage/selectFromView.lhs)
               (extractSqlFromMarkdown ./testing/PT1Simple.hs)
