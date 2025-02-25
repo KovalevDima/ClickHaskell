@@ -82,6 +82,7 @@ in
           ExecStart = ''
             ${server + /bin/server}
           '';
+          UMask= "007";
           WorkingDirectory = dataDir;
         };
         startLimitIntervalSec = 30;
