@@ -79,7 +79,7 @@ in
           User = "ClickHaskell";
           ReadWritePaths = [ dataDir ];
           ExecStart = ''
-            ${server + /bin/server};
+            ${server + /bin/server}
           '';
           WorkingDirectory = dataDir;
         };
