@@ -7,6 +7,8 @@ self: {
 let
   path = config.ClickHaskell.path;
   domain = config.ClickHaskell.domain;
+  pageDir = config.ClickHaskell.pagePackage;
+  server = config.ClickHaskell.serverPackage;
 in
 {
   options.ClickHaskell = {
@@ -19,6 +21,10 @@ in
       type = lib.types.str;
       default = "clickhaskell.dev";
       description = "Domain name for ClickHaskell infrastructure";
+    };
+    serverPackage = lib.mkOptions {
+      type = lib.types.packages;
+      default = self.packages.${pkgs.system}."server";
     };
     pagePackage = lib.mkOption {
       type = lib.types.package;
@@ -36,7 +42,6 @@ in
       };
     };
 
-
     security.acme = {
       acceptTerms = true;
       certs = {
@@ -45,6 +50,27 @@ in
           email = "letsencrypt@${domain}";
           extraDomainNames = [ "git.${domain}" ];
         };
+      };
+    };
+
+    systemd.services = {
+      ClickHaskell = {
+        wantedBy = [ "multi-user.target" ];
+        environment = {
+          CLICKHASKELL_PAGE_SOCKET_PATH = "./";
+          CLICKHASKELL_STATIC_FILES_DIR = pageDir;
+        };
+        serviceConfig = {
+          Restart = "always";
+          User = "ClickHaskell";
+          ReadWritePaths = [ path ];
+          ExecStart = ''
+            ${server};
+          '';
+          WorkingDirectory = path;
+        };
+        startLimitIntervalSec = 30;
+        startLimitBurst = 10;
       };
     };
   };
