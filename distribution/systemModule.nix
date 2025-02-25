@@ -71,7 +71,7 @@ in
       ClickHaskell = {
         wantedBy = [ "multi-user.target" ];
         environment = {
-          CLICKHASKELL_PAGE_SOCKET_PATH = "./";
+          CLICKHASKELL_PAGE_SOCKET_PATH = "ClickHaskell.sock";
           CLICKHASKELL_STATIC_FILES_DIR = pageDir;
         };
         serviceConfig = {
