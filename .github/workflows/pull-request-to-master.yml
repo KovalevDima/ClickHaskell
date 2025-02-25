@@ -41,8 +41,9 @@ jobs:
           nix_path: nixpkgs=channel:nixos-unstable
 
       # Build and run
+      - name: Build documntation
+        run: nix build .#documentation
+
       - name: Build ClickHaskell-dist
         run: nix build .#ClickHaskell-dist
 
-      - name: Build documntation
-        run: nix build .#documentation
