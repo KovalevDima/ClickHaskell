@@ -34,6 +34,7 @@ main = do
     Just sockAddr -> do
       sock <- socket AF_UNIX Stream 0
       bind sock sockAddr
+      putStrLn $ "Starting server on UNIX socket: " ++ (show sockAddr)
       runSettingsSocket defaultSettings sock (app MkServerState{..})
 
   forever $ threadDelay 60_000_000
