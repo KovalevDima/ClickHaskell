@@ -77,6 +77,7 @@ in
         serviceConfig = {
           Restart = "always";
           User = user;
+          Group = group;
           ReadWritePaths = [ dataDir ];
           ExecStart = ''
             ${server + /bin/server}
