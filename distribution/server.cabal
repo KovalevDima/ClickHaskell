@@ -19,10 +19,11 @@ executable server
     , filepath
     , http-types
     , unordered-containers
+    , mime-types
     , network
     , text
-    , warp
-    , mime-types
+    , stm
     , wai
+    , warp
   ghc-options:
     -Wall
