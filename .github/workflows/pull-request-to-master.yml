@@ -31,6 +31,7 @@ jobs:
 
   delivery-builds-check:
     runs-on: ubuntu-latest
+    needs: tests
     steps:
       - name: Fetch repo
         uses: actions/checkout@v4
