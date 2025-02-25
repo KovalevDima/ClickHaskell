@@ -24,7 +24,7 @@ in
     };
     serverPackage = lib.mkOption {
       type = lib.types.package;
-      default = self.packages.${pkgs.system}."server";
+      default = self.packages.${pkgs.system}."ghc966-server";
     };
     pagePackage = lib.mkOption {
       type = lib.types.package;
