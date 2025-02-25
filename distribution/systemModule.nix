@@ -16,13 +16,13 @@ in
   options.ClickHaskell = {
     user = lib.mkOption {
       type = lib.types.str;
-      default = "btcpayserver";
-      description = "The user as which to run btcpayserver.";
+      default = "ClickHaskell";
+      description = "The user as which to run ClickHaskell server.";
     };
     group = lib.mkOption {
       type = lib.types.str;
       default = user;
-      description = "The group as which to run btcpayserver.";
+      description = "The group as which to run ClickHaskell server.";
     };
     path = lib.mkOption {
       type = lib.types.passwdEntry lib.types.path;
@@ -47,7 +47,7 @@ in
     users = {
       groups.ClickHaskell = {};
       users.ClickHaskell = {
-        group = "ClickHaskell";
+        group = group;
         homeMode = "755";
         home = "${dataDir}";
         isSystemUser = true;
@@ -76,7 +76,7 @@ in
         };
         serviceConfig = {
           Restart = "always";
-          User = "ClickHaskell";
+          User = user;
           ReadWritePaths = [ dataDir ];
           ExecStart = ''
             ${server + /bin/server}
