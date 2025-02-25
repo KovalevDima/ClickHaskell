@@ -22,7 +22,7 @@ in
       default = "clickhaskell.dev";
       description = "Domain name for ClickHaskell infrastructure";
     };
-    serverPackage = lib.mkOptions {
+    serverPackage = lib.mkOption {
       type = lib.types.packages;
       default = self.packages.${pkgs.system}."server";
     };
