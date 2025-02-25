@@ -11,7 +11,7 @@ import Data.Text as T (pack)
 import Network.HTTP.Types (status200, status404)
 import Network.HTTP.Types.Header (hContentType)
 import Network.Mime (MimeType, defaultMimeLookup)
-import Network.Socket (Family (..), SockAddr (..), SocketType (..), bind, socket)
+import Network.Socket (Family (..), SockAddr (..), SocketType (..), bind, socket, listen, maxListenQueue)
 import Network.Wai (Request (..), Response, ResponseReceived, responseLBS)
 import Network.Wai.Handler.Warp (defaultSettings, runSettings, runSettingsSocket, setPort)
 import System.Directory (doesDirectoryExist, listDirectory, withCurrentDirectory)
@@ -33,8 +33,9 @@ main = do
         (app MkServerState{..})
     Just sockAddr -> do
       sock <- socket AF_UNIX Stream 0
-      bind sock sockAddr
       putStrLn $ "Starting server on UNIX socket: " ++ (show sockAddr)
+      bind sock sockAddr
+      listen sock maxListenQueue
       runSettingsSocket defaultSettings sock (app MkServerState{..})
 
   forever $ threadDelay 60_000_000
