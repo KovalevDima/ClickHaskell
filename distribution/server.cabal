@@ -19,6 +19,7 @@ executable server
     , directory
     , filepath
     , http-types
+    , ip
     , unordered-containers
     , mime-types
     , network

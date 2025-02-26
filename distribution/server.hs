@@ -24,6 +24,7 @@ import Data.HashMap.Strict as HM (HashMap, empty, fromList, lookup, unions)
 import Data.Text as T (pack)
 import Data.Word (Word32)
 import GHC.Generics (Generic)
+import Net.IPv4 (decodeUtf8, getIPv4)
 import Network.HTTP.Types (status200, status404)
 import Network.HTTP.Types.Header (hContentType)
 import Network.Mime (MimeType, defaultMimeLookup)
@@ -33,7 +34,6 @@ import Network.Wai.Handler.Warp (Port, defaultSettings, runSettings, runSettings
 import System.Directory (doesDirectoryExist, listDirectory, withCurrentDirectory)
 import System.Environment (lookupEnv)
 import System.FilePath (dropFileName, dropTrailingPathSeparator, normalise, takeFileName, (</>))
-import System.IO (stderr, hPutStrLn)
 
 {-
 ```
@@ -120,11 +120,11 @@ runServer serverState mSocketPath = do
   case SockAddrUnix <$> mSocketPath of
     Nothing -> do
       let port = 3000 :: Port
-      hPutStrLn stderr $ "Starting server on http://localhost:" <> show port
+      putStrLn $ "Starting server on http://localhost:" <> show port
       runSettings (setPort port defaultSettings) (app serverState)
     Just sockAddr -> do
       sock <- socket AF_UNIX Stream 0
-      hPutStrLn stderr $ "Starting server on UNIX socket: " ++ (show sockAddr)
+      putStrLn $ "Starting server on UNIX socket: " ++ (show sockAddr)
       bind sock sockAddr
       listen sock maxListenQueue
       runSettingsSocket defaultSettings sock (app serverState)
@@ -133,15 +133,14 @@ runServer serverState mSocketPath = do
 app :: ServerState -> Request -> (Response -> IO ResponseReceived) -> IO ResponseReceived
 app MkServerState{staticFiles, docsStatQueue} req f = do
   let path = (dropIndexHtml . BS8.unpack . rawPathInfo) req
-      remoteAddr = case remoteHost req of SockAddrInet _ ip -> ip; _ -> 0
+      clientIp4 = maybe 0 getIPv4 (decodeUtf8 =<< Prelude.lookup "X-Real-IP" (requestHeaders req))
   case HM.lookup path staticFiles of
     Nothing -> f (responseLBS status404 [("Content-Type", "text/plain")] "404 - Not Found")
     Just (mimeType, content) -> do
-      hPutStrLn stderr ("Req: " <> show req)
       (atomically . writeTBQueue docsStatQueue)
         MkDocsStatistics
           { path       = BS8.pack path
-          , remoteAddr = remoteAddr
+          , remoteAddr = clientIp4
           }
       f (responseLBS status200 [(hContentType, mimeType)] content)
 
