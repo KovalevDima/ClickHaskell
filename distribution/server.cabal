@@ -13,15 +13,18 @@ executable server
   main-is: server.hs
   build-depends:
       ClickHaskell
+    , async
     , base >=4.7 && <5
     , bytestring
     , directory
     , filepath
     , http-types
+    , ip
     , unordered-containers
     , mime-types
     , network
     , text
+    , time
     , stm
     , wai
     , warp
