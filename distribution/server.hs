@@ -33,6 +33,7 @@ import Network.Wai.Handler.Warp (Port, defaultSettings, runSettings, runSettings
 import System.Directory (doesDirectoryExist, listDirectory, withCurrentDirectory)
 import System.Environment (lookupEnv)
 import System.FilePath (dropFileName, dropTrailingPathSeparator, normalise, takeFileName, (</>))
+import System.IO (stderr, hPutStrLn)
 
 {-
 ```
@@ -123,7 +124,7 @@ runServer serverState mSocketPath = do
       runSettings (setPort port defaultSettings) (app serverState)
     Just sockAddr -> do
       sock <- socket AF_UNIX Stream 0
-      putStrLn $ "Starting server on UNIX socket: " ++ (show sockAddr)
+      hPutStrLn stderr $ "Starting server on UNIX socket: " ++ (show sockAddr)
       bind sock sockAddr
       listen sock maxListenQueue
       runSettingsSocket defaultSettings sock (app serverState)
