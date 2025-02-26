@@ -6,7 +6,7 @@
 {-# LANGUAGE DerivingStrategies #-}
 
 import ClickHaskell
-  ( ChString, ChUInt32
+  ( ChString, ChUInt32, ChDateTime
   , Column, Table
   , WritableInto, insertInto
   , Connection, openNativeConnection, defaultCredentials
@@ -22,6 +22,8 @@ import Data.ByteString.Char8 as BS8 (pack, unpack)
 import Data.ByteString.Lazy as B (LazyByteString, readFile)
 import Data.HashMap.Strict as HM (HashMap, empty, fromList, lookup, unions)
 import Data.Text as T (pack)
+import Data.Time (getCurrentTime)
+import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
 import Data.Word (Word32)
 import GHC.Generics (Generic)
 import Net.IPv4 (decodeUtf8, getIPv4)
@@ -37,14 +39,16 @@ import System.FilePath (dropFileName, dropTrailingPathSeparator, normalise, take
 
 {-
 ```
-CREATE TABLE ClickHaskellStats
+CREATE TABLE default.ClickHaskellStats
 (
+    `time` DateTime,
     `path` LowCardinality(String),
     `remoteAddr` UInt32
 )
 ENGINE = MergeTree
-PARTITION BY (path)
-ORDER BY (path);
+PARTITION BY path
+ORDER BY path
+SETTINGS index_granularity = 8192;
 ```
 -}
 
@@ -68,7 +72,8 @@ main = do
   void $ waitAnyCancel [serverTask, databaseWriter]
 
 data DocsStatistics = MkDocsStatistics
-  { path       :: StrictByteString
+  { time       :: Word32
+  , path       :: StrictByteString
   , remoteAddr :: Word32
   }
   deriving stock (Generic)
@@ -77,7 +82,8 @@ data DocsStatistics = MkDocsStatistics
 type DocsStatTable = 
   Table 
     "ClickHaskellStats"
-   '[ Column "path" ChString
+   '[ Column "time" (ChDateTime "")
+    , Column "path" ChString
     , Column "remoteAddr" ChUInt32
     ]
 
@@ -134,12 +140,14 @@ app :: ServerState -> Request -> (Response -> IO ResponseReceived) -> IO Respons
 app MkServerState{staticFiles, docsStatQueue} req f = do
   let path = (dropIndexHtml . BS8.unpack . rawPathInfo) req
       clientIp4 = maybe 0 getIPv4 (decodeUtf8 =<< Prelude.lookup "X-Real-IP" (requestHeaders req))
+  time <- floor . utcTimeToPOSIXSeconds <$> getCurrentTime
   case HM.lookup path staticFiles of
     Nothing -> f (responseLBS status404 [("Content-Type", "text/plain")] "404 - Not Found")
     Just (mimeType, content) -> do
       (atomically . writeTBQueue docsStatQueue)
         MkDocsStatistics
-          { path       = BS8.pack path
+          { time
+          , path       = BS8.pack path
           , remoteAddr = clientIp4
           }
       f (responseLBS status200 [(hContentType, mimeType)] content)

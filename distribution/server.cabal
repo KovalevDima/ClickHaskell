@@ -24,6 +24,7 @@ executable server
     , mime-types
     , network
     , text
+    , time
     , stm
     , wai
     , warp
