@@ -120,7 +120,7 @@ runServer serverState mSocketPath = do
   case SockAddrUnix <$> mSocketPath of
     Nothing -> do
       let port = 3000 :: Port
-      putStrLn $ "Starting server on http://localhost:" <> show port
+      hPutStrLn stderr $ "Starting server on http://localhost:" <> show port
       runSettings (setPort port defaultSettings) (app serverState)
     Just sockAddr -> do
       sock <- socket AF_UNIX Stream 0
@@ -137,7 +137,7 @@ app MkServerState{staticFiles, docsStatQueue} req f = do
   case HM.lookup path staticFiles of
     Nothing -> f (responseLBS status404 [("Content-Type", "text/plain")] "404 - Not Found")
     Just (mimeType, content) -> do
-      putStrLn ("Remote host is: " <> show (remoteHost req))
+      hPutStrLn stderr ("Remote host is: " <> show (remoteHost req))
       (atomically . writeTBQueue docsStatQueue)
         MkDocsStatistics
           { path       = BS8.pack path
