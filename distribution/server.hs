@@ -137,7 +137,7 @@ app MkServerState{staticFiles, docsStatQueue} req f = do
   case HM.lookup path staticFiles of
     Nothing -> f (responseLBS status404 [("Content-Type", "text/plain")] "404 - Not Found")
     Just (mimeType, content) -> do
-      hPutStrLn stderr ("Remote host is: " <> show (remoteHost req))
+      hPutStrLn stderr ("Req: " <> show req)
       (atomically . writeTBQueue docsStatQueue)
         MkDocsStatistics
           { path       = BS8.pack path
