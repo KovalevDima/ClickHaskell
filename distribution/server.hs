@@ -87,9 +87,6 @@ type DocsStatTable =
     , Column "remoteAddr" ChUInt32
     ]
 
-
-
-
 {-
 
 Stats handler
@@ -105,9 +102,6 @@ writeStats :: DocsStatisticsState -> IO ()
 writeStats MkDocsStatisticsState{..} = do
   dataToWrite <- (atomically . flushTBQueue) docsStatQueue
   insertInto @DocsStatTable clickHouse dataToWrite
-
-
-
 
 {-
 
