@@ -44,6 +44,10 @@ in
     };
   };
   config = {
+    services.clickhouse = {
+      enable = true;
+    };
+
     users = {
       groups.ClickHaskell = {};
       users.ClickHaskell = {
