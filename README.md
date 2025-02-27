@@ -29,7 +29,7 @@ function formatHour(posixTime) {
     return `${date.getHours()}:00`;
 }
 
-const socket = new WebSocket(`ws://${location.host}/ws`);
+const socket = new WebSocket(`${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`);
 
 socket.onopen = () => console.log('WebSocket connected');
 

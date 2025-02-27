@@ -53,12 +53,12 @@ PARTITION BY path
 ORDER BY path
 SETTINGS index_granularity = 8192;
 
-CREATE VIEW historyByHours AS
-SELECT
+CREATE OR REPLACE VIEW default.historyByHours
+AS SELECT
     toUInt32(intDiv(toUInt32(time), 3600) * 3600) AS hour,
     toUInt32(countDistinct(remoteAddr)) AS visits
-FROM ClickHaskellStats
-WHERE hour > (now() - {hoursLength:UInt16}*3600)
+FROM default.ClickHaskellStats
+WHERE hour > (now() - ({hoursLength:UInt16} * 3600))
 GROUP BY hour
 ORDER BY hour ASC;
 ```
