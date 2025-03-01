@@ -155,6 +155,14 @@ data ConnectionState = MkConnectionState
 data ConnectionError = NoAdressResolved | EstablishTimeout
   deriving (Show, Exception)
 
+writeToConnection :: Serializable packet => ConnectionState -> packet -> IO ()
+writeToConnection MkConnectionState{sock, revision} packet =
+  (sendAll sock . toLazyByteString . serialize revision) packet
+
+writeToConnectionEncode :: ConnectionState -> (ProtocolRevision -> Builder) -> IO ()
+writeToConnectionEncode MkConnectionState{sock, revision} serializer =
+  (sendAll sock . toLazyByteString) (serializer revision)
+
 openNativeConnection :: HasCallStack => ChCredential -> IO Connection
 openNativeConnection MkChCredential{chHost, chPort, chLogin, chPass, chDatabase} = do
   AddrInfo{addrFamily, addrSocketType, addrProtocol, addrAddress}
@@ -191,14 +199,9 @@ openNativeConnection MkChCredential{chHost, chPort, chLogin, chPass, chDatabase}
   case serverPacketType of
     HelloResponse MkHelloResponse{server_revision} -> do
       let revision = min server_revision latestSupportedRevision
-      (sendAll sock . toLazyByteString) (serialize revision mkAddendum)
-      a <- newMVar MkConnectionState
-        { user = toChType chLogin
-        , revision
-        , sock
-        , buffer
-        }
-      pure (MkConnection a)
+          conn = MkConnectionState{user = toChType chLogin, ..}
+      writeToConnection conn mkAddendum
+      MkConnection <$> newMVar conn
     Exception exception -> throwIO (UserError $ DatabaseException exception)
     otherPacket         -> throwIO (InternalError $ UnexpectedPacketType otherPacket)
 
@@ -207,9 +210,8 @@ openNativeConnection MkChCredential{chHost, chPort, chLogin, chPass, chDatabase}
 
 ping :: HasCallStack => Connection -> IO ()
 ping conn = do
-  withConnection conn $ \MkConnectionState{sock, revision, buffer} -> do
-    (sendAll sock . toLazyByteString)
-      (serialize revision mkPingPacket)
+  withConnection conn $ \connState@MkConnectionState{revision, buffer} -> do
+    writeToConnection connState mkPingPacket
     responsePacket <- rawBufferizedRead buffer (deserialize revision)
     case responsePacket of
       Pong                -> pure ()
@@ -235,11 +237,9 @@ select ::
   =>
   Connection -> ChString -> ([record] -> IO result) -> IO [result]
 select conn query f = do
-  withConnection conn $ \connState@MkConnectionState{sock, revision, user} -> do
-    (sendAll sock . toLazyByteString)
-      (  serialize revision (mkQueryPacket revision user query)
-      <> serialize revision (mkDataPacket "" 0 0)
-      )
+  withConnection conn $ \connState@MkConnectionState{revision, user} -> do
+    writeToConnection connState (mkQueryPacket revision user query)
+    writeToConnection connState (mkDataPacket "" 0 0)
     let f' x = id <$!> f x
     handleSelect @(Columns columns) connState f'
 
@@ -253,14 +253,12 @@ selectFrom ::
   =>
   Connection -> ([record] -> IO a) -> IO [a]
 selectFrom conn f = do
-  withConnection conn $ \connState@MkConnectionState{sock, revision, user} -> do
+  withConnection conn $ \connState@MkConnectionState{revision, user} -> do
     let query
           = "SELECT " <> readingColumns @table @record
           <> " FROM " <> (byteString . BS8.pack) (symbolVal $ Proxy @name)
-    (sendAll sock . toLazyByteString)
-      (  serialize revision (mkQueryPacket revision user (toChType query))
-      <> serialize revision (mkDataPacket "" 0 0)
-      )
+    writeToConnection connState (mkQueryPacket revision user (toChType query))
+    writeToConnection connState (mkDataPacket "" 0 0)
     let f' x = id <$!> f x
     handleSelect @table connState f'
 
@@ -279,14 +277,12 @@ selectFromView ::
   )
   => Connection -> (Parameters '[] -> Parameters passedParameters) -> ([record] -> IO result) -> IO [result]
 selectFromView conn interpreter f = do
-  withConnection conn $ \connState@MkConnectionState{sock, revision, user} -> do
+  withConnection conn $ \connState@MkConnectionState{revision, user} -> do
     let query =
           "SELECT " <> readingColumns @view @record <>
           " FROM " <> (byteString . BS8.pack . symbolVal @name) Proxy <> viewParameters interpreter
-    (sendAll sock . toLazyByteString)
-      (  serialize revision (mkQueryPacket revision user (toChType query))
-      <> serialize revision (mkDataPacket "" 0 0)
-      )
+    writeToConnection connState (mkQueryPacket revision user (toChType query))
+    writeToConnection connState (mkDataPacket "" 0 0)
     let f' x = id <$!> f x
     handleSelect @view connState f'
 
@@ -326,14 +322,12 @@ insertInto ::
   )
   => Connection -> [record] -> IO ()
 insertInto conn columnsData = do
-  withConnection conn $ \connState@MkConnectionState{sock, user, revision} -> do
+  withConnection conn $ \connState@MkConnectionState{user, revision} -> do
     let query =
           "INSERT INTO " <> (byteString . BS8.pack) (symbolVal $ Proxy @name)
           <> " (" <> writingColumns @table @record <> ") VALUES"
-    (sendAll sock . toLazyByteString)
-      (  serialize revision (mkQueryPacket revision user (toChType query))
-      <> serialize revision (mkDataPacket "" 0 0)
-      )
+    writeToConnection connState (mkQueryPacket revision user (toChType query))
+    writeToConnection connState (mkDataPacket "" 0 0)
     handleInsertResult @table connState columnsData
 
 handleInsertResult :: forall columns record . WritableInto columns record => ConnectionState -> [record] -> IO ()
@@ -343,11 +337,9 @@ handleInsertResult conn@MkConnectionState{..} records = do
     TableColumns      _ -> handleInsertResult @columns conn records
     DataResponse MkDataPacket{} -> do
       _emptyDataPacket <- rawBufferizedRead buffer (deserializeInsertHeader @columns @record revision)
-      (sendAll sock . toLazyByteString)
-        (  serialize revision (mkDataPacket "" (columnsCount @columns @record) (fromIntegral $ Prelude.length records))
-        <> serializeRecords @columns revision records
-        <> serialize revision (mkDataPacket "" 0 0)
-        )
+      writeToConnection conn (mkDataPacket "" (columnsCount @columns @record) (fromIntegral $ Prelude.length records))
+      writeToConnectionEncode conn (serializeRecords @columns records)
+      writeToConnection conn (mkDataPacket "" 0 0)
       handleInsertResult @columns @record conn []
     EndOfStream         -> pure ()
     Exception exception -> throwIO (UserError $ DatabaseException exception)
@@ -1381,9 +1373,9 @@ class
   deserializeInsertHeader :: ProtocolRevision -> Get ()
   deserializeInsertHeader rev = gDeserializeInsertHeader @(GetColumns columns) @(Rep record) rev
 
-  default serializeRecords :: GenericWritable record (GetColumns columns) => ProtocolRevision -> [record] -> Builder
-  serializeRecords :: ProtocolRevision -> [record] -> Builder
-  serializeRecords rev = gSerializeRecords @(GetColumns columns) rev . map from
+  default serializeRecords :: GenericWritable record (GetColumns columns) => [record] -> ProtocolRevision -> Builder
+  serializeRecords :: [record] -> ProtocolRevision -> Builder
+  serializeRecords records rev = gSerializeRecords @(GetColumns columns) rev (map from records)
 
   default writingColumns :: GenericWritable record (GetColumns columns) => Builder
   writingColumns :: Builder
