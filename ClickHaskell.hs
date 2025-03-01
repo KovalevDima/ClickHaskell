@@ -75,15 +75,9 @@ import Paths_ClickHaskell (version)
 
 -- GHC included
 import Control.Concurrent (MVar, newMVar, withMVar)
-<<<<<<< HEAD
-import Control.DeepSeq (NFData, (<$!!>))
-import Control.Exception (Exception, bracketOnError, catch, finally, throwIO, throw, SomeException)
-import Control.Monad (forM, replicateM, (<$!>), when)
-=======
 import Control.DeepSeq (NFData)
-import Control.Exception (Exception, bracketOnError, catch, finally, throwIO, SomeException)
-import Control.Monad (forM, replicateM, (<$!>))
->>>>>>> master
+import Control.Exception (Exception, bracketOnError, catch, finally, throwIO, SomeException, throw)
+import Control.Monad (forM, replicateM, (<$!>), when)
 import Data.Binary.Get
 import Data.Binary.Get.Internal (readN)
 import Data.Binary.Put
