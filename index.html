@@ -1,3 +1,9 @@
+<h2>Real-time analytics powered by ClickHaskell</h2>
+
+<p>You are getting data via WebSockets<br>
+    and create it by loading any page
+</p>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <canvas id="visitsChart" style="background-color: #1e1e1e"></canvas>
@@ -42,3 +48,5 @@ socket.onmessage = event => {
 socket.onerror = error => console.error('WebSocket error:', error);
 socket.onclose = () => console.log('WebSocket closed');
 </script>
+
+<p>The source code available in <a href="https://git.clickhaskell.dev/">ClickHaskell git repo</a></p>
