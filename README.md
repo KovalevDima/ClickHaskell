@@ -11,6 +11,7 @@ Surf across [Home page](https://clickhaskell.dev/) to learn everything you need
 ClickHaskell 1.0.0 will be released after most of the negative case tests have been implemented. Until then, you may encounter unexpected behavior
 
 <canvas id="visitsChart" style="background-color: #1e1e1e"></canvas>
+
 <script>
 const ctx = document.getElementById('visitsChart').getContext('2d');
 let chartData = {
