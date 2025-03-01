@@ -37,6 +37,7 @@
               (extractSqlFromMarkdown ./usage/selectFromView.lhs)
               (extractSqlFromMarkdown ./testing/PT1Simple.hs)
               (extractSqlFromMarkdown ./testing/T2WriteReadEquality.hs)
+              (extractSqlFromMarkdown ./distribution/server.hs)
             ];
           };
         }

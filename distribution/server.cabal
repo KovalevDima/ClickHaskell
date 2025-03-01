@@ -13,6 +13,7 @@ executable server
   main-is: server.hs
   build-depends:
       ClickHaskell
+    , aeson
     , async
     , base >=4.7 && <5
     , bytestring
@@ -28,5 +29,7 @@ executable server
     , stm
     , wai
     , warp
+    , wai-websockets
+    , websockets
   ghc-options:
     -Wall
