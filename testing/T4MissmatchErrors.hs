@@ -29,6 +29,7 @@ t4 connection = do
         @ExpectedName
         connection
         (toChType "SELECT * FROM generateRandom('unexpectedName Int64', 1, 10, 2) LIMIT 1")
+        pure
     )
     (\(e :: ClientError) -> case e of
       UserError (UnmatchedColumn _) -> pure ()
@@ -42,6 +43,7 @@ t4 connection = do
         @ExpectedName
         connection
         (toChType "SELECT * FROM generateRandom('expectedName Int64', 1, 10, 2) LIMIT 1")
+        pure
     )
     (\(e :: ClientError) -> case e of
       UserError (UnmatchedType _) -> pure ()
