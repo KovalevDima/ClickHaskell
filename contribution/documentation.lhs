@@ -35,11 +35,12 @@ main = do
 
   hakyllWith defaultConfiguration{providerDirectory="."} $ do
 
-    -- html templates
     match "contribution/template.html" $ compile templateCompiler
 
-    let -- documentation content
-        pattern = ("**.lhs" .||. "**.md") .&&. (complement "ChangeLog.md")
+    let pattern =
+          ("**.lhs" .||. "**.md" .||. "index.html")
+          .&&. (complement "ChangeLog.md")
+          .&&. (complement "README.md")
 
         -- tranforms file paths to actual links
         filePathToUrlPath filePath =
@@ -47,7 +48,6 @@ main = do
             "README" -> replaceFileName filePath "index.html"
             _        -> replaceExtension filePath "html"
 
-        -- beautifies urls for navigation bar
         beautifyUrl path
           | takeBaseName path == "index" = normalise ("/" </> dropFileName path)
           | otherwise                    = normalise ("/" </> path)
