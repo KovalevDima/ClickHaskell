@@ -5,11 +5,11 @@ name:               QA
 version:            0.0.0.1
 build-type:         Simple
 license:            BSD-3-Clause
-license-file:       LICENSE
 
 data-files:
-  *.html
-  documentation.lhs
+  ./*.html
+  ./documentation.lhs
+  ./assets/*.ttf
 
 executable documentation-compiler
   default-language: GHC2021
@@ -18,10 +18,7 @@ executable documentation-compiler
   build-depends:
       base
     , hakyll
-    , bytestring
     , filepath
-    , time
-    , pandoc
   ghc-options:
     -threaded -Wall
     -main-is DocumentationCompiler

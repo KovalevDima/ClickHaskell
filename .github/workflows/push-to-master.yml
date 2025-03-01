@@ -1,15 +1,34 @@
-name: "Docs"
+name: "Handle push to master"
 
 on:
   push:
     branches: [master]
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
 jobs:
+  tests:
+    strategy:
+      matrix:
+        ghc: [ghc948, ghc966, ghc984, ghc9101]
+    runs-on: ubuntu-latest
+    steps: 
+      - name: Fetch repo
+        uses: actions/checkout@v4
+
+      - name: Install nix
+        uses: cachix/install-nix-action@v26
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+
+      # Build and run
+      - name: Build tests runner
+        run: nix build .#${{ matrix.ghc }}-tests
+
+      - name: Run tests
+        run: PC_DISABLE_TUI=1 nix run .#test-${{ matrix.ghc }}-tests
+
+      - name: Run performance test
+        run: PC_DISABLE_TUI=1 nix run .#test-${{ matrix.ghc }}-prof-simple
+
   handle-push-to-master:
     runs-on: ubuntu-latest
     steps:
@@ -21,20 +40,8 @@ jobs:
         with:
           nix_path: nixpkgs=channel:nixos-unstable
 
-      - name: Build tests
-        run: nix build .#testing
-
-      - name: Run tests
-        run: nix run .#testing
-
       - name: Build documntation
         run: nix build .#documentation
-
-      - name: Upload a Build Artifact
-        uses: actions/upload-pages-artifact@v3.0.1
-        with:
-          name: github-pages
-          path: result/_site/
 
       - name: Build ClickHaskell-dist
         run: nix build .#ClickHaskell-dist
@@ -46,16 +53,3 @@ jobs:
           packagesPath: result/packages
           docsPath: result/docs
           publish: false
-
-  deploy-docs:
-    needs: [handle-push-to-master]
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4.0.5
-
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}

@@ -1,3 +1,6 @@
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+
 # ClickHaskell
 
 Haskell implementation of [ClickHouse](https://clickhouse.com/) DBMS Native protocol and client
@@ -7,32 +10,44 @@ Surf across [Home page](https://clickhaskell.dev/) to learn everything you need
 ## ⚠️ Current version is unstable
 ClickHaskell 1.0.0 will be released after most of the negative case tests have been implemented. Until then, you may encounter unexpected behavior
 
-# Design
+<canvas id="visitsChart" style="background-color: #1e1e1e"></canvas>
+<script>
+const ctx = document.getElementById('visitsChart').getContext('2d');
+let chartData = {
+    labels: [],
+    datasets: [{ label: 'Visits', data: [], backgroundColor: '#121212' }]
+};
 
-ClickHaskell was designed to **avoid boilerplate** code\
-and **decouple business logic** from DBMS protocol implementation
+const visitsChart = new Chart(ctx, {
+    type: 'bar',
+    data: chartData,
+    options: { scales: { y: { beginAtZero: true } } }
+});
 
-The key idea is to specilize database **table**/**query**/**view** interface\
-as a Haskell type and then to constuct a correspondence\
-(**decoder**/**encoder** and **query**) from **record generic representation**
+function formatHour(posixTime) {
+    const date = new Date(posixTime * 1000);
+    return `${date.getHours()}:00`;
+}
 
-For example in case of
-```text
-Table              <--    Record
-├name1 : Type1   encoder  ├name1 : Type1
-├name2 : Type2            ├name2 : Type2
-...              decoder  ...        
-└nameN : TypeN     -->    └nameM : TypeM
-```
-we can construct queries and decoders/encoders \
-for server/client packets with data
+const socket = new WebSocket(`${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`);
 
-Also we can construct queries like
-```sql
-SELECT name1, name2, ..., nameN FROM tableName
-SELECT name1, name2, ..., nameN FROM viewName(...)
-INSERT name1, name2, ..., nameN INTO tableName
-```
-and combine it with encoder/decoder to generate\
-end-to-end database communication functions which\
-only takes a data on runtime
+socket.onopen = () => console.log('WebSocket connected');
+
+socket.onmessage = event => {
+    const data = JSON.parse(event.data);
+    if (data.history) {
+        chartData.labels = data.history.map(item => formatHour(item.hour));
+        chartData.datasets[0].data = data.history.map(item => item.visits);
+    } else if (data.realtime) {
+        const formattedHour = formatHour(data.realtime.hour);
+        const index = chartData.labels.indexOf(formattedHour);
+        if (index !== -1) {
+            chartData.datasets[0].data[index] = data.realtime.visits;
+        }
+    }
+    visitsChart.update();
+};
+
+socket.onerror = error => console.error('WebSocket error:', error);
+socket.onclose = () => console.log('WebSocket closed');
+</script>

@@ -25,6 +25,7 @@ t3 connection = do
       @ExampleData
       connection
       (toChType "SELECT * FROM generateRandom('a1 Int64', 1, 10, 2) LIMIT 1")
+      pure
     )
   print "Multithreading: Ok"
 

@@ -69,6 +69,10 @@ main = do
               (defaultContext <> mkNavigationCtx navigation)
           >>= relativizeUrls
 
+    match "./contribution/assets/**" $ do
+      route idRoute
+      compile copyFileCompiler
+
 mkNavigationCtx :: [Item FilePath] -> Context String
 mkNavigationCtx navigation =
   listField

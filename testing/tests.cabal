@@ -5,7 +5,6 @@ name:               tests
 version:            0.0.0.1
 build-type:         Simple
 license:            BSD-3-Clause
-license-file:       LICENSE
 
 common dump-core
   ghc-options:
@@ -50,12 +49,11 @@ executable prof-simple
   main-is: PT1Simple.hs
   hs-source-dirs: .
   ghc-options:
-    -O2 -threaded
-    -main-is PT1Simple
-    -Wall
+    -O2 -Wall
+    -rtsopts -threaded
   ghc-prof-options:
     -fprof-late
-    -rtsopts "-with-rtsopts=-s -A32m -AL256m -p -hy -L250 -l-agu -N1"
+    "-with-rtsopts=-s -M32m -A4m -AL8m -p -hy -L250 -l-agu -N1"
   build-depends:
       ClickHaskell
     , base

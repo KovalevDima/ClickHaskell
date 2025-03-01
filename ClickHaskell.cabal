@@ -9,9 +9,9 @@ Maintainer:     Kovalev Dmitry
 Category:       ClickHouse
 Synopsis:       ClickHouse driver
 Description:    Small dependency footprint highlevel ClickHouse driver 
-Tested-with:    GHC == 9.6.6
+Tested-with:    GHC == 9.4.8, GHC == 9.6.6, GHC == 9.8.4, GHC == 9.10.1
 Homepage:       https://clickhaskell.dev/
-Bug-reports:    https://github.com/KovalevDima/ClickHaskell/issues
+Bug-reports:    https://git.clickhaskell.dev/
 License:        BSD-3-Clause
 License-File:   LICENSE
 Copyright:      2023 Kovalev Dmitry
@@ -42,11 +42,6 @@ Library
     Paths_ClickHaskell
   Exposed-Modules:
     ClickHaskell
-    -- Deprecated:
-    ClickHaskell.DbTypes
-    ClickHaskell.Parameters
-    ClickHaskell.DeSerialization
-    ClickHaskell.Versioning
   Other-Modules:
     Paths_ClickHaskell
   HS-Source-Dirs:
@@ -91,7 +86,6 @@ Library
     , deepseq < 1.6
     , text < 2.2
     , time < 1.13
-    , vector < 0.14
 
     -- External dependencies
     , network

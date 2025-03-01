@@ -1,0 +1,35 @@
+Cabal-version:      3.4
+
+
+name:               server
+version:            0.0.0.1
+build-type:         Simple
+license:            BSD-3-Clause
+
+-- * API
+
+executable server
+  default-language: GHC2021
+  main-is: server.hs
+  build-depends:
+      ClickHaskell
+    , aeson
+    , async
+    , base >=4.7 && <5
+    , bytestring
+    , directory
+    , filepath
+    , http-types
+    , ip
+    , unordered-containers
+    , mime-types
+    , network
+    , text
+    , time
+    , stm
+    , wai
+    , warp
+    , wai-websockets
+    , websockets
+  ghc-options:
+    -Wall

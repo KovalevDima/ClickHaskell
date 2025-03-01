@@ -8,35 +8,15 @@
     services-flake.url = "github:juspay/services-flake";
   };
 
-  outputs = inputs @ {
-    self,
-    flake-parts,
-    nixpkgs,
-    ...
-  }:
+  outputs = {self, flake-parts, nixpkgs, ...} @ inputs:
     flake-parts.lib.mkFlake {inherit inputs;} {
       systems = nixpkgs.lib.systems.flakeExposed;
       imports = [
         inputs.haskell-flake.flakeModule
         inputs.process-compose-flake.flakeModule
       ];
-      perSystem = {
-        self',
-        pkgs,
-        config,
-        lib,
-        ...
-      }: let
-        wrapDefaultClickHouse = inputSchemas: {
-          enable = true;
-          extraConfig.http_port = 8123;
-          initialDatabases = [
-            {
-              name = "default";
-              schemas = inputSchemas;
-            }
-          ];
-        };
+      perSystem = {self', pkgs, config, lib, ...}:
+      let
         extractSqlFromMarkdown = path:
           builtins.toFile (builtins.baseNameOf path) (
             lib.strings.concatStrings (
@@ -44,120 +24,76 @@
               (builtins.readFile path)
             )
           );
-        extractDist = pkg: "${pkgs.haskell.lib.sdistTarball pkg}/${pkg.name}.tar.gz";
-        extractDocs = pkg: "${pkgs.haskell.lib.documentationTarball pkg}/${pkg.name}-docs.tar.gz";
-      in {
-        # Database wrapper with all schemas initialization
-        process-compose."default" = {
-          imports = [inputs.services-flake.processComposeModules.default];
-          services.clickhouse."dev-database" = wrapDefaultClickHouse [
-            (extractSqlFromMarkdown ./usage/insertInto.lhs)
-            (extractSqlFromMarkdown ./usage/selectFromView.lhs)
-            (extractSqlFromMarkdown ./testing/PT1Simple.hs)
-            (extractSqlFromMarkdown ./testing/T2WriteReadEquality.hs)
-          ];
-        };
-        # Testing wrapper
-        process-compose."testing" = {
-          imports = [inputs.services-flake.processComposeModules.default];
-          cli.environment.PC_DISABLE_TUI = true; # GitHub Actions doesn't work with TUI. Don't enable it
-          settings.processes.integration-test = {
-            command = "${self'.apps.tests.program}";
-            availability.exit_on_end = true;
-            depends_on.testing-db.condition = "process_healthy";
+        supportedGHCs = ["ghc926" "ghc948" "ghc966" "ghc984" "ghc9101"];
+      in
+      {
+        process-compose = {
+          default = import ./contribution/localServer.nix {
+            inherit inputs;
+            app = self'.apps.ghc966-server;
+            docDirPath = self'.packages."documentation";
+            schemas = [
+              (extractSqlFromMarkdown ./usage/insertInto.lhs)
+              (extractSqlFromMarkdown ./usage/selectFromView.lhs)
+              (extractSqlFromMarkdown ./testing/PT1Simple.hs)
+              (extractSqlFromMarkdown ./testing/T2WriteReadEquality.hs)
+              (extractSqlFromMarkdown ./distribution/server.hs)
+            ];
           };
-          services.clickhouse."testing-db" = wrapDefaultClickHouse [
-            (extractSqlFromMarkdown ./testing/T2WriteReadEquality.hs)
-          ];
-        };
-        # Profiling wrapper
-        process-compose."profiling" = let
-          programName = "prof-simple";
-        in {
-          imports = [inputs.services-flake.processComposeModules.default];
-          services.clickhouse."${programName}-db" = wrapDefaultClickHouse [
-            (extractSqlFromMarkdown ./testing/PT1Simple.hs)
-          ];
-          settings.processes.${programName} = {
-            command = "${self'.apps.${programName}.program}";
-            depends_on."${programName}-db".condition = "process_healthy";
-          };
-          settings.processes.dump-artifacts = {
-            command = "
-              ${lib.getExe' pkgs.haskellPackages.eventlog2html "eventlog2html"} ./${programName}.eventlog
-              rm ./${programName}.eventlog
-              rm ./${programName}.hp
-            ";
-            # availability.exit_on_end = true;
-            depends_on.${programName}.condition = "process_completed_successfully";
-          };
-        };
-        process-compose."one-billion-streaming" = let
-          programName = "prof-1bil-stream";
-        in {
-          imports = [inputs.services-flake.processComposeModules.default];
-          services.clickhouse."${programName}-db" = wrapDefaultClickHouse [];
-          settings.processes.${programName} = {
-            command = "${self'.apps.${programName}.program}";
-            depends_on."${programName}-db".condition = "process_healthy";
-          };
-          settings.processes.dump-artifacts = {
-            command = "
-              ${lib.getExe' pkgs.haskellPackages.eventlog2html "eventlog2html"} ./${programName}.eventlog
-              rm ./${programName}.eventlog
-              rm ./${programName}.hp
-            ";
-            # availability.exit_on_end = true;
-            depends_on.${programName}.condition = "process_completed_successfully";
-          };
-        };
+        }
+        //
+        lib.mergeAttrsList (
+          map (
+            {ghc, app}: {
+              "test-${ghc}-${app}" = import ./testing/testing.nix {
+                inherit pkgs inputs;
+                app = self'.apps."${ghc}-${app}";
+                schemas = [
+                  (extractSqlFromMarkdown ./testing/PT1Simple.hs)
+                  (extractSqlFromMarkdown ./testing/T2WriteReadEquality.hs)
+                ];
+              };
+            }
+          )
+          (lib.cartesianProduct {
+            ghc = supportedGHCs; 
+            app = ["prof-1bil-stream" "prof-simple" "tests"];
+          })
+        );
         # ClickHaskell project itself with Haskell env
-        haskellProjects.default = {
-          autoWire = ["packages" "apps"];
-          settings = {
-            ClickHaskell = {
-              libraryProfiling = true;
-              haddock = true;
-            };
-            tests = {
-              executableProfiling = true;
-              libraryProfiling = true;
-            };
-          };
-          devShell.tools = hp: {
-            inherit (hp) eventlog2html graphmod cabal-plan;
-          };
-        };
+        haskellProjects = lib.mergeAttrsList (
+          map (
+            ghc: {
+              "${ghc}" = import ./distribution/project.nix {
+                inherit pkgs;
+                basePackages = pkgs.haskell.packages.${ghc};
+              };
+            }
+          )
+          supportedGHCs
+        );
         devShells.default = pkgs.mkShell {
-          inputsFrom = [
-            config.haskellProjects.default.outputs.devShell
-          ];
-          packages = [
-            pkgs.clickhouse
-          ];
+          inputsFrom = [config.haskellProjects.ghc966.outputs.devShell];
+          packages = with pkgs; with haskellPackages;
+            [clickhouse nixfmt nil eventlog2html graphmod cabal-plan];
         };
         # Build documnetation
-        packages."documentation" = pkgs.stdenv.mkDerivation {
-          name = "documentation";
-          buildInputs = [];
-          src = pkgs.nix-gitignore.gitignoreSourcePure [] ./.;
-
-          buildPhase = ''
-            ${lib.getExe' self'.packages.contribution "documentation-compiler"} build --verbose
-          '';
-
-          installPhase = ''
-            mkdir -p "$out"
-            cp -r ./_site "$out"
-          '';
+        packages = {
+          "documentation" = import ./contribution/documentation.nix {
+            inherit pkgs;
+            compiler = lib.getExe' self'.packages.ghc966-contribution "documentation-compiler";
+          };
+          "ClickHaskell-dist" = import ./distribution/hackage.nix {
+            inherit pkgs;
+            distPackage = self'.packages.ghc966-ClickHaskell;
+          };
         };
-        packages."ClickHaskell-dist" =
-          pkgs.runCommand "ClickHaskell-dist" {} ''
-            mkdir $out
-            mkdir -m 777 $out/packages $out/docs
-            cp -r ${extractDist self'.packages.ClickHaskell} $out/packages
-            cp -r ${extractDocs self'.packages.ClickHaskell} $out/docs
-        '';
+      };
+    }
+    //
+    {
+      nixosModules = {
+        default = import ./distribution/systemModule.nix self;
       };
     };
 }

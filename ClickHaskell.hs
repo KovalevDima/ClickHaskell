@@ -31,10 +31,6 @@ module ClickHaskell
   , select
   , selectFrom
   , selectFromView, View, parameter, Parameter, Parameters, viewParameters
-  -- *** Streaming
-  , streamSelect
-  , streamSelectFrom
-  , streamSelectFromView
   -- *** Internal
   , handleSelect
 
@@ -79,9 +75,15 @@ import Paths_ClickHaskell (version)
 
 -- GHC included
 import Control.Concurrent (MVar, newMVar, withMVar)
+<<<<<<< HEAD
 import Control.DeepSeq (NFData, (<$!!>))
 import Control.Exception (Exception, bracketOnError, catch, finally, throwIO, throw, SomeException)
 import Control.Monad (forM, replicateM, (<$!>), when)
+=======
+import Control.DeepSeq (NFData)
+import Control.Exception (Exception, bracketOnError, catch, finally, throwIO, SomeException)
+import Control.Monad (forM, replicateM, (<$!>))
+>>>>>>> master
 import Data.Binary.Get
 import Data.Binary.Get.Internal (readN)
 import Data.Binary.Put
@@ -103,7 +105,6 @@ import Data.Text.Encoding as Text (encodeUtf8)
 import Data.Time (UTCTime, ZonedTime, zonedTimeToUTC)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
 import Data.Typeable (Proxy (..))
-import Data.Vector.Primitive.Mutable (Prim)
 import Data.Version (Version (..))
 import Data.Word (Word16, Word32, Word8)
 import Debug.Trace (traceShowId)
@@ -233,18 +234,31 @@ instance HasColumns (Table name columns) where
 
 -- ** Selecting
 
--- *** Simple
+select ::
+  forall columns record result
+  .
+  (ReadableFrom (Columns columns) record)
+  =>
+  Connection -> ChString -> ([record] -> IO result) -> IO [result]
+select conn query f = do
+  withConnection conn $ \connState@MkConnectionState{sock, revision, user} -> do
+    (sendAll sock . toLazyByteString)
+      (  serialize revision (mkQueryPacket revision user query)
+      <> serialize revision (mkDataPacket "" 0 0)
+      )
+    let f' x = id <$!> f x
+    handleSelect @(Columns columns) connState f'
 
 selectFrom ::
-  forall table record name columns
+  forall table record name columns a
   .
   ( table ~ Table name columns
   , KnownSymbol name
   , ReadableFrom table record
   )
   =>
-  Connection -> IO [record]
-selectFrom conn = do
+  Connection -> ([record] -> IO a) -> IO [a]
+selectFrom conn f = do
   withConnection conn $ \connState@MkConnectionState{sock, revision, user} -> do
     let query
           = "SELECT " <> readingColumns @table @record
@@ -253,21 +267,8 @@ selectFrom conn = do
       (  serialize revision (mkQueryPacket revision user (toChType query))
       <> serialize revision (mkDataPacket "" 0 0)
       )
-    handleSelect @table connState pure
-
-select ::
-  forall columns record
-  .
-  ReadableFrom (Columns columns) record
-  =>
-  Connection -> ChString -> IO [record]
-select conn query = do
-  withConnection conn $ \connState@MkConnectionState{sock, revision, user} -> do
-    (sendAll sock . toLazyByteString)
-      (  serialize revision (mkQueryPacket revision user query)
-      <> serialize revision (mkDataPacket "" 0 0)
-      )
-    handleSelect @(Columns columns) connState pure
+    let f' x = id <$!> f x
+    handleSelect @table connState f'
 
 instance HasColumns (View name columns parameters) where
   type GetColumns (View _ columns _) = columns
@@ -275,15 +276,15 @@ instance HasColumns (View name columns parameters) where
 data View (name :: Symbol) (columns :: [Type]) (parameters :: [Type])
 
 selectFromView ::
-  forall view record name columns parameters passedParameters
+  forall view record result name columns parameters passedParameters
   .
   ( ReadableFrom view record
   , KnownSymbol name
   , view ~ View name columns parameters
   , CheckParameters parameters passedParameters
   )
-  => Connection -> (Parameters '[] -> Parameters passedParameters) -> IO [record]
-selectFromView conn interpreter = do
+  => Connection -> (Parameters '[] -> Parameters passedParameters) -> ([record] -> IO result) -> IO [result]
+selectFromView conn interpreter f = do
   withConnection conn $ \connState@MkConnectionState{sock, revision, user} -> do
     let query =
           "SELECT " <> readingColumns @view @record <>
@@ -292,77 +293,17 @@ selectFromView conn interpreter = do
       (  serialize revision (mkQueryPacket revision user (toChType query))
       <> serialize revision (mkDataPacket "" 0 0)
       )
-    handleSelect @view connState pure
-
--- *** Streaming
-
-streamSelectFrom ::
-  forall table record name columns a
-  .
-  ( table ~ Table name columns
-  , KnownSymbol name
-  , ReadableFrom table record
-  , NFData a
-  )
-  =>
-  Connection -> ([record] -> IO [a]) -> IO [a]
-streamSelectFrom conn f = do
-  withConnection conn $ \connState@MkConnectionState{sock, revision, user} -> do
-    let query
-          = "SELECT " <> readingColumns @table @record
-          <> " FROM " <> (byteString . BS8.pack) (symbolVal $ Proxy @name)
-    (sendAll sock . toLazyByteString)
-      (  serialize revision (mkQueryPacket revision user (toChType query))
-      <> serialize revision (mkDataPacket "" 0 0)
-      )
-    let f' x = id <$!!> f x
-    handleSelect @table connState f'
-
-streamSelect ::
-  forall columns record a
-  .
-  (ReadableFrom (Columns columns) record, NFData a)
-  =>
-  Connection -> ChString -> ([record] -> IO [a]) -> IO [a]
-streamSelect conn query f = do
-  withConnection conn $ \connState@MkConnectionState{sock, revision, user} -> do
-    (sendAll sock . toLazyByteString)
-      (  serialize revision (mkQueryPacket revision user query)
-      <> serialize revision (mkDataPacket "" 0 0)
-      )
-    let f' x = id <$!!> f x
-    handleSelect @(Columns columns) connState f'
-
-streamSelectFromView ::
-  forall view record name columns parameters passedParameters a
-  .
-  ( ReadableFrom view record
-  , KnownSymbol name
-  , view ~ View name columns parameters
-  , NFData a
-  , CheckParameters parameters passedParameters
-  )
-  => Connection -> (Parameters '[] -> Parameters passedParameters) -> ([record] -> IO [a]) -> IO [a]
-streamSelectFromView conn interpreter f = do
-  withConnection conn $ \connState@MkConnectionState{sock, revision, user} -> do
-    let query =
-          "SELECT " <> readingColumns @view @record <>
-          " FROM " <> (byteString . BS8.pack . symbolVal @name) Proxy <> viewParameters interpreter
-    (sendAll sock . toLazyByteString)
-      (  serialize revision (mkQueryPacket revision user (toChType query))
-      <> serialize revision (mkDataPacket "" 0 0)
-      )
-    let f' x = id <$!!> f x
+    let f' x = id <$!> f x
     handleSelect @view connState f'
 
 -- *** Internal
 
 handleSelect ::
-  forall hasColumns record a
+  forall hasColumns record result
   .
   ReadableFrom hasColumns record
   =>
-  ConnectionState -> ([record] -> IO [a])  -> IO [a]
+  ConnectionState -> ([record] -> IO result)  -> IO [result]
 handleSelect conn@MkConnectionState{..} f = do
   packet <- rawBufferizedRead buffer (deserialize revision)
   case packet of
@@ -372,7 +313,7 @@ handleSelect conn@MkConnectionState{..} f = do
         (_, rows) -> do
           columns <- rawBufferizedRead buffer (deserializeColumns @hasColumns revision rows)
           processedColumns <- f columns
-          (processedColumns ++) <$> handleSelect @hasColumns conn f
+          (processedColumns :) <$> handleSelect @hasColumns conn f
     Progress          _ -> handleSelect @hasColumns conn f
     ProfileInfo       _ -> handleSelect @hasColumns conn f
     EndOfStream         -> pure []
@@ -1797,7 +1738,7 @@ instance
 
 -- | ClickHouse UUID column type
 newtype ChUUID = MkChUUID Word128
-  deriving newtype (Generic, Show, Eq, NFData, Bounded, Prim, Enum)
+  deriving newtype (Generic, Show, Eq, NFData, Bounded, Enum)
 
 instance IsChType ChUUID where
   type ToChTypeName ChUUID = "UUID"
@@ -1857,7 +1798,7 @@ instance
 
 -- | ClickHouse Int8 column type
 newtype ChInt8 = MkChInt8 Int8
-  deriving newtype (Show, Eq, Num, Prim, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
+  deriving newtype (Show, Eq, Num, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
 
 instance IsChType ChInt8 where
   type ToChTypeName ChInt8 = "Int8"
@@ -1876,7 +1817,7 @@ instance FromChType ChInt8 Int8   where fromChType = coerce
 
 -- | ClickHouse Int16 column type
 newtype ChInt16 = MkChInt16 Int16
-  deriving newtype (Show, Eq, Num, Prim, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
+  deriving newtype (Show, Eq, Num, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
 
 instance IsChType ChInt16 where
   type ToChTypeName ChInt16 = "Int16"
@@ -1893,7 +1834,7 @@ instance FromChType ChInt16 Int16   where fromChType (MkChInt16 int16) = int16
 
 -- | ClickHouse Int32 column type
 newtype ChInt32 = MkChInt32 Int32
-  deriving newtype (Show, Eq, Num, Prim, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
+  deriving newtype (Show, Eq, Num, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
 
 instance IsChType ChInt32 where
   type ToChTypeName ChInt32 = "Int32"
@@ -1910,7 +1851,7 @@ instance FromChType ChInt32 Int32   where fromChType (MkChInt32 int32) = int32
 
 -- | ClickHouse Int64 column type
 newtype ChInt64 = MkChInt64 Int64
-  deriving newtype (Show, Eq, Num, Prim, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
+  deriving newtype (Show, Eq, Num, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
 
 instance IsChType ChInt64 where
   type ToChTypeName ChInt64 = "Int64"
@@ -1928,7 +1869,7 @@ instance FromChType ChInt64 Int64   where fromChType = coerce
 
 -- | ClickHouse Int128 column type
 newtype ChInt128 = MkChInt128 Int128
-  deriving newtype (Show, Eq, Num, Prim, Bits, Ord, Real, Enum, Integral, Bounded, NFData)
+  deriving newtype (Show, Eq, Num, Bits, Ord, Real, Enum, Integral, Bounded, NFData)
 
 instance IsChType ChInt128 where
   type ToChTypeName ChInt128 = "Int128"
@@ -1945,7 +1886,7 @@ instance FromChType ChInt128 Int128   where fromChType (MkChInt128 int128) = int
 
 -- | ClickHouse UInt8 column type
 newtype ChUInt8 = MkChUInt8 Word8
-  deriving newtype (Show, Eq, Num, Prim, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
+  deriving newtype (Show, Eq, Num, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
 
 instance IsChType ChUInt8 where
   type ToChTypeName ChUInt8 = "UInt8"
@@ -1963,7 +1904,7 @@ instance FromChType ChUInt8 Word8   where fromChType (MkChUInt8 w8) = w8
 
 -- | ClickHouse UInt16 column type
 newtype ChUInt16 = MkChUInt16 Word16
-  deriving newtype (Show, Eq, Num, Prim, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
+  deriving newtype (Show, Eq, Num, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
 
 instance IsChType ChUInt16 where
   type ToChTypeName ChUInt16 = "UInt16"
@@ -1980,7 +1921,7 @@ instance FromChType ChUInt16 Word16   where fromChType = coerce
 
 -- | ClickHouse UInt32 column type
 newtype ChUInt32 = MkChUInt32 Word32
-  deriving newtype (Show, Eq, Num, Prim, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
+  deriving newtype (Show, Eq, Num, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
 
 instance IsChType ChUInt32 where
   type ToChTypeName ChUInt32 = "UInt32"
@@ -1997,7 +1938,7 @@ instance FromChType ChUInt32 Word32   where fromChType (MkChUInt32 word32) = wor
 
 -- | ClickHouse UInt64 column type
 newtype ChUInt64 = MkChUInt64 Word64
-  deriving newtype (Show, Eq, Num, Prim, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
+  deriving newtype (Show, Eq, Num, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
 
 instance IsChType ChUInt64 where
   type ToChTypeName ChUInt64 = "UInt64"
@@ -2014,7 +1955,7 @@ instance FromChType ChUInt64 Word64   where fromChType (MkChUInt64 w64) = w64
 
 -- | ClickHouse UInt128 column type
 newtype ChUInt128 = MkChUInt128 Word128
-  deriving newtype (Show, Eq, Num, Prim, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
+  deriving newtype (Show, Eq, Num, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
 
 instance IsChType ChUInt128 where
   type ToChTypeName ChUInt128 = "UInt128"
@@ -2039,7 +1980,7 @@ ClickHouse DateTime column type (paramtrized with timezone)
 "DateTime('UTC')"
 -}
 newtype ChDateTime (tz :: Symbol) = MkChDateTime Word32
-  deriving newtype (Show, Eq, Prim, Num, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
+  deriving newtype (Show, Eq, Num, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
 
 instance KnownSymbol (ToChTypeName (ChDateTime tz)) => IsChType (ChDateTime tz)
   where
@@ -2062,7 +2003,7 @@ instance FromChType (ChDateTime tz) UTCTime    where fromChType (MkChDateTime w3
 
 
 newtype ChDate = MkChDate Word16
-  deriving newtype (Show, Eq, Prim, Bits, Bounded, Enum, NFData)
+  deriving newtype (Show, Eq, Bits, Bounded, Enum, NFData)
 
 instance IsChType ChDate where
   type ToChTypeName ChDate = "Date"
@@ -2120,7 +2061,7 @@ instance
   Part of protocol implementation
 -}
 newtype UVarInt = MkUVarInt Word64
-  deriving newtype (Show, Eq, Num, Prim, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
+  deriving newtype (Show, Eq, Num, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
 
 
 
