@@ -74,10 +74,10 @@ module ClickHaskell
 import Paths_ClickHaskell (version)
 
 -- GHC included
-import Control.Concurrent (MVar, newMVar, withMVar)
+import Control.Concurrent (MVar, newMVar, takeMVar, putMVar)
 import Control.DeepSeq (NFData)
-import Control.Exception (Exception, bracketOnError, catch, finally, throwIO, SomeException)
-import Control.Monad (forM, replicateM, (<$!>))
+import Control.Exception (Exception, bracketOnError, catch, finally, throwIO, SomeException, throw, mask, onException)
+import Control.Monad (forM, replicateM, (<$!>), when)
 import Data.Binary.Get
 import Data.Binary.Get.Internal (readN)
 import Data.Binary.Put
@@ -137,19 +137,22 @@ defaultCredentials = MkChCredential
 
 data Connection where MkConnection :: (MVar ConnectionState) -> Connection
 
-withConnection :: Connection -> (ConnectionState -> IO a) -> IO a
+withConnection :: HasCallStack => Connection -> (ConnectionState -> IO a) -> IO a
 withConnection (MkConnection connStateMVar) f =
-  withMVar connStateMVar $ \connState ->
-    catch
-      @ClientError
-      (f connState)
-      (\err -> throwIO err)
+  mask $ \restore -> do
+    connState <- takeMVar connStateMVar
+    b <- onException
+      (restore (f connState))
+      (putMVar connStateMVar =<< reopenConnection connState)
+    putMVar connStateMVar connState
+    return b
 
 data ConnectionState = MkConnectionState
   { sock     :: Socket
   , user     :: ChString
   , buffer   :: Buffer
   , revision :: ProtocolRevision
+  , creds    :: ChCredential
   }
 
 data ConnectionError = NoAdressResolved | EstablishTimeout
@@ -164,7 +167,16 @@ writeToConnectionEncode MkConnectionState{sock, revision} serializer =
   (sendAll sock . toLazyByteString) (serializer revision)
 
 openNativeConnection :: HasCallStack => ChCredential -> IO Connection
-openNativeConnection MkChCredential{chHost, chPort, chLogin, chPass, chDatabase} = do
+openNativeConnection creds = fmap MkConnection . newMVar =<< createConnectionState creds
+
+reopenConnection :: ConnectionState -> IO ConnectionState
+reopenConnection MkConnectionState{..} = do
+  flushBuffer buffer
+  close sock
+  createConnectionState creds
+
+createConnectionState :: ChCredential -> IO ConnectionState
+createConnectionState creds@MkChCredential{chHost, chPort, chLogin, chPass, chDatabase} = do
   AddrInfo{addrFamily, addrSocketType, addrProtocol, addrAddress}
     <- maybe (throwIO NoAdressResolved) pure . listToMaybe
     =<< getAddrInfo
@@ -201,9 +213,11 @@ openNativeConnection MkChCredential{chHost, chPort, chLogin, chPass, chDatabase}
       let revision = min server_revision latestSupportedRevision
           conn = MkConnectionState{user = toChType chLogin, ..}
       writeToConnection conn mkAddendum
-      MkConnection <$> newMVar conn
+      pure conn
     Exception exception -> throwIO (UserError $ DatabaseException exception)
     otherPacket         -> throwIO (InternalError $ UnexpectedPacketType otherPacket)
+
+
 
 
 -- * Ping
@@ -373,10 +387,10 @@ runBufferReader buffer@MkBuffer{bufferSocket, bufferSize, buff} = \case
       0 -> recv bufferSocket bufferSize
       _ -> flushBuffer buffer $> currentBuffer
     case BS.length chosenBuffer of
-      0 -> throwIO (DeserializationError "Expected more bytes while reading packet")
+      0 -> throwIO (InternalError $ DeserializationError "Expected more bytes while reading packet")
       _ -> runBufferReader buffer (decoder $ Just $! chosenBuffer)
   (Done leftover _consumed packet) -> atomicWriteIORef buff leftover $> packet
-  (Fail _leftover _consumed msg) -> throwIO (DeserializationError msg)
+  (Fail _leftover _consumed msg) -> throwIO (InternalError $ DeserializationError msg)
 
 
 
@@ -913,14 +927,27 @@ instance
 class DeserializableColumn column where
   deserializeColumn :: ProtocolRevision -> UVarInt -> Get column
 
+handleColumnHeader :: forall column . KnownColumn column => ProtocolRevision -> Get ()
+handleColumnHeader rev = do
+  let expectedColumnName = toChType (renderColumnName @column)
+  resultColumnName <- deserialize @ChString rev
+  when (resultColumnName /= expectedColumnName)
+    . throw . UserError . UnmatchedColumn
+      $ "Got column \"" <> show resultColumnName <> "\" but expected \"" <> show expectedColumnName <> "\""
+
+  let expectedType = toChType (renderColumnType @column)
+  resultType <- deserialize @ChString rev
+  when (resultType /= expectedType)
+    . throw . UserError . UnmatchedType
+      $  "Column " <> show resultColumnName <> " has type " <> show resultType <> ". But expected type is " <> show expectedType
+
 instance
   ( KnownColumn (Column name chType)
   , Deserializable chType
   ) =>
   DeserializableColumn (Column name chType) where
   deserializeColumn rev rows = do
-    _columnName <- deserialize @ChString rev
-    _columnType <- deserialize @ChString rev
+    handleColumnHeader @(Column name chType) rev
     _isCustom <- deserialize @(ChUInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION) rev
     column <- replicateM (fromIntegral rows) (deserialize @chType rev)
     pure $ mkColumn @(Column name chType) column
@@ -931,8 +958,7 @@ instance {-# OVERLAPPING #-}
   ) =>
   DeserializableColumn (Column name (Nullable chType)) where
   deserializeColumn rev rows = do
-    _columnName <- deserialize @ChString rev
-    _columnType <- deserialize @ChString rev
+    handleColumnHeader @(Column name (Nullable chType)) rev
     _isCustom <- deserialize @(ChUInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION) rev
     nulls <- replicateM (fromIntegral rows) (deserialize @ChUInt8 rev)
     nullable <-
@@ -953,8 +979,7 @@ instance {-# OVERLAPPING #-}
   ) =>
   DeserializableColumn (Column name (LowCardinality chType)) where
   deserializeColumn rev rows = do
-    _columnName <- deserialize @ChString rev
-    _columnType <- deserialize @ChString rev
+    handleColumnHeader @(Column name (LowCardinality chType)) rev
     _isCustom <- deserialize @(ChUInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION) rev
     _serializationType <- (.&. 0xf) <$> deserialize @ChUInt64 rev
     _index_size <- deserialize @ChInt64 rev
@@ -969,8 +994,7 @@ instance {-# OVERLAPPING #-}
   )
   => DeserializableColumn (Column name (ChArray chType)) where
   deserializeColumn rev _rows = do
-    _columnName <- deserialize @ChString rev
-    _columnType <- deserialize @ChString rev
+    handleColumnHeader @(Column name (ChArray chType)) rev
     _isCustom <- deserialize @(ChUInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION) rev
     (arraySize, _offsets) <- traceShowId <$> readOffsets rev
     _types <- replicateM (fromIntegral arraySize) (deserialize @chType rev)

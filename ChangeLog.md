@@ -12,7 +12,35 @@ ClickHaskell documentation got it's own domain name: https://clickhaskell.dev/
 - Dropped vector dependency
 - Introduced memory consumption test (64M limit) on parallel reading and writing of 1 million rows
 
-## API changes:
+## Breaking changes:
+- ### New UserErrors on types and columns names missmatches
+  This change leads to protect a user from unexpected behaviour
+  Error `UnmatchedType` occurs when expected type doesn't match resulting one
+  Error `UnmatchedColumn` occurs when expected column name doesn't match resulting one
+  ```haskell
+  data ExpectedName = MkExpectedName
+    { expectedName :: ChInt64
+    }
+    deriving (Generic)
+    deriving anyclass (ReadableFrom (Columns ExpectedColumns))
+
+  type ExpectedColumns = '[ Column "expectedName" ChInt64]
+
+  -- Will throw UnmatchedColumn
+  void $
+    select
+        @ExpectedColumns @ExpectedName connection
+        (toChType "SELECT * FROM generateRandom('unexpectedName Int64', 1, 10, 2) LIMIT 1")
+        pure
+
+  -- Will throw UnmatchedType
+  void $
+    select
+      @ExpectedColumns @ExpectedName connection
+      "SELECT * FROM generateRandom('expectedName String', 1, 10, 2) LIMIT 1"
+      pure
+  ```
+
 - ### Migration to streaming API
     The result of selects now exposes the block by block handling result. So you need to pass the handler and to process the list of results
     ```haskell
@@ -41,6 +69,7 @@ ClickHaskell documentation got it's own domain name: https://clickhaskell.dev/
           \ "
           (pure . sum)
     ```
+
 - ### DateTime type now parametrized with timezone
     Every DateTime type annotations
     ```haskell
