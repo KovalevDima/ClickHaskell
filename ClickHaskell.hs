@@ -307,22 +307,20 @@ handleSelect ::
   .
   ReadableFrom hasColumns record
   =>
-  ConnectionState -> ([record] -> IO result)  -> IO [result]
-handleSelect conn@MkConnectionState{..} f = do
-  packet <- rawBufferizedRead buffer (deserialize revision)
-  case packet of
-    DataResponse MkDataPacket{columns_count, rows_count} -> do
-      case (columns_count, rows_count) of
-        (0, 0) -> handleSelect @hasColumns conn f
-        (_, rows) -> do
-          columns <- rawBufferizedRead buffer (deserializeColumns @hasColumns revision rows)
-          processedColumns <- f columns
-          (processedColumns :) <$> handleSelect @hasColumns conn f
-    Progress          _ -> handleSelect @hasColumns conn f
-    ProfileInfo       _ -> handleSelect @hasColumns conn f
-    EndOfStream         -> pure []
-    Exception exception -> throwIO (UserError $ DatabaseException exception)
-    otherPacket         -> throwIO (InternalError $ UnexpectedPacketType otherPacket)
+  ConnectionState -> ([record] -> IO result) -> IO [result]
+handleSelect MkConnectionState{..} f = loop []
+  where
+  loop acc = rawBufferizedRead buffer (deserialize revision) >>=
+    \packet -> case packet of
+      DataResponse MkDataPacket{columns_count = 0, rows_count = 0} -> loop acc
+      DataResponse MkDataPacket{rows_count} -> do
+        result <- f =<< rawBufferizedRead buffer (deserializeColumns @hasColumns revision rows_count)
+        loop (result : acc)
+      Progress    _       -> loop acc
+      ProfileInfo _       -> loop acc
+      EndOfStream         -> pure acc
+      Exception exception -> throwIO (UserError $ DatabaseException exception)
+      otherPacket         -> throwIO (InternalError $ UnexpectedPacketType otherPacket)
 
 
 -- ** Inserting
