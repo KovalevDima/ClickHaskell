@@ -173,8 +173,7 @@ reopenConnection :: ConnectionState -> IO ConnectionState
 reopenConnection MkConnectionState{..} = do
   flushBuffer buffer
   close sock
-  connState <- createConnectionState creds
-  pure connState
+  createConnectionState creds
 
 createConnectionState :: ChCredential -> IO ConnectionState
 createConnectionState creds@MkChCredential{chHost, chPort, chLogin, chPass, chDatabase} = do
