@@ -4,19 +4,20 @@ ClickHaskell documentation got it's own domain name: https://clickhaskell.dev/
 
 
 ## Fixes:
-- Improved multithreading connection usage (+ add test)
+Improved multithreading connection usage (+ added test)
+Unexpected behavior on expected and result column type mismatches (+ added test)
 
 ## Features:
-- Query serialization support for UUID (+ add test)
+- Query serialization support for UUID (+ added test)
 - Export of client errors for exception handling
 - Dropped vector dependency
 - Introduced memory consumption test (64M limit) on parallel reading and writing of 1 million rows
 
 ## Breaking changes:
 - ### New UserErrors on types and columns names missmatches
-  This change leads to protect a user from unexpected behaviour
-  Error `UnmatchedType` occurs when expected type doesn't match resulting one
-  Error `UnmatchedColumn` occurs when expected column name doesn't match resulting one
+  This change helps protect a user from unexpected behavior
+  `UnmatchedType` error occurs when the expected type doesn't match the resulting one
+  `UnmatchedColumn` error occurs when the expected column name doesn't match the resulting one
   ```haskell
   data ExpectedName = MkExpectedName
     { expectedName :: ChInt64
