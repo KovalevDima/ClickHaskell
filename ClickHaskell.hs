@@ -74,9 +74,9 @@ module ClickHaskell
 import Paths_ClickHaskell (version)
 
 -- GHC included
-import Control.Concurrent (MVar, newMVar, withMVar)
+import Control.Concurrent (MVar, newMVar, takeMVar, putMVar)
 import Control.DeepSeq (NFData)
-import Control.Exception (Exception, bracketOnError, catch, finally, throwIO, SomeException, throw)
+import Control.Exception (Exception, bracketOnError, catch, finally, throwIO, SomeException, throw, mask, onException)
 import Control.Monad (forM, replicateM, (<$!>), when)
 import Data.Binary.Get
 import Data.Binary.Get.Internal (readN)
@@ -137,19 +137,22 @@ defaultCredentials = MkChCredential
 
 data Connection where MkConnection :: (MVar ConnectionState) -> Connection
 
-withConnection :: Connection -> (ConnectionState -> IO a) -> IO a
+withConnection :: HasCallStack => Connection -> (ConnectionState -> IO a) -> IO a
 withConnection (MkConnection connStateMVar) f =
-  withMVar connStateMVar $ \connState ->
-    catch
-      @ClientError
-      (f connState)
-      (\err -> throwIO err)
+  mask $ \restore -> do
+    connState <- takeMVar connStateMVar
+    b <- onException
+      (restore (f connState))
+      (putMVar connStateMVar =<< reopenConnection connState)
+    putMVar connStateMVar connState
+    return b
 
 data ConnectionState = MkConnectionState
   { sock     :: Socket
   , user     :: ChString
   , buffer   :: Buffer
   , revision :: ProtocolRevision
+  , creds    :: ChCredential
   }
 
 data ConnectionError = NoAdressResolved | EstablishTimeout
@@ -164,7 +167,17 @@ writeToConnectionEncode MkConnectionState{sock, revision} serializer =
   (sendAll sock . toLazyByteString) (serializer revision)
 
 openNativeConnection :: HasCallStack => ChCredential -> IO Connection
-openNativeConnection MkChCredential{chHost, chPort, chLogin, chPass, chDatabase} = do
+openNativeConnection creds = fmap MkConnection . newMVar =<< createConnectionState creds
+
+reopenConnection :: ConnectionState -> IO ConnectionState
+reopenConnection MkConnectionState{..} = do
+  flushBuffer buffer
+  close sock
+  connState <- createConnectionState creds
+  pure connState
+
+createConnectionState :: ChCredential -> IO ConnectionState
+createConnectionState creds@MkChCredential{chHost, chPort, chLogin, chPass, chDatabase} = do
   AddrInfo{addrFamily, addrSocketType, addrProtocol, addrAddress}
     <- maybe (throwIO NoAdressResolved) pure . listToMaybe
     =<< getAddrInfo
@@ -201,9 +214,11 @@ openNativeConnection MkChCredential{chHost, chPort, chLogin, chPass, chDatabase}
       let revision = min server_revision latestSupportedRevision
           conn = MkConnectionState{user = toChType chLogin, ..}
       writeToConnection conn mkAddendum
-      MkConnection <$> newMVar conn
+      pure conn
     Exception exception -> throwIO (UserError $ DatabaseException exception)
     otherPacket         -> throwIO (InternalError $ UnexpectedPacketType otherPacket)
+
+
 
 
 -- * Ping
