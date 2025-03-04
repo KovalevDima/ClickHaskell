@@ -62,15 +62,9 @@
         );
         # ClickHaskell project itself with Haskell env
         haskellProjects = lib.mergeAttrsList (
-          map (
-            ghc: {
-              "${ghc}" = import ./distribution/project.nix {
-                inherit pkgs;
-                basePackages = pkgs.haskell.packages.${ghc};
-              };
-            }
-          )
-          supportedGHCs
+          map
+            (ghc: {"${ghc}" = import ./distribution/project.nix {inherit pkgs ghc;};})
+            supportedGHCs
         );
         devShells.default = pkgs.mkShell {
           inputsFrom = [config.haskellProjects.ghc966.outputs.devShell];

@@ -1,9 +1,9 @@
 { pkgs
-, basePackages ? pkgs.haskell.packages.ghc966
+, ghc ? "ghc966"
 }:
 {
   autoWire = ["packages" "apps"];
-  inherit basePackages;
+  basePackages = pkgs.haskell.packages.${ghc};
   settings = {
     ClickHaskell = {libraryProfiling = true; haddock = true;};
     tests        = {libraryProfiling = true; executableProfiling = true;};
