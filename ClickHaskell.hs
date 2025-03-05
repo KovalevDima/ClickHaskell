@@ -912,7 +912,9 @@ instance
   ) => GReadable columns ((S1 (MetaSel (Just name) a b f)) (Rec0 inputType))
   where
   {-# INLINE gFromColumns #-}
-  gFromColumns rev size = map (M1 . K1 . fromChType @chType) . columnValues <$> deserializeColumn @(Column name chType) rev size
+  gFromColumns rev size =
+    map (M1 . K1 . fromChType @chType) . columnValues
+      <$> deserializeColumn @(Column name chType) rev True size
   gReadingColumns = renderColumnName @(Column name chType)
 
 
@@ -923,19 +925,19 @@ instance
 {-# SPECIALIZE replicateM :: Int -> Get chType -> Get [chType] #-}
 
 class DeserializableColumn column where
-  deserializeColumn :: ProtocolRevision -> UVarInt -> Get column
+  deserializeColumn :: ProtocolRevision -> Bool -> UVarInt -> Get column
 
-handleColumnHeader :: forall column . KnownColumn column => ProtocolRevision -> Get ()
-handleColumnHeader rev = do
+handleColumnHeader :: forall column . KnownColumn column => ProtocolRevision -> Bool -> Get ()
+handleColumnHeader rev isCheckRequired = do
   let expectedColumnName = toChType (renderColumnName @column)
-  resultColumnName <- deserialize @ChString rev
-  when (resultColumnName /= expectedColumnName)
+  resultColumnName <- deserialize @ChString rev 
+  when (isCheckRequired && resultColumnName /= expectedColumnName)
     . throw . UserError . UnmatchedColumn
       $ "Got column \"" <> show resultColumnName <> "\" but expected \"" <> show expectedColumnName <> "\""
 
   let expectedType = toChType (renderColumnType @column)
   resultType <- deserialize @ChString rev
-  when (resultType /= expectedType)
+  when (isCheckRequired && resultType /= expectedType)
     . throw . UserError . UnmatchedType
       $  "Column " <> show resultColumnName <> " has type " <> show resultType <> ". But expected type is " <> show expectedType
 
@@ -944,8 +946,8 @@ instance
   , Deserializable chType
   ) =>
   DeserializableColumn (Column name chType) where
-  deserializeColumn rev rows = do
-    handleColumnHeader @(Column name chType) rev
+  deserializeColumn rev isCheckRequired rows = do
+    handleColumnHeader @(Column name chType) rev isCheckRequired
     _isCustom <- deserialize @(ChUInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION) rev
     column <- replicateM (fromIntegral rows) (deserialize @chType rev)
     pure $ mkColumn @(Column name chType) column
@@ -955,8 +957,8 @@ instance {-# OVERLAPPING #-}
   , Deserializable chType
   ) =>
   DeserializableColumn (Column name (Nullable chType)) where
-  deserializeColumn rev rows = do
-    handleColumnHeader @(Column name (Nullable chType)) rev
+  deserializeColumn rev isCheckRequired rows = do
+    handleColumnHeader @(Column name (Nullable chType)) rev isCheckRequired
     _isCustom <- deserialize @(ChUInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION) rev
     nulls <- replicateM (fromIntegral rows) (deserialize @ChUInt8 rev)
     nullable <-
@@ -976,8 +978,8 @@ instance {-# OVERLAPPING #-}
   , TypeError ('Text "LowCardinality deserialization still unsupported")
   ) =>
   DeserializableColumn (Column name (LowCardinality chType)) where
-  deserializeColumn rev rows = do
-    handleColumnHeader @(Column name (LowCardinality chType)) rev
+  deserializeColumn rev isCheckRequired rows = do
+    handleColumnHeader @(Column name (LowCardinality chType)) rev isCheckRequired
     _isCustom <- deserialize @(ChUInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION) rev
     _serializationType <- (.&. 0xf) <$> deserialize @ChUInt64 rev
     _index_size <- deserialize @ChInt64 rev
@@ -991,8 +993,8 @@ instance {-# OVERLAPPING #-}
   , TypeError ('Text "Arrays deserialization still unsupported")
   )
   => DeserializableColumn (Column name (ChArray chType)) where
-  deserializeColumn rev _rows = do
-    handleColumnHeader @(Column name (ChArray chType)) rev
+  deserializeColumn rev isCheckRequired _rows = do
+    handleColumnHeader @(Column name (ChArray chType)) rev isCheckRequired
     _isCustom <- deserialize @(ChUInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION) rev
     (arraySize, _offsets) <- traceShowId <$> readOffsets rev
     _types <- replicateM (fromIntegral arraySize) (deserialize @chType rev)
@@ -1432,7 +1434,7 @@ instance
   where
   {-# INLINE gSerializeRecords #-}
   gSerializeRecords rev = gSerializeRecords @columns rev . map (\((l1 :*: l2) :*: r) -> l1 :*: (l2 :*: r))
-  gDeserializeInsertHeader rev = const () <$> gDeserializeInsertHeader @columns @(left1 :*: (left2 :*: right)) rev
+  gDeserializeInsertHeader rev = () <$ gDeserializeInsertHeader @columns @(left1 :*: (left2 :*: right)) rev
   gWritingColumns = gWritingColumns @columns @(left1 :*: (left2 :*: right))
   gColumnsCount = gColumnsCount @columns @(left1 :*: (left2 :*: right))
 
@@ -1467,7 +1469,7 @@ instance {-# OVERLAPPING #-}
   where
   {-# INLINE gSerializeRecords #-}
   gSerializeRecords rev = serialize rev . mkColumn @(Column name chType) . map (toChType . unK1 . unM1)
-  gDeserializeInsertHeader rev = const () <$> deserializeColumn @(Column name chType) rev 0
+  gDeserializeInsertHeader rev = () <$ deserializeColumn @(Column name chType) rev False 0
   gWritingColumns = renderColumnName @(Column name chType)
   gColumnsCount = 1
 
