@@ -12,6 +12,7 @@ Unexpected behavior on expected and result column type mismatches (+ added test)
 - Export of client errors for exception handling
 - Dropped vector dependency
 - Introduced memory consumption test (64M limit) on parallel reading and writing of 1 million rows
+- Depricating `Ch*` prefixes on types `ChUInt*`, `ChInt*`, `ChDate*`
 
 ## Breaking changes:
 - ### New UserErrors on types and columns names missmatches
