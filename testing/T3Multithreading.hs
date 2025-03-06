@@ -30,12 +30,12 @@ t3 connection = do
   print "Multithreading: Ok"
 
 data ExampleData = MkExampleData
-  { a1 :: ChInt64
+  { a1 :: Int64
   }
   deriving (Generic)
   deriving anyclass (ReadableFrom (Columns ExampleColumns))
 
 
 type ExampleColumns =
- '[ Column "a1" ChInt64
+ '[ Column "a1" Int64
   ]

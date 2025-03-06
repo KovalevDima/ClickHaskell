@@ -24,9 +24,9 @@ import ClickHaskell
   , Column
   , toChType
   , ChInt8, ChInt16, ChInt32, ChInt64, ChInt128
-  , ChUInt8, ChUInt16, ChUInt32, ChUInt64, ChUInt128
-  , ChUUID, ChDateTime, ChString, Int128, Word128
-  , Nullable
+  , UInt8, UInt16, UInt32, UInt64, UInt128
+  , ChUUID, DateTime, ChString, Int128, Word128
+  , Nullable, DateTime
   )
 
 -- GHC included
@@ -64,59 +64,59 @@ t2 connection = do
 
 
 type TestTable = Table "writeReadEqualityTable"
-  '[ Column "dateTime" (ChDateTime "UTC")
-   , Column "dateTimeNullable" (Nullable (ChDateTime "UTC"))
-   , Column "int128" ChInt128
-   , Column "int128Nullable" (Nullable ChInt128)
-   , Column "int16" ChInt16
-   , Column "int16Nullable" (Nullable ChInt16)
-   , Column "int32" ChInt32
-   , Column "int32Nullable" (Nullable ChInt32)
-   , Column "int64" ChInt64
-   , Column "int64Nullable" (Nullable ChInt64)
-   , Column "int8" ChInt8
-   , Column "int8Nullable" (Nullable ChInt8)
+  '[ Column "dateTime" (DateTime "UTC")
+   , Column "dateTimeNullable" (Nullable (DateTime "UTC"))
+   , Column "int128" Int128
+   , Column "int128Nullable" (Nullable Int128)
+   , Column "int16" Int16
+   , Column "int16Nullable" (Nullable Int16)
+   , Column "int32" Int32
+   , Column "int32Nullable" (Nullable Int32)
+   , Column "int64" Int64
+   , Column "int64Nullable" (Nullable Int64)
+   , Column "int8" Int8
+   , Column "int8Nullable" (Nullable Int8)
    , Column "string" ChString
    , Column "stringNullable" (Nullable ChString)
-   , Column "uint128" ChUInt128
-   , Column "uint128Nullable" (Nullable ChUInt128)
-   , Column "uint16" ChUInt16
-   , Column "uint16Nullable" (Nullable ChUInt16)
-   , Column "uint32" ChUInt32
-   , Column "uint32Nullable" (Nullable ChUInt32)
-   , Column "uint64" ChUInt64
-   , Column "uint64Nullable" (Nullable ChUInt64)
-   , Column "uint8" ChUInt8
-   , Column "uint8Nullable" (Nullable ChUInt8)
+   , Column "uint128" UInt128
+   , Column "uint128Nullable" (Nullable UInt128)
+   , Column "uint16" UInt16
+   , Column "uint16Nullable" (Nullable UInt16)
+   , Column "uint32" UInt32
+   , Column "uint32Nullable" (Nullable UInt32)
+   , Column "uint64" UInt64
+   , Column "uint64Nullable" (Nullable UInt64)
+   , Column "uint8" UInt8
+   , Column "uint8Nullable" (Nullable UInt8)
    , Column "uuid" ChUUID
    , Column "uuidNullable" (Nullable ChUUID)
    ]
 
 data TestData = MkTestData
-  { dateTime :: ChDateTime "UTC"
-  , dateTimeNullable :: Nullable (ChDateTime "UTC")
-  , int128 :: ChInt128
-  , int128Nullable :: Nullable ChInt128
-  , int16 :: ChInt16
-  , int16Nullable :: Nullable ChInt16
-  , int32 :: ChInt32
-  , int32Nullable :: Nullable ChInt32
-  , int64 :: ChInt64
-  , int64Nullable :: Nullable ChInt64
-  , int8 :: ChInt8
-  , int8Nullable :: Nullable ChInt8
+  { dateTime :: DateTime "UTC"
+  , dateTimeNullable :: Nullable (DateTime "UTC")
+  , int128 :: Int128
+  , int128Nullable :: Nullable Int128
+  , int16 :: Int16
+  , int16Nullable :: Nullable Int16
+  , int32 :: Int32
+  , int32Nullable :: Nullable Int32
+  , int64 :: Int64
+  , int64Nullable :: Nullable Int64
+  , int8 :: Int8
+  , int8Nullable :: Nullable Int8
   , string :: ChString
   , stringNullable :: Nullable ChString
-  , uint128 :: ChUInt128
-  , uint128Nullable :: Nullable ChUInt128
-  , uint16 :: ChUInt16
-  , uint16Nullable :: Nullable ChUInt16
-  , uint32 :: ChUInt32
-  , uint32Nullable :: Nullable ChUInt32
-  , uint64 :: ChUInt64
-  , uint64Nullable :: Nullable ChUInt64
-  , uint8 :: ChUInt8
-  , uint8Nullable :: Nullable ChUInt8
+  , uint128 :: UInt128
+  , uint128Nullable :: Nullable UInt128
+  , uint16 :: UInt16
+  , uint16Nullable :: Nullable UInt16
+  , uint32 :: UInt32
+  , uint32Nullable :: Nullable UInt32
+  , uint64 :: UInt64
+  , uint64Nullable :: Nullable UInt64
+  , uint8 :: UInt8
+  , uint8Nullable :: Nullable UInt8
   , uuid :: ChUUID
   , uuidNullable :: Nullable ChUUID
   }

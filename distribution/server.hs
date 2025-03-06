@@ -6,10 +6,12 @@
 {-# LANGUAGE DerivingStrategies #-}
 
 import ClickHaskell
-  ( ChString, ChUInt32, ChDateTime
-  , Column, Table
+  ( ChString, DateTime
+  , UInt16, UInt32
   , WritableInto, insertInto
-  , Connection, openNativeConnection, defaultCredentials, View, selectFromView, Parameter, ChUInt16, parameter, ReadableFrom
+  , Connection, openNativeConnection, defaultCredentials
+  , ReadableFrom, Column, Table
+  , View, selectFromView, Parameter, parameter
   )
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async (async, waitAnyCancel)
@@ -77,12 +79,12 @@ main = do
   docsStatQueue  <- newTBQueueIO 100_000
   clickHouse     <- openNativeConnection defaultCredentials
   broadcastChan  <- newBroadcastTChanIO
-  let readCurrentHistoryLast (hours :: ChUInt16) =
+  let readCurrentHistoryLast (hours :: UInt16) =
         concat <$>
           selectFromView
             @HistoryByHours
             clickHouse
-            (parameter @"hoursLength" @ChUInt16 hours)
+            (parameter @"hoursLength" @UInt16 hours)
             pure
   currentHistory <- newTVarIO . History =<< readCurrentHistoryLast 24
 
@@ -114,18 +116,18 @@ data DocsStatistics = MkDocsStatistics
 type DocsStatTable = 
   Table 
     "ClickHaskellStats"
-   '[ Column "time" (ChDateTime "")
+   '[ Column "time" (DateTime "")
     , Column "path" ChString
-    , Column "remoteAddr" ChUInt32
+    , Column "remoteAddr" UInt32
     ]
 
 type HistoryByHours =
   View
     "historyByHours"
-   '[ Column "hour" ChUInt32
-    , Column "visits" ChUInt32
+   '[ Column "hour" UInt32
+    , Column "visits" UInt32
     ]
-   '[ Parameter "hoursLength" ChUInt16
+   '[ Parameter "hoursLength" UInt16
     ]
 
 {-

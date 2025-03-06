@@ -21,11 +21,6 @@ extra-doc-files:
   README.md
   ChangeLog.md
 
-Flag release
-  Description: Pre-release build options
-  Manual: True
-  Default: False
-
 Flag dev
   Description: Dump core
   Manual: True
@@ -46,25 +41,10 @@ Library
     Paths_ClickHaskell
   HS-Source-Dirs:
     ./
-  default-extensions:
-    AllowAmbiguousTypes
-    DataKinds
-    DefaultSignatures
-    DeriveAnyClass
-    DeriveGeneric
-    DerivingStrategies
-    InstanceSigs
-    GADTs
-    NamedFieldPuns
-    StandaloneDeriving
-    UndecidableInstances
   GHC-Options:
-    -Wall
+    -Wall -Werror
     -fno-warn-type-defaults
     -Wunused-packages
-
-  if flag(release)
-    GHC-Options:  -Werror
 
   if flag(dev)
     GHC-Options:
@@ -91,11 +71,3 @@ Library
     , network
     , wide-word < 0.2
   Default-language: Haskell2010
-  Default-Extensions:
-    FlexibleContexts
-    FlexibleInstances
-    MultiParamTypeClasses
-    TypeApplications
-    TypeFamilies
-    TypeOperators
-    ScopedTypeVariables
