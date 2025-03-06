@@ -42,7 +42,7 @@ Library
   HS-Source-Dirs:
     ./
   GHC-Options:
-    -Wall -Werror
+    -Wall
     -fno-warn-type-defaults
     -Wunused-packages
 
