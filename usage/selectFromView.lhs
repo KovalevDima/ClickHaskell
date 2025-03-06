@@ -27,9 +27,8 @@ import ClickHaskell
   ( ReadableFrom, selectFromView, Column
   , View, Parameter, parameter
   , openNativeConnection, defaultCredentials
-  , ChString, ChInt32
+  , ChString, Int32
   )
-import Data.Int (Int32)
 import GHC.Generics (Generic)
 
 main :: IO ()
@@ -40,8 +39,8 @@ main = do
       @ExampleView
       @ExampleViewRecord
       connection
-      ( parameter @"a1MoreThan" @ChInt32 ((-100_000) :: Int32)
-      . parameter @"a1LessThan" @ChInt32 ((100_000) :: Int32)
+      ( parameter @"a1MoreThan" @Int32 ((-100_000) :: Int32)
+      . parameter @"a1LessThan" @Int32 ((100_000) :: Int32)
       )
       print
   pure ()
@@ -54,12 +53,12 @@ deriving anyclass instance ReadableFrom ExampleView ExampleViewRecord
 type ExampleView =
   View
     "exampleParametrizedView"
-   '[ Column "a1" ChInt32
-    , Column "a2" ChInt32
+   '[ Column "a1" Int32
+    , Column "a2" Int32
     , Column "a3" ChString
     ]
-   '[ Parameter "a1MoreThan" ChInt32
-    , Parameter "a1LessThan" ChInt32
+   '[ Parameter "a1MoreThan" Int32
+    , Parameter "a1LessThan" Int32
     ]
 
 newtype ExampleViewRecord = MkExampleViewRecord

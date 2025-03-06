@@ -34,7 +34,6 @@ import ClickHaskell
 -- GHC included
 import Data.ByteString (StrictByteString)
 import Data.ByteString.Builder (string8)
-import Data.Int (Int32)
 import Data.Word (Word32)
 import Debug.Trace (traceMarkerIO)
 import GHC.Generics (Generic)
@@ -71,7 +70,7 @@ main = do
 
 
 data ExampleData = MkExampleData
-  { a1 :: ChInt64
+  { a1 :: Int64
   , a3 :: Word32
   , a4 :: ChUUID
   , a2 :: StrictByteString
@@ -87,11 +86,11 @@ data ExampleData = MkExampleData
 
 
 type ExampleColumns =
- '[ Column "a1" ChInt64
+ '[ Column "a1" Int64
   , Column "a2" ChString
-  , Column "a3" (ChDateTime "")
+  , Column "a3" (DateTime "")
   , Column "a4" ChUUID
-  , Column "a5" ChInt32
+  , Column "a5" Int32
   , Column "a6" (Nullable ChString)
   , Column "a7" ChString
   ]

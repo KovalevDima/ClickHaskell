@@ -54,12 +54,12 @@ t4 connection = do
 
 
 data ExpectedName = MkExpectedName
-  { expectedName :: ChInt64
+  { expectedName :: Int64
   }
   deriving (Generic)
   deriving anyclass (ReadableFrom (Columns ExpectedColumns))
 
 
 type ExpectedColumns =
- '[ Column "expectedName" ChInt64
+ '[ Column "expectedName" Int64
   ]

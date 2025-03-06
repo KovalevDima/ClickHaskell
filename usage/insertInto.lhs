@@ -31,7 +31,7 @@ import ClickHaskell
   , openNativeConnection, defaultCredentials
   , Table, Column
   , toChType
-  , ChDateTime, ChInt64, ChString, ChUUID
+  , ChString, ChUUID, DateTime
   )
 import Data.ByteString (ByteString)
 import Data.Int (Int64)
@@ -61,9 +61,9 @@ deriving instance WritableInto ExampleTable ExampleData
 type ExampleTable =
   Table
     "exampleWriteRead"
-   '[ Column "a1" ChInt64
+   '[ Column "a1" Int64
     , Column "a2" ChString
-    , Column "a3" (ChDateTime "")
+    , Column "a3" (DateTime "")
     , Column "a4" ChUUID
     ]
 
