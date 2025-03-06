@@ -30,7 +30,6 @@
 {-# OPTIONS_GHC
   -Wno-orphans
 #-}
-{-# LANGUAGE InstanceSigs #-}
 
 module ClickHaskell
   (
