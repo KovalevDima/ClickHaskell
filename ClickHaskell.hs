@@ -93,21 +93,19 @@ module ClickHaskell
 import Paths_ClickHaskell (version)
 
 -- GHC included
-import Control.Concurrent (MVar, newMVar, takeMVar, putMVar)
+import Control.Concurrent (MVar, newMVar, putMVar, takeMVar)
 import Control.DeepSeq (NFData)
-import Control.Exception (Exception, bracketOnError, catch, finally, throwIO, SomeException, throw, mask, onException)
-import Control.Monad (forM, replicateM, (<$!>), when)
+import Control.Exception (Exception, SomeException, bracketOnError, catch, finally, mask, onException, throw, throwIO)
+import Control.Monad (forM, replicateM, void, when, (<$!>), (<=<))
 import Data.Binary.Get
 import Data.Binary.Get.Internal (readN)
-import Data.Binary.Put
-import Data.Bits
+import Data.Bits (Bits (setBit, unsafeShiftL, unsafeShiftR, (.&.), (.|.)))
 import Data.ByteString as BS (StrictByteString, length, take, toStrict)
-import Data.ByteString.Builder (Builder, byteString, stringUtf8, toLazyByteString, word8)
-import Data.ByteString.Builder as BS (Builder, byteString, word16HexFixed)
+import Data.ByteString.Builder
+import Data.ByteString.Builder as BS (Builder, byteString)
 import Data.ByteString.Char8 as BS8 (concatMap, length, pack, replicate, singleton)
 import Data.Coerce (coerce)
-import Data.Functor (($>), void)
-import Data.IORef (IORef, atomicWriteIORef, newIORef, readIORef)
+import Data.IORef (IORef, atomicModifyIORef, atomicWriteIORef, newIORef, readIORef)
 import Data.Int (Int16, Int32, Int64, Int8)
 import Data.Kind (Constraint, Type)
 import Data.List (uncons)
@@ -117,17 +115,15 @@ import Data.Text (Text)
 import Data.Text.Encoding as Text (encodeUtf8)
 import Data.Time (UTCTime, ZonedTime, zonedTimeToUTC)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
+import Data.Type.Bool (If)
+import Data.Type.Equality (type (==))
 import Data.Typeable (Proxy (..))
 import Data.Version (Version (..))
-import Data.Word (Word16, Word32, Word8)
-import Debug.Trace (traceShowId)
-import GHC.Generics
+import Data.Word (Word16, Word32, Word64, Word8)
+import GHC.Generics (C1, D1, Generic (..), K1 (K1, unK1), M1 (M1, unM1), Meta (MetaSel), Rec0, S1, type (:*:) (..))
 import GHC.Stack (HasCallStack, callStack, prettyCallStack)
 import GHC.TypeLits (AppendSymbol, ErrorMessage (..), KnownNat, KnownSymbol, Nat, Symbol, TypeError, natVal, symbolVal)
-import GHC.Word (Word64)
 import System.Timeout (timeout)
-import Data.Type.Equality (type(==))
-import Data.Type.Bool (If)
 
 -- External
 import Data.WideWord (Int128 (..), Word128(..))
@@ -258,9 +254,6 @@ ping conn = do
 
 data Table (name :: Symbol) (columns :: [Type])
 
-instance HasColumns (Table name columns) where
-  type GetColumns (Table _ columns) = columns
-
 -- ** Selecting
 
 select ::
@@ -273,8 +266,7 @@ select conn query f = do
   withConnection conn $ \connState@MkConnectionState{revision, user} -> do
     writeToConnection connState (mkQueryPacket revision user query)
     writeToConnection connState (mkDataPacket "" 0 0)
-    let f' x = id <$!> f x
-    handleSelect @(Columns columns) connState f'
+    handleSelect @(Columns columns) connState (\x -> id <$!> f x)
 
 selectFrom ::
   forall table record name columns a
@@ -292,11 +284,7 @@ selectFrom conn f = do
           <> " FROM " <> (byteString . BS8.pack) (symbolVal $ Proxy @name)
     writeToConnection connState (mkQueryPacket revision user (toChType query))
     writeToConnection connState (mkDataPacket "" 0 0)
-    let f' x = id <$!> f x
-    handleSelect @table connState f'
-
-instance HasColumns (View name columns parameters) where
-  type GetColumns (View _ columns _) = columns
+    handleSelect @table connState (\x -> id <$!> f x)
 
 data View (name :: Symbol) (columns :: [Type]) (parameters :: [Type])
 
@@ -316,8 +304,7 @@ selectFromView conn interpreter f = do
           " FROM " <> (byteString . BS8.pack . symbolVal @name) Proxy <> viewParameters interpreter
     writeToConnection connState (mkQueryPacket revision user (toChType query))
     writeToConnection connState (mkDataPacket "" 0 0)
-    let f' x = id <$!> f x
-    handleSelect @view connState f'
+    handleSelect @view connState (\x -> id <$!> f x)
 
 -- *** Internal
 
@@ -393,20 +380,25 @@ initBuffer size sock = MkBuffer size sock <$> newIORef ""
 flushBuffer :: Buffer -> IO ()
 flushBuffer MkBuffer{buff} = atomicWriteIORef buff ""
 
+readBuffer ::  Buffer -> IO StrictByteString
+readBuffer buffer@MkBuffer{..} =
+  readIORef buff
+    >>= (\currentBuffer ->
+      case BS.length currentBuffer of
+        0 -> recv bufferSocket bufferSize
+        _ -> flushBuffer buffer *> pure currentBuffer
+    )
+
+writeToBuffer :: Buffer -> StrictByteString -> IO ()
+writeToBuffer MkBuffer{..} val = void (atomicModifyIORef buff (val,))
+
 rawBufferizedRead :: Buffer -> Get packet -> IO packet
 rawBufferizedRead buffer parser = runBufferReader buffer (runGetIncremental parser)
 
 runBufferReader :: Buffer -> Decoder packet -> IO packet
-runBufferReader buffer@MkBuffer{bufferSocket, bufferSize, buff} = \case
-  (Partial decoder) -> do
-    currentBuffer <- readIORef buff
-    chosenBuffer <- case BS.length currentBuffer of
-      0 -> recv bufferSocket bufferSize
-      _ -> flushBuffer buffer $> currentBuffer
-    case BS.length chosenBuffer of
-      0 -> throwIO (InternalError $ DeserializationError "Expected more bytes while reading packet")
-      _ -> runBufferReader buffer (decoder $ Just $! chosenBuffer)
-  (Done leftover _consumed packet) -> atomicWriteIORef buff leftover $> packet
+runBufferReader buffer = \case
+  (Partial decoder) -> readBuffer buffer >>= runBufferReader buffer . decoder . Just
+  (Done leftover _consumed packet) -> packet <$ writeToBuffer buffer leftover
   (Fail _leftover _consumed msg) -> throwIO (InternalError $ DeserializationError msg)
 
 
@@ -441,27 +433,12 @@ data UserError
 
 
 
--- * Compatibility
-
-latestSupportedRevision :: ProtocolRevision
-latestSupportedRevision = mostRecentRevision
-
 -- * Client packets
 
 data ClientPacketType
-  = Hello
-  | Query
-  | Data
-  | Cancel
-  | Ping
-  | TablesStatusRequest
-  | KeepAlive
-  | Scalar
-  | IgnoredPartUUIDs
-  | ReadTaskResponse
-  | MergeTreeReadTaskResponse
-  | SSHChallengeRequest
-  | SSHChallengeResponse
+  = Hello | Query | Data | Cancel | Ping | TablesStatusRequest
+  | KeepAlive | Scalar | IgnoredPartUUIDs | ReadTaskResponse
+  | MergeTreeReadTaskResponse | SSHChallengeRequest | SSHChallengeResponse
   deriving (Enum, Show)
 
 type family PacketTypeNumber (packetType :: ClientPacketType)
@@ -529,24 +506,18 @@ data HelloPacket = MkHelloPacket
   deriving (Generic, Serializable)
 
 
-mkAddendum :: Addendum
-mkAddendum = MkAddendum
-  { quota_key = MkSinceRevision ""
-  }
-
-data Addendum = MkAddendum
-  { quota_key :: ChString `SinceRevision` DBMS_MIN_PROTOCOL_VERSION_WITH_QUOTA_KEY
-  }
+data Addendum = MkAddendum{quota_key :: ChString `SinceRevision` DBMS_MIN_PROTOCOL_VERSION_WITH_QUOTA_KEY}
   deriving (Generic, Serializable)
+mkAddendum :: Addendum
+mkAddendum = MkAddendum{quota_key = MkSinceRevision ""}
 
 
 -- ** Ping
 
-mkPingPacket :: PingPacket
-mkPingPacket = MkPingPacket{packet_type = MkPacket}
-
 data PingPacket = MkPingPacket{packet_type :: Packet Ping}
   deriving (Generic, Serializable)
+mkPingPacket :: PingPacket
+mkPingPacket = MkPingPacket{packet_type = MkPacket}
 
 
 -- ** Query
@@ -965,6 +936,7 @@ instance
   , Deserializable chType
   ) =>
   DeserializableColumn (Column name chType) where
+  {-# INLINE deserializeColumn #-}
   deserializeColumn rev isCheckRequired rows = do
     handleColumnHeader @(Column name chType) rev isCheckRequired
     _isCustom <- deserialize @(UInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION) rev
@@ -976,6 +948,7 @@ instance {-# OVERLAPPING #-}
   , Deserializable chType
   ) =>
   DeserializableColumn (Column name (Nullable chType)) where
+  {-# INLINE deserializeColumn #-}
   deserializeColumn rev isCheckRequired rows = do
     handleColumnHeader @(Column name (Nullable chType)) rev isCheckRequired
     _isCustom <- deserialize @(UInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION) rev
@@ -997,6 +970,7 @@ instance {-# OVERLAPPING #-}
   , TypeError ('Text "LowCardinality deserialization still unsupported")
   ) =>
   DeserializableColumn (Column name (LowCardinality chType)) where
+  {-# INLINE deserializeColumn #-}
   deserializeColumn rev isCheckRequired rows = do
     handleColumnHeader @(Column name (LowCardinality chType)) rev isCheckRequired
     _isCustom <- deserialize @(UInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION) rev
@@ -1012,10 +986,11 @@ instance {-# OVERLAPPING #-}
   , TypeError ('Text "Arrays deserialization still unsupported")
   )
   => DeserializableColumn (Column name (ChArray chType)) where
+  {-# INLINE deserializeColumn #-}
   deserializeColumn rev isCheckRequired _rows = do
     handleColumnHeader @(Column name (ChArray chType)) rev isCheckRequired
     _isCustom <- deserialize @(UInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION) rev
-    (arraySize, _offsets) <- traceShowId <$> readOffsets rev
+    (arraySize, _offsets) <- readOffsets rev
     _types <- replicateM (fromIntegral arraySize) (deserialize @chType rev)
     pure $ mkColumn @(Column name (ChArray chType)) []
     where
@@ -1035,6 +1010,7 @@ instance {-# OVERLAPPING #-}
 class
   Deserializable chType
   where
+  {-# INLINE deserialize #-}
   default deserialize :: (Generic chType, GDeserializable (Rep chType)) => ProtocolRevision -> Get chType
   deserialize :: ProtocolRevision -> Get chType
   deserialize rev = to <$> gDeserialize rev
@@ -1081,29 +1057,22 @@ instance
 
 -- ** Database types
 
-instance Deserializable ChUUID where
-  deserialize _ = MkChUUID <$!> (flip Word128 <$> getWord64le <*> getWord64le)
-
-instance Deserializable ChString where
-  deserialize rev = do
-    strSize <- fromIntegral <$> deserialize @UVarInt rev
-    toChType <$> readN strSize (BS.take strSize)
-
-
-instance Deserializable Int8 where deserialize _ = toChType <$> getInt8
-instance Deserializable Int16 where deserialize _ = toChType <$> getInt16le
-instance Deserializable Int32 where deserialize _ = toChType <$> getInt32le
-instance Deserializable Int64 where deserialize _ = toChType <$> getInt64le
-instance Deserializable Int128 where deserialize _ = toChType <$> (flip Int128 <$> getWord64le <*> getWord64le)
-instance Deserializable UInt8 where deserialize _ = toChType <$> getWord8
-instance Deserializable UInt16 where deserialize _ = toChType <$> getWord16le
-instance Deserializable UInt32 where deserialize _ = toChType <$> getWord32le
-instance Deserializable UInt64 where deserialize _ = toChType <$> getWord64le
-instance Deserializable UInt128 where deserialize _ = toChType <$> (flip Word128 <$> getWord64le <*> getWord64le)
-instance Deserializable (DateTime tz) where deserialize _ = toChType <$> getWord32le
-instance Deserializable Date where deserialize _ = toChType <$> getWord16le
-
+instance Deserializable Int8 where deserialize _ = toChType <$> getInt8; {-# INLINE deserialize #-}
+instance Deserializable Int16 where deserialize _ = toChType <$> getInt16le; {-# INLINE deserialize #-}
+instance Deserializable Int32 where deserialize _ = toChType <$> getInt32le; {-# INLINE deserialize #-}
+instance Deserializable Int64 where deserialize _ = toChType <$> getInt64le; {-# INLINE deserialize #-}
+instance Deserializable Int128 where deserialize _ = toChType <$> (flip Int128 <$> getWord64le <*> getWord64le); {-# INLINE deserialize #-}
+instance Deserializable UInt8 where deserialize _ = toChType <$> getWord8; {-# INLINE deserialize #-}
+instance Deserializable UInt16 where deserialize _ = toChType <$> getWord16le; {-# INLINE deserialize #-}
+instance Deserializable UInt32 where deserialize _ = toChType <$> getWord32le; {-# INLINE deserialize #-}
+instance Deserializable UInt64 where deserialize _ = toChType <$> getWord64le; {-# INLINE deserialize #-}
+instance Deserializable UInt128 where deserialize _ = toChType <$> (flip Word128 <$> getWord64le <*> getWord64le); {-# INLINE deserialize #-}
+instance Deserializable ChUUID where deserialize _ = MkChUUID <$!> (flip Word128 <$> getWord64le <*> getWord64le); {-# INLINE deserialize #-}
+instance Deserializable ChString where deserialize = (\n -> toChType <$> readN n (BS.take n)) . fromIntegral <=< deserialize @UVarInt; {-# INLINE deserialize #-}
+instance Deserializable Date where deserialize _ = toChType <$> getWord16le; {-# INLINE deserialize #-}
+instance Deserializable (DateTime tz) where deserialize _ = toChType <$> getWord32le; {-# INLINE deserialize #-}
 instance Deserializable UVarInt where
+  {-# INLINE deserialize #-}
   deserialize _ = go 0 (0 :: UVarInt)
     where
     go i o | i < 10 = do
@@ -1123,14 +1092,10 @@ instance Deserializable UVarInt where
 
 -- ** Columns extraction helper
 
-class
-  HasColumns hasColumns
-  where
-  type GetColumns hasColumns :: [Type]
-
-instance HasColumns (Columns columns)
-  where
-  type GetColumns (Columns columns) = columns
+class HasColumns hasColumns where type GetColumns hasColumns :: [Type]
+instance HasColumns (Columns columns)          where type GetColumns (Columns columns) = columns
+instance HasColumns (Table name columns)       where type GetColumns (Table _ columns) = columns
+instance HasColumns (View name columns params) where type GetColumns (View _ columns _) = columns
 
 
 -- ** Take column by name from list of columns
@@ -1187,11 +1152,11 @@ data Column (name :: Symbol) (chType :: Type) where
   Int128Column :: [Int128] -> Column name Int128
   DateColumn :: [Date] -> Column name Date
   DateTimeColumn :: [DateTime tz] -> Column name (DateTime tz)
-  ChUUIDColumn :: [ChUUID] -> Column name ChUUID
-  ChStringColumn :: [ChString] -> Column name ChString
-  ChArrayColumn :: IsChType chType => [ChArray chType] -> Column name (ChArray chType)
-  NullableColumn :: IsChType chType => [Nullable chType] -> Column name (Nullable chType)
-  LowCardinalityColumn :: (IsLowCardinalitySupported chType, IsChType chType) => [chType] -> Column name (LowCardinality chType)
+  UUIDColumn :: [ChUUID] -> Column name ChUUID
+  StringColumn :: [ChString] -> Column name ChString
+  ArrayColumn :: [ChArray chType] -> Column name (ChArray chType)
+  NullableColumn :: [Nullable chType] -> Column name (Nullable chType)
+  LowCardinalityColumn :: IsLowCardinalitySupported chType => [chType] -> Column name (LowCardinality chType)
 
 type family GetColumnName column :: Symbol
   where
@@ -1229,9 +1194,9 @@ columnValues column = case column of
   (Int128Column values) -> values
   (DateColumn values) -> values
   (DateTimeColumn values) -> values
-  (ChUUIDColumn values) -> values
-  (ChStringColumn values) -> values
-  (ChArrayColumn arrayValues) -> arrayValues
+  (UUIDColumn values) -> values
+  (StringColumn values) -> values
+  (ArrayColumn arrayValues) -> arrayValues
   (NullableColumn nullableValues) ->  nullableValues
   (LowCardinalityColumn lowCardinalityValues) -> map fromChType lowCardinalityValues
 
@@ -1251,21 +1216,21 @@ instance
   , IsChType (DateTime tz)
   ) =>
   KnownColumn (Column name (DateTime tz)) where mkColumn = DateTimeColumn
-instance KnownSymbol name => KnownColumn (Column name ChUUID) where mkColumn = ChUUIDColumn
+instance KnownSymbol name => KnownColumn (Column name ChUUID) where mkColumn = UUIDColumn
 instance
   ( KnownSymbol name
   , IsChType chType
   , IsChType (Nullable chType)
   ) =>
   KnownColumn (Column name (Nullable chType)) where mkColumn = NullableColumn
-instance KnownSymbol name => KnownColumn (Column name ChString) where mkColumn = ChStringColumn
+instance KnownSymbol name => KnownColumn (Column name ChString) where mkColumn = StringColumn
 instance
   ( KnownSymbol name
   , IsChType (LowCardinality chType)
   , IsLowCardinalitySupported chType
   ) =>
   KnownColumn (Column name (LowCardinality chType)) where mkColumn = LowCardinalityColumn . map fromChType
-instance KnownSymbol name => KnownColumn (Column name (ChArray ChString)) where mkColumn = ChArrayColumn
+instance KnownSymbol name => KnownColumn (Column name (ChArray ChString)) where mkColumn = ArrayColumn
 
 
 -- ** Columns
@@ -1276,20 +1241,16 @@ instance
   {-# INLINE serialize #-}
   serialize _rev Empty = ""
 
-instance
-  ( Serializable (Columns columns)
-  , Serializable col
-  ) =>
+instance (Serializable (Columns columns), Serializable col)
+  =>
   Serializable (Columns (col ': columns))
   where
   {-# INLINE serialize #-}
   serialize rev (AddColumn col columns) = serialize rev col <> serialize rev columns
 
-instance
-  ( KnownColumn (Column name chType)
-  , IsChType chType
-  , Serializable chType
-  ) => Serializable (Column name chType) where
+instance (KnownColumn (Column name chType), Serializable chType)
+  =>
+  Serializable (Column name chType) where
   {-# INLINE serialize #-}
   serialize rev column
     =  serialize rev (toChType @ChString $ renderColumnName @(Column name chType))
@@ -1339,7 +1300,7 @@ instance {-# OVERLAPPING #-}
 
 type family KnownParameter param
   where
-  KnownParameter (Parameter name parType) = (KnownSymbol name, ToQueryPart parType)
+  KnownParameter (Parameter name parType) = (KnownSymbol name, IsChType parType, ToQueryPart parType)
 
 data Parameter (name :: Symbol) (chType :: Type) = MkParamater chType
 
@@ -1351,9 +1312,8 @@ data Parameters parameters where
     -> Parameters parameters
     -> Parameters (Parameter name chType ': parameters)
 
--- >>> import ClickHaskell.DbTypes
 {- |
->>> parameters (parameter @"a3" @ChString ("a3Val" :: String) . parameter @"a2" @ChString ("a2Val" :: String))
+>>> viewParameters (parameter @"a3" @ChString ("a3Val" :: String) . parameter @"a2" @ChString ("a2Val" :: String))
 "(a3='a3Val', a2='a2Val')"
 -}
 viewParameters :: (Parameters '[] -> Parameters passedParameters) -> Builder
@@ -1389,6 +1349,51 @@ type family GoCheckParameters required passed acc :: Constraint
   GoCheckParameters (Parameter name1 _ ': ps) (Parameter name1 _ ': ps') acc = (GoCheckParameters ps ps' acc)
   GoCheckParameters (Parameter name1 chType1 ': ps) (Parameter name2 chType2 ': ps') acc
     = (GoCheckParameters (Parameter name1 chType1 ': ps) ps' (Parameter name2 chType2 ': acc))
+    
+class ToQueryPart chType where toQueryPart :: chType -> BS.Builder
+
+instance ToQueryPart chType => ToQueryPart (Nullable chType)
+  where
+  toQueryPart = maybe "null" toQueryPart
+
+instance ToQueryPart chType => ToQueryPart (LowCardinality chType)
+  where
+  toQueryPart (MkLowCardinality chType) = toQueryPart chType
+
+instance ToQueryPart ChUUID where
+  toQueryPart (MkChUUID (Word128 hi lo)) = mconcat
+    ["'", p 3 hi, p 2 hi, "-", p 1 hi, "-", p 0 hi, "-", p 3 lo, "-", p 2 lo, p 1 lo, p 0 lo, "'"]
+    where
+    p :: Int -> Word64 -> Builder
+    p shiftN word = word16HexFixed $ fromIntegral (word `unsafeShiftR` (shiftN*16))
+
+instance ToQueryPart ChString where
+  toQueryPart (MkChString string) =  "'" <> escapeQuery string <> "'"
+    where
+    escapeQuery :: StrictByteString -> Builder
+    escapeQuery -- [ClickHaskell.DbTypes.ToDo.1]: Optimize
+      = BS.byteString . BS8.concatMap (\case '\'' -> "\\\'"; '\\' -> "\\\\"; sym -> BS8.singleton sym;)
+
+instance ToQueryPart Int8 where toQueryPart = BS.byteString . BS8.pack . show
+instance ToQueryPart Int16 where toQueryPart = BS.byteString . BS8.pack . show
+instance ToQueryPart Int32 where toQueryPart = BS.byteString . BS8.pack . show
+instance ToQueryPart Int64 where toQueryPart = BS.byteString . BS8.pack . show
+instance ToQueryPart Int128 where toQueryPart = BS.byteString . BS8.pack . show
+instance ToQueryPart UInt8 where toQueryPart = BS.byteString . BS8.pack . show
+instance ToQueryPart UInt16 where toQueryPart = BS.byteString . BS8.pack . show
+instance ToQueryPart UInt32 where toQueryPart = BS.byteString . BS8.pack . show
+instance ToQueryPart UInt64 where toQueryPart = BS.byteString . BS8.pack . show
+instance ToQueryPart UInt128 where toQueryPart = BS.byteString . BS8.pack . show
+instance ToQueryPart (DateTime tz)
+  where
+  toQueryPart chDateTime = let time = BS8.pack . show . fromChType @(DateTime tz) @Word32 $ chDateTime
+    in BS.byteString (BS8.replicate (10 - BS8.length time) '0' <> time)
+instance (IsChType chType, ToQueryPart chType) => ToQueryPart (ChArray chType)
+  where
+  toQueryPart
+    = (\x -> "[" <> x <> "]")
+    . (maybe "" (uncurry (foldr (\a b -> a <> "," <> b))) . uncons
+    . map (toQueryPart @chType)) . fromChType @(ChArray chType) @[chType]
 
 
 
@@ -1505,26 +1510,25 @@ instance Serializable UVarInt where
     where
     go i
       | i < 0x80 = word8 (fromIntegral i)
-      | otherwise = word8 (setBit (fromIntegral i) 7) <> go (unsafeShiftR i 7)
+      | otherwise = word8 (setBit (fromIntegral i) 7) <> go (i `unsafeShiftR` 7)
 
 instance Serializable ChString where
   serialize rev str
-    =  (serialize @UVarInt rev . fromIntegral . BS.length . fromChType) str
-    <> (execPut . putByteString . fromChType) str
+    =  (serialize @UVarInt rev . fromIntegral . BS.length . fromChType) str <> fromChType str
 
-instance Serializable ChUUID where serialize _ = execPut . (\(hi, lo) -> putWord64le lo <> putWord64le hi) . fromChType
-instance Serializable Int8 where serialize _ = execPut . putInt8 . fromChType
-instance Serializable Int16 where serialize _ = execPut . putInt16le . fromChType
-instance Serializable Int32 where serialize _ = execPut . putInt32le . fromChType
-instance Serializable Int64 where serialize _ = execPut . putInt64le . fromChType
-instance Serializable Int128 where serialize _ = execPut . (\(Int128 hi lo) -> putWord64le lo <> putWord64le hi) . fromChType
-instance Serializable UInt8 where serialize _ = execPut . putWord8 . fromChType
-instance Serializable UInt16 where serialize _ = execPut . putWord16le . fromChType
-instance Serializable UInt32 where serialize _ = execPut . putWord32le . fromChType
-instance Serializable UInt64 where serialize _ = execPut . putWord64le . fromChType
-instance Serializable UInt128 where serialize _ = execPut . (\(Word128 hi lo) -> putWord64le lo <> putWord64le hi) . fromChType
-instance Serializable (DateTime tz) where serialize _ = execPut . putWord32le . fromChType
-instance Serializable Date where serialize _ = execPut . putWord16le . fromChType
+instance Serializable ChUUID where serialize _ = (\(hi, lo) -> word64LE lo <> word64LE hi) . fromChType
+instance Serializable Int8 where serialize _ = int8 . fromChType
+instance Serializable Int16 where serialize _ = int16LE . fromChType
+instance Serializable Int32 where serialize _ = int32LE . fromChType
+instance Serializable Int64 where serialize _ = int64LE . fromChType
+instance Serializable Int128 where serialize _ = (\(Int128 hi lo) -> word64LE lo <> word64LE hi) . fromChType
+instance Serializable UInt8 where serialize _ = word8 . fromChType
+instance Serializable UInt16 where serialize _ = word16LE . fromChType
+instance Serializable UInt32 where serialize _ = word32LE . fromChType
+instance Serializable UInt64 where serialize _ = word64LE . fromChType
+instance Serializable UInt128 where serialize _ = (\(Word128 hi lo) -> word64LE lo <> word64LE hi) . fromChType
+instance Serializable (DateTime tz) where serialize _ = word32LE . fromChType
+instance Serializable Date where serialize _ = word16LE . fromChType
 
 
 -- ** Generics
@@ -1574,7 +1578,8 @@ instance
 
 
 class
-  KnownSymbol (ToChTypeName chType) =>
+  KnownSymbol (ToChTypeName chType)
+  =>
   IsChType chType
   where
   -- | Shows database original type name
@@ -1590,12 +1595,70 @@ class
 
   defaultValueOfTypeName :: chType
 
+instance IsChType Int8 where
+  type ToChTypeName Int8 = "Int8"
+  defaultValueOfTypeName = 0
+
+instance IsChType Int16 where
+  type ToChTypeName Int16 = "Int16"
+  defaultValueOfTypeName = 0
+
+instance IsChType Int32 where
+  type ToChTypeName Int32 = "Int32"
+  defaultValueOfTypeName = 0
+
+instance IsChType Int64 where
+  type ToChTypeName Int64 = "Int64"
+  defaultValueOfTypeName = 0
+
+instance IsChType Int128 where
+  type ToChTypeName Int128 = "Int128"
+  defaultValueOfTypeName = 0
+-- | ClickHouse UInt8 column type
+type UInt8 = Word8
+instance IsChType UInt8 where
+  type ToChTypeName UInt8 = "UInt8"
+  defaultValueOfTypeName = 0
+
+-- | ClickHouse UInt16 column type
+type UInt16 = Word16
+instance IsChType UInt16 where
+  type ToChTypeName UInt16 = "UInt16"
+  defaultValueOfTypeName = 0
+
+-- | ClickHouse UInt32 column type
+type UInt32 = Word32
+instance IsChType UInt32 where
+  type ToChTypeName UInt32 = "UInt32"
+  defaultValueOfTypeName = 0
+
+-- | ClickHouse UInt64 column type
+type UInt64 = Word64
+instance IsChType UInt64 where
+  type ToChTypeName UInt64 = "UInt64"
+  defaultValueOfTypeName = 0
+
+-- | ClickHouse UInt128 column type
+type UInt128 = Word128
+instance IsChType UInt128 where
+  type ToChTypeName UInt128 = "UInt128"
+  defaultValueOfTypeName = 0
+
+
+
+
+
+
 class ToChType chType inputType    where toChType    :: inputType -> chType
 class FromChType chType outputType where fromChType  :: chType -> outputType
-class ToQueryPart chType           where toQueryPart :: chType -> BS.Builder
 
 instance {-# OVERLAPPABLE #-} (IsChType chType, chType ~ inputType) => ToChType chType inputType where toChType = id
 instance {-# OVERLAPPABLE #-} (IsChType chType, chType ~ inputType) => FromChType chType inputType where fromChType = id
+
+instance ToChType Int64 Int where toChType = fromIntegral
+instance ToChType UInt128 UInt64 where toChType = fromIntegral
+
+
 
 type ChUInt8    = UInt8    ;{-# DEPRECATED ChUInt8    "Ch prefixed types are deprecated. Use UInt8 instead" #-}
 type ChUInt16   = UInt16   ;{-# DEPRECATED ChUInt16   "Ch prefixed types are deprecated. Use UInt16 instead" #-}
@@ -1618,22 +1681,6 @@ type Nullable = Maybe
 
 type NullableTypeName chType = "Nullable(" `AppendSymbol` ToChTypeName chType `AppendSymbol` ")"
 
-{-
-This instance leads to disable -Wmissing-methods
-Need to move it's semantics to another instances
-
-instance {-# OVERLAPPING #-}
-  ( TypeError
-    (     'Text (ToChTypeName (Nullable (LowCardinality chType))) ':<>: 'Text " is unsupported type in ClickHouse."
-    ':$$: 'Text "Use " ':<>: 'Text (ToChTypeName (LowCardinality (Nullable chType))) ':<>: 'Text " instead."
-    )
-  , IsChType chType
-  ) => IsChType (Nullable (LowCardinality chType))
-  where
-  defaultValueOfTypeName = error "Unreachable"
-  chTypeName = error "Unreachable"
--}
-
 instance
   ( IsChType chType
   , KnownSymbol ("Nullable(" `AppendSymbol` ToChTypeName chType `AppendSymbol` ")")
@@ -1645,26 +1692,14 @@ instance
   defaultValueOfTypeName = Nothing
 
 instance
-  ( ToQueryPart chType
-  , IsChType (Nullable chType)
-  )
-  =>
-  ToQueryPart (Nullable chType)
-  where
-  toQueryPart = maybe "null" toQueryPart
-
-instance
-  ( ToChType inputType chType
-  , IsChType (Nullable inputType)
-  )
+  ToChType inputType chType
   =>
   ToChType (Nullable inputType) (Nullable chType)
   where
   toChType = fmap (toChType @inputType @chType)
 
 instance
-  ( FromChType chType inputType
-  )
+  FromChType chType inputType
   =>
   FromChType (Nullable chType) (Nullable inputType)
   where
@@ -1675,6 +1710,15 @@ instance
 
 -- | ClickHouse LowCardinality(T) column type
 newtype LowCardinality chType = MkLowCardinality chType
+instance
+  ( IsLowCardinalitySupported chType
+  , KnownSymbol ("LowCardinality(" `AppendSymbol` ToChTypeName chType `AppendSymbol` ")")
+  ) =>
+  IsChType (LowCardinality chType)
+  where
+  type ToChTypeName (LowCardinality chType) = "LowCardinality(" `AppendSymbol` ToChTypeName chType `AppendSymbol` ")"
+  defaultValueOfTypeName = MkLowCardinality $ defaultValueOfTypeName @chType
+
 deriving newtype instance (Eq chType, IsLowCardinalitySupported chType) => Eq (LowCardinality chType)
 deriving newtype instance (Show chType, IsLowCardinalitySupported chType) => Show (LowCardinality chType)
 deriving newtype instance (NFData chType, IsLowCardinalitySupported chType) => NFData (LowCardinality chType)
@@ -1699,70 +1743,19 @@ instance {-# OVERLAPPABLE #-}
     )
   ) => IsLowCardinalitySupported chType
 
-instance
-  ( IsLowCardinalitySupported chType
-  , KnownSymbol ("LowCardinality(" `AppendSymbol` ToChTypeName chType `AppendSymbol` ")")
-  ) =>
-  IsChType (LowCardinality chType)
-  where
-  type ToChTypeName (LowCardinality chType) = "LowCardinality(" `AppendSymbol` ToChTypeName chType `AppendSymbol` ")"
-  defaultValueOfTypeName = MkLowCardinality $ defaultValueOfTypeName @chType
-
-instance
-  ( ToChType inputType chType
-  , IsChType (LowCardinality inputType)
-  , IsLowCardinalitySupported inputType
-  )
-  =>
-  ToChType (LowCardinality inputType) chType
-  where
+instance ToChType inputType chType => ToChType (LowCardinality inputType) chType where
   toChType = MkLowCardinality . toChType
 
-instance {-# OVERLAPPING #-}
-  ( IsChType (LowCardinality chType)
-  , IsLowCardinalitySupported chType
-  )
-  =>
-  ToChType (LowCardinality chType) chType
-  where
-  toChType = MkLowCardinality
-
-instance IsLowCardinalitySupported chType => ToChType chType (LowCardinality chType)
-  where
-  toChType (MkLowCardinality value) = value
-
-instance IsLowCardinalitySupported chType => FromChType chType (LowCardinality chType)
-  where
+instance FromChType chType (LowCardinality chType) where
   fromChType = MkLowCardinality
 
 instance
-  ( FromChType chType outputType
-  , IsChType (LowCardinality chType)
-  , IsLowCardinalitySupported chType
-  )
+  FromChType chType outputType
   =>
   FromChType (LowCardinality chType) outputType
   where
   fromChType (MkLowCardinality value) = fromChType value
 
-instance {-# OVERLAPPING #-}
-  ( IsChType (LowCardinality chType)
-  , IsLowCardinalitySupported chType
-  )
-  =>
-  FromChType (LowCardinality chType) chType
-  where
-  fromChType (MkLowCardinality value) = value
-
-instance
-  ( ToQueryPart chType
-  , IsChType (LowCardinality chType)
-  , IsLowCardinalitySupported chType
-  )
-  =>
-  ToQueryPart (LowCardinality chType)
-  where
-  toQueryPart (MkLowCardinality chType) = toQueryPart chType
 
 
 
@@ -1774,13 +1767,6 @@ newtype ChUUID = MkChUUID Word128
 instance IsChType ChUUID where
   type ToChTypeName ChUUID = "UUID"
   defaultValueOfTypeName = MkChUUID 0
-
-instance ToQueryPart ChUUID where
-  toQueryPart (MkChUUID (Word128 hi lo)) = mconcat
-    ["'", p 3 hi, p 2 hi, "-", p 1 hi, "-", p 0 hi, "-", p 3 lo, "-", p 2 lo, p 1 lo, p 0 lo, "'"]
-    where
-    p :: Int -> Word64 -> Builder
-    p shiftN word = word16HexFixed $ fromIntegral (word `unsafeShiftR` (shiftN*16))
 
 
 instance ToChType ChUUID Word64 where toChType = MkChUUID . flip Word128 0
@@ -1800,13 +1786,6 @@ instance IsChType ChString where
   defaultValueOfTypeName = ""
 
 
-instance ToQueryPart ChString where toQueryPart (MkChString string) =  "'" <> escapeQuery string <> "'"
-
-escapeQuery :: StrictByteString -> Builder
-escapeQuery -- [ClickHaskell.DbTypes.ToDo.1]: Optimize
-  = BS.byteString
-  . BS8.concatMap (\case '\'' -> "\\\'"; '\\' -> "\\\\"; sym -> BS8.singleton sym;)
-
 instance ToChType ChString StrictByteString where toChType = MkChString
 instance ToChType ChString Builder          where toChType = MkChString . toStrict . toLazyByteString
 instance ToChType ChString String           where toChType = MkChString . BS8.pack
@@ -1814,6 +1793,7 @@ instance ToChType ChString Text             where toChType = MkChString . Text.e
 instance ToChType ChString Int              where toChType = MkChString . BS8.pack . show
 
 instance FromChType ChString StrictByteString where fromChType (MkChString string) = string
+instance FromChType ChString Builder where fromChType (MkChString string) = byteString string
 instance
   ( TypeError
     (     'Text "ChString to Text using FromChType convertion could cause exception"
@@ -1823,118 +1803,6 @@ instance
   FromChType ChString Text
   where
   fromChType = error "Unreachable"
-
-
-
-
-instance IsChType Int8 where
-  type ToChTypeName Int8 = "Int8"
-  defaultValueOfTypeName = 0
-
-instance ToQueryPart Int8
-  where
-  toQueryPart = BS.byteString . BS8.pack . show
-
-
-
-
-instance IsChType Int16 where
-  type ToChTypeName Int16 = "Int16"
-  defaultValueOfTypeName = 0
-
-instance ToQueryPart Int16 where toQueryPart = BS.byteString . BS8.pack . show
-
-
-
-
-instance IsChType Int32 where
-  type ToChTypeName Int32 = "Int32"
-  defaultValueOfTypeName = 0
-
-instance ToQueryPart Int32 where toQueryPart = BS.byteString . BS8.pack . show
-
-
-
-
-instance IsChType Int64 where
-  type ToChTypeName Int64 = "Int64"
-  defaultValueOfTypeName = 0
-
-instance ToQueryPart Int64 where toQueryPart = BS.byteString . BS8.pack . show
-
-instance ToChType Int64 Int     where toChType = fromIntegral
-
-
-
-
-instance IsChType Int128 where
-  type ToChTypeName Int128 = "Int128"
-  defaultValueOfTypeName = 0
-
-instance ToQueryPart Int128 where toQueryPart = BS.byteString . BS8.pack . show
-
-
-
-
--- | ClickHouse UInt8 column type
-type UInt8 = Word8
-
-instance IsChType UInt8 where
-  type ToChTypeName UInt8 = "UInt8"
-  defaultValueOfTypeName = 0
-
-
-instance ToQueryPart UInt8 where toQueryPart = BS.byteString . BS8.pack . show
-
-
-
-
--- | ClickHouse UInt16 column type
-type UInt16 = Word16
-
-instance IsChType UInt16 where
-  type ToChTypeName UInt16 = "UInt16"
-  defaultValueOfTypeName = 0
-
-instance ToQueryPart UInt16 where toQueryPart = BS.byteString . BS8.pack . show
-
-
-
-
--- | ClickHouse UInt32 column type
-type UInt32 = Word32
-
-instance IsChType UInt32 where
-  type ToChTypeName UInt32 = "UInt32"
-  defaultValueOfTypeName = 0
-
-instance ToQueryPart UInt32 where toQueryPart = BS.byteString . BS8.pack . show
-
-
-
-
--- | ClickHouse UInt64 column type
-type UInt64 = Word64
-
-instance IsChType UInt64 where
-  type ToChTypeName UInt64 = "UInt64"
-  defaultValueOfTypeName = 0
-
-instance ToQueryPart UInt64 where toQueryPart = BS.byteString . BS8.pack . show
-
-
-
-
--- | ClickHouse UInt128 column type
-type UInt128 = Word128
-
-instance IsChType UInt128 where
-  type ToChTypeName UInt128 = "UInt128"
-  defaultValueOfTypeName = 0
-
-instance ToQueryPart UInt128 where toQueryPart = BS.byteString . BS8.pack . show
-
-instance ToChType UInt128 UInt64    where toChType = fromIntegral
 
 
 
@@ -1955,10 +1823,6 @@ instance KnownSymbol (ToChTypeName (DateTime tz)) => IsChType (DateTime tz)
   type ToChTypeName (DateTime tz) = If (tz == "") ("DateTime") ("DateTime('" `AppendSymbol` tz `AppendSymbol` "')")
   defaultValueOfTypeName = MkDateTime 0
 
-instance (IsChType (DateTime tz)) => ToQueryPart (DateTime tz)
-  where
-  toQueryPart chDateTime = let time = BS8.pack . show . fromChType @(DateTime tz) @Word32 $ chDateTime
-    in BS.byteString (BS8.replicate (10 - BS8.length time) '0' <> time)
 
 instance ToChType (DateTime tz) Word32     where toChType = MkDateTime
 instance ToChType (DateTime tz) UTCTime    where toChType = MkDateTime . floor . utcTimeToPOSIXSeconds
@@ -1988,9 +1852,8 @@ newtype ChArray a = MkChArray [a]
   deriving newtype (Show, Eq, NFData)
 
 instance
-  ( IsChType chType
-  , KnownSymbol (AppendSymbol (AppendSymbol "Array(" (ToChTypeName chType)) ")")
-  ) =>
+  KnownSymbol (AppendSymbol (AppendSymbol "Array(" (ToChTypeName chType)) ")")
+  =>
   IsChType (ChArray chType)
   where
   type ToChTypeName (ChArray chType) = "Array(" `AppendSymbol` ToChTypeName chType `AppendSymbol` ")"
@@ -1999,26 +1862,13 @@ instance
 
 
 
-instance
-  ( ToQueryPart chType
-  , IsChType (ChArray chType)
-  ) =>
-  ToQueryPart (ChArray chType)
+instance FromChType chType inputType => FromChType (ChArray chType) [inputType]
   where
-  toQueryPart
-    = (\x -> "[" <> x <> "]")
-    . (maybe "" (uncurry (foldr (\ a b -> a <> "," <> b)))
-    . uncons
-    . map (toQueryPart @chType))
-    . fromChType
+  fromChType (MkChArray values) = map fromChType values
 
-instance
-  FromChType (ChArray chType) [chType] where fromChType (MkChArray values) = values
-
-instance
-  ( ToChType chType inputType
-  ) =>
-  ToChType (ChArray chType) [inputType] where toChType = MkChArray . map toChType
+instance ToChType chType inputType => ToChType (ChArray chType) [inputType]
+  where
+  toChType = MkChArray . map toChType
 
 
 
@@ -2069,9 +1919,8 @@ afterRevision chosenRevision monoid =
   then monoid
   else mempty
 
-{-# INLINE [0] mostRecentRevision #-}
-mostRecentRevision :: ProtocolRevision
-mostRecentRevision = (fromIntegral . natVal) (Proxy @DBMS_TCP_PROTOCOL_VERSION)
+latestSupportedRevision :: ProtocolRevision
+latestSupportedRevision = (fromIntegral . natVal) (Proxy @DBMS_TCP_PROTOCOL_VERSION)
 
 data SinceRevision a (revisionNumber :: Nat) = MkSinceRevision a | NotPresented
 instance Show a => Show (SinceRevision a revisionNumber) where
@@ -2079,9 +1928,7 @@ instance Show a => Show (SinceRevision a revisionNumber) where
   show NotPresented = ""
 
 instance
-  ( KnownNat revision
-  , Deserializable chType
-  )
+  (KnownNat revision, Deserializable chType)
   =>
   Deserializable (SinceRevision chType revision)
   where
