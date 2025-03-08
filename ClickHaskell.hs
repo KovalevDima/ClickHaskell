@@ -311,15 +311,18 @@ generateRandom ::
   .
   (ReadableFrom (Columns columns) record)
   =>
-  Connection -> () -> ([record] -> IO result) -> IO [result]
-generateRandom conn _ f = do
+  Connection -> UInt64 -> ([record] -> IO result) -> IO [result]
+generateRandom conn limit f = do
   withConnection conn $ \connState@MkConnectionState{revision, user} -> do
     writeToConnection connState (mkQueryPacket revision user query)
     writeToConnection connState (mkDataPacket "" 0 0)
     handleSelect @(Columns columns) connState (\x -> id <$!> f x)
   where
-  query = toChType $
-    "SELECT " <> readingColumns @(Columns columns) @record
+  query =
+    let columns = readingColumnsAndTypes @(Columns columns) @record
+    in toChType $
+      "SELECT * FROM generateRandom('" <> columns <> "')" <>
+      " LIMIT " <> toQueryPart limit <> ";"
 
 -- *** Internal
 
@@ -866,12 +869,16 @@ class HasColumns hasColumns => ReadableFrom hasColumns record
 
   default readingColumns :: GenericReadable record hasColumns => Builder
   readingColumns :: Builder
-  readingColumns = maybe "" (uncurry (foldr (\a b -> a <> "," <> b))) . uncons . map fst
+  readingColumns
+    = maybe "" (uncurry (foldl (\a b -> a <> ", " <> b))) . uncons
+    . map fst
     $ gReadingColumns @(GetColumns hasColumns) @(Rep record)
 
   default readingColumnsAndTypes :: GenericReadable record hasColumns => Builder
   readingColumnsAndTypes :: Builder
-  readingColumnsAndTypes = maybe "" (uncurry (foldr (\a b -> a <> "," <> b))) . uncons . map fst
+  readingColumnsAndTypes
+    = maybe "" (uncurry (foldl (\a b -> a <> ", " <> b))) . uncons
+    . map (\(colName, colType) -> colName <> " " <> colType)
     $ gReadingColumns @(GetColumns hasColumns) @(Rep record)
 
 
