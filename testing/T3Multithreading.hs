@@ -24,11 +24,11 @@ t3 connection = do
       @ExampleColumns
       @ExampleData
       connection
-      5
+      1 10 2
+      1
       pure
     )
   print "Multithreading: Ok"
-  -- (toChType "SELECT * FROM generateRandom('a1 Int64', 1, 10, 2) LIMIT 1")
 
 data ExampleData = MkExampleData
   { a1 :: Int64

@@ -33,7 +33,6 @@ import ClickHaskell
 
 -- GHC included
 import Data.ByteString (StrictByteString)
-import Data.ByteString.Builder (string8)
 import Data.Word (Word32)
 import Debug.Trace (traceMarkerIO)
 import GHC.Generics (Generic)
@@ -46,24 +45,15 @@ main = do
   readingConnection <- openNativeConnection credentials
   writingConnection <- openNativeConnection credentials
 
-  let totalRows = 1_000_000 :: Integer
+  let totalRows = 1_000_000
 
   _ <-
-    select
+    generateRandom
       @ExampleColumns
       @ExampleData
       readingConnection
-      (toChType $
-        "SELECT * FROM generateRandom('\
-        \a1 Int64, \
-        \a3 DateTime, \
-        \a4 UUID, \
-        \a2 String, \
-        \a5 Int32, \
-        \a6 Nullable(String), \
-        \a7 String\
-        \', 1, 10, 2) LIMIT " <> (string8 . show) totalRows
-      )
+      1 10 2
+      totalRows
       (insertInto @(Table "profiler" ExampleColumns) writingConnection)
 
   print $ "Writing done. " <> show totalRows <> " rows was written"

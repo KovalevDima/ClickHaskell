@@ -14,7 +14,6 @@ module PT2OneBillionStream (main) where
 import ClickHaskell
 
 -- GHC included
-import Data.ByteString.Builder (string8)
 import Debug.Trace (traceMarkerIO)
 import GHC.Generics (Generic)
 import Control.DeepSeq (NFData)
@@ -26,19 +25,17 @@ main = do
   let credentials = MkChCredential "default" "" "" "localhost" "9000"
   connection <- openNativeConnection credentials
 
-  let totalRows = 100_000_000 :: Integer
+  let totalRows = 100_000_000
 
   result <-
-    sum <$> select
-      @ExampleColumns
-      @ExampleData
-      connection
-      (toChType $
-        "SELECT * FROM generateRandom('\
-        \a1 Int64 \
-        \', 1, 10, 2) LIMIT " <> (string8 . show) totalRows
-      )
-      (pure . length)
+    sum <$>
+      generateRandom
+        @ExampleColumns
+        @ExampleData
+        connection
+        1 10 2
+        totalRows
+        (pure . length)
 
   print $ "Processing done. " <> show result <> " rows was processed"
 

@@ -311,8 +311,8 @@ generateRandom ::
   .
   (ReadableFrom (Columns columns) record)
   =>
-  Connection -> UInt64 -> ([record] -> IO result) -> IO [result]
-generateRandom conn limit f = do
+  Connection -> UInt64 -> UInt64 -> UInt64 -> UInt64 -> ([record] -> IO result) -> IO [result]
+generateRandom conn randomSeed maxStrLen maxArrayLen limit f = do
   withConnection conn $ \connState@MkConnectionState{revision, user} -> do
     writeToConnection connState (mkQueryPacket revision user query)
     writeToConnection connState (mkDataPacket "" 0 0)
@@ -321,7 +321,12 @@ generateRandom conn limit f = do
   query =
     let columns = readingColumnsAndTypes @(Columns columns) @record
     in toChType $
-      "SELECT * FROM generateRandom('" <> columns <> "')" <>
+      "SELECT * FROM generateRandom(" <>
+          "'" <> columns <> "' ," <>
+            toQueryPart randomSeed <> "," <>
+            toQueryPart maxStrLen <> "," <>
+            toQueryPart maxArrayLen <>
+        ")" <>
       " LIMIT " <> toQueryPart limit <> ";"
 
 -- *** Internal
