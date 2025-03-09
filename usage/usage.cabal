@@ -32,3 +32,13 @@ executable selectFromView
     -main-is ReadingView
     -Wall
   build-tool-depends: markdown-unlit:markdown-unlit
+
+executable generateRandom
+  default-language: GHC2021
+  main-is: generateRandom.lhs
+  build-depends:
+      ClickHaskell
+    , base >=4.7 && <5
+    , bytestring
+  ghc-options: -pgmL markdown-unlit -Wall
+  build-tool-depends: markdown-unlit:markdown-unlit

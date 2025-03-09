@@ -20,11 +20,12 @@ import GHC.Stack (HasCallStack)
 t3 :: HasCallStack => Connection -> IO ()
 t3 connection = do
   replicateConcurrently_ 10000 (
-    select
+    generateRandom
       @ExampleColumns
       @ExampleData
       connection
-      (toChType "SELECT * FROM generateRandom('a1 Int64', 1, 10, 2) LIMIT 1")
+      (1, 10, 2)
+      1
       pure
     )
   print "Multithreading: Ok"

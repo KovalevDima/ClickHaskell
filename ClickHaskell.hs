@@ -41,13 +41,13 @@ module ClickHaskell
   , Table
   , Columns, Column, KnownColumn(..), DeserializableColumn(..)
 
-  -- ** Reading
+  -- * Reading
   , ReadableFrom(..)
-  -- *** Simple
   , select
   , selectFrom
   , selectFromView, View, parameter, Parameter, Parameters, viewParameters
-  -- *** Internal
+  , generateRandom
+  -- ** Internal
   , handleSelect
 
   -- * Errors
@@ -56,7 +56,7 @@ module ClickHaskell
   , UserError(..)
   , InternalError(..)
 
-  -- ** Writing
+  -- * Writing
   , WritableInto(..)
   , insertInto
 
@@ -250,11 +250,7 @@ ping conn = do
 
 
 
--- * Querying
-
-data Table (name :: Symbol) (columns :: [Type])
-
--- ** Selecting
+-- * Reading
 
 select ::
   forall columns record result
@@ -268,6 +264,8 @@ select conn query f = do
     writeToConnection connState (mkDataPacket "" 0 0)
     handleSelect @(Columns columns) connState (\x -> id <$!> f x)
 
+data Table (name :: Symbol) (columns :: [Type])
+
 selectFrom ::
   forall table record name columns a
   .
@@ -279,12 +277,13 @@ selectFrom ::
   Connection -> ([record] -> IO a) -> IO [a]
 selectFrom conn f = do
   withConnection conn $ \connState@MkConnectionState{revision, user} -> do
-    let query
-          = "SELECT " <> readingColumns @table @record
-          <> " FROM " <> (byteString . BS8.pack) (symbolVal $ Proxy @name)
     writeToConnection connState (mkQueryPacket revision user (toChType query))
     writeToConnection connState (mkDataPacket "" 0 0)
     handleSelect @table connState (\x -> id <$!> f x)
+  where
+    query =
+      "SELECT " <> readingColumns @table @record <>
+      " FROM " <> (byteString . BS8.pack) (symbolVal $ Proxy @name)
 
 data View (name :: Symbol) (columns :: [Type]) (parameters :: [Type])
 
@@ -299,12 +298,36 @@ selectFromView ::
   => Connection -> (Parameters '[] -> Parameters passedParameters) -> ([record] -> IO result) -> IO [result]
 selectFromView conn interpreter f = do
   withConnection conn $ \connState@MkConnectionState{revision, user} -> do
-    let query =
-          "SELECT " <> readingColumns @view @record <>
-          " FROM " <> (byteString . BS8.pack . symbolVal @name) Proxy <> viewParameters interpreter
     writeToConnection connState (mkQueryPacket revision user (toChType query))
     writeToConnection connState (mkDataPacket "" 0 0)
     handleSelect @view connState (\x -> id <$!> f x)
+    where
+    query =
+      "SELECT " <> readingColumns @view @record <>
+      " FROM " <> (byteString . BS8.pack . symbolVal @name) Proxy <> viewParameters interpreter
+
+generateRandom ::
+  forall columns record result
+  .
+  (ReadableFrom (Columns columns) record)
+  =>
+  Connection -> (UInt64, UInt64, UInt64) -> UInt64 -> ([record] -> IO result) -> IO [result]
+generateRandom conn (randomSeed, maxStrLen, maxArrayLen) limit f = do
+  withConnection conn $ \connState@MkConnectionState{revision, user} -> do
+    writeToConnection connState (mkQueryPacket revision user query)
+    writeToConnection connState (mkDataPacket "" 0 0)
+    handleSelect @(Columns columns) connState (\x -> id <$!> f x)
+  where
+  query =
+    let columns = readingColumnsAndTypes @(Columns columns) @record
+    in toChType $
+      "SELECT * FROM generateRandom(" <>
+          "'" <> columns <> "' ," <>
+            toQueryPart randomSeed <> "," <>
+            toQueryPart maxStrLen <> "," <>
+            toQueryPart maxArrayLen <>
+        ")" <>
+      " LIMIT " <> toQueryPart limit <> ";"
 
 -- *** Internal
 
@@ -329,7 +352,9 @@ handleSelect MkConnectionState{..} f = loop []
       otherPacket         -> throwIO (InternalError $ UnexpectedPacketType otherPacket)
 
 
--- ** Inserting
+
+
+-- * Writing
 
 insertInto ::
   forall table record name columns
@@ -341,12 +366,14 @@ insertInto ::
   => Connection -> [record] -> IO ()
 insertInto conn columnsData = do
   withConnection conn $ \connState@MkConnectionState{user, revision} -> do
-    let query =
-          "INSERT INTO " <> (byteString . BS8.pack) (symbolVal $ Proxy @name)
-          <> " (" <> writingColumns @table @record <> ") VALUES"
-    writeToConnection connState (mkQueryPacket revision user (toChType query))
+    writeToConnection connState (mkQueryPacket revision user query)
     writeToConnection connState (mkDataPacket "" 0 0)
     handleInsertResult @table connState columnsData
+  where
+  query = toChType $
+    "INSERT INTO " <> (byteString . BS8.pack . symbolVal @name $ Proxy)
+    <> " (" <> writingColumns @table @record <> ") VALUES"
+    
 
 handleInsertResult :: forall columns record . WritableInto columns record => ConnectionState -> [record] -> IO ()
 handleInsertResult conn@MkConnectionState{..} records = do
@@ -847,13 +874,23 @@ class HasColumns hasColumns => ReadableFrom hasColumns record
 
   default readingColumns :: GenericReadable record hasColumns => Builder
   readingColumns :: Builder
-  readingColumns = gReadingColumns @(GetColumns hasColumns) @(Rep record)
+  readingColumns
+    = maybe "" (uncurry (foldl (\a b -> a <> ", " <> b))) . uncons
+    . map fst
+    $ gReadingColumns @(GetColumns hasColumns) @(Rep record)
+
+  default readingColumnsAndTypes :: GenericReadable record hasColumns => Builder
+  readingColumnsAndTypes :: Builder
+  readingColumnsAndTypes
+    = maybe "" (uncurry (foldl (\a b -> a <> ", " <> b))) . uncons
+    . map (\(colName, colType) -> colName <> " " <> colType)
+    $ gReadingColumns @(GetColumns hasColumns) @(Rep record)
 
 
 class GReadable (columns :: [Type]) f
   where
   gFromColumns :: ProtocolRevision -> UVarInt -> Get [f p]
-  gReadingColumns :: Builder
+  gReadingColumns :: [(Builder, Builder)]
 
 instance
   GReadable columns f
@@ -891,8 +928,8 @@ instance
       <$> gFromColumns @'[Column name chType] rev size
       <*> gFromColumns @restColumns rev size
   gReadingColumns =
-    renderColumnName @(Column name chType)
-    <> ", " <> gReadingColumns @restColumns @right
+    (renderColumnName @(Column name chType), renderColumnType @(Column name chType))
+    : gReadingColumns @restColumns @right
 
 instance
   ( KnownColumn (Column name chType)
@@ -905,7 +942,7 @@ instance
   gFromColumns rev size =
     map (M1 . K1 . fromChType @chType) . columnValues
       <$> deserializeColumn @(Column name chType) rev True size
-  gReadingColumns = renderColumnName @(Column name chType)
+  gReadingColumns = (renderColumnName @(Column name chType), renderColumnType @(Column name chType)) : []
 
 
 

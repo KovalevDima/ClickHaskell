@@ -12,7 +12,8 @@ Unexpected behavior on expected and result column type mismatches (+ added test)
 - Export of client errors for exception handling
 - Dropped vector dependency
 - Introduced memory consumption test (64M limit) on parallel reading and writing of 1 million rows
-- Depricating `Ch*` prefixes on types `ChUInt*` (to Word* type synonyms), `ChInt*`(to Int* standart types), `ChDate*` (to Date and DateTime) 
+- Added new reading wrapper for generateRandom function
+- Depricating `Ch*` prefixes on types `ChUInt*` (to Word* type synonyms), `ChInt*`(to Int* standart types), `ChDate*` (to Date and DateTime)
 
 ## Breaking changes:
 - ### New UserErrors on types and columns names missmatches
