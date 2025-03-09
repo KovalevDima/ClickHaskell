@@ -52,7 +52,7 @@ main = do
       @ExampleColumns
       @ExampleData
       readingConnection
-      1 10 2
+      (1, 10, 2)
       totalRows
       (insertInto @(Table "profiler" ExampleColumns) writingConnection)
 

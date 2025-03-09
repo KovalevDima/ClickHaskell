@@ -24,7 +24,7 @@ t3 connection = do
       @ExampleColumns
       @ExampleData
       connection
-      1 10 2
+      (1, 10, 2)
       1
       pure
     )

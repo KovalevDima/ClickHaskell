@@ -30,7 +30,7 @@ main = do
       @ExampleColumns
       @ExampleData
       connection
-      1 5 10
+      (1, 5, 10)
       1
       pure
   pure ()

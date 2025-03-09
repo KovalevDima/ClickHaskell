@@ -33,7 +33,7 @@ main = do
         @ExampleColumns
         @ExampleData
         connection
-        1 10 2
+        (1, 10, 2)
         totalRows
         (pure . length)
 
