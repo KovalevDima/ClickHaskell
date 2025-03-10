@@ -113,6 +113,7 @@ ENGINE = MergeTree
 PARTITION BY path
 ORDER BY path
 SETTINGS index_granularity = 8192;
+
 CREATE OR REPLACE VIEW default.historyByHours
 AS SELECT
     toUInt32(intDiv(toUInt32(time), 3600) * 3600) AS hour,
