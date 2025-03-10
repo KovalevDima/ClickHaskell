@@ -24,7 +24,7 @@ import Data.ByteString.Char8 as BS8 (pack, unpack)
 import Data.ByteString.Lazy as B (LazyByteString, readFile)
 import Data.HashMap.Strict as HM (HashMap, empty, fromList, lookup, unions)
 import Data.Text as T (pack)
-import Data.Time (getCurrentTime, UTCTime)
+import Data.Time (getCurrentTime)
 import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
 import Data.Word (Word32)
 import GHC.Generics (Generic)
@@ -41,6 +41,65 @@ import Network.WebSockets.Connection (defaultConnectionOptions)
 import System.Directory (doesDirectoryExist, listDirectory, withCurrentDirectory)
 import System.Environment (lookupEnv)
 import System.FilePath (dropFileName, dropTrailingPathSeparator, normalise, takeFileName, (</>))
+
+
+main :: IO ()
+main = do
+  mSocketPath  <- lookupEnv "CLICKHASKELL_PAGE_SOCKET_PATH"
+  mStaticFiles <- lookupEnv "CLICKHASKELL_STATIC_FILES_DIR"
+
+  staticFiles <-
+    maybe
+      (pure HM.empty)
+      (flip withCurrentDirectory (listFilesWithContents "."))
+      mStaticFiles
+  docsStatQueue  <- newTBQueueIO 100_000
+  clickHouse     <- openNativeConnection defaultCredentials
+  broadcastChan  <- newBroadcastTChanIO
+  currentHistory <- newTVarIO . History =<< readCurrentHistoryLast clickHouse 24
+
+  broadcastingJob <- async $ forever $ do
+    historyByHours <- readCurrentHistoryLast clickHouse 1
+    case historyByHours of
+      update:_ -> atomically $ (writeTChan broadcastChan) (HistoryUpdate update)
+      _        -> pure ()
+    threadDelay 1_000_000
+  updateCurrentHistory <- async $ forever $ do
+    atomically . writeTVar currentHistory . History =<< readCurrentHistoryLast clickHouse 24
+    threadDelay 300_000_000
+  serverTask <- async $ runServer MkServerState{..} mSocketPath
+  databaseWriter <- async $ forever $ do
+    writeStats MkDocsStatisticsState{..}
+    threadDelay 5_000_000
+  void $ waitAnyCancel [serverTask, databaseWriter, broadcastingJob, updateCurrentHistory]
+
+{-
+
+  * Stats handler
+
+-}
+
+data DocsStatisticsState = MkDocsStatisticsState
+  { docsStatQueue  :: TBQueue DocsStatistics
+  , clickHouse     :: ClickHaskell.Connection
+  }
+
+readCurrentHistoryLast :: Connection -> UInt16 -> IO [HourData]
+readCurrentHistoryLast clickHouse hours =
+  concat <$>
+    selectFromView
+      @HistoryByHours
+      clickHouse
+      (parameter @"hoursLength" @UInt16 hours)
+      pure
+
+writeStats :: DocsStatisticsState -> IO ()
+writeStats MkDocsStatisticsState{..} = catch
+  ( do
+    dataToWrite <- (atomically . flushTBQueue) docsStatQueue
+    insertInto @DocsStatTable clickHouse dataToWrite
+  )
+  (print @SomeException)
 
 {-
 ```sql
@@ -66,44 +125,7 @@ ORDER BY hour ASC;
 ```
 -}
 
-main :: IO ()
-main = do
-  mSocketPath  <- lookupEnv "CLICKHASKELL_PAGE_SOCKET_PATH"
-  mStaticFiles <- lookupEnv "CLICKHASKELL_STATIC_FILES_DIR"
-
-  staticFiles <-
-    maybe
-      (pure HM.empty)
-      (flip withCurrentDirectory (listFilesWithContents "."))
-      mStaticFiles
-  docsStatQueue  <- newTBQueueIO 100_000
-  clickHouse     <- openNativeConnection defaultCredentials
-  broadcastChan  <- newBroadcastTChanIO
-  let readCurrentHistoryLast (hours :: UInt16) =
-        concat <$>
-          selectFromView
-            @HistoryByHours
-            clickHouse
-            (parameter @"hoursLength" @UInt16 hours)
-            pure
-  currentHistory <- newTVarIO . History =<< readCurrentHistoryLast 24
-
-  broadcastingJob <- async $ forever $ do
-    historyByHours <- readCurrentHistoryLast 1
-    case historyByHours of
-      update:_ -> atomically $ (writeTChan broadcastChan) (HistoryUpdate update)
-      _        -> pure ()
-    threadDelay 1_000_000
-  updateCurrentHistory <- async $ forever $ do
-    atomically . writeTVar currentHistory . History =<< readCurrentHistoryLast 24
-    threadDelay 300_000_000
-  serverTask <- async $ runServer MkServerState{..} mSocketPath
-  databaseWriter <- async $ forever $ do
-    catch
-      (writeStats MkDocsStatisticsState{..})
-      (print @SomeException)
-    threadDelay 5_000_000
-  void $ waitAnyCancel [serverTask, databaseWriter, broadcastingJob, updateCurrentHistory]
+-- ** Writing data
 
 data DocsStatistics = MkDocsStatistics
   { time       :: Word32
@@ -121,6 +143,15 @@ type DocsStatTable =
     , Column "remoteAddr" UInt32
     ]
 
+-- ** Reading data
+
+data HourData = MkHourData
+  { hour :: Word32
+  , visits :: Word32
+  }
+  deriving stock (Generic)
+  deriving anyclass (ToJSON, ReadableFrom HistoryByHours)
+
 type HistoryByHours =
   View
     "historyByHours"
@@ -132,34 +163,20 @@ type HistoryByHours =
 
 {-
 
-Stats handler
-
--}
-
-data DocsStatisticsState = MkDocsStatisticsState
-  { docsStatQueue  :: TBQueue DocsStatistics
-  , clickHouse     :: ClickHaskell.Connection
-  , broadcastChan  :: TChan HistoryData
-  }
-
-writeStats :: DocsStatisticsState -> IO ()
-writeStats MkDocsStatisticsState{..} = do
-  dataToWrite <- (atomically . flushTBQueue) docsStatQueue
-  insertInto @DocsStatTable clickHouse dataToWrite
-
-{-
-
-Web application core logic
+  * Web application core logic
 
 -}
 
 data ServerState = MkServerState
-  { staticFiles    :: HashMap FilePath (MimeType, LazyByteString)
+  { staticFiles    :: HashMap StrictByteString (MimeType, LazyByteString)
   , docsStatQueue  :: TBQueue DocsStatistics
-  , clickHouse     :: ClickHaskell.Connection
   , currentHistory :: TVar HistoryData
   , broadcastChan  :: TChan HistoryData
   }
+
+data HistoryData = History{history :: [HourData]} | HistoryUpdate{realtime :: HourData}
+  deriving stock (Generic)
+  deriving anyclass (ToJSON)
 
 runServer :: ServerState -> Maybe FilePath -> IO ()
 runServer serverState mSocketPath = do
@@ -175,57 +192,34 @@ runServer serverState mSocketPath = do
       listen sock maxListenQueue
       runSettingsSocket defaultSettings sock (app serverState)
 
-
 app :: ServerState -> Application
 app state req respond = do
-  time <- getCurrentTime
   websocketsOr
     defaultConnectionOptions
-    (wsServer state)
-    (httpApp state time)
-    req
-    respond
+    (wsServer state) (httpApp state)
+    req respond
 
-httpApp :: ServerState -> UTCTime -> Application
-httpApp MkServerState{staticFiles, docsStatQueue} currentTime req f = do
-  let path      = (dropIndexHtml . BS8.unpack . rawPathInfo) req
-      clientIp4 = maybe 0 getIPv4 (decodeUtf8 =<< Prelude.lookup "X-Real-IP" (requestHeaders req))
-      time      = (floor . utcTimeToPOSIXSeconds) currentTime
+httpApp :: ServerState -> Application
+httpApp MkServerState{staticFiles, docsStatQueue} req f = do
+  currentTime <- getCurrentTime
+  let path       = (dropIndexHtml . BS8.unpack . rawPathInfo) req
+      remoteAddr = maybe 0 getIPv4 (decodeUtf8 =<< Prelude.lookup "X-Real-IP" (requestHeaders req))
+      time       = (floor . utcTimeToPOSIXSeconds) currentTime
   case HM.lookup path staticFiles of
     Nothing -> f (responseLBS status404 [("Content-Type", "text/plain")] "404 - Not Found")
     Just (mimeType, content) -> do
-      (atomically . writeTBQueue docsStatQueue)
-        MkDocsStatistics
-          { time
-          , path       = BS8.pack path
-          , remoteAddr = clientIp4
-          }
+      (atomically . writeTBQueue docsStatQueue) MkDocsStatistics{..}
       f (responseLBS status200 [(hContentType, mimeType)] content)
-
-data HistoryData
-  = History { history :: [HourData] }
-  | HistoryUpdate { realtime :: HourData}
-  deriving stock (Generic)
-  deriving anyclass (ToJSON)
-
-data HourData = MkHourData
-  { hour :: Word32
-  , visits :: Word32
-  }
-  deriving stock (Generic)
-  deriving anyclass (ToJSON, ReadableFrom HistoryByHours)
 
 wsServer :: ServerState -> ServerApp
 wsServer MkServerState{broadcastChan, currentHistory} pending = do
-  clientChan <- atomically $ dupTChan broadcastChan
   conn <- acceptRequest pending
-  currentHistoryState <- readTVarIO currentHistory
-  sendTextData conn (encode currentHistoryState)
+  sendTextData conn =<< (encode <$> readTVarIO currentHistory)
+  clientChan <- atomically $ dupTChan broadcastChan
   forever $ do
-    msg <- atomically $ readTChan clientChan
-    sendTextData conn (encode msg)
+    sendTextData conn =<< (fmap encode . atomically . readTChan) clientChan
 
-listFilesWithContents :: FilePath -> IO (HashMap FilePath (MimeType, LazyByteString))
+listFilesWithContents :: FilePath -> IO (HashMap StrictByteString (MimeType, LazyByteString))
 listFilesWithContents dir = do
   entries <- listDirectory dir
   let paths = map (dir </>) entries
@@ -237,12 +231,12 @@ listFilesWithContents dir = do
   nestedMaps <- forM subdirs listFilesWithContents
   return $ HM.unions (HM.fromList fileContents : nestedMaps)
   where
-  prepareFilePath :: FilePath -> FilePath
+  prepareFilePath :: FilePath -> StrictByteString
   prepareFilePath = dropIndexHtml . normalise . ("/" </>)  
 
 
-dropIndexHtml :: FilePath -> FilePath
-dropIndexHtml fp = dropTrailingPathSeparator $
+dropIndexHtml :: FilePath -> StrictByteString
+dropIndexHtml fp = BS8.pack .  dropTrailingPathSeparator $
   if takeFileName fp == "index.html"
   then dropFileName fp
   else fp
