@@ -101,6 +101,29 @@ writeStats MkDocsStatisticsState{..} = catch
   )
   (print @SomeException)
 
+{-
+```sql
+CREATE TABLE default.ClickHaskellStats
+(
+    `time` DateTime,
+    `path` LowCardinality(String),
+    `remoteAddr` UInt32
+)
+ENGINE = MergeTree
+PARTITION BY path
+ORDER BY path
+SETTINGS index_granularity = 8192;
+CREATE OR REPLACE VIEW default.historyByHours
+AS SELECT
+    toUInt32(intDiv(toUInt32(time), 3600) * 3600) AS hour,
+    toUInt32(countDistinct(remoteAddr)) AS visits
+FROM default.ClickHaskellStats
+WHERE hour > (now() - ({hoursLength:UInt16} * 3600))
+GROUP BY hour
+ORDER BY hour ASC;
+```
+-}
+
 -- ** Writing data
 
 data DocsStatistics = MkDocsStatistics
