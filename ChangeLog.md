@@ -95,3 +95,7 @@ Unexpected behavior on expected and result column type mismatches (+ added test)
     ```haskell
     import ClickHaskell (ChInt8)
     ```
+
+# 0.1.0 -- 04-12-2024
+
+Initial release
