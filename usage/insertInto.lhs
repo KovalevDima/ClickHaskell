@@ -24,7 +24,7 @@ There are a simple "How to do" example:
   , OverloadedStrings
 #-}
 
-module Writing where
+module Main where
 
 import ClickHaskell
   ( WritableInto, insertInto

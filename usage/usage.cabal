@@ -15,10 +15,16 @@ executable insertInto
       ClickHaskell
     , base >=4.7 && <5
     , bytestring
-  ghc-options:
-    -pgmL markdown-unlit
-    -main-is Writing
-    -Wall
+  ghc-options: -pgmL markdown-unlit -Wall
+  build-tool-depends: markdown-unlit:markdown-unlit
+
+executable select
+  default-language: GHC2021
+  main-is: select.lhs
+  build-depends:
+      ClickHaskell
+    , base >=4.7 && <5
+  ghc-options: -pgmL markdown-unlit -Wall
   build-tool-depends: markdown-unlit:markdown-unlit
 
 executable selectFromView
@@ -27,10 +33,7 @@ executable selectFromView
   build-depends:
       ClickHaskell
     , base >=4.7 && <5
-  ghc-options:
-    -pgmL markdown-unlit
-    -main-is ReadingView
-    -Wall
+  ghc-options: -pgmL markdown-unlit -Wall
   build-tool-depends: markdown-unlit:markdown-unlit
 
 executable generateRandom
