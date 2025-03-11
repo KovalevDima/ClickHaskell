@@ -123,6 +123,7 @@ import Data.Word (Word16, Word32, Word64, Word8)
 import GHC.Generics (C1, D1, Generic (..), K1 (K1, unK1), M1 (M1, unM1), Meta (MetaSel), Rec0, S1, type (:*:) (..))
 import GHC.Stack (HasCallStack, callStack, prettyCallStack)
 import GHC.TypeLits (AppendSymbol, ErrorMessage (..), KnownNat, KnownSymbol, Nat, Symbol, TypeError, natVal, symbolVal)
+import System.Environment (lookupEnv)
 import System.Timeout (timeout)
 
 -- External
@@ -165,6 +166,8 @@ withConnection (MkConnection connStateMVar) f =
 data ConnectionState = MkConnectionState
   { sock     :: Socket
   , user     :: ChString
+  , hostname :: ChString
+  , os_user  :: ChString
   , buffer   :: Buffer
   , revision :: ProtocolRevision
   , creds    :: ChCredential
@@ -192,6 +195,8 @@ reopenConnection MkConnectionState{..} = do
 
 createConnectionState :: ChCredential -> IO ConnectionState
 createConnectionState creds@MkChCredential{chHost, chPort, chLogin, chPass, chDatabase} = do
+  hostname <- maybe "" toChType <$> lookupEnv "HOSTNAME"
+  os_user <- maybe "" toChType <$> lookupEnv "USER"
   AddrInfo{addrFamily, addrSocketType, addrProtocol, addrAddress}
     <- maybe (throwIO NoAdressResolved) pure . listToMaybe
     =<< getAddrInfo
@@ -259,8 +264,8 @@ select ::
   =>
   Connection -> ChString -> ([record] -> IO result) -> IO [result]
 select conn query f = do
-  withConnection conn $ \connState@MkConnectionState{revision, user} -> do
-    writeToConnection connState (mkQueryPacket revision user query)
+  withConnection conn $ \connState -> do
+    writeToConnection connState (mkQueryPacket connState query)
     writeToConnection connState (mkDataPacket "" 0 0)
     handleSelect @(Columns columns) connState (\x -> id <$!> f x)
 
@@ -276,8 +281,8 @@ selectFrom ::
   =>
   Connection -> ([record] -> IO a) -> IO [a]
 selectFrom conn f = do
-  withConnection conn $ \connState@MkConnectionState{revision, user} -> do
-    writeToConnection connState (mkQueryPacket revision user (toChType query))
+  withConnection conn $ \connState -> do
+    writeToConnection connState (mkQueryPacket connState (toChType query))
     writeToConnection connState (mkDataPacket "" 0 0)
     handleSelect @table connState (\x -> id <$!> f x)
   where
@@ -297,8 +302,8 @@ selectFromView ::
   )
   => Connection -> (Parameters '[] -> Parameters passedParameters) -> ([record] -> IO result) -> IO [result]
 selectFromView conn interpreter f = do
-  withConnection conn $ \connState@MkConnectionState{revision, user} -> do
-    writeToConnection connState (mkQueryPacket revision user (toChType query))
+  withConnection conn $ \connState -> do
+    writeToConnection connState (mkQueryPacket connState (toChType query))
     writeToConnection connState (mkDataPacket "" 0 0)
     handleSelect @view connState (\x -> id <$!> f x)
     where
@@ -313,8 +318,8 @@ generateRandom ::
   =>
   Connection -> (UInt64, UInt64, UInt64) -> UInt64 -> ([record] -> IO result) -> IO [result]
 generateRandom conn (randomSeed, maxStrLen, maxArrayLen) limit f = do
-  withConnection conn $ \connState@MkConnectionState{revision, user} -> do
-    writeToConnection connState (mkQueryPacket revision user query)
+  withConnection conn $ \connState -> do
+    writeToConnection connState (mkQueryPacket connState query)
     writeToConnection connState (mkDataPacket "" 0 0)
     handleSelect @(Columns columns) connState (\x -> id <$!> f x)
   where
@@ -365,8 +370,8 @@ insertInto ::
   )
   => Connection -> [record] -> IO ()
 insertInto conn columnsData = do
-  withConnection conn $ \connState@MkConnectionState{user, revision} -> do
-    writeToConnection connState (mkQueryPacket revision user query)
+  withConnection conn $ \connState -> do
+    writeToConnection connState (mkQueryPacket connState query)
     writeToConnection connState (mkDataPacket "" 0 0)
     handleInsertResult @table connState columnsData
   where
@@ -549,8 +554,8 @@ mkPingPacket = MkPingPacket{packet_type = MkPacket}
 
 -- ** Query
 
-mkQueryPacket :: ProtocolRevision -> ChString -> ChString -> QueryPacket
-mkQueryPacket chosenRev user query = MkQueryPacket
+mkQueryPacket :: ConnectionState -> ChString -> QueryPacket
+mkQueryPacket MkConnectionState{..} query = MkQueryPacket
   { query_packet = MkPacket
   , query_id = ""
   , client_info                    = MkSinceRevision MkClientInfo
@@ -560,10 +565,9 @@ mkQueryPacket chosenRev user query = MkQueryPacket
     , initial_adress               = "0.0.0.0:0"
     , initial_time                 = MkSinceRevision 0
     , interface_type               = 1 -- [tcp - 1, http - 2]
-    , os_user                      = "dmitry"
-    , hostname                     = "desktop"
+    , os_user, hostname
     , client_name, client_version_major, client_version_minor
-    , client_revision              = chosenRev
+    , client_revision              = revision
     , quota_key                    = MkSinceRevision ""
     , distrubuted_depth            = MkSinceRevision 0
     , client_version_patch
