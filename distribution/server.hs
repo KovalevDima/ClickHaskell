@@ -7,17 +7,17 @@
 
 import ClickHaskell
   ( ChString, DateTime
-  , UInt16, UInt32
+  , UInt16, UInt32, UInt64
   , WritableInto, insertInto
   , Connection, openNativeConnection, defaultCredentials
   , ReadableFrom, Column, Table
-  , View, selectFromView, Parameter, parameter
+  , View, selectFromView, Parameter, parameter, ChCredential
   )
 import Control.Concurrent (threadDelay)
-import Control.Concurrent.Async (async, waitAnyCancel)
-import Control.Concurrent.STM (TBQueue, TChan, atomically, dupTChan, flushTBQueue, newBroadcastTChanIO, newTBQueueIO, readTChan, writeTBQueue, writeTChan, TVar, newTVarIO, readTVarIO, writeTVar)
+import Control.Concurrent.Async (Concurrently (..))
+import Control.Concurrent.STM (TBQueue, TChan, TVar, atomically, dupTChan, flushTBQueue, newBroadcastTChanIO, newTBQueueIO, newTVarIO, readTChan, readTVarIO, writeTBQueue, writeTChan, writeTVar)
 import Control.Exception (SomeException, catch)
-import Control.Monad (filterM, forM, forever, void)
+import Control.Monad (filterM, forM, forever)
 import Data.Aeson (ToJSON, encode)
 import Data.ByteString (StrictByteString)
 import Data.ByteString.Char8 as BS8 (pack, unpack)
@@ -28,6 +28,7 @@ import Data.Time (getCurrentTime)
 import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
 import Data.Word (Word32)
 import GHC.Generics (Generic)
+import GHC.Stats (RTSStats (..), getRTSStats)
 import Net.IPv4 (decodeUtf8, getIPv4)
 import Network.HTTP.Types (status200, status404)
 import Network.HTTP.Types.Header (hContentType)
@@ -48,40 +49,69 @@ main = do
   mSocketPath  <- lookupEnv "CLICKHASKELL_PAGE_SOCKET_PATH"
   mStaticFiles <- lookupEnv "CLICKHASKELL_STATIC_FILES_DIR"
 
-  staticFiles <-
-    maybe
-      (pure HM.empty)
-      (flip withCurrentDirectory (listFilesWithContents "."))
-      mStaticFiles
-  docsStatQueue  <- newTBQueueIO 100_000
-  clickHouse     <- openNativeConnection defaultCredentials
-  broadcastChan  <- newBroadcastTChanIO
-  currentHistory <- newTVarIO . History =<< readCurrentHistoryLast clickHouse 24
+  docsStatQueue   <- newTBQueueIO 100_000
+  clickHouse      <- openNativeConnection defaultCredentials
+  broadcastChan   <- newBroadcastTChanIO
+  currentHistory  <- newTVarIO . History =<< readCurrentHistoryLast clickHouse 24
 
-  broadcastingJob <- async $ forever $ do
-    historyByHours <- readCurrentHistoryLast clickHouse 1
-    case historyByHours of
-      update:_ -> atomically $ (writeTChan broadcastChan) (HistoryUpdate update)
-      _        -> pure ()
-    threadDelay 1_000_000
-  updateCurrentHistory <- async $ forever $ do
-    atomically . writeTVar currentHistory . History =<< readCurrentHistoryLast clickHouse 24
-    threadDelay 300_000_000
-  serverTask <- async $ runServer MkServerState{..} mSocketPath
-  databaseWriter <- async $ forever $ do
-    writeStats MkDocsStatisticsState{..}
-    threadDelay 5_000_000
-  void $ waitAnyCancel [serverTask, databaseWriter, broadcastingJob, updateCurrentHistory]
+  (perfStatCollector, perfStatWriter) <- initPerformanceTracker defaultCredentials
+  server <- initServer MkServerArgs{..} mSocketPath
+
+  runConcurrently
+    $ Concurrently (forever $ do
+        historyByHours <- readCurrentHistoryLast clickHouse 1
+        case historyByHours of
+          update:_ -> atomically $ (writeTChan broadcastChan) (HistoryUpdate update)
+          _        -> pure ()
+        threadDelay 1_000_000
+      )
+    <*> Concurrently (forever $ do
+      atomically . writeTVar currentHistory . History =<< readCurrentHistoryLast clickHouse 24
+      threadDelay 300_000_000
+    )
+    <*> Concurrently (forever $ do
+      writeStats MkDocsStatisticsState{..}
+      threadDelay 5_000_000
+    )
+    <*> server
+    <*> perfStatCollector
+    <*> perfStatWriter
 
 {-
 
-  * Stats handler
+  * Performance stats handler
+
+-}
+
+initPerformanceTracker :: ChCredential -> IO (Concurrently(), Concurrently())
+initPerformanceTracker cred = do
+  _perfChConnection <- openNativeConnection cred
+  performanceQueue <- newTBQueueIO 100
+
+  pure
+    ( Concurrently . forever $ do
+        perfStat <- (\RTSStats{..} -> MkPerformanceStat{..}) <$> getRTSStats
+        atomically (writeTBQueue performanceQueue perfStat)
+        threadDelay 1_000_000
+    , Concurrently . forever $ do
+        _ <- atomically (flushTBQueue performanceQueue)
+        threadDelay 10_000_000
+    )
+
+data PerformanceStat = MkPerformanceStat
+  { max_live_bytes :: UInt64
+  }
+  deriving (Generic)
+
+{-
+
+  * Visits stats handler
 
 -}
 
 data DocsStatisticsState = MkDocsStatisticsState
   { docsStatQueue  :: TBQueue DocsStatistics
-  , clickHouse     :: ClickHaskell.Connection
+  , clickHouse     :: Connection
   }
 
 readCurrentHistoryLast :: Connection -> UInt16 -> IO [HourData]
@@ -167,8 +197,10 @@ type HistoryByHours =
 
 -}
 
-data ServerState = MkServerState
-  { staticFiles    :: HashMap StrictByteString (MimeType, LazyByteString)
+type StaticFiles = HashMap StrictByteString (MimeType, LazyByteString)
+
+data ServerArgs = MkServerArgs
+  { mStaticFiles   :: Maybe String
   , docsStatQueue  :: TBQueue DocsStatistics
   , currentHistory :: TVar HistoryData
   , broadcastChan  :: TChan HistoryData
@@ -178,29 +210,37 @@ data HistoryData = History{history :: [HourData]} | HistoryUpdate{realtime :: Ho
   deriving stock (Generic)
   deriving anyclass (ToJSON)
 
-runServer :: ServerState -> Maybe FilePath -> IO ()
-runServer serverState mSocketPath = do
-  case SockAddrUnix <$> mSocketPath of
-    Nothing -> do
-      let port = 3000 :: Port
-      putStrLn $ "Starting server on http://localhost:" <> show port
-      runSettings (setPort port defaultSettings) (app serverState)
-    Just sockAddr -> do
-      sock <- socket AF_UNIX Stream 0
-      putStrLn $ "Starting server on UNIX socket: " ++ (show sockAddr)
-      bind sock sockAddr
-      listen sock maxListenQueue
-      runSettingsSocket defaultSettings sock (app serverState)
+initServer :: ServerArgs -> Maybe FilePath -> IO (Concurrently())
+initServer args@MkServerArgs{mStaticFiles} mSocketPath = do
+  staticFiles <-
+    maybe
+      (pure HM.empty)
+      (flip withCurrentDirectory (listFilesWithContents "."))
+      mStaticFiles
 
-app :: ServerState -> Application
-app state req respond = do
-  websocketsOr
-    defaultConnectionOptions
-    (wsServer state) (httpApp state)
-    req respond
+  let
+    app = websocketsOr
+      defaultConnectionOptions
+      (wsServer args)
+      (httpApp args staticFiles)
 
-httpApp :: ServerState -> Application
-httpApp MkServerState{staticFiles, docsStatQueue} req f = do
+  pure $
+    Concurrently $ do
+      case SockAddrUnix <$> mSocketPath of
+        Nothing -> do
+          let port = 3000 :: Port
+          putStrLn $ "Starting server on http://localhost:" <> show port
+          runSettings (setPort port defaultSettings) app
+        Just sockAddr -> do
+          sock <- socket AF_UNIX Stream 0
+          putStrLn $ "Starting server on UNIX socket: " ++ (show sockAddr)
+          bind sock sockAddr
+          listen sock maxListenQueue
+          runSettingsSocket defaultSettings sock app
+
+
+httpApp :: ServerArgs -> StaticFiles -> Application
+httpApp MkServerArgs{docsStatQueue} staticFiles req f = do
   currentTime <- getCurrentTime
   let path       = (dropIndexHtml . BS8.unpack . rawPathInfo) req
       remoteAddr = maybe 0 getIPv4 (decodeUtf8 =<< Prelude.lookup "X-Real-IP" (requestHeaders req))
@@ -211,8 +251,8 @@ httpApp MkServerState{staticFiles, docsStatQueue} req f = do
       (atomically . writeTBQueue docsStatQueue) MkDocsStatistics{..}
       f (responseLBS status200 [(hContentType, mimeType)] content)
 
-wsServer :: ServerState -> ServerApp
-wsServer MkServerState{broadcastChan, currentHistory} pending = do
+wsServer :: ServerArgs -> ServerApp
+wsServer MkServerArgs{broadcastChan, currentHistory} pending = do
   conn <- acceptRequest pending
   sendTextData conn =<< (encode <$> readTVarIO currentHistory)
   clientChan <- atomically $ dupTChan broadcastChan
