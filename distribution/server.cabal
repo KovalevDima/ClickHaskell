@@ -31,5 +31,4 @@ executable server
     , warp
     , wai-websockets
     , websockets
-  ghc-options:
-    -Wall
+  ghc-options: -threaded -Wall -rtsopts "-with-rtsopts=-T -A8m -AL32m -N"
