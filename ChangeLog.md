@@ -1,11 +1,11 @@
-# 0.2.0 -- yyyy-mm-dd
+# 0.2.0 -- 23-03-2023
 
 ClickHaskell documentation got it's own domain name: https://clickhaskell.dev/
 
 
 ## Fixes:
-Improved multithreading connection usage (+ added test)
-Unexpected behavior on expected and result column type mismatches (+ added test)
+- Improved multithreading connection usage (+ added test)
+- Unexpected behavior on expected and result column type mismatches (+ added test)
 
 ## Features:
 - Query serialization support for UUID (+ added test)
