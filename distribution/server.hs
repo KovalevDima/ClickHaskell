@@ -49,33 +49,21 @@ main = do
   mSocketPath  <- lookupEnv "CLICKHASKELL_PAGE_SOCKET_PATH"
   mStaticFiles <- lookupEnv "CLICKHASKELL_STATIC_FILES_DIR"
 
-  docsStatQueue   <- newTBQueueIO 100_000
-  clickHouse      <- openNativeConnection defaultCredentials
-  broadcastChan   <- newBroadcastTChanIO
-  currentHistory  <- newTVarIO . History =<< readCurrentHistoryLast clickHouse 24
+  docsStatQueue  <- newTBQueueIO 100_000
+  broadcastChan  <- newBroadcastTChanIO
 
-  (perfStatCollector, perfStatWriter) <- initPerformanceTracker defaultCredentials
-  server <- initServer MkServerArgs{..} mSocketPath
+  (visitsCollector, currentHistory) <- initVisitsTracker MkDocsStatisticsArgs{..}
+  perfStatCollector <- initPerformanceTracker defaultCredentials
+
+  server <-
+    let mkBroadcastChan = atomically (dupTChan broadcastChan)
+    in initServer MkServerArgs{..}
 
   runConcurrently
-    $ Concurrently (forever $ do
-        historyByHours <- readCurrentHistoryLast clickHouse 1
-        case historyByHours of
-          update:_ -> atomically $ (writeTChan broadcastChan) (HistoryUpdate update)
-          _        -> pure ()
-        threadDelay 1_000_000
-      )
-    <*> Concurrently (forever $ do
-      atomically . writeTVar currentHistory . History =<< readCurrentHistoryLast clickHouse 24
-      threadDelay 300_000_000
-    )
-    <*> Concurrently (forever $ do
-      writeStats MkDocsStatisticsState{..}
-      threadDelay 5_000_000
-    )
-    <*> server
-    <*> perfStatCollector
-    <*> perfStatWriter
+    $ pure ()
+    *> visitsCollector
+    *> perfStatCollector
+    *> server
 
 {-
 
@@ -83,19 +71,21 @@ main = do
 
 -}
 
-initPerformanceTracker :: ChCredential -> IO (Concurrently(), Concurrently())
+initPerformanceTracker :: ChCredential -> IO (Concurrently())
 initPerformanceTracker cred = do
   _perfChConnection <- openNativeConnection cred
   performanceQueue <- newTBQueueIO 100
 
-  pure
-    ( Concurrently . forever $ do
-        perfStat <- (\RTSStats{..} -> MkPerformanceStat{..}) <$> getRTSStats
-        atomically (writeTBQueue performanceQueue perfStat)
-        threadDelay 1_000_000
-    , Concurrently . forever $ do
-        _ <- atomically (flushTBQueue performanceQueue)
-        threadDelay 10_000_000
+  pure $ 
+    Concurrently (forever $ do
+      atomically . writeTBQueue performanceQueue . (\RTSStats{..} -> MkPerformanceStat{..})
+        =<< getRTSStats
+      threadDelay 1_000_000
+    )
+    *>
+    Concurrently (forever $ do
+      _ <- atomically (flushTBQueue performanceQueue)
+      threadDelay 10_000_000
     )
 
 data PerformanceStat = MkPerformanceStat
@@ -109,10 +99,40 @@ data PerformanceStat = MkPerformanceStat
 
 -}
 
-data DocsStatisticsState = MkDocsStatisticsState
+data DocsStatisticsArgs = MkDocsStatisticsArgs
   { docsStatQueue  :: TBQueue DocsStatistics
-  , clickHouse     :: Connection
+  , broadcastChan  :: TChan HistoryData
   }
+
+initVisitsTracker :: DocsStatisticsArgs -> IO (Concurrently (), TVar HistoryData)
+initVisitsTracker MkDocsStatisticsArgs{..} = do
+  clickHouse     <- openNativeConnection defaultCredentials
+  currentHistory <- newTVarIO . History =<< readCurrentHistoryLast clickHouse 24
+
+  pure
+    ( Concurrently (forever $ do
+        catch (do
+            dataToWrite <- (atomically . flushTBQueue) docsStatQueue
+            insertInto @DocsStatTable clickHouse dataToWrite
+          )
+          (print @SomeException)
+        threadDelay 5_000_000
+      )
+      *>
+      Concurrently (forever $ do
+        historyByHours <- readCurrentHistoryLast clickHouse 1
+        case historyByHours of
+          update:_ -> atomically $ (writeTChan broadcastChan) (HistoryUpdate update)
+          _        -> pure ()
+        threadDelay 1_000_000
+      )
+      *>
+      Concurrently (forever $ do
+        atomically . writeTVar currentHistory . History =<< readCurrentHistoryLast clickHouse 24
+        threadDelay 300_000_000
+      )
+    , currentHistory
+    )
 
 readCurrentHistoryLast :: Connection -> UInt16 -> IO [HourData]
 readCurrentHistoryLast clickHouse hours =
@@ -122,14 +142,6 @@ readCurrentHistoryLast clickHouse hours =
       clickHouse
       (parameter @"hoursLength" @UInt16 hours)
       pure
-
-writeStats :: DocsStatisticsState -> IO ()
-writeStats MkDocsStatisticsState{..} = catch
-  ( do
-    dataToWrite <- (atomically . flushTBQueue) docsStatQueue
-    insertInto @DocsStatTable clickHouse dataToWrite
-  )
-  (print @SomeException)
 
 -- ** Writing data
 
@@ -176,18 +188,19 @@ type HistoryByHours =
 type StaticFiles = HashMap StrictByteString (MimeType, LazyByteString)
 
 data ServerArgs = MkServerArgs
-  { mStaticFiles   :: Maybe String
-  , docsStatQueue  :: TBQueue DocsStatistics
-  , currentHistory :: TVar HistoryData
-  , broadcastChan  :: TChan HistoryData
+  { mStaticFiles    :: Maybe String
+  , mSocketPath     :: Maybe FilePath
+  , docsStatQueue   :: TBQueue DocsStatistics
+  , currentHistory  :: TVar HistoryData
+  , mkBroadcastChan :: IO (TChan HistoryData)
   }
 
 data HistoryData = History{history :: [HourData]} | HistoryUpdate{realtime :: HourData}
   deriving stock (Generic)
   deriving anyclass (ToJSON)
 
-initServer :: ServerArgs -> Maybe FilePath -> IO (Concurrently())
-initServer args@MkServerArgs{mStaticFiles} mSocketPath = do
+initServer :: ServerArgs -> IO (Concurrently())
+initServer args@MkServerArgs{mStaticFiles, mSocketPath} = do
   staticFiles <-
     maybe
       (pure HM.empty)
@@ -228,10 +241,10 @@ httpApp MkServerArgs{docsStatQueue} staticFiles req f = do
       f (responseLBS status200 [(hContentType, mimeType)] content)
 
 wsServer :: ServerArgs -> ServerApp
-wsServer MkServerArgs{broadcastChan, currentHistory} pending = do
+wsServer MkServerArgs{mkBroadcastChan, currentHistory} pending = do
   conn <- acceptRequest pending
   sendTextData conn =<< (encode <$> readTVarIO currentHistory)
-  clientChan <- atomically $ dupTChan broadcastChan
+  clientChan <- mkBroadcastChan
   forever $ do
     sendTextData conn =<< (fmap encode . atomically . readTChan) clientChan
 
