@@ -9,6 +9,7 @@
   , DuplicateRecordFields
   , GADTs
   , GeneralizedNewtypeDeriving
+  , ImportQualifiedPost
   , FlexibleContexts
   , FlexibleInstances
   , LambdaCase
@@ -29,7 +30,9 @@
 
 {-# OPTIONS_GHC
   -Wno-orphans
+  -Wno-unused-top-binds
 #-}
+{-# LANGUAGE BangPatterns #-}
 
 module ClickHaskell
   (
@@ -128,7 +131,8 @@ import System.Timeout (timeout)
 
 -- External
 import Data.WideWord (Int128 (..), Word128(..))
-import Network.Socket as Sock
+import Network.Socket hiding (SocketOption(..))
+import Network.Socket qualified as Sock (SocketOption(..))
 import Network.Socket.ByteString (recv)
 import Network.Socket.ByteString.Lazy (sendAll)
 
@@ -216,7 +220,7 @@ createConnectionState creds@MkChCredential{chHost, chPort, chLogin, chPass, chDa
             (const $ pure ())
         )
         (\sock -> do
-           setSocketOption sock NoDelay 1
+           setSocketOption sock Sock.NoDelay 1
            setSocketOption sock Sock.KeepAlive 1
            connect sock addrAddress
            pure sock
@@ -235,7 +239,7 @@ createConnectionState creds@MkChCredential{chHost, chPort, chLogin, chPass, chDa
       writeToConnection conn mkAddendum
       pure conn
     Exception exception -> throwIO (UserError $ DatabaseException exception)
-    otherPacket         -> throwIO (InternalError $ UnexpectedPacketType otherPacket)
+    otherPacket         -> throwIO (InternalError $ UnexpectedPacketType $ serverPacketToNum otherPacket)
 
 
 
@@ -250,7 +254,7 @@ ping conn = do
     case responsePacket of
       Pong                -> pure ()
       Exception exception -> throwIO (UserError $ DatabaseException exception)
-      otherPacket         -> throwIO (InternalError $ UnexpectedPacketType otherPacket)
+      otherPacket         -> throwIO (InternalError $ UnexpectedPacketType $ serverPacketToNum otherPacket)
 
 
 
@@ -354,7 +358,7 @@ handleSelect MkConnectionState{..} f = loop []
       ProfileInfo _       -> loop acc
       EndOfStream         -> pure acc
       Exception exception -> throwIO (UserError $ DatabaseException exception)
-      otherPacket         -> throwIO (InternalError $ UnexpectedPacketType otherPacket)
+      otherPacket         -> throwIO (InternalError $ UnexpectedPacketType $ serverPacketToNum otherPacket)
 
 
 
@@ -393,7 +397,7 @@ handleInsertResult conn@MkConnectionState{..} records = do
       handleInsertResult @columns @record conn []
     EndOfStream         -> pure ()
     Exception exception -> throwIO (UserError $ DatabaseException exception)
-    otherPacket         -> throwIO (InternalError $ UnexpectedPacketType otherPacket)
+    otherPacket         -> throwIO (InternalError $ UnexpectedPacketType $ serverPacketToNum otherPacket)
 
 
 
@@ -452,7 +456,7 @@ deriving anyclass instance Exception ClientError
   You shouldn't see this exceptions. Please report a bug if it appears
 -}
 data InternalError
-  = UnexpectedPacketType ServerPacketType
+  = UnexpectedPacketType UVarInt
   | DeserializationError String
   deriving (Show, Exception)
 
@@ -471,27 +475,19 @@ data ClientPacketType
   = Hello | Query | Data | Cancel | Ping | TablesStatusRequest
   | KeepAlive | Scalar | IgnoredPartUUIDs | ReadTaskResponse
   | MergeTreeReadTaskResponse | SSHChallengeRequest | SSHChallengeResponse
-  deriving (Enum, Show)
+  deriving (Enum)
 
 type family PacketTypeNumber (packetType :: ClientPacketType)
   where
-  PacketTypeNumber Hello = 0
-  PacketTypeNumber Query = 1
-  PacketTypeNumber Data = 2
-  PacketTypeNumber Cancel = 3
-  PacketTypeNumber Ping = 4
-  PacketTypeNumber TablesStatusRequest = 5
-  PacketTypeNumber ClickHaskell.KeepAlive = 6
-  PacketTypeNumber Scalar = 7
-  PacketTypeNumber IgnoredPartUUIDs = 8
-  PacketTypeNumber ReadTaskResponse = 9
-  PacketTypeNumber MergeTreeReadTaskResponse = 10
-  PacketTypeNumber SSHChallengeRequest = 11
-  PacketTypeNumber SSHChallengeResponse = 12
+  PacketTypeNumber Hello                     = 0; PacketTypeNumber Query = 1
+  PacketTypeNumber Data                      = 2; PacketTypeNumber Cancel = 3
+  PacketTypeNumber Ping                      = 4; PacketTypeNumber TablesStatusRequest = 5
+  PacketTypeNumber KeepAlive                 = 6; PacketTypeNumber Scalar = 7
+  PacketTypeNumber IgnoredPartUUIDs          = 8; PacketTypeNumber ReadTaskResponse = 9
+  PacketTypeNumber MergeTreeReadTaskResponse = 10; PacketTypeNumber SSHChallengeRequest = 11
+  PacketTypeNumber SSHChallengeResponse      = 12
 
 data Packet (packetType :: ClientPacketType) = MkPacket
-instance KnownNat (PacketTypeNumber packetType) => Show (Packet (packetType :: ClientPacketType)) where
-  show _ = show . toEnum @ClientPacketType . fromIntegral $ packetNumVal @packetType
 
 packetNumVal :: forall packetType . KnownNat (PacketTypeNumber packetType) => UVarInt
 packetNumVal = fromIntegral . natVal $ Proxy @(PacketTypeNumber packetType)
@@ -580,7 +576,7 @@ mkQueryPacket MkConnectionState{..} query = MkQueryPacket
   , interserver_secret = MkSinceRevision ""
   , query_stage        = Complete
   , compression        = 0
-  , query              = query
+  , query
   , parameters         = MkSinceRevision MkQueryParameters
   }
 
@@ -604,23 +600,14 @@ data QueryParameters = MkQueryParameters
 instance Serializable QueryParameters where serialize rev _ = serialize @ChString rev ""
 
 data QueryStage
-  = FetchColumns
-  | WithMergeableState
-  | Complete
+  = FetchColumns | WithMergeableState | Complete
   | WithMergeableStateAfterAggregation
   | WithMergeableStateAfterAggregationAndLimit
   deriving (Enum)
 
 instance Serializable QueryStage where
-  serialize rev = serialize @UVarInt rev . queryStageCode
+  serialize rev = serialize @UVarInt rev . fromIntegral . fromEnum
 
-queryStageCode :: QueryStage -> UVarInt
-queryStageCode = \case
-  FetchColumns -> 0
-  WithMergeableState -> 1
-  Complete -> 2
-  WithMergeableStateAfterAggregation -> 3
-  WithMergeableStateAfterAggregationAndLimit -> 4
 
 data Flags = IMPORTANT | CUSTOM | OBSOLETE
 _flagCode :: Flags -> UInt64
@@ -652,13 +639,8 @@ data ClientInfo = MkClientInfo
   deriving (Generic, Serializable)
 
 data QueryKind = NoQuery | InitialQuery | SecondaryQuery
-  deriving (Enum)
-
 instance Serializable QueryKind where
-  serialize rev = serialize @UInt8 rev . queryKindToEnum
-
-queryKindToEnum :: QueryKind -> UInt8
-queryKindToEnum = \case NoQuery -> 1; InitialQuery -> 2; SecondaryQuery -> 3
+  serialize rev = serialize @UInt8 rev . (\case NoQuery -> 1; InitialQuery -> 2; SecondaryQuery -> 3)
 
 -- ** Data
 
@@ -683,14 +665,14 @@ data DataPacket = MkDataPacket
   , columns_count :: UVarInt
   , rows_count    :: UVarInt
   }
-  deriving (Generic, Serializable, Deserializable, Show)
+  deriving (Generic, Serializable, Deserializable)
 
 data BlockInfo = MkBlockInfo
   { field_num1   :: UVarInt, is_overflows :: UInt8
   , field_num2   :: UVarInt, bucket_num   :: Int32
   , eof          :: UVarInt
   }
-  deriving (Generic, Serializable, Deserializable, Show)
+  deriving (Generic, Serializable, Deserializable)
 
 
 
@@ -736,23 +718,17 @@ instance Deserializable ServerPacketType where
       14 -> pure ProfileEvents
       _  -> pure $ UnknownPacket packetNum
 
-instance Show ServerPacketType where
-  show (HelloResponse hello) = "HelloResponse " <> show hello
-  show (DataResponse dataPacket) = "DataResponse " <> show dataPacket
-  show (Exception exception) = "Exception " <> show exception
-  show (Progress progress) = "Progress " <> show progress
-  show Pong = "Pong"
-  show EndOfStream = "EndOfStream"
-  show (ProfileInfo profileInfo) = "ProfileInfo " <> show profileInfo
-  show Totals = "Totals"
-  show Extremes = "Extremes"
-  show TablesStatusResponse = "TablesStatusResponse"
-  show Log = "Log"
-  show (TableColumns tabelColumnsPacket) = "TableColumns " <> show tabelColumnsPacket
-  show UUIDs = "UUIDs"
-  show ReadTaskRequest = "ReadTaskRequest"
-  show ProfileEvents = "ProfileEvents"
-  show (UnknownPacket packetNum) = "UnknownPacket: " <> show packetNum
+serverPacketToNum :: ServerPacketType -> UVarInt
+serverPacketToNum = \case
+  (HelloResponse _) -> 0; (DataResponse _)       -> 1
+  (Exception _)     -> 2; (Progress _)           -> 3;
+  (Pong)            -> 4; (EndOfStream)          -> 5
+  (ProfileInfo _)   -> 6; (Totals)               -> 7
+  (Extremes)        -> 8; (TablesStatusResponse) -> 9
+  (Log)             -> 10; (TableColumns _)      -> 11;
+  (UUIDs)           -> 12; (ReadTaskRequest)     -> 13
+  (ProfileEvents)   -> 14; (UnknownPacket num)   -> num
+
 
 -- ** HelloResponse
 
@@ -773,31 +749,13 @@ data HelloResponse = MkHelloResponse
   , password_complexity_rules      :: [PasswordComplexityRules] `SinceRevision` DBMS_MIN_PROTOCOL_VERSION_WITH_PASSWORD_COMPLEXITY_RULES
   , read_nonce                     :: UInt64 `SinceRevision` DBMS_MIN_REVISION_WITH_INTERSERVER_SECRET_V2
   }
-  deriving (Generic, Show)
-
-instance Deserializable HelloResponse where
-  deserialize revision = do
-    server_name                    <- deserialize revision
-    server_version_major           <- deserialize revision
-    server_version_minor           <- deserialize revision
-    server_revision                <- deserialize revision
-    -- Override current protocol revision for backward compatibility
-    let chosenRevision = min server_revision revision
-    server_parallel_replicas_proto <- deserialize chosenRevision
-    server_timezone                <- deserialize chosenRevision
-    server_display_name            <- deserialize chosenRevision
-    server_version_patch           <- deserialize chosenRevision
-    proto_send_chunked_srv         <- deserialize chosenRevision
-    proto_recv_chunked_srv         <- deserialize chosenRevision
-    password_complexity_rules      <- deserialize chosenRevision
-    read_nonce                     <- deserialize chosenRevision
-    pure MkHelloResponse{..}
+  deriving (Generic, Deserializable)
 
 data PasswordComplexityRules = MkPasswordComplexityRules
   { original_pattern  :: ChString
   , exception_message :: ChString
   }
-  deriving (Generic, Deserializable, Show)
+  deriving (Generic, Deserializable)
 
 instance Deserializable [PasswordComplexityRules] where
   deserialize rev = do
@@ -813,7 +771,7 @@ data ExceptionPacket = MkExceptionPacket
   , stack_trace :: ChString
   , nested      :: UInt8
   }
-  deriving (Generic, Deserializable, Show)
+  deriving (Generic, Show, Deserializable)
 
 -- ** Progress
 
@@ -826,7 +784,7 @@ data ProgressPacket = MkProgressPacket
   , wrote_bytes :: UVarInt `SinceRevision` DBMS_MIN_REVISION_WITH_CLIENT_WRITE_INFO
   , elapsed_ns  :: UVarInt `SinceRevision` DBMS_MIN_REVISION_WITH_CLIENT_WRITE_INFO
   }
-  deriving (Generic, Deserializable, Show)
+  deriving (Generic, Deserializable)
 
 -- ** ProfileInfo
 
@@ -840,7 +798,7 @@ data ProfileInfo = MkProfileInfo
   , applied_aggregation          :: UInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_ROWS_BEFORE_AGGREGATION
   , rows_before_aggregation      :: UVarInt `SinceRevision` DBMS_MIN_REVISION_WITH_ROWS_BEFORE_AGGREGATION
   }
-  deriving (Generic, Deserializable, Show)
+  deriving (Generic, Deserializable)
 
 -- ** TableColumns
 
@@ -848,7 +806,7 @@ data TableColumns = MkTableColumns
   { table_name :: ChString
   , table_columns :: ChString
   }
-  deriving (Generic, Deserializable, Show)
+  deriving (Generic, Deserializable)
 
 
 
@@ -916,7 +874,6 @@ instance
     pure [(l :*: r1) :*: r2 | (l :*: (r1 :*: r2)) <- list]
   gReadingColumns = gReadingColumns @columns @(left :*: (right1 :*: right2))
 
-
 instance
   ( KnownColumn (Column name chType)
   , GReadable '[Column name chType] (S1 (MetaSel (Just name) a b f) rec)
@@ -947,8 +904,6 @@ instance
     map (M1 . K1 . fromChType @chType) . columnValues
       <$> deserializeColumn @(Column name chType) rev True size
   gReadingColumns = (renderColumnName @(Column name chType), renderColumnType @(Column name chType)) : []
-
-
 
 
 -- ** Column deserialization
@@ -1048,6 +1003,8 @@ instance {-# OVERLAPPING #-}
           else (nextOffset :) <$> go arraySize
 
 
+-- ** Generics
+
 class
   Deserializable chType
   where
@@ -1055,9 +1012,6 @@ class
   default deserialize :: (Generic chType, GDeserializable (Rep chType)) => ProtocolRevision -> Get chType
   deserialize :: ProtocolRevision -> Get chType
   deserialize rev = to <$> gDeserialize rev
-
-
--- ** Generics
 
 class GDeserializable f
   where
@@ -1086,6 +1040,16 @@ instance
   where
   {-# INLINE gDeserialize #-}
   gDeserialize rev = (:*:) <$> gDeserialize rev <*> gDeserialize rev
+
+instance {-# OVERLAPPING #-}
+  (GDeserializable right)
+  =>
+  (GDeserializable (S1 metaSel (Rec0 ProtocolRevision) :*: right))
+  where
+  {-# INLINE gDeserialize #-}
+  gDeserialize rev = do
+    chosenRev <- min rev . coerce <$> deserialize @UVarInt rev
+    (:*:) (M1 $ K1 chosenRev) <$> gDeserialize @right chosenRev
 
 instance
   Deserializable chType
@@ -1181,31 +1145,21 @@ type MyColumn = Column "myColumn" ChString
 @
 -}
 data Column (name :: Symbol) (chType :: Type) where
-  UInt8Column :: [UInt8] -> Column name UInt8
-  UInt16Column :: [UInt16] -> Column name UInt16
-  UInt32Column :: [UInt32] -> Column name UInt32
-  UInt64Column :: [UInt64] -> Column name UInt64
-  UInt128Column :: [UInt128] -> Column name UInt128
-  Int8Column :: [Int8] -> Column name Int8
-  Int16Column :: [Int16] -> Column name Int16
-  Int32Column :: [Int32] -> Column name Int32
-  Int64Column :: [Int64] -> Column name Int64
-  Int128Column :: [Int128] -> Column name Int128
-  DateColumn :: [Date] -> Column name Date
+  UInt8Column   :: [UInt8]   -> Column name UInt8;   Int8Column   :: [Int8]   -> Column name Int8
+  UInt16Column  :: [UInt16]  -> Column name UInt16;  Int16Column  :: [Int16]  -> Column name Int16
+  UInt32Column  :: [UInt32]  -> Column name UInt32;  Int32Column  :: [Int32]  -> Column name Int32
+  UInt64Column  :: [UInt64]  -> Column name UInt64;  Int64Column  :: [Int64]  -> Column name Int64
+  UInt128Column :: [UInt128] -> Column name UInt128; Int128Column :: [Int128] -> Column name Int128
   DateTimeColumn :: [DateTime tz] -> Column name (DateTime tz)
+  DateColumn :: [Date] -> Column name Date
   UUIDColumn :: [ChUUID] -> Column name ChUUID
   StringColumn :: [ChString] -> Column name ChString
   ArrayColumn :: [ChArray chType] -> Column name (ChArray chType)
   NullableColumn :: [Nullable chType] -> Column name (Nullable chType)
   LowCardinalityColumn :: IsLowCardinalitySupported chType => [chType] -> Column name (LowCardinality chType)
 
-type family GetColumnName column :: Symbol
-  where
-  GetColumnName (Column name columnType) = name
-
-type family GetColumnType column :: Type
-  where
-  GetColumnType (Column name columnType) = columnType
+type family GetColumnName column :: Symbol where GetColumnName (Column name columnType) = name
+type family GetColumnType column :: Type   where GetColumnType (Column name columnType) = columnType
 
 class
   ( IsChType (GetColumnType column)
@@ -1223,23 +1177,15 @@ class
 {-# INLINE [0] columnValues #-}
 columnValues :: Column name chType -> [chType]
 columnValues column = case column of
-  (UInt8Column values) -> values
-  (UInt16Column values) -> values
-  (UInt32Column values) -> values
-  (UInt64Column values) -> values
-  (UInt128Column values) -> values
-  (Int8Column values) -> values
-  (Int16Column values) -> values
-  (Int32Column values) -> values
-  (Int64Column values) -> values
-  (Int128Column values) -> values
-  (DateColumn values) -> values
-  (DateTimeColumn values) -> values
-  (UUIDColumn values) -> values
-  (StringColumn values) -> values
-  (ArrayColumn arrayValues) -> arrayValues
-  (NullableColumn nullableValues) ->  nullableValues
-  (LowCardinalityColumn lowCardinalityValues) -> map fromChType lowCardinalityValues
+  (UInt8Column values) -> values; (UInt16Column values) -> values
+  (UInt32Column values) -> values; (UInt64Column values) -> values
+  (UInt128Column values) -> values; (Int8Column values) -> values
+  (Int16Column values) -> values; (Int32Column values) -> values
+  (Int64Column values) -> values; (Int128Column values) -> values
+  (DateColumn values) -> values; (DateTimeColumn values) -> values
+  (UUIDColumn values) -> values; (StringColumn values) -> values
+  (ArrayColumn values) -> values; (NullableColumn values) ->  values
+  (LowCardinalityColumn values) -> map fromChType values
 
 instance KnownSymbol name => KnownColumn (Column name UInt8) where mkColumn = UInt8Column
 instance KnownSymbol name => KnownColumn (Column name UInt16) where mkColumn = UInt16Column
@@ -1554,8 +1500,7 @@ instance Serializable UVarInt where
       | otherwise = word8 (setBit (fromIntegral i) 7) <> go (i `unsafeShiftR` 7)
 
 instance Serializable ChString where
-  serialize rev str
-    =  (serialize @UVarInt rev . fromIntegral . BS.length . fromChType) str <> fromChType str
+  serialize rev str = (serialize @UVarInt rev . fromIntegral . BS.length . fromChType) str <> fromChType str
 
 instance Serializable ChUUID where serialize _ = (\(hi, lo) -> word64LE lo <> word64LE hi) . fromChType
 instance Serializable Int8 where serialize _ = int8 . fromChType
@@ -1761,7 +1706,6 @@ instance
   defaultValueOfTypeName = MkLowCardinality $ defaultValueOfTypeName @chType
 
 deriving newtype instance (Eq chType, IsLowCardinalitySupported chType) => Eq (LowCardinality chType)
-deriving newtype instance (Show chType, IsLowCardinalitySupported chType) => Show (LowCardinality chType)
 deriving newtype instance (NFData chType, IsLowCardinalitySupported chType) => NFData (LowCardinality chType)
 deriving newtype instance IsString (LowCardinality ChString)
 
@@ -1796,7 +1740,6 @@ instance
   FromChType (LowCardinality chType) outputType
   where
   fromChType (MkLowCardinality value) = fromChType value
-
 
 
 
@@ -1945,9 +1888,8 @@ client_name = fromString $
   <> show client_version_patch
 
 newtype ProtocolRevision = MkProtocolRevision Word64
-  deriving newtype (Show, Eq, Num, Ord)
+  deriving newtype (Eq, Num, Ord)
 
-instance Deserializable ProtocolRevision where deserialize = coerce <$> deserialize @UVarInt
 instance Serializable ProtocolRevision where serialize rev = serialize @UVarInt rev . coerce
 
 {-# INLINE [0] afterRevision #-}
