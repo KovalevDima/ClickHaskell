@@ -21,16 +21,9 @@ extra-doc-files:
   README.md
   ChangeLog.md
 
-Flag dev
-  Description: Dump core
-  Manual: True
-  Default: False
-
-
 Source-repository head
   Type: git
   Location: https://github.com/KovalevDima/ClickHaskell
-
 
 Library
   Autogen-Modules:
@@ -45,18 +38,6 @@ Library
     -Wall
     -fno-warn-type-defaults
     -Wunused-packages
-
-  if flag(dev)
-    GHC-Options:
-      -ddump-to-file
-      -ddump-simpl
-      -dsuppress-type-applications
-      -dsuppress-coercions
-      -dsuppress-idinfo
-      -dsuppress-type-signatures
-      -dsuppress-var-kinds
-      -dsuppress-module-prefixes
-      -dsuppress-uniques
 
   Build-depends:
     -- GHC included libraries
