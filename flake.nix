@@ -25,20 +25,22 @@
             )
           );
         supportedGHCs = ["ghc926" "ghc948" "ghc966" "ghc984" "ghc9101"];
+        schemas = [
+          (extractSqlFromMarkdown ./usage/insertInto.lhs)
+          (extractSqlFromMarkdown ./usage/selectFromView.lhs)
+          (extractSqlFromMarkdown ./testing/PT1Simple.hs)
+          (extractSqlFromMarkdown ./testing/T2WriteReadEquality.hs)
+          (extractSqlFromMarkdown ./distribution/server.hs)
+          (extractSqlFromMarkdown ./testing/PT1Simple.hs)
+          (extractSqlFromMarkdown ./testing/T2WriteReadEquality.hs)
+        ];
       in
       {
         process-compose = {
           default = import ./contribution/localServer.nix {
-            inherit inputs;
+            inherit inputs schemas;
             app = self'.apps.ghc966-server;
             docDirPath = self'.packages."documentation";
-            schemas = [
-              (extractSqlFromMarkdown ./usage/insertInto.lhs)
-              (extractSqlFromMarkdown ./usage/selectFromView.lhs)
-              (extractSqlFromMarkdown ./testing/PT1Simple.hs)
-              (extractSqlFromMarkdown ./testing/T2WriteReadEquality.hs)
-              (extractSqlFromMarkdown ./distribution/server.hs)
-            ];
           };
         }
         //
@@ -46,12 +48,8 @@
           map (
             {ghc, app}: {
               "test-${ghc}-${app}" = import ./testing/testing.nix {
-                inherit pkgs inputs;
+                inherit pkgs inputs schemas;
                 app = self'.apps."${ghc}-${app}";
-                schemas = [
-                  (extractSqlFromMarkdown ./testing/PT1Simple.hs)
-                  (extractSqlFromMarkdown ./testing/T2WriteReadEquality.hs)
-                ];
               };
             }
           )
