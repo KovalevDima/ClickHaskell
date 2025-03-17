@@ -38,6 +38,3 @@ to manually enter shell with provided
 
 You can also setup [direnv]() to automatically enter the shell \
 when you enter the project directory in `terminal` or `VSCode` ([via extention](https://marketplace.visualstudio.com/items?itemName=mkhl.direnv))
-
-# What next?
-Read [routines](/development/routines.html)
