@@ -69,7 +69,7 @@ main = do
               (defaultContext <> mkNavigationCtx navigation)
           >>= relativizeUrls
 
-    match "./contribution/assets/**" $ do
+    match "./assets/**" $ do
       route idRoute
       compile copyFileCompiler
 
