@@ -961,7 +961,6 @@ instance {-# OVERLAPPING #-}
 instance {-# OVERLAPPING #-}
   ( KnownColumn (Column name (LowCardinality chType))
   , Deserializable chType
-  , ToChType (LowCardinality chType) chType
   , IsLowCardinalitySupported chType
   , TypeError ('Text "LowCardinality deserialization still unsupported")
   ) =>
@@ -1086,6 +1085,44 @@ instance Deserializable UVarInt where
       if byte .&. 0x80 == 0 then pure $! o' else go (i + 1) $! o'
     go _ _ = fail "input exceeds varuint size"
 
+-- ** FromChType
+
+class FromChType chType outputType where fromChType  :: chType -> outputType
+
+instance FromChType ChUUID (Word64, Word64) where fromChType (MkChUUID (Word128 w64hi w64lo)) = (w64hi, w64lo)
+instance {-# OVERLAPPABLE #-} (IsChType chType, chType ~ inputType) => FromChType chType inputType where fromChType = id
+instance FromChType (DateTime tz) Word32     where fromChType = coerce
+instance FromChType (DateTime tz) UTCTime    where fromChType (MkDateTime w32) = posixSecondsToUTCTime (fromIntegral w32)
+instance
+  FromChType chType inputType
+  =>
+  FromChType (Nullable chType) (Nullable inputType)
+  where
+  fromChType = fmap (fromChType @chType)
+instance FromChType chType (LowCardinality chType) where
+  fromChType = MkLowCardinality
+instance FromChType Date Word16 where fromChType = coerce
+instance
+  FromChType chType outputType
+  =>
+  FromChType (LowCardinality chType) outputType
+  where
+  fromChType (MkLowCardinality value) = fromChType value
+instance FromChType ChString StrictByteString where fromChType (MkChString string) = string
+instance FromChType ChString Builder where fromChType (MkChString string) = byteString string
+instance
+  ( TypeError
+    (     'Text "ChString to Text using FromChType convertion could cause exception"
+    ':$$: 'Text "Decode ByteString manually if you are sure it's always can be decoded or replace it with ByteString"
+    )
+  ) =>
+  FromChType ChString Text
+  where
+  fromChType = error "Unreachable"
+instance FromChType chType inputType => FromChType (ChArray chType) [inputType]
+  where
+  fromChType (MkChArray values) = map fromChType values
+
 
 
 
@@ -1161,19 +1198,6 @@ data Column (name :: Symbol) (chType :: Type) where
 type family GetColumnName column :: Symbol where GetColumnName (Column name columnType) = name
 type family GetColumnType column :: Type   where GetColumnType (Column name columnType) = columnType
 
-class
-  ( IsChType (GetColumnType column)
-  , KnownSymbol (GetColumnName column)
-  ) =>
-  KnownColumn column where
-  renderColumnName :: Builder
-  renderColumnName = (stringUtf8 . symbolVal @(GetColumnName column)) Proxy
-
-  renderColumnType :: Builder
-  renderColumnType = chTypeName @(GetColumnType column)
-
-  mkColumn :: [GetColumnType column] -> Column (GetColumnName column) (GetColumnType column)
-
 {-# INLINE [0] columnValues #-}
 columnValues :: Column name chType -> [chType]
 columnValues column = case column of
@@ -1186,6 +1210,19 @@ columnValues column = case column of
   (UUIDColumn values) -> values; (StringColumn values) -> values
   (ArrayColumn values) -> values; (NullableColumn values) ->  values
   (LowCardinalityColumn values) -> map fromChType values
+
+class
+  ( IsChType (GetColumnType column)
+  , KnownSymbol (GetColumnName column)
+  ) =>
+  KnownColumn column where
+  renderColumnName :: Builder
+  renderColumnName = (stringUtf8 . symbolVal @(GetColumnName column)) Proxy
+
+  renderColumnType :: Builder
+  renderColumnType = chTypeName @(GetColumnType column)
+
+  mkColumn :: [GetColumnType column] -> Column (GetColumnName column) (GetColumnType column)
 
 instance KnownSymbol name => KnownColumn (Column name UInt8) where mkColumn = UInt8Column
 instance KnownSymbol name => KnownColumn (Column name UInt16) where mkColumn = UInt16Column
@@ -1338,29 +1375,6 @@ type family GoCheckParameters required passed acc :: Constraint
     = (GoCheckParameters (Parameter name1 chType1 ': ps) ps' (Parameter name2 chType2 ': acc))
     
 class ToQueryPart chType where toQueryPart :: chType -> BS.Builder
-
-instance ToQueryPart chType => ToQueryPart (Nullable chType)
-  where
-  toQueryPart = maybe "null" toQueryPart
-
-instance ToQueryPart chType => ToQueryPart (LowCardinality chType)
-  where
-  toQueryPart (MkLowCardinality chType) = toQueryPart chType
-
-instance ToQueryPart ChUUID where
-  toQueryPart (MkChUUID (Word128 hi lo)) = mconcat
-    ["'", p 3 hi, p 2 hi, "-", p 1 hi, "-", p 0 hi, "-", p 3 lo, "-", p 2 lo, p 1 lo, p 0 lo, "'"]
-    where
-    p :: Int -> Word64 -> Builder
-    p shiftN word = word16HexFixed $ fromIntegral (word `unsafeShiftR` (shiftN*16))
-
-instance ToQueryPart ChString where
-  toQueryPart (MkChString string) =  "'" <> escapeQuery string <> "'"
-    where
-    escapeQuery :: StrictByteString -> Builder
-    escapeQuery -- [ClickHaskell.DbTypes.ToDo.1]: Optimize
-      = BS.byteString . BS8.concatMap (\case '\'' -> "\\\'"; '\\' -> "\\\\"; sym -> BS8.singleton sym;)
-
 instance ToQueryPart Int8 where toQueryPart = BS.byteString . BS8.pack . show
 instance ToQueryPart Int16 where toQueryPart = BS.byteString . BS8.pack . show
 instance ToQueryPart Int32 where toQueryPart = BS.byteString . BS8.pack . show
@@ -1371,6 +1385,24 @@ instance ToQueryPart UInt16 where toQueryPart = BS.byteString . BS8.pack . show
 instance ToQueryPart UInt32 where toQueryPart = BS.byteString . BS8.pack . show
 instance ToQueryPart UInt64 where toQueryPart = BS.byteString . BS8.pack . show
 instance ToQueryPart UInt128 where toQueryPart = BS.byteString . BS8.pack . show
+instance ToQueryPart chType => ToQueryPart (Nullable chType)
+  where
+  toQueryPart = maybe "null" toQueryPart
+instance ToQueryPart chType => ToQueryPart (LowCardinality chType)
+  where
+  toQueryPart (MkLowCardinality chType) = toQueryPart chType
+instance ToQueryPart ChUUID where
+  toQueryPart (MkChUUID (Word128 hi lo)) = mconcat
+    ["'", p 3 hi, p 2 hi, "-", p 1 hi, "-", p 0 hi, "-", p 3 lo, "-", p 2 lo, p 1 lo, p 0 lo, "'"]
+    where
+    p :: Int -> Word64 -> Builder
+    p shiftN word = word16HexFixed $ fromIntegral (word `unsafeShiftR` (shiftN*16))
+instance ToQueryPart ChString where
+  toQueryPart (MkChString string) =  "'" <> escapeQuery string <> "'"
+    where
+    escapeQuery :: StrictByteString -> Builder
+    escapeQuery -- [ClickHaskell.DbTypes.ToDo.1]: Optimize
+      = BS.byteString . BS8.concatMap (\case '\'' -> "\\\'"; '\\' -> "\\\\"; sym -> BS8.singleton sym;)
 instance ToQueryPart (DateTime tz)
   where
   toQueryPart chDateTime = let time = BS8.pack . show . fromChType @(DateTime tz) @Word32 $ chDateTime
@@ -1490,18 +1522,14 @@ class Serializable chType
   serialize :: ProtocolRevision -> chType -> Builder
   serialize rev = gSerialize rev . from
 
-
--- ** Database types
 instance Serializable UVarInt where
   serialize _ = go
     where
     go i
       | i < 0x80 = word8 (fromIntegral i)
       | otherwise = word8 (setBit (fromIntegral i) 7) <> go (i `unsafeShiftR` 7)
-
 instance Serializable ChString where
   serialize rev str = (serialize @UVarInt rev . fromIntegral . BS.length . fromChType) str <> fromChType str
-
 instance Serializable ChUUID where serialize _ = (\(hi, lo) -> word64LE lo <> word64LE hi) . fromChType
 instance Serializable Int8 where serialize _ = int8 . fromChType
 instance Serializable Int16 where serialize _ = int16LE . fromChType
@@ -1555,6 +1583,35 @@ instance
   {-# INLINE gSerialize #-}
   gSerialize rev (left :*: right)
     = (serialize rev . unK1 . unM1 $ left) <> gSerialize rev right
+
+-- ** ToChType
+
+class ToChType chType inputType    where toChType    :: inputType -> chType
+
+instance {-# OVERLAPPABLE #-} (IsChType chType, chType ~ inputType) => ToChType chType inputType where toChType = id
+instance ToChType Int64 Int where toChType = fromIntegral
+instance ToChType UInt128 UInt64 where toChType = fromIntegral
+instance ToChType ChString StrictByteString where toChType = MkChString
+instance ToChType ChString Builder          where toChType = MkChString . toStrict . toLazyByteString
+instance ToChType ChString String           where toChType = MkChString . BS8.pack
+instance ToChType ChString Text             where toChType = MkChString . Text.encodeUtf8
+instance ToChType ChString Int              where toChType = MkChString . BS8.pack . show
+instance
+  ToChType inputType chType
+  =>
+  ToChType (Nullable inputType) (Nullable chType)
+  where
+  toChType = fmap (toChType @inputType @chType)
+instance ToChType inputType chType => ToChType (LowCardinality inputType) chType where toChType = MkLowCardinality . toChType
+instance ToChType ChUUID Word64 where toChType = MkChUUID . flip Word128 0
+instance ToChType ChUUID (Word64, Word64) where toChType = MkChUUID . uncurry (flip Word128)
+instance ToChType (DateTime tz) Word32     where toChType = MkDateTime
+instance ToChType (DateTime tz) UTCTime    where toChType = MkDateTime . floor . utcTimeToPOSIXSeconds
+instance ToChType (DateTime tz) ZonedTime  where toChType = MkDateTime . floor . utcTimeToPOSIXSeconds . zonedTimeToUTC
+instance ToChType Date Word16 where toChType = MkChDate
+instance ToChType chType inputType => ToChType (ChArray chType) [inputType]
+  where
+  toChType = MkChArray . map toChType
 
 
 
@@ -1630,20 +1687,53 @@ instance IsChType UInt128 where
   type ToChTypeName UInt128 = "UInt128"
   defaultValueOfTypeName = 0
 
+-- | ClickHouse UUID column type
+newtype ChUUID = MkChUUID Word128
+  deriving newtype (Generic, Show, Eq, NFData, Bounded, Enum)
+instance IsChType ChUUID where
+  type ToChTypeName ChUUID = "UUID"
+  defaultValueOfTypeName = MkChUUID 0
 
+{- |
+ClickHouse DateTime column type (paramtrized with timezone)
 
+>>> chTypeName @(DateTime "")
+"DateTime"
+>>> chTypeName @(DateTime "UTC")
+"DateTime('UTC')"
+-}
+newtype DateTime (tz :: Symbol) = MkDateTime Word32
+  deriving newtype (Show, Eq, Num, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
 
+instance KnownSymbol (ToChTypeName (DateTime tz)) => IsChType (DateTime tz)
+  where
+  type ToChTypeName (DateTime tz) = If (tz == "") ("DateTime") ("DateTime('" `AppendSymbol` tz `AppendSymbol` "')")
+  defaultValueOfTypeName = MkDateTime 0
 
+-- | ClickHouse String column type
+newtype ChString = MkChString StrictByteString
+  deriving newtype (Show, Eq, IsString, NFData)
+instance IsChType ChString where
+  type ToChTypeName ChString = "String"
+  defaultValueOfTypeName = ""
 
-class ToChType chType inputType    where toChType    :: inputType -> chType
-class FromChType chType outputType where fromChType  :: chType -> outputType
+-- | ClickHouse Date column type
+newtype Date = MkChDate Word16
+  deriving newtype (Show, Eq, Bits, Bounded, Enum, NFData)
+instance IsChType Date where
+  type ToChTypeName Date = "Date"
+  defaultValueOfTypeName = MkChDate 0
 
-instance {-# OVERLAPPABLE #-} (IsChType chType, chType ~ inputType) => ToChType chType inputType where toChType = id
-instance {-# OVERLAPPABLE #-} (IsChType chType, chType ~ inputType) => FromChType chType inputType where fromChType = id
-
-instance ToChType Int64 Int where toChType = fromIntegral
-instance ToChType UInt128 UInt64 where toChType = fromIntegral
-
+-- | ClickHouse Array column type
+newtype ChArray a = MkChArray [a]
+  deriving newtype (Show, Eq, NFData)
+instance
+  KnownSymbol (AppendSymbol (AppendSymbol "Array(" (ToChTypeName chType)) ")")
+  =>
+  IsChType (ChArray chType)
+  where
+  type ToChTypeName (ChArray chType) = "Array(" `AppendSymbol` ToChTypeName chType `AppendSymbol` ")"
+  defaultValueOfTypeName = MkChArray []
 
 
 type ChUInt8    = UInt8    ;{-# DEPRECATED ChUInt8    "Ch prefixed types are deprecated. Use UInt8 instead" #-}
@@ -1658,7 +1748,6 @@ type ChInt64    = Int64    ;{-# DEPRECATED ChInt64    "Ch prefixed types are dep
 type ChInt128   = Int128   ;{-# DEPRECATED ChInt128   "Ch prefixed types are deprecated. Use Int128 instead" #-}
 type ChDateTime = DateTime ;{-# DEPRECATED ChDateTime "Ch prefixed types are deprecated. Use DateTime instead" #-}
 type ChDate     = Date     ;{-# DEPRECATED ChDate     "Ch prefixed types are deprecated. Use Date instead" #-}
-
 
 
 -- | ClickHouse Nullable(T) column type
@@ -1676,22 +1765,6 @@ instance
   where
   type ToChTypeName (Nullable chType) = NullableTypeName chType
   defaultValueOfTypeName = Nothing
-
-instance
-  ToChType inputType chType
-  =>
-  ToChType (Nullable inputType) (Nullable chType)
-  where
-  toChType = fmap (toChType @inputType @chType)
-
-instance
-  FromChType chType inputType
-  =>
-  FromChType (Nullable chType) (Nullable inputType)
-  where
-  fromChType = fmap (fromChType @chType)
-
-
 
 
 -- | ClickHouse LowCardinality(T) column type
@@ -1727,132 +1800,6 @@ instance {-# OVERLAPPABLE #-}
     ':$$: 'Text "  Nullable(T)"
     )
   ) => IsLowCardinalitySupported chType
-
-instance ToChType inputType chType => ToChType (LowCardinality inputType) chType where
-  toChType = MkLowCardinality . toChType
-
-instance FromChType chType (LowCardinality chType) where
-  fromChType = MkLowCardinality
-
-instance
-  FromChType chType outputType
-  =>
-  FromChType (LowCardinality chType) outputType
-  where
-  fromChType (MkLowCardinality value) = fromChType value
-
-
-
-
--- | ClickHouse UUID column type
-newtype ChUUID = MkChUUID Word128
-  deriving newtype (Generic, Show, Eq, NFData, Bounded, Enum)
-
-instance IsChType ChUUID where
-  type ToChTypeName ChUUID = "UUID"
-  defaultValueOfTypeName = MkChUUID 0
-
-
-instance ToChType ChUUID Word64 where toChType = MkChUUID . flip Word128 0
-instance ToChType ChUUID (Word64, Word64) where toChType = MkChUUID . uncurry (flip Word128)
-
-instance FromChType ChUUID (Word64, Word64) where fromChType (MkChUUID (Word128 w64hi w64lo)) = (w64hi, w64lo)
-
-
-
-
--- | ClickHouse String column type
-newtype ChString = MkChString StrictByteString
-  deriving newtype (Show, Eq, IsString, NFData)
-
-instance IsChType ChString where
-  type ToChTypeName ChString = "String"
-  defaultValueOfTypeName = ""
-
-
-instance ToChType ChString StrictByteString where toChType = MkChString
-instance ToChType ChString Builder          where toChType = MkChString . toStrict . toLazyByteString
-instance ToChType ChString String           where toChType = MkChString . BS8.pack
-instance ToChType ChString Text             where toChType = MkChString . Text.encodeUtf8
-instance ToChType ChString Int              where toChType = MkChString . BS8.pack . show
-
-instance FromChType ChString StrictByteString where fromChType (MkChString string) = string
-instance FromChType ChString Builder where fromChType (MkChString string) = byteString string
-instance
-  ( TypeError
-    (     'Text "ChString to Text using FromChType convertion could cause exception"
-    ':$$: 'Text "Decode ByteString manually if you are sure it's always can be decoded or replace it with ByteString"
-    )
-  ) =>
-  FromChType ChString Text
-  where
-  fromChType = error "Unreachable"
-
-
-
-
-{- |
-ClickHouse DateTime column type (paramtrized with timezone)
-
->>> chTypeName @(DateTime "")
-"DateTime"
->>> chTypeName @(DateTime "UTC")
-"DateTime('UTC')"
--}
-newtype DateTime (tz :: Symbol) = MkDateTime Word32
-  deriving newtype (Show, Eq, Num, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
-
-instance KnownSymbol (ToChTypeName (DateTime tz)) => IsChType (DateTime tz)
-  where
-  type ToChTypeName (DateTime tz) = If (tz == "") ("DateTime") ("DateTime('" `AppendSymbol` tz `AppendSymbol` "')")
-  defaultValueOfTypeName = MkDateTime 0
-
-
-instance ToChType (DateTime tz) Word32     where toChType = MkDateTime
-instance ToChType (DateTime tz) UTCTime    where toChType = MkDateTime . floor . utcTimeToPOSIXSeconds
-instance ToChType (DateTime tz) ZonedTime  where toChType = MkDateTime . floor . utcTimeToPOSIXSeconds . zonedTimeToUTC
-
-instance FromChType (DateTime tz) Word32     where fromChType = coerce
-instance FromChType (DateTime tz) UTCTime    where fromChType (MkDateTime w32) = posixSecondsToUTCTime (fromIntegral w32)
-
-
-
-
-newtype Date = MkChDate Word16
-  deriving newtype (Show, Eq, Bits, Bounded, Enum, NFData)
-
-instance IsChType Date where
-  type ToChTypeName Date = "Date"
-  defaultValueOfTypeName = MkChDate 0
-
-instance ToChType Date Word16 where toChType = MkChDate
-
-instance FromChType Date Word16 where fromChType = coerce
-
-
-
-
-newtype ChArray a = MkChArray [a]
-  deriving newtype (Show, Eq, NFData)
-
-instance
-  KnownSymbol (AppendSymbol (AppendSymbol "Array(" (ToChTypeName chType)) ")")
-  =>
-  IsChType (ChArray chType)
-  where
-  type ToChTypeName (ChArray chType) = "Array(" `AppendSymbol` ToChTypeName chType `AppendSymbol` ")"
-  defaultValueOfTypeName = MkChArray []
-
-
-
-
-instance FromChType chType inputType => FromChType (ChArray chType) [inputType]
-  where
-  fromChType (MkChArray values) = map fromChType values
-
-instance ToChType chType inputType => ToChType (ChArray chType) [inputType]
-  where
-  toChType = MkChArray . map toChType
 
 
 
