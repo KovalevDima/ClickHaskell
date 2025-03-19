@@ -44,8 +44,16 @@ in
     };
   };
   config = {
-    services.clickhouse = {
-      enable = true;
+    services = {
+      hydra = {
+        enable = true;
+        hydraURL = "http://localhost:3000"; # externally visible URL
+        buildMachinesFiles = [];
+        useSubstitutes = true;
+      };
+      clickhouse = {
+        enable = true;
+      };
     };
 
     users = {
