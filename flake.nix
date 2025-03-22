@@ -85,5 +85,6 @@
       nixosModules = {
         default = import ./distribution/systemModule.nix self;
       };
+      hydraJobs = { inherit (self) packages; };
     };
 }
