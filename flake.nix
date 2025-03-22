@@ -26,13 +26,11 @@
           );
         supportedGHCs = ["ghc926" "ghc948" "ghc966" "ghc984" "ghc9101"];
         schemas = [
-          (extractSqlFromMarkdown ./usage/insertInto.lhs)
-          (extractSqlFromMarkdown ./usage/selectFromView.lhs)
+          (extractSqlFromMarkdown ./usage/insertInto/index.lhs)
+          (extractSqlFromMarkdown ./usage/selectFromView/index.lhs)
           (extractSqlFromMarkdown ./testing/PT1Simple.hs)
           (extractSqlFromMarkdown ./testing/T2WriteReadEquality.hs)
           (extractSqlFromMarkdown ./distribution/server.hs)
-          (extractSqlFromMarkdown ./testing/PT1Simple.hs)
-          (extractSqlFromMarkdown ./testing/T2WriteReadEquality.hs)
         ];
       in
       {
