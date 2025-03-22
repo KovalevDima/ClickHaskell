@@ -1,0 +1,15 @@
+Cabal-version:      3.4
+
+name:               select
+version:            0.0.0.1
+build-type:         Simple
+license:            BSD-3-Clause
+
+executable select
+  default-language: GHC2021
+  main-is: index.lhs
+  build-depends:
+      ClickHaskell
+    , base >=4.7 && <5
+  ghc-options: -pgmL markdown-unlit -Wall
+  build-tool-depends: markdown-unlit:markdown-unlit

@@ -1,6 +1,9 @@
 packages:
     ./
     ./contribution
-    ./usage
     ./testing
     ./distribution
+    ./usage/generateRandom
+    ./usage/insertInto
+    ./usage/select
+    ./usage/selectFromView

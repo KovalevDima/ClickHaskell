@@ -25,9 +25,11 @@ module DocumentationCompiler where
 import GHC.IO.Encoding as Encoding (setLocaleEncoding, utf8)
 import System.FilePath
   ( (</>), normalise, dropFileName, dropExtension
-  , replaceExtension, takeBaseName, replaceFileName
+  , replaceExtension, takeBaseName, replaceFileName, dropTrailingPathSeparator
   )
 import Hakyll
+import Data.Bool (bool)
+import Data.List (sort)
 
 main :: IO ()
 main = do
@@ -48,17 +50,19 @@ main = do
             "README" -> replaceFileName filePath "index.html"
             _        -> replaceExtension filePath "html"
 
-        beautifyUrl path
-          | takeBaseName path == "index" = normalise ("/" </> dropFileName path)
-          | otherwise                    = normalise ("/" </> path)
-    
+        beautifyUrl path =
+          ( dropTrailingPathSeparator
+          . normalise . ("/" </>)
+          . bool id dropFileName (takeBaseName path == "index")
+          ) path
+
     -- documentation references compilation
     match pattern $ do
       route (customRoute $ filePathToUrlPath . toFilePath)
       compile $ do
         -- load all used file paths to pass it into <nav>
         navigation <-
-          traverse (makeItem . beautifyUrl . filePathToUrlPath . toFilePath)
+          traverse (makeItem) . sort . map (beautifyUrl . filePathToUrlPath . toFilePath)
             =<< getMatches pattern
 
         -- compile every file
