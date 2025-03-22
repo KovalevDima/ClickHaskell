@@ -29,6 +29,7 @@ import System.FilePath
   )
 import Hakyll
 import Data.Bool (bool)
+import Data.List (sort)
 
 main :: IO ()
 main = do
@@ -61,7 +62,7 @@ main = do
       compile $ do
         -- load all used file paths to pass it into <nav>
         navigation <-
-          traverse (makeItem . beautifyUrl . filePathToUrlPath . toFilePath)
+          traverse (makeItem) . sort . map (beautifyUrl . filePathToUrlPath . toFilePath)
             =<< getMatches pattern
 
         -- compile every file
