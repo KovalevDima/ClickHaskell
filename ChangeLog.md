@@ -1,3 +1,5 @@
+# 1.0.0 -- ?
+
 # 0.2.0 -- 23-03-2023
 
 ClickHaskell documentation got it's own domain name: https://clickhaskell.dev/
