@@ -1,7 +1,7 @@
 <h2>Real-time analytics powered by ClickHaskell</h2>
 
-<p>You are getting data via WebSockets<br>
-    and create it by loading any page
+<p>You are receiving data via WebSockets and generating<br>
+    it by loading any page from a unique IP address
 </p>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -12,7 +12,7 @@
 const ctx = document.getElementById('visitsChart').getContext('2d');
 let chartData = {
     labels: [],
-    datasets: [{ label: 'Visits', data: [], backgroundColor: '#121212' }]
+    datasets: [{ label: 'Visitors', data: [], backgroundColor: '#121212' }]
 };
 
 const visitsChart = new Chart(ctx, {

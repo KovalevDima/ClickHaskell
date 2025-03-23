@@ -8,12 +8,19 @@ ClickHaskell documentation got it's own domain name: https://clickhaskell.dev/
 - Unexpected behavior on expected and result column type mismatches (+ added test)
 
 ## Features:
+- Additional GHC versions tests: `9.4.8`, `9.8.4`, `9.10.1`
 - Query serialization support for UUID (+ added test)
 - Export of client errors for exception handling
 - Dropped vector dependency
 - Introduced memory consumption test (64M limit) on parallel reading and writing of 1 million rows
 - Added new reading wrapper for generateRandom function
-- Depricating `Ch*` prefixes on types `ChUInt*` (to Word* type synonyms), `ChInt*`(to Int* standart types), `ChDate*` (to Date and DateTime type), `ChArray` (to Array type), `ChUUID` (to UUID type)
+- Depricating `Ch*` prefixes on types:
+  - `ChUInt*` -> `UInt*` (type synonyms to Word*)
+  - `ChInt*` -> `Int*` (reexport of Data.Int)
+  - `ChDate` -> `Date` (ClickHaskell type)
+  - `ChDateTime` -> `DateTime` (ClickHaskell type)
+  - `ChArray` -> `Array` (ClickHaskell type)
+  - `ChUUID` -> `UUID` (ClickHaskell type)
 - openNativeConnection now passes $HOME and $USERNAME variables to query info
 
 ## Breaking changes:
