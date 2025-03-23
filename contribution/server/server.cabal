@@ -10,7 +10,7 @@ license:            BSD-3-Clause
 
 executable server
   default-language: GHC2021
-  main-is: server.hs
+  main-is: index.hs
   build-depends:
       ClickHaskell
     , aeson

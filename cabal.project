@@ -1,8 +1,8 @@
 packages:
     ./
-    ./contribution
+    ./contribution/documentation
+    ./contribution/server
     ./testing
-    ./distribution
     ./usage/generateRandom
     ./usage/insertInto
     ./usage/select
