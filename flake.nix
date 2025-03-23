@@ -1,7 +1,7 @@
 {
   description = "ClickHaskell";
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
+    nixpkgs.url = "github:nixos/nixpkgs/haskell-updates";
     flake-parts.url = "github:hercules-ci/flake-parts";
     haskell-flake.url = "github:srid/haskell-flake";
     process-compose-flake.url = "github:Platonic-Systems/process-compose-flake";
@@ -24,7 +24,7 @@
               (builtins.readFile path)
             )
           );
-        supportedGHCs = ["ghc926" "ghc948" "ghc966" "ghc984" "ghc9101"];
+        supportedGHCs = ["ghc926" "ghc948" "ghc966" "ghc984" "ghc9101" "ghc9121"];
         schemas = [
           (extractSqlFromMarkdown ./usage/insertInto/index.lhs)
           (extractSqlFromMarkdown ./usage/selectFromView/index.lhs)
