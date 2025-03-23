@@ -78,18 +78,19 @@ module ClickHaskell
   , UInt8, UInt16, UInt32, UInt64, UInt128
   , Nullable
   , LowCardinality, IsLowCardinalitySupported
+  , UUID(..)
+  , Array(..)
+  , ChString(..)
+
+  , UVarInt(..)
+  , module Data.WideWord
+
   -- Deprecated Ch prefixed types. Use above one
   , ChDate, ChDateTime
   , ChUInt8, ChUInt16, ChUInt32, ChUInt64, ChUInt128
   , ChInt8, ChInt16, ChInt32, ChInt64, ChInt128
-
-  , ChString(..)
-  , ChUUID(..)
-
-  , ChArray(..)
-
-  , UVarInt(..)
-  , module Data.WideWord
+  , ChUUID
+  , ChArray
   ) where
 
 -- Internal
@@ -976,18 +977,18 @@ instance {-# OVERLAPPING #-}
     pure $ mkColumn @(Column name (LowCardinality chType)) lc
 
 instance {-# OVERLAPPING #-}
-  ( KnownColumn (Column name (ChArray chType))
+  ( KnownColumn (Column name (Array chType))
   , Deserializable chType
   , TypeError ('Text "Arrays deserialization still unsupported")
   )
-  => DeserializableColumn (Column name (ChArray chType)) where
+  => DeserializableColumn (Column name (Array chType)) where
   {-# INLINE deserializeColumn #-}
   deserializeColumn rev isCheckRequired _rows = do
-    handleColumnHeader @(Column name (ChArray chType)) rev isCheckRequired
+    handleColumnHeader @(Column name (Array chType)) rev isCheckRequired
     _isCustom <- deserialize @(UInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION) rev
     (arraySize, _offsets) <- readOffsets rev
     _types <- replicateM (fromIntegral arraySize) (deserialize @chType rev)
-    pure $ mkColumn @(Column name (ChArray chType)) []
+    pure $ mkColumn @(Column name (Array chType)) []
     where
     readOffsets :: ProtocolRevision -> Get (UInt64, [UInt64])
     readOffsets revivion = do
@@ -1071,7 +1072,7 @@ instance Deserializable UInt16 where deserialize _ = toChType <$> getWord16le; {
 instance Deserializable UInt32 where deserialize _ = toChType <$> getWord32le; {-# INLINE deserialize #-}
 instance Deserializable UInt64 where deserialize _ = toChType <$> getWord64le; {-# INLINE deserialize #-}
 instance Deserializable UInt128 where deserialize _ = toChType <$> (flip Word128 <$> getWord64le <*> getWord64le); {-# INLINE deserialize #-}
-instance Deserializable ChUUID where deserialize _ = MkChUUID <$!> (flip Word128 <$> getWord64le <*> getWord64le); {-# INLINE deserialize #-}
+instance Deserializable UUID where deserialize _ = MkChUUID <$!> (flip Word128 <$> getWord64le <*> getWord64le); {-# INLINE deserialize #-}
 instance Deserializable ChString where deserialize = (\n -> toChType <$> readN n (BS.take n)) . fromIntegral <=< deserialize @UVarInt; {-# INLINE deserialize #-}
 instance Deserializable Date where deserialize _ = toChType <$> getWord16le; {-# INLINE deserialize #-}
 instance Deserializable (DateTime tz) where deserialize _ = toChType <$> getWord32le; {-# INLINE deserialize #-}
@@ -1089,7 +1090,7 @@ instance Deserializable UVarInt where
 
 class FromChType chType outputType where fromChType  :: chType -> outputType
 
-instance FromChType ChUUID (Word64, Word64) where fromChType (MkChUUID (Word128 w64hi w64lo)) = (w64hi, w64lo)
+instance FromChType UUID (Word64, Word64) where fromChType (MkChUUID (Word128 w64hi w64lo)) = (w64hi, w64lo)
 instance {-# OVERLAPPABLE #-} (IsChType chType, chType ~ inputType) => FromChType chType inputType where fromChType = id
 instance FromChType (DateTime tz) Word32     where fromChType = coerce
 instance FromChType (DateTime tz) UTCTime    where fromChType (MkDateTime w32) = posixSecondsToUTCTime (fromIntegral w32)
@@ -1119,7 +1120,7 @@ instance
   FromChType ChString Text
   where
   fromChType = error "Unreachable"
-instance FromChType chType inputType => FromChType (ChArray chType) [inputType]
+instance FromChType chType inputType => FromChType (Array chType) [inputType]
   where
   fromChType (MkChArray values) = map fromChType values
 
@@ -1189,9 +1190,9 @@ data Column (name :: Symbol) (chType :: Type) where
   UInt128Column :: [UInt128] -> Column name UInt128; Int128Column :: [Int128] -> Column name Int128
   DateTimeColumn :: [DateTime tz] -> Column name (DateTime tz)
   DateColumn :: [Date] -> Column name Date
-  UUIDColumn :: [ChUUID] -> Column name ChUUID
+  UUIDColumn :: [UUID] -> Column name UUID
   StringColumn :: [ChString] -> Column name ChString
-  ArrayColumn :: [ChArray chType] -> Column name (ChArray chType)
+  ArrayColumn :: [Array chType] -> Column name (Array chType)
   NullableColumn :: [Nullable chType] -> Column name (Nullable chType)
   LowCardinalityColumn :: IsLowCardinalitySupported chType => [chType] -> Column name (LowCardinality chType)
 
@@ -1240,7 +1241,7 @@ instance
   , IsChType (DateTime tz)
   ) =>
   KnownColumn (Column name (DateTime tz)) where mkColumn = DateTimeColumn
-instance KnownSymbol name => KnownColumn (Column name ChUUID) where mkColumn = UUIDColumn
+instance KnownSymbol name => KnownColumn (Column name UUID) where mkColumn = UUIDColumn
 instance
   ( KnownSymbol name
   , IsChType chType
@@ -1254,7 +1255,7 @@ instance
   , IsLowCardinalitySupported chType
   ) =>
   KnownColumn (Column name (LowCardinality chType)) where mkColumn = LowCardinalityColumn . map fromChType
-instance KnownSymbol name => KnownColumn (Column name (ChArray ChString)) where mkColumn = ArrayColumn
+instance KnownSymbol name => KnownColumn (Column name (Array ChString)) where mkColumn = ArrayColumn
 
 
 -- ** Columns
@@ -1391,7 +1392,7 @@ instance ToQueryPart chType => ToQueryPart (Nullable chType)
 instance ToQueryPart chType => ToQueryPart (LowCardinality chType)
   where
   toQueryPart (MkLowCardinality chType) = toQueryPart chType
-instance ToQueryPart ChUUID where
+instance ToQueryPart UUID where
   toQueryPart (MkChUUID (Word128 hi lo)) = mconcat
     ["'", p 3 hi, p 2 hi, "-", p 1 hi, "-", p 0 hi, "-", p 3 lo, "-", p 2 lo, p 1 lo, p 0 lo, "'"]
     where
@@ -1407,12 +1408,12 @@ instance ToQueryPart (DateTime tz)
   where
   toQueryPart chDateTime = let time = BS8.pack . show . fromChType @(DateTime tz) @Word32 $ chDateTime
     in BS.byteString (BS8.replicate (10 - BS8.length time) '0' <> time)
-instance (IsChType chType, ToQueryPart chType) => ToQueryPart (ChArray chType)
+instance (IsChType chType, ToQueryPart chType) => ToQueryPart (Array chType)
   where
   toQueryPart
     = (\x -> "[" <> x <> "]")
     . (maybe "" (uncurry (foldr (\a b -> a <> "," <> b))) . uncons
-    . map (toQueryPart @chType)) . fromChType @(ChArray chType) @[chType]
+    . map (toQueryPart @chType)) . fromChType @(Array chType) @[chType]
 
 
 
@@ -1530,7 +1531,7 @@ instance Serializable UVarInt where
       | otherwise = word8 (setBit (fromIntegral i) 7) <> go (i `unsafeShiftR` 7)
 instance Serializable ChString where
   serialize rev str = (serialize @UVarInt rev . fromIntegral . BS.length . fromChType) str <> fromChType str
-instance Serializable ChUUID where serialize _ = (\(hi, lo) -> word64LE lo <> word64LE hi) . fromChType
+instance Serializable UUID where serialize _ = (\(hi, lo) -> word64LE lo <> word64LE hi) . fromChType
 instance Serializable Int8 where serialize _ = int8 . fromChType
 instance Serializable Int16 where serialize _ = int16LE . fromChType
 instance Serializable Int32 where serialize _ = int32LE . fromChType
@@ -1603,13 +1604,13 @@ instance
   where
   toChType = fmap (toChType @inputType @chType)
 instance ToChType inputType chType => ToChType (LowCardinality inputType) chType where toChType = MkLowCardinality . toChType
-instance ToChType ChUUID Word64 where toChType = MkChUUID . flip Word128 0
-instance ToChType ChUUID (Word64, Word64) where toChType = MkChUUID . uncurry (flip Word128)
+instance ToChType UUID Word64 where toChType = MkChUUID . flip Word128 0
+instance ToChType UUID (Word64, Word64) where toChType = MkChUUID . uncurry (flip Word128)
 instance ToChType (DateTime tz) Word32     where toChType = MkDateTime
 instance ToChType (DateTime tz) UTCTime    where toChType = MkDateTime . floor . utcTimeToPOSIXSeconds
 instance ToChType (DateTime tz) ZonedTime  where toChType = MkDateTime . floor . utcTimeToPOSIXSeconds . zonedTimeToUTC
 instance ToChType Date Word16 where toChType = MkChDate
-instance ToChType chType inputType => ToChType (ChArray chType) [inputType]
+instance ToChType chType inputType => ToChType (Array chType) [inputType]
   where
   toChType = MkChArray . map toChType
 
@@ -1688,10 +1689,10 @@ instance IsChType UInt128 where
   defaultValueOfTypeName = 0
 
 -- | ClickHouse UUID column type
-newtype ChUUID = MkChUUID Word128
+newtype UUID = MkChUUID Word128
   deriving newtype (Generic, Show, Eq, NFData, Bounded, Enum)
-instance IsChType ChUUID where
-  type ToChTypeName ChUUID = "UUID"
+instance IsChType UUID where
+  type ToChTypeName UUID = "UUID"
   defaultValueOfTypeName = MkChUUID 0
 
 {- |
@@ -1725,14 +1726,14 @@ instance IsChType Date where
   defaultValueOfTypeName = MkChDate 0
 
 -- | ClickHouse Array column type
-newtype ChArray a = MkChArray [a]
+newtype Array a = MkChArray [a]
   deriving newtype (Show, Eq, NFData)
 instance
   KnownSymbol (AppendSymbol (AppendSymbol "Array(" (ToChTypeName chType)) ")")
   =>
-  IsChType (ChArray chType)
+  IsChType (Array chType)
   where
-  type ToChTypeName (ChArray chType) = "Array(" `AppendSymbol` ToChTypeName chType `AppendSymbol` ")"
+  type ToChTypeName (Array chType) = "Array(" `AppendSymbol` ToChTypeName chType `AppendSymbol` ")"
   defaultValueOfTypeName = MkChArray []
 
 
@@ -1748,6 +1749,8 @@ type ChInt64    = Int64    ;{-# DEPRECATED ChInt64    "Ch prefixed types are dep
 type ChInt128   = Int128   ;{-# DEPRECATED ChInt128   "Ch prefixed types are deprecated. Use Int128 instead" #-}
 type ChDateTime = DateTime ;{-# DEPRECATED ChDateTime "Ch prefixed types are deprecated. Use DateTime instead" #-}
 type ChDate     = Date     ;{-# DEPRECATED ChDate     "Ch prefixed types are deprecated. Use Date instead" #-}
+type ChUUID     = UUID     ;{-# DEPRECATED ChUUID     "Ch prefixed types are deprecated. Use UUID instead" #-}
+type ChArray    = Array    ;{-# DEPRECATED ChArray    "Ch prefixed types are deprecated. Use Array instead" #-}
 
 
 -- | ClickHouse Nullable(T) column type
