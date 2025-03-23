@@ -15,7 +15,7 @@ import ClickHaskell
   ( ReadableFrom, generateRandom
   , openNativeConnection, defaultCredentials
   , Columns, Column
-  , ChString, ChUUID, DateTime
+  , ChString, UUID, DateTime
   )
 import Data.ByteString (ByteString)
 import Data.Int (Int64)
@@ -44,13 +44,13 @@ type ExampleColumns =
  '[ Column "a1" Int64
   , Column "a2" ChString
   , Column "a3" (DateTime "")
-  , Column "a4" ChUUID
+  , Column "a4" UUID
   ]
 
 data ExampleData = MkExampleData
   { a1 :: Int64
   , a2 :: ByteString
-  , a4 :: ChUUID
+  , a4 :: UUID
   , a3 :: Word32
   }
   deriving (Generic, Show)

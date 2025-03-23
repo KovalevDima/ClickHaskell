@@ -62,7 +62,7 @@ main = do
 data ExampleData = MkExampleData
   { a1 :: Int64
   , a3 :: Word32
-  , a4 :: ChUUID
+  , a4 :: UUID
   , a2 :: StrictByteString
   , a5 :: Int32
   , a6 :: Nullable ChString
@@ -79,7 +79,7 @@ type ExampleColumns =
  '[ Column "a1" Int64
   , Column "a2" ChString
   , Column "a3" (DateTime "")
-  , Column "a4" ChUUID
+  , Column "a4" UUID
   , Column "a5" Int32
   , Column "a6" (Nullable ChString)
   , Column "a7" ChString

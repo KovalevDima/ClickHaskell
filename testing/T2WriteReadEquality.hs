@@ -25,7 +25,7 @@ import ClickHaskell
   , toChType
   , ChInt8, ChInt16, ChInt32, ChInt64, ChInt128
   , UInt8, UInt16, UInt32, UInt64, UInt128
-  , ChUUID, DateTime, ChString, Int128, Word128
+  , UUID, DateTime, ChString, Int128, Word128
   , Nullable, DateTime
   )
 
@@ -88,8 +88,8 @@ type TestTable = Table "writeReadEqualityTable"
    , Column "uint64Nullable" (Nullable UInt64)
    , Column "uint8" UInt8
    , Column "uint8Nullable" (Nullable UInt8)
-   , Column "uuid" ChUUID
-   , Column "uuidNullable" (Nullable ChUUID)
+   , Column "uuid" UUID
+   , Column "uuidNullable" (Nullable UUID)
    ]
 
 data TestData = MkTestData
@@ -117,8 +117,8 @@ data TestData = MkTestData
   , uint64Nullable :: Nullable UInt64
   , uint8 :: UInt8
   , uint8Nullable :: Nullable UInt8
-  , uuid :: ChUUID
-  , uuidNullable :: Nullable ChUUID
+  , uuid :: UUID
+  , uuidNullable :: Nullable UUID
   }
   deriving (Generic, Show, Eq)
 
