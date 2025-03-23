@@ -30,7 +30,7 @@
           (extractSqlFromMarkdown ./usage/selectFromView/index.lhs)
           (extractSqlFromMarkdown ./testing/PT1Simple.hs)
           (extractSqlFromMarkdown ./testing/T2WriteReadEquality.hs)
-          (extractSqlFromMarkdown ./distribution/server.hs)
+          (extractSqlFromMarkdown ./contribution/server/index.hs)
         ];
       in
       {
@@ -59,7 +59,7 @@
         # ClickHaskell project itself with Haskell env
         haskellProjects = lib.mergeAttrsList (
           map
-            (ghc: {"${ghc}" = import ./distribution/project.nix {inherit pkgs ghc;};})
+            (ghc: {"${ghc}" = import ./contribution/project.nix {inherit pkgs ghc;};})
             supportedGHCs
         );
         devShells.default = pkgs.mkShell {
@@ -71,9 +71,9 @@
         packages = {
           "documentation" = import ./contribution/documentation.nix {
             inherit pkgs;
-            compiler = lib.getExe' self'.packages.ghc966-contribution "documentation-compiler";
+            compiler = lib.getExe' self'.packages.ghc966-documentation "documentation-compiler";
           };
-          "ClickHaskell-dist" = import ./distribution/hackage.nix {
+          "ClickHaskell-dist" = import ./contribution/hackage.nix {
             inherit pkgs;
             distPackage = self'.packages.ghc966-ClickHaskell;
           };
@@ -83,7 +83,7 @@
     //
     {
       nixosModules = {
-        default = import ./distribution/systemModule.nix self;
+        default = import ./contribution/systemModule.nix self;
       };
       hydraJobs = { inherit (self) packages; };
     };

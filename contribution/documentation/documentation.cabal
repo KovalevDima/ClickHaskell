@@ -1,7 +1,7 @@
 Cabal-version:      3.4
 
 
-name:               QA
+name:               documentation
 version:            0.0.0.1
 build-type:         Simple
 license:            BSD-3-Clause
@@ -9,7 +9,7 @@ license:            BSD-3-Clause
 executable documentation-compiler
   default-language: GHC2021
   hs-source-dirs: .
-  main-is: documentation.lhs
+  main-is: index.lhs
   build-depends:
       base
     , hakyll
