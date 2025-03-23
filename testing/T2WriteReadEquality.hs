@@ -23,7 +23,6 @@ import ClickHaskell
   , Table
   , Column
   , toChType
-  , ChInt8, ChInt16, ChInt32, ChInt64, ChInt128
   , UInt8, UInt16, UInt32, UInt64, UInt128
   , UUID, DateTime, ChString, Int128, Word128
   , Nullable, DateTime
