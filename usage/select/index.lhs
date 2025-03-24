@@ -3,12 +3,11 @@
 The `select` is a wrapper for generic select queries. Such as
 
 
-```sql
+<code data-lang="sql">
 SELECT CAST(5, 'UInt8') as num LIMIT 5;
-```
+</code>
 
-
-```haskell
+<code data-lang="haskell">
 {-# LANGUAGE
     DataKinds
   , DeriveAnyClass
@@ -51,4 +50,4 @@ newtype ExampleTableRecord = MkExampleTableRecord
   { num :: UInt8
   }
   deriving (Generic, Show)
-```
+</code>

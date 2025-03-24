@@ -65,7 +65,7 @@
         devShells.default = pkgs.mkShell {
           inputsFrom = [config.haskellProjects.ghc966.outputs.devShell];
           packages = with pkgs; with haskellPackages;
-            [clickhouse nixfmt nil eventlog2html graphmod cabal-plan];
+            [clickhouse nixfmt nil eventlog2html graphmod cabal-plan markdown-unlit];
         };
         # Build documnetation
         packages = {
