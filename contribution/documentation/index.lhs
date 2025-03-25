@@ -66,7 +66,13 @@ main = do
             =<< getMatches pattern
 
         -- compile every file
-        pandocCompiler
+        getResourceBody
+          >>=
+            (\item ->
+              if (toFilePath . itemIdentifier) item `elem` migratingFiles
+              then pure item
+              else renderPandoc item
+            )
           >>=
             loadAndApplyTemplate
               "template.html"
@@ -76,6 +82,9 @@ main = do
     match "./assets/**" $ do
       route idRoute
       compile copyFileCompiler
+
+migratingFiles :: [String]
+migratingFiles = ["./usage/select/index.lhs"]
 
 mkNavigationCtx :: [Item FilePath] -> Context String
 mkNavigationCtx navigation =
