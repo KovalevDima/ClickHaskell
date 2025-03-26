@@ -28,7 +28,6 @@
         schemas = [
           (extractSqlFromMarkdown ./usage/insertInto/index.lhs)
           (extractSqlFromMarkdown ./usage/selectFromView/index.lhs)
-          (extractSqlFromMarkdown ./testing/PT1Simple.hs)
           (extractSqlFromMarkdown ./testing/T2WriteReadEquality.hs)
           (extractSqlFromMarkdown ./contribution/server/index.hs)
         ];

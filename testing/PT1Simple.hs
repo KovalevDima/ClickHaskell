@@ -8,24 +8,6 @@
   , TypeApplications
 #-}
 
-{-
-```sql
-CREATE TABLE profiler
-(
-    `a1` Int64,
-    `a2` String,
-    `a3` DateTime,
-    `a4` UUID,
-    `a5` Int32,
-    `a6` Nullable(String),
-    `a7` String
-)
-ENGINE = MergeTree
-PARTITION BY ()
-ORDER BY ();
-```
--}
-
 module Main (main) where
 
 -- Internal
@@ -46,6 +28,20 @@ main = do
   writingConnection <- openNativeConnection credentials
 
   let totalRows = 1_000_000
+  create readingConnection
+    "CREATE TABLE IF NOT EXISTS profiler \
+    \(\
+    \    `a1` Int64, \
+    \    `a2` String, \
+    \    `a3` DateTime, \
+    \    `a4` UUID, \
+    \    `a5` Int32, \
+    \    `a6` Nullable(String), \
+    \    `a7` String \
+    \) \
+    \ENGINE = MergeTree \
+    \PARTITION BY () \
+    \ORDER BY ();"
 
   _ <-
     generateRandom
