@@ -28,7 +28,7 @@ main = do
   writingConnection <- openNativeConnection credentials
 
   let totalRows = 1_000_000
-  create readingConnection
+  command readingConnection
     "CREATE TABLE IF NOT EXISTS profiler \
     \(\
     \    `a1` Int64, \

@@ -62,8 +62,8 @@ module ClickHaskell
   , WritableInto(..)
   , insertInto
 
-  -- * CREATE queries handler
-  , create
+  -- * Arbitrary commands
+  , command
 
   -- * Ping database connection
   , ping
@@ -238,8 +238,13 @@ createConnectionState creds@MkChCredential{chHost, chPort, chLogin, chPass, chDa
     otherPacket         -> throwIO (InternalError $ UnexpectedPacketType $ serverPacketToNum otherPacket)
 
 
-create :: HasCallStack => Connection -> ChString -> IO ()
-create conn query = do
+{- |
+  Arbitrary commands wrapper
+
+  For example: `CREATE`
+-}
+command :: HasCallStack => Connection -> ChString -> IO ()
+command conn query = do
   withConnection conn $ \connState -> do
     writeToConnection connState (mkQueryPacket connState query)
     writeToConnection connState (mkDataPacket "" 0 0)
