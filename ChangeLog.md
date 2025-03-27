@@ -1,5 +1,8 @@
 # 1.0.0 -- ?
 
+## Features:
+- Support and CI for GHCs: `8.10.7`, `9.0.2`, `9.2.6`
+
 # 0.2.0 -- 23-03-2023
 
 ClickHaskell documentation got it's own domain name: https://clickhaskell.dev/
