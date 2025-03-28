@@ -14,7 +14,7 @@ module Main (main) where
 import ClickHaskell
 
 -- GHC included
-import Data.ByteString (StrictByteString)
+import Data.ByteString (ByteString)
 import Data.Word (Word32)
 import Debug.Trace (traceMarkerIO)
 import GHC.Generics (Generic)
@@ -59,7 +59,7 @@ data ExampleData = MkExampleData
   { a1 :: Int64
   , a3 :: Word32
   , a4 :: UUID
-  , a2 :: StrictByteString
+  , a2 :: ByteString
   , a5 :: Int32
   , a6 :: Nullable ChString
   , a7 :: ChString

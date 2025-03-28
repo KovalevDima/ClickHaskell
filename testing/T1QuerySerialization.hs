@@ -31,6 +31,7 @@ import ClickHaskell
 -- GHC included
 import Control.Monad (void, when)
 import Data.ByteString as BS (singleton)
+import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Char8 as BS8 (takeWhile)
 import GHC.Generics (Generic)
 import GHC.TypeLits (KnownSymbol, symbolVal)
@@ -65,6 +66,7 @@ runTestForType ::
   =>
   Connection -> [chType] -> IO ()
 runTestForType connection testValues = do
+  let typeName = chTypeName @chType
   mapM_
     (\chType -> do
       [selectChType] <-
@@ -73,18 +75,18 @@ runTestForType connection testValues = do
             @'[Column "testSample" chType]
             @(TestSample chType)
             connection
-            (toChType ("SELECT CAST(" <> toQueryPart chType <> ", '" <> chTypeName @chType <> "') as testSample;"))
+            (toChType ("SELECT CAST(" <> toQueryPart chType <> ", '" <> typeName <> "') as testSample;"))
             pure
 
       (when (chType /= testSample selectChType) . error)
-        (  "Deserialized value of type " <> show (chTypeName @chType) <> " unmatched:"
+        (  "Deserialized value of type " <> show (toLazyByteString typeName) <> " unmatched:"
         <> " Expected: " <> show chType
         <> ". But got: " <> show selectChType <> "."
         )
     )
     testValues
 
-  print (chTypeName @chType <> ": Ok")
+  print (toLazyByteString typeName <> ": Ok")
 
 
 data TestSample chType = MkTestSample {testSample :: chType}

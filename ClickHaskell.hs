@@ -15,7 +15,6 @@
   , LambdaCase
   , MultiParamTypeClasses
   , NamedFieldPuns
-  , NoFieldSelectors
   , NumericUnderscores
   , OverloadedStrings
   , RecordWildCards
@@ -99,9 +98,10 @@ import Control.Monad (forM, replicateM, void, when, (<$!>), (<=<))
 import Data.Binary.Get
 import Data.Binary.Get.Internal (readN)
 import Data.Bits (Bits (setBit, unsafeShiftL, unsafeShiftR, (.&.), (.|.)))
-import Data.ByteString as BS (StrictByteString, length, take, toStrict)
+import Data.ByteString as BS (ByteString, length, take)
 import Data.ByteString.Builder
 import Data.ByteString.Builder as BS (Builder, byteString)
+import Data.ByteString.Lazy as BSL (toStrict)
 import Data.ByteString.Char8 as BS8 (concatMap, length, pack, replicate, singleton)
 import Data.Coerce (coerce)
 import Data.IORef (IORef, atomicModifyIORef, atomicWriteIORef, newIORef, readIORef)
@@ -422,7 +422,7 @@ handleInsertResult conn@MkConnectionState{..} records = do
 data Buffer = MkBuffer
   { bufferSize :: Int
   , bufferSocket :: Socket
-  , buff :: IORef StrictByteString
+  , buff :: IORef BS.ByteString
   }
 
 initBuffer :: Int -> Socket -> IO Buffer
@@ -431,7 +431,7 @@ initBuffer size sock = MkBuffer size sock <$> newIORef ""
 flushBuffer :: Buffer -> IO ()
 flushBuffer MkBuffer{buff} = atomicWriteIORef buff ""
 
-readBuffer ::  Buffer -> IO StrictByteString
+readBuffer ::  Buffer -> IO BS.ByteString
 readBuffer buffer@MkBuffer{..} =
   readIORef buff
     >>= (\currentBuffer ->
@@ -440,7 +440,7 @@ readBuffer buffer@MkBuffer{..} =
         _ -> flushBuffer buffer *> pure currentBuffer
     )
 
-writeToBuffer :: Buffer -> StrictByteString -> IO ()
+writeToBuffer :: Buffer -> BS.ByteString -> IO ()
 writeToBuffer MkBuffer{..} val = void (atomicModifyIORef buff (val,))
 
 rawBufferizedRead :: Buffer -> Get packet -> IO packet
@@ -529,7 +529,9 @@ mkHelloPacket :: HelloParameters -> HelloPacket
 mkHelloPacket MkHelloParameters{chDatabase, chLogin, chPass} =
   MkHelloPacket
     { packet_type          = MkPacket
-    , client_name, client_version_major, client_version_minor
+    , client_name          = clientName
+    , client_version_major = major
+    , client_version_minor = minor
     , tcp_protocol_version = latestSupportedRevision
     , default_database     = toChType chDatabase
     , user                 = toChType chLogin
@@ -577,11 +579,13 @@ mkQueryPacket MkConnectionState{..} query = MkQueryPacket
     , initial_time                 = MkSinceRevision 0
     , interface_type               = 1 -- [tcp - 1, http - 2]
     , os_user, hostname
-    , client_name, client_version_major, client_version_minor
+    , client_name                  = clientName
+    , client_version_major         = major
+    , client_version_minor         = minor
     , client_revision              = revision
     , quota_key                    = MkSinceRevision ""
     , distrubuted_depth            = MkSinceRevision 0
-    , client_version_patch
+    , client_version_patch         = MkSinceRevision patch
     , open_telemetry               = MkSinceRevision 0
     , collaborate_with_initiator   = MkSinceRevision 0
     , count_participating_replicas = MkSinceRevision 0
@@ -1123,7 +1127,7 @@ instance
   FromChType (LowCardinality chType) outputType
   where
   fromChType (MkLowCardinality value) = fromChType value
-instance FromChType ChString StrictByteString where fromChType (MkChString string) = string
+instance FromChType ChString BS.ByteString where fromChType (MkChString string) = string
 instance FromChType ChString Builder where fromChType (MkChString string) = byteString string
 instance
   ( TypeError
@@ -1415,7 +1419,7 @@ instance ToQueryPart UUID where
 instance ToQueryPart ChString where
   toQueryPart (MkChString string) =  "'" <> escapeQuery string <> "'"
     where
-    escapeQuery :: StrictByteString -> Builder
+    escapeQuery :: BS.ByteString -> Builder
     escapeQuery -- [ClickHaskell.DbTypes.ToDo.1]: Optimize
       = BS.byteString . BS8.concatMap (\case '\'' -> "\\\'"; '\\' -> "\\\\"; sym -> BS8.singleton sym;)
 instance ToQueryPart (DateTime tz)
@@ -1606,11 +1610,11 @@ class ToChType chType inputType    where toChType    :: inputType -> chType
 instance {-# OVERLAPPABLE #-} (IsChType chType, chType ~ inputType) => ToChType chType inputType where toChType = id
 instance ToChType Int64 Int where toChType = fromIntegral
 instance ToChType UInt128 UInt64 where toChType = fromIntegral
-instance ToChType ChString StrictByteString where toChType = MkChString
-instance ToChType ChString Builder          where toChType = MkChString . toStrict . toLazyByteString
-instance ToChType ChString String           where toChType = MkChString . BS8.pack
-instance ToChType ChString Text             where toChType = MkChString . Text.encodeUtf8
-instance ToChType ChString Int              where toChType = MkChString . BS8.pack . show
+instance ToChType ChString BS.ByteString where toChType = MkChString
+instance ToChType ChString Builder       where toChType = MkChString . toStrict . toLazyByteString
+instance ToChType ChString String        where toChType = MkChString . BS8.pack
+instance ToChType ChString Text          where toChType = MkChString . Text.encodeUtf8
+instance ToChType ChString Int           where toChType = MkChString . BS8.pack . show
 instance
   ToChType inputType chType
   =>
@@ -1726,7 +1730,7 @@ instance KnownSymbol (ToChTypeName (DateTime tz)) => IsChType (DateTime tz)
   defaultValueOfTypeName = MkDateTime 0
 
 -- | ClickHouse String column type
-newtype ChString = MkChString StrictByteString
+newtype ChString = MkChString BS.ByteString
   deriving newtype (Show, Eq, IsString, NFData)
 instance IsChType ChString where
   type ToChTypeName ChString = "String"
@@ -1822,18 +1826,14 @@ newtype UVarInt = MkUVarInt Word64
 
 -- * Versioning
 
-client_version_major, client_version_minor :: UVarInt
-client_version_patch :: UVarInt  `SinceRevision` DBMS_MIN_REVISION_WITH_VERSION_PATCH
-client_version_major = case versionBranch version of (x:_) -> fromIntegral x; _ -> 0
-client_version_minor = case versionBranch version of (_:x:_) -> fromIntegral x; _ -> 0
-client_version_patch = MkSinceRevision $ case versionBranch version of (_:_:x:_) -> fromIntegral x; _ -> 0
+major, minor, patch :: UVarInt
+major = case versionBranch version of (x:_) -> fromIntegral x; _ -> 0
+minor = case versionBranch version of (_:x:_) -> fromIntegral x; _ -> 0
+patch = case versionBranch version of (_:_:x:_) -> fromIntegral x; _ -> 0
 
-client_name :: ChString
-client_name = fromString $
-  "ClickHaskell-"
-  <> show client_version_major <> "."
-  <> show client_version_minor <> "."
-  <> show client_version_patch
+clientName :: ChString
+clientName = fromString $
+  "ClickHaskell-" <> show major <> "." <> show minor <> "." <> show patch
 
 newtype ProtocolRevision = MkProtocolRevision Word64
   deriving newtype (Eq, Num, Ord)
