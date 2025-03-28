@@ -24,7 +24,7 @@
               (builtins.readFile path)
             )
           );
-        supportedGHCs = ["ghc926" "ghc948" "ghc966" "ghc984" "ghc9101"];
+        supportedGHCs = [ "ghc8107" "ghc902" "ghc926" "ghc948" "ghc966" "ghc984" "ghc9101"];
         schemas = [
           (extractSqlFromMarkdown ./usage/insertInto/index.lhs)
           (extractSqlFromMarkdown ./usage/selectFromView/index.lhs)

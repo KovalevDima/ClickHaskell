@@ -1,12 +1,8 @@
-Cabal-version:      3.4
-
-
+Cabal-version:      3.0
 name:               server
 version:            0.0.0.1
 build-type:         Simple
 license:            BSD-3-Clause
-
--- * API
 
 executable server
   default-language: GHC2021
