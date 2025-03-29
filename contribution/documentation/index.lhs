@@ -3,8 +3,6 @@
 It's a ClickHaskell documentation compiler code <br>
 which is powered by <a href="https://hackage.haskell.org/package/hakyll"> Hakyll static compiler </a>
 
-<br><br>
-
 You can <b>start</b> live server on <a href="http://127.0.0.1:8000"> http://127.0.0.1:8000</a> via cabal
 
 <pre><code data-lang="bash" class="bash"
@@ -90,7 +88,15 @@ main = do
       compile copyFileCompiler
 
 migratingFiles :: [String]
-migratingFiles = ["./usage/select/index.lhs"]
+migratingFiles =
+  [ "./contribution/begin.md"
+  , "./contribution/documentation/index.lhs"
+  , "./testing/README.lhs"
+  , "./usage/generateRandom/index.lhs"
+  , "./usage/insertInto/index.lhs"
+  , "./usage/select/index.lhs"
+  , "./usage/selectFromView/index.lhs"
+  ]
 
 mkNavigationCtx :: [Item FilePath] -> Context String
 mkNavigationCtx navigation =

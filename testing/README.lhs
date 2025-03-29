@@ -13,8 +13,7 @@
     <pre><code data-lang="sql" class="sql"
     >SELECT CAST(5, 'UInt8') as testSample;
     </code></pre>
-    via <b>ToQueryPart</b> type class<br>
-    for every supported type
+    via <b>ToQueryPart</b> type class for every supported type
 2. Executes <b>select</b>
 3. Parses the result
 4. Checks if result equals initial value
