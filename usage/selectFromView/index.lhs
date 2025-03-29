@@ -1,7 +1,7 @@
 <h1>selectFromView</h1>
 
 
-Lets imagine we have database with parametrized view `exampleParametrizedView`
+Lets imagine we have database with parametrized view <b>exampleParametrizedView</b>
 
 <pre><code class="sql" data-lang="sql"
 >CREATE VIEW exampleParametrizedView
@@ -11,7 +11,7 @@ WHERE (a1 > {a1MoreThan:Int32}) AND (a1 < {a1LessThan:Int32})
 LIMIT 5;
 </code></pre>
 
-To perform a SELECT from such view you can use this snippet
+To perform a <b>SELECT</b> from such view you can use this snippet
 
 <pre><code data-lang="haskell" class="haskell"
 >{-# LANGUAGE

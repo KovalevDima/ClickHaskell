@@ -1,39 +1,39 @@
 # Setup Nix
 
-ClickHaskell contributors using `Nix` package manager to setup everything. You can install it via [official installer](https://nixos.org/download/) and [enable flakes](https://nixos.wiki/wiki/Flakes)
+ClickHaskell contributors using <b>Nix</b> package manager to setup everything. You can install it via <a href="https://nixos.org/download/">official installer</a> and <a href="https://nixos.wiki/wiki/Flakes">enable flakes</a>
 
 
 After you have Nix installed you can:
-```sh
+<pre><code data-lang="bash" class="bash">
 nix develop
-```
-to manually enter shell with provided: `cabal`, `ghc`, `haskell-laguage-server`, `clickhouse-client`
+</code></pre>
+to manually enter shell with provided: <b>cabal</b>, <b>ghc</b>, <b>haskell-laguage-server</b>, <b>clickhouse-client</b>
 
-You can also setup [direnv](https://github.com/nix-community/nix-direnv) to automatically enter the shell
+You can also setup <a href="https://github.com/nix-community/nix-direnv">direnv</a> to automatically enter the shell
 
-# Run routine actions
+<h1>Run routine actions</h1>
 
-#### Start database and documentation server
+<h4> Start database and documentation server </h4>
 
-```
+<pre><code data-lang="bash" class="bash">
 nix run
-```
+</code></pre>
 
-#### Initialize database and run tests
+<h4>Initialize database and run tests</h4>
 
-```
+<pre><code data-lang="bash" class="bash">
 nix run .#test-ghc966-tests
-```
+</code></pre>
 
-#### Initilization database and run profiling
+<h4>Initilization database and run profiling</h4>
 
-```
+<pre><code data-lang="bash" class="bash">
 nix run .#test-ghc966-prof-simple
-```
+</code></pre>
 
-#### Reinitialize database
+<h4>Reinitialize database</h4>
 
-```
+<pre><code data-lang="bash" class="bash">
 rm -rf ./data
-```
+</code></pre>
 (and then restart process-compose)

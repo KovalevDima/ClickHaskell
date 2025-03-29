@@ -72,12 +72,6 @@ main = do
         -- compile every file
         getResourceBody
           >>=
-            (\item ->
-              if (toFilePath . itemIdentifier) item `elem` migratingFiles
-              then pure item
-              else renderPandoc item
-            )
-          >>=
             loadAndApplyTemplate
               "template.html"
               (defaultContext <> mkNavigationCtx navigation)
