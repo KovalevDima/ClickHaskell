@@ -20,7 +20,7 @@
         extractSqlFromMarkdown = path:
           builtins.toFile (builtins.baseNameOf path) (
             lib.strings.concatStrings (
-              builtins.match ".*```sql\n(.*);\n```.*"
+              builtins.match ".*<pre><code class=\"sql\" data-lang=\"sql\"\n>(.*);\n</code></pre>.*"
               (builtins.readFile path)
             )
           );

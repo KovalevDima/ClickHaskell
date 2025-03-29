@@ -3,9 +3,8 @@
 The `select` is a wrapper for generic select queries. Such as
 
 
-<pre>
-  <code class="sql" data-lang="sql"
-  >SELECT CAST(5, 'UInt8') as num LIMIT 5;
+<pre><code class="sql" data-lang="sql"
+>SELECT CAST(5, 'UInt8') as num LIMIT 5;
 </code></pre>
 
 <pre style="white-space: preserve wrap;">

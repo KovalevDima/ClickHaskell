@@ -157,8 +157,8 @@ testData = MkTestData
 
 
 {-
-```sql
-CREATE TABLE writeReadEqualityTable
+<pre><code class="sql" data-lang="sql"
+>CREATE TABLE writeReadEqualityTable
 (
     `dateTime` DateTime('UTC'),
     `dateTimeNullable` Nullable(DateTime('UTC')),
@@ -190,5 +190,5 @@ CREATE TABLE writeReadEqualityTable
 ENGINE = MergeTree
 PARTITION BY ()
 ORDER BY ();
-```
+</code></pre>
 -}

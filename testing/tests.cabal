@@ -30,6 +30,7 @@ executable tests
     -O2 -threaded -rtsopts
     -main-is Tests
     -pgmL markdown-unlit
+  build-tool-depends: markdown-unlit:markdown-unlit
   build-depends:
       ClickHaskell
     , async
@@ -40,7 +41,6 @@ executable tests
     T2WriteReadEquality
     T3Multithreading
     T4MissmatchErrors
-  build-tool-depends: markdown-unlit:markdown-unlit
   default-language: Haskell2010
 
 -- * Profiling

@@ -51,7 +51,7 @@ putLinesInfo fp = go []
   where
   go acc ((TagPosition line _):(TagOpen "code" attrs):xs) =
     if ("data-lang","haskell") `elem` attrs
-    then (TagOpen "code" attrs) : TagText ("#line " <> show (line+1) <> " " <> show fp) : go acc xs
+    then (TagOpen "code" attrs) : TagText ("#line " <> show (line+1) <> " " <> show fp <> "\n") : go acc xs
     else (TagOpen "code" attrs) : go acc xs
   go acc (x:xs) = x : go acc xs
   go acc []     = acc
