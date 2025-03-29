@@ -10,7 +10,7 @@
 </code></pre>
 
 1. Builds queries like
-    <pre><code data-lang="haskell" class="haskell"
+    <pre><code data-lang="sql" class="sql"
     >SELECT CAST(5, 'UInt8') as testSample;
     </code></pre>
     via <b>ToQueryPart</b> type class<br>
