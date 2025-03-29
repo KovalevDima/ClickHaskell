@@ -3,7 +3,7 @@ function which generatesRandom data for given schema
 
 You can use this function in Haskell with given wrapper
 
-<code data-lang="haskell" class="haskell"
+<pre><code data-lang="haskell" class="haskell"
 >{-# LANGUAGE
     DataKinds
   , DeriveAnyClass

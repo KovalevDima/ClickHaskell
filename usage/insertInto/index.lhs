@@ -17,7 +17,7 @@ ORDER BY ();
 
 There are a simple "How to do" example:
 
-<code data-lang="haskell" class="haskell"
+<pre><code data-lang="haskell" class="haskell"
 >{-# LANGUAGE
     DataKinds
   , DeriveAnyClass

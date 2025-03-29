@@ -4,20 +4,20 @@ It's a ClickHaskell documentation compiler code\
 which is powered by [Hakyll static compiler](https://hackage.haskell.org/package/hakyll)
 
 You can **start** live server on [http://127.0.0.1:8000](http://127.0.0.1:8000) via cabal\
-<code data-lang="bash" class="bash"
+<pre><code data-lang="bash" class="bash"
 >cabal run documentation-compiler -- watch
 </code></pre>
 or **build** static site via cabal or nix wrapper
-<code data-lang="bash" class="bash"
+<pre><code data-lang="bash" class="bash"
 >cabal run documentation-compiler -- build
 </code></pre>
-<code data-lang="bash" class="bash"
+<pre><code data-lang="bash" class="bash"
 >nix build .#documentation
 </code></pre>
 
 <h1> Compiler </h1>
 
-<code data-lang="haskell" class="haskell"
+<pre><code data-lang="haskell" class="haskell"
 >{-# LANGUAGE OverloadedStrings #-}
 
 module DocumentationCompiler where
@@ -60,7 +60,7 @@ main = do
     match pattern $ do
       route (customRoute $ filePathToUrlPath . toFilePath)
       compile $ do
-        -- load all used file paths to pass it into <nav>
+        -- load all used file paths to pass it into nav tag
         navigation <-
           traverse (makeItem) . sort . map (beautifyUrl . filePathToUrlPath . toFilePath)
             =<< getMatches pattern

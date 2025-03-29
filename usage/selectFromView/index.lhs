@@ -13,7 +13,7 @@ LIMIT 5;
 
 To perform a SELECT from such view you can use this snippet
 
-<code data-lang="haskell" class="haskell"
+<pre><code data-lang="haskell" class="haskell"
 >{-# LANGUAGE
     DataKinds
   , DeriveAnyClass
