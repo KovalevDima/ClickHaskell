@@ -4,21 +4,21 @@ It's a ClickHaskell documentation compiler code\
 which is powered by [Hakyll static compiler](https://hackage.haskell.org/package/hakyll)
 
 You can **start** live server on [http://127.0.0.1:8000](http://127.0.0.1:8000) via cabal\
-```bash
-cabal run documentation-compiler -- watch
-```
+<code data-lang="bash" class="bash"
+>cabal run documentation-compiler -- watch
+</code></pre>
 or **build** static site via cabal or nix wrapper
-```bash
-cabal run documentation-compiler -- build
-```
-```bash
-nix build .#documentation
-```
+<code data-lang="bash" class="bash"
+>cabal run documentation-compiler -- build
+</code></pre>
+<code data-lang="bash" class="bash"
+>nix build .#documentation
+</code></pre>
 
 <h1> Compiler </h1>
 
-```haskell
-{-# LANGUAGE OverloadedStrings #-}
+<code data-lang="haskell" class="haskell"
+>{-# LANGUAGE OverloadedStrings #-}
 
 module DocumentationCompiler where
 
@@ -96,4 +96,4 @@ mkNavigationCtx navigation =
       ]
     )
     (pure navigation)
-```
+</code></pre>

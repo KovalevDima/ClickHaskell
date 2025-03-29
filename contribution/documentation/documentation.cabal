@@ -15,5 +15,5 @@ executable documentation-compiler
   ghc-options:
     -threaded -Wall
     -main-is DocumentationCompiler
-    -pgmL markdown-unlit
-  build-tool-depends: markdown-unlit:markdown-unlit
+    -pgmL html2hs -Wall
+  build-tool-depends: html2hs:html2hs

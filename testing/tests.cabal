@@ -29,8 +29,8 @@ executable tests
   ghc-options:
     -O2 -threaded -rtsopts
     -main-is Tests
-    -pgmL markdown-unlit
-  build-tool-depends: markdown-unlit:markdown-unlit
+    -pgmL html2hs -Wall
+  build-tool-depends: html2hs:html2hs
   build-depends:
       ClickHaskell
     , async
