@@ -3,18 +3,18 @@
 
 Lets imagine we have database with parametrized view `exampleParametrizedView`
 
-```sql
-CREATE VIEW exampleParametrizedView
+<pre><code class="sql" data-lang="sql"
+>CREATE VIEW exampleParametrizedView
 AS SELECT *
 FROM generateRandom('a1 Int32, a2 Int32, a3 String', 1, 10, 2)
 WHERE (a1 > {a1MoreThan:Int32}) AND (a1 < {a1LessThan:Int32})
 LIMIT 5;
-```
+</code></pre>
 
 To perform a SELECT from such view you can use this snippet
 
-```haskell
-{-# LANGUAGE
+<pre><code data-lang="haskell" class="haskell"
+>{-# LANGUAGE
     DataKinds
   , DeriveAnyClass
   , DerivingStrategies
@@ -65,4 +65,4 @@ newtype ExampleViewRecord = MkExampleViewRecord
   { a1 :: Int32
   }
   deriving (Generic, Show)
-```
+</code></pre>

@@ -272,8 +272,8 @@ dropIndexHtml fp = BS8.pack .  dropTrailingPathSeparator $
 
 
 {-
-```sql
-CREATE TABLE default.ClickHaskellStats
+<pre><code class="sql" data-lang="sql"
+>CREATE TABLE default.ClickHaskellStats
 (
     `time` DateTime,
     `path` LowCardinality(String),
@@ -292,5 +292,5 @@ FROM default.ClickHaskellStats
 WHERE hour > (now() - ({hoursLength:UInt16} * 3600))
 GROUP BY hour
 ORDER BY hour ASC;
-```
+</code></pre>
 -}

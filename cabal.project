@@ -1,6 +1,7 @@
 packages:
     ./
     ./contribution/documentation
+    ./contribution/html2hs
     ./contribution/server
     ./testing
     ./usage/generateRandom

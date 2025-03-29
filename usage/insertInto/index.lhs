@@ -2,8 +2,8 @@
 
 Lets imagine we want insert data into table
 
-```sql
-CREATE TABLE exampleWriteRead
+<pre><code class="sql" data-lang="sql"
+>CREATE TABLE exampleWriteRead
 (
     `a1` Int64,
     `a2` String,
@@ -13,12 +13,12 @@ CREATE TABLE exampleWriteRead
 ENGINE = MergeTree
 PARTITION BY ()
 ORDER BY ();
-```
+</code></pre>
 
 There are a simple "How to do" example:
 
-```haskell
-{-# LANGUAGE
+<pre><code data-lang="haskell" class="haskell"
+>{-# LANGUAGE
     DataKinds
   , DeriveAnyClass
   , OverloadedStrings
@@ -74,4 +74,4 @@ data ExampleData = MkExampleData
   , a3 :: Word32
   }
   deriving (Generic, Show)
-```
+</code></pre>

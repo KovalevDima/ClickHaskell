@@ -11,5 +11,5 @@ executable selectFromView
   build-depends:
       ClickHaskell
     , base >=4.7 && <5
-  ghc-options: -pgmL markdown-unlit -Wall
-  build-tool-depends: markdown-unlit:markdown-unlit
+  ghc-options: -pgmL html2hs -Wall
+  build-tool-depends: html2hs:html2hs

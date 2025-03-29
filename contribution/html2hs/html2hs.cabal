@@ -1,0 +1,16 @@
+Cabal-version:      3.0
+
+
+name:               html2hs
+version:            0.0.0.1
+build-type:         Simple
+license:            BSD-3-Clause
+
+executable html2hs
+  main-is: Html2Hs.hs
+  build-depends:
+      base
+    , tagsoup
+  ghc-options:
+    -threaded -Wall
+  default-language: Haskell2010

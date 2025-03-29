@@ -29,7 +29,8 @@ executable tests
   ghc-options:
     -O2 -threaded -rtsopts
     -main-is Tests
-    -pgmL markdown-unlit
+    -pgmL html2hs -Wall
+  build-tool-depends: html2hs:html2hs
   build-depends:
       ClickHaskell
     , async
@@ -40,7 +41,6 @@ executable tests
     T2WriteReadEquality
     T3Multithreading
     T4MissmatchErrors
-  build-tool-depends: markdown-unlit:markdown-unlit
   default-language: Haskell2010
 
 -- * Profiling

@@ -20,7 +20,7 @@
         extractSqlFromMarkdown = path:
           builtins.toFile (builtins.baseNameOf path) (
             lib.strings.concatStrings (
-              builtins.match ".*```sql\n(.*);\n```.*"
+              builtins.match ".*<pre><code class=\"sql\" data-lang=\"sql\"\n>(.*);\n</code></pre>.*"
               (builtins.readFile path)
             )
           );
@@ -63,8 +63,8 @@
         );
         devShells.default = pkgs.mkShell {
           inputsFrom = [config.haskellProjects.ghc966.outputs.devShell];
-          packages = with pkgs; with haskellPackages;
-            [clickhouse nixfmt nil eventlog2html graphmod cabal-plan];
+          packages = with pkgs; with haskellPackages; with (self'.packages);
+            [clickhouse nixfmt nil eventlog2html graphmod cabal-plan markdown-unlit ghc966-html2hs];
         };
         # Build documnetation
         packages = {

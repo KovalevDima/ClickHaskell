@@ -3,8 +3,8 @@ function which generatesRandom data for given schema
 
 You can use this function in Haskell with given wrapper
 
-```haskell
-{-# LANGUAGE
+<pre><code data-lang="haskell" class="haskell"
+>{-# LANGUAGE
     DataKinds
   , DeriveAnyClass
   , DerivingStrategies
@@ -54,4 +54,4 @@ data ExampleData = MkExampleData
   , a3 :: Word32
   }
   deriving (Generic, Show)
-```
+</code></pre>
