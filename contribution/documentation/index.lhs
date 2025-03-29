@@ -1,11 +1,9 @@
 <h1> Documentation </h1>
 
 It's a ClickHaskell documentation compiler code <br>
-which is powered by <a href="https://hackage.haskell.org/package/hakyll"> Hakyll static compiler </a>
+which is powered by <a href="https://hackage.haskell.org/package/hakyll"> Hakyll static compiler </a><br>
 
-<br><br>
-
-You can <b>start</b> live server on <a href="http://127.0.0.1:8000"> http://127.0.0.1:8000</a> via cabal
+You can <b>start</b> live server on <a href="http://127.0.0.1:8000">http://127.0.0.1:8000</a> via cabal<br>
 
 <pre><code data-lang="bash" class="bash"
 >cabal run documentation-compiler -- watch
@@ -21,7 +19,7 @@ or <b>build</b> static site via cabal or nix wrapper
 >nix build .#documentation
 </code></pre>
 
-<h1> Compiler </h1>
+<h1>Compiler</h1>
 
 <pre><code data-lang="haskell" class="haskell"
 >{-# LANGUAGE OverloadedStrings #-}
@@ -74,12 +72,6 @@ main = do
         -- compile every file
         getResourceBody
           >>=
-            (\item ->
-              if (toFilePath . itemIdentifier) item `elem` migratingFiles
-              then pure item
-              else renderPandoc item
-            )
-          >>=
             loadAndApplyTemplate
               "template.html"
               (defaultContext <> mkNavigationCtx navigation)
@@ -88,9 +80,6 @@ main = do
     match "./assets/**" $ do
       route idRoute
       compile copyFileCompiler
-
-migratingFiles :: [String]
-migratingFiles = ["./usage/select/index.lhs"]
 
 mkNavigationCtx :: [Item FilePath] -> Context String
 mkNavigationCtx navigation =

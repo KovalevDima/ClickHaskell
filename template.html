@@ -11,16 +11,12 @@
         @font-face {
           font-family: 'Hasklig';
           font-weight: monospace;
-          src:
-            local('Hasklig'),
-            url('/assets/Hasklig-Regular.ttf');
+          src: local('Hasklig'), url('/assets/Hasklig-Regular.ttf');
         }
         @font-face {
           font-family: 'Hasklig';
           font-weight: bold;
-          src:
-            local('Hasklig'),
-            url('/assets/Hasklig-Bold.ttf');
+          src: local('Hasklig'), url('/assets/Hasklig-Bold.ttf');
         }
         html {
             align-items: center;
@@ -69,9 +65,16 @@
 <body>
     <header>
         <div>
-            <a style="font-size:24px; color: rgb(240, 246, 252); text-decoration: none; background-color: rgb(30, 30, 30);"
+            <a style= "
+                font-size:24px;
+                color: rgb(240, 246, 252);
+                text-decoration: none;
+                background-color: rgb(30, 30, 30);
+                gap: 8px;
+                "
                 href="/"
             >
+                <img width="28" height="28" src="/assets/logo.svg">
                 ClickHaskell
             </a>
         </div>
