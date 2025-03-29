@@ -1,16 +1,22 @@
 <h1> Documentation </h1>
 
-It's a ClickHaskell documentation compiler code\
-which is powered by [Hakyll static compiler](https://hackage.haskell.org/package/hakyll)
+It's a ClickHaskell documentation compiler code <br>
+which is powered by <a href="https://hackage.haskell.org/package/hakyll"> Hakyll static compiler </a>
 
-You can **start** live server on [http://127.0.0.1:8000](http://127.0.0.1:8000) via cabal\
+<br><br>
+
+You can <b>start</b> live server on <a href="http://127.0.0.1:8000"> http://127.0.0.1:8000</a> via cabal
+
 <pre><code data-lang="bash" class="bash"
 >cabal run documentation-compiler -- watch
 </code></pre>
-or **build** static site via cabal or nix wrapper
+
+or <b>build</b> static site via cabal or nix wrapper
+
 <pre><code data-lang="bash" class="bash"
 >cabal run documentation-compiler -- build
 </code></pre>
+
 <pre><code data-lang="bash" class="bash"
 >nix build .#documentation
 </code></pre>
@@ -24,7 +30,7 @@ module DocumentationCompiler where
 
 import GHC.IO.Encoding as Encoding (setLocaleEncoding, utf8)
 import System.FilePath
-  ( (</>), normalise, dropFileName, dropExtension
+  ( (&lt/&gt), normalise, dropFileName, dropExtension
   , replaceExtension, takeBaseName, replaceFileName, dropTrailingPathSeparator
   )
 import Hakyll
@@ -52,7 +58,7 @@ main = do
 
         beautifyUrl path =
           ( dropTrailingPathSeparator
-          . normalise . ("/" </>)
+          . normalise . ("/" &lt/&gt)
           . bool id dropFileName (takeBaseName path == "index")
           ) path
 

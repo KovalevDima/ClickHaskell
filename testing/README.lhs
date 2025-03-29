@@ -10,13 +10,12 @@
 </code></pre>
 
 1. Builds queries like
-
-    ```sql
-    SELECT CAST(5, 'UInt8') as testSample;
-    ```
-    via **ToQueryPart** type class\
+    <pre><code data-lang="haskell" class="haskell"
+    >SELECT CAST(5, 'UInt8') as testSample;
+    </code></pre>
+    via <b>ToQueryPart</b> type class<br>
     for every supported type
-2. Executes **select**
+2. Executes <b>select</b>
 3. Parses the result
 4. Checks if result equals initial value
 
@@ -24,8 +23,9 @@
 <pre><code data-lang="haskell" class="haskell"
 >import T2WriteReadEquality (t2)
 </code></pre>
-1. Runs **insertInto** of a sample into the all supported types table
-2. Runs **selectFrom** from the same table
+
+1. Runs <b>insertInto</b> of a sample into the all supported types table
+2. Runs <b>selectFrom</b> from the same table
 3. Checks if result equals sample value
 
 

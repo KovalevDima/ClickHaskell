@@ -4,8 +4,6 @@ import System.Environment (getArgs, getProgName)
 import System.Exit (exitFailure)
 import System.IO
 import Text.HTML.TagSoup
-import Debug.Trace (traceShowId)
-
 
 main :: IO ()
 main = runHtml2Hs
@@ -41,7 +39,7 @@ preprocess fp str = do
   pure
     . innerText
     . mconcat
-    . map ( traceShowId . takeWhile (~/= "</code>"))
+    . map (takeWhile (~/= "</code>"))
     . partitions (\tag -> tag ~== "<code data-lang=\"haskell\">" )
     . putLinesInfo fp
     . parseTagsOptions parseOptions{optTagPosition=True}
