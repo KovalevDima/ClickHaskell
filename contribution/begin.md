@@ -4,8 +4,8 @@ ClickHaskell contributors using <b>Nix</b> package manager to setup everything. 
 
 
 After you have Nix installed you can:
-<pre><code data-lang="bash" class="bash">
-nix develop
+<pre><code data-lang="bash" class="bash"
+>nix develop
 </code></pre>
 to manually enter shell with provided: <b>cabal</b>, <b>ghc</b>, <b>haskell-laguage-server</b>, <b>clickhouse-client</b>
 
@@ -15,25 +15,25 @@ You can also setup <a href="https://github.com/nix-community/nix-direnv">direnv<
 
 <h4> Start database and documentation server </h4>
 
-<pre><code data-lang="bash" class="bash">
-nix run
+<pre><code data-lang="bash" class="bash"
+>nix run
 </code></pre>
 
 <h4>Initialize database and run tests</h4>
 
-<pre><code data-lang="bash" class="bash">
-nix run .#test-ghc966-tests
+<pre><code data-lang="bash" class="bash"
+>nix run .#test-ghc966-tests
 </code></pre>
 
 <h4>Initilization database and run profiling</h4>
 
-<pre><code data-lang="bash" class="bash">
-nix run .#test-ghc966-prof-simple
+<pre><code data-lang="bash" class="bash"
+>nix run .#test-ghc966-prof-simple
 </code></pre>
 
 <h4>Reinitialize database</h4>
 
-<pre><code data-lang="bash" class="bash">
-rm -rf ./data
+<pre><code data-lang="bash" class="bash"
+>rm -rf ./data
 </code></pre>
 (and then restart process-compose)
