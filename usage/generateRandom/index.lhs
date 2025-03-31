@@ -1,5 +1,7 @@
-<b>generateRandom</b> is a special type ClickHouse DBMS table\
+<h1>generateRandom</h1> is a special type ClickHouse DBMS table<br>
 function which generatesRandom data for given schema
+<br>
+<br>
 
 You can use this function in Haskell with given wrapper
 

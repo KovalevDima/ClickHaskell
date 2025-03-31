@@ -1,13 +1,16 @@
-# Setup Nix
+<h1> Setup Nix </h1>
 
-ClickHaskell contributors using <b>Nix</b> package manager to setup everything. You can install it via <a href="https://nixos.org/download/">official installer</a> and <a href="https://nixos.wiki/wiki/Flakes">enable flakes</a>
-
+ClickHaskell contributors using <b>Nix</b> package manager to setup everything.<br>
+You can install it via <a href="https://nixos.org/download/">official installer</a> and <a href="https://nixos.wiki/wiki/Flakes">enable flakes</a>
+<br>
+<br>
 
 After you have Nix installed you can:
 <pre><code data-lang="bash" class="bash"
 >nix develop
 </code></pre>
-to manually enter shell with provided: <b>cabal</b>, <b>ghc</b>, <b>haskell-laguage-server</b>, <b>clickhouse-client</b>
+to manually enter shell with provided:<br>
+<b>cabal</b>, <b>ghc</b>, <b>haskell-laguage-server</b>, <b>clickhouse-client</b><br>
 
 You can also setup <a href="https://github.com/nix-community/nix-direnv">direnv</a> to automatically enter the shell
 
