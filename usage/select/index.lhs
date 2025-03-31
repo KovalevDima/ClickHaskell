@@ -1,7 +1,7 @@
 <h1>selectFromView</h1>
 
-The `select` is a wrapper for generic select queries. Such as
-
+The <b>select</b> is a wrapper for generic select queries.<br>
+Such as
 
 <pre><code class="sql" data-lang="sql"
 >SELECT CAST(5, 'UInt8') as num LIMIT 5;
