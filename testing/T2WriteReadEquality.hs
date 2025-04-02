@@ -19,7 +19,7 @@ module T2WriteReadEquality
 import ClickHaskell
   ( WritableInto, insertInto
   , ReadableFrom, selectFrom
-  , ChCredential(..), Connection
+  , Connection
   , Table
   , Column
   , toChType
@@ -29,8 +29,6 @@ import ClickHaskell
   )
 
 -- GHC included
-import Control.Concurrent (threadDelay)
-import Control.Exception  (bracket)
 import Control.Monad      (when)
 import Data.Int           (Int16, Int32, Int64, Int8)
 import Data.Word          (Word16, Word32, Word64, Word8)
@@ -150,7 +148,8 @@ testData = MkTestData
   , uint64Nullable = toChType $ Just (64 :: Word64)
   , uint8 = toChType (8 :: Word8)
   , uint8Nullable = toChType $ Just (8 :: Word8)
-  , uuid = toChType (16^3*4 + 16^2*2 + 0 :: Word64)
+  , uuid = let pos = (^) @Word64 @Word64 16 in
+      toChType ((pos 3)*4 + (pos 2)*2  )
     -- ^ 00000000-0000-0000-0000-000000004200
   , uuidNullable = Nothing
   }

@@ -18,23 +18,21 @@ module T1QuerySerialization
 
 -- Internal
 import ClickHaskell
-  ( ChCredential(..), Connection(..), openNativeConnection
+  ( Connection(..)
   , ReadableFrom, select
   , Column, Columns, KnownColumn, DeserializableColumn
-  , IsChType(..), ToChType(..), FromChType
+  , IsChType(..), ToChType(..)
   , ToQueryPart(..)
   , UInt8, UInt16, UInt32, UInt64
   , Int8, Int16, Int32, Int64
-  , ChString, Array, UUID
+  , ChString, UUID
   )
 
 -- GHC included
-import Control.Monad (void, when)
+import Control.Monad (when)
 import Data.ByteString as BS (singleton)
 import Data.ByteString.Builder (toLazyByteString)
-import Data.ByteString.Char8 as BS8 (takeWhile)
 import GHC.Generics (Generic)
-import GHC.TypeLits (KnownSymbol, symbolVal)
 
 
 t1 :: Connection -> IO ()
