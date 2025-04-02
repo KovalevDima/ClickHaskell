@@ -13,9 +13,7 @@ module T4MissmatchErrors where
 import ClickHaskell
 
 -- GHC included
-import Control.Concurrent.Async (replicateConcurrently_)
-import Control.Exception (catch, throw, try)
-import Control.Monad (void)
+import Control.Exception (try)
 import GHC.Generics (Generic)
 import GHC.Stack (HasCallStack)
 
