@@ -1,4 +1,17 @@
-<h2>Real-time analytics powered by ClickHaskell</h2>
+
+<h1>Efficiency</h1>
+
+<p>
+    Powerful Haskell runtime system with the fastest analytical database.<br>
+    ClickHaskell is designed to:
+</p>
+
+<ul type="square">
+    <li>Handle millions of rows of data in constant memory</li>
+    <li>Efficiently utilize Haskell concurrent runtime</li>
+</ul>
+
+<h2>Real-time analytics example</h2>
 
 <p>You are receiving data via WebSockets and generating<br>
     it by loading any page from a unique IP address
@@ -48,5 +61,3 @@ socket.onmessage = event => {
 socket.onerror = error => console.error('WebSocket error:', error);
 socket.onclose = () => console.log('WebSocket closed');
 </script>
-
-<p>The source code available in <a href="https://git.clickhaskell.dev/">ClickHaskell git repo</a></p>
