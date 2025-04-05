@@ -27,13 +27,8 @@ or <b>build</b> static site via cabal or nix wrapper
 module DocumentationCompiler where
 
 import GHC.IO.Encoding as Encoding (setLocaleEncoding, utf8)
-import System.FilePath
-  ( (&lt/&gt), normalise, dropFileName, dropExtension
-  , replaceExtension, takeBaseName, replaceFileName, dropTrailingPathSeparator
-  )
+import System.FilePath (replaceExtension, takeBaseName, replaceFileName)
 import Hakyll
-import Data.Bool (bool)
-import Data.List (sort)
 
 main :: IO ()
 main = do
@@ -43,52 +38,20 @@ main = do
 
     match "template.html" $ compile templateCompiler
 
-    let pattern =
-          ("**.lhs" .||. "**.md" .||. "index.html")
-          .&&. (complement "ChangeLog.md")
-          .&&. (complement "README.md")
-
-        -- tranforms file paths to actual links
+    let pattern = ("**.lhs" .||. "**.html")
         filePathToUrlPath filePath =
           case takeBaseName filePath of
             "README" -> replaceFileName filePath "index.html"
             _        -> replaceExtension filePath "html"
 
-        beautifyUrl path =
-          ( dropTrailingPathSeparator
-          . normalise . ("/" &lt/&gt)
-          . bool id dropFileName (takeBaseName path == "index")
-          ) path
-
     -- documentation references compilation
     match pattern $ do
       route (customRoute $ filePathToUrlPath . toFilePath)
       compile $ do
-        -- load all used file paths to pass it into nav tag
-        navigation <-
-          traverse (makeItem) . sort . map (beautifyUrl . filePathToUrlPath . toFilePath)
-            =<< getMatches pattern
-
-        -- compile every file
         getResourceBody
-          >>=
-            loadAndApplyTemplate
-              "template.html"
-              (defaultContext <> mkNavigationCtx navigation)
+          >>= loadAndApplyTemplate "template.html" defaultContext
           >>= relativizeUrls
 
     match "./assets/**" $ do
       route idRoute
       compile copyFileCompiler
-
-mkNavigationCtx :: [Item FilePath] -> Context String
-mkNavigationCtx navigation =
-  listField
-    "nav"
-    (mconcat
-      [ field "link"     (pure . itemBody)
-      , field "linkName" (pure . dropExtension . itemBody)
-      ]
-    )
-    (pure navigation)
-</code></pre>
