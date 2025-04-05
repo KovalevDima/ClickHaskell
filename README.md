@@ -1,4 +1,4 @@
-# ClickHaskell
+# <img width="24px" height="24px" src="./assets/logo.svg"> ClickHaskell
 
 Haskell implementation of [ClickHouse](https://clickhouse.com/) DBMS Native protocol and client
 
