@@ -41,7 +41,7 @@ import Network.WebSockets as WebSocket (ServerApp, acceptRequest, sendTextData)
 import Network.WebSockets.Connection (defaultConnectionOptions)
 import System.Directory (doesDirectoryExist, listDirectory, withCurrentDirectory)
 import System.Environment (lookupEnv)
-import System.FilePath (dropFileName, dropTrailingPathSeparator, normalise, takeFileName, (</>))
+import System.FilePath (dropFileName, dropTrailingPathSeparator, normalise, takeFileName, (</>), replaceExtension, dropExtension, takeExtension)
 
 
 main :: IO ()
@@ -261,8 +261,13 @@ listFilesWithContents dir = do
   return $ HM.unions (HM.fromList fileContents : nestedMaps)
   where
   prepareFilePath :: FilePath -> StrictByteString
-  prepareFilePath = dropIndexHtml . normalise . ("/" </>)  
+  prepareFilePath = dropIndexHtml . filePathToUrlPath . normalise . ("/" </>)
 
+  filePathToUrlPath :: FilePath -> FilePath
+  filePathToUrlPath fp
+    | takeFileName fp == "index.html" = replaceExtension fp "html"
+    | takeExtension fp == "html"      = dropExtension fp
+    | otherwise = fp
 
 dropIndexHtml :: FilePath -> StrictByteString
 dropIndexHtml fp = BS8.pack .  dropTrailingPathSeparator $
