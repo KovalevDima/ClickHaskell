@@ -1,13 +1,15 @@
-{pkgs, compiler}:
+{pkgs}:
 
 pkgs.stdenv.mkDerivation {
   name = "documentation";
-  src = pkgs.nix-gitignore.gitignoreSourcePure [] ./..;
+  src = pkgs.lib.fileset.toSource {
+    root = ../.;
+    fileset = ../.;
+  };
 
-  buildPhase = "${compiler} build --verbose";
-
+  dontBuild = true;
   installPhase = ''
-    mkdir -p "$out"
-    cp -r ./_site/. "$out"
+    mkdir -p $out
+    cp -r ./. $out/
   '';
 }

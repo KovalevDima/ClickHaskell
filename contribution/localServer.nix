@@ -9,7 +9,7 @@
   settings.processes = {
     "executable" = {
       command = ''
-      CLICKHASKELL_STATIC_FILES_DIR=${docDirPath} \
+      CLICKHASKELL_STATIC_FILES_DIR=. \
         ${app.program}
       '';
       depends_on."database".condition = "process_healthy";

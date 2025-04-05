@@ -22,7 +22,7 @@ import Data.Aeson (ToJSON, encode)
 import Data.ByteString (StrictByteString)
 import Data.ByteString.Char8 as BS8 (pack, unpack)
 import Data.ByteString.Lazy as B (LazyByteString, readFile)
-import Data.HashMap.Strict as HM (HashMap, empty, fromList, lookup, unions)
+import Data.HashMap.Strict as HM (HashMap, empty, fromList, lookup, unions, keys)
 import Data.Text as T (pack)
 import Data.Time (getCurrentTime)
 import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
@@ -41,7 +41,7 @@ import Network.WebSockets as WebSocket (ServerApp, acceptRequest, sendTextData)
 import Network.WebSockets.Connection (defaultConnectionOptions)
 import System.Directory (doesDirectoryExist, listDirectory, withCurrentDirectory)
 import System.Environment (lookupEnv)
-import System.FilePath (dropFileName, dropTrailingPathSeparator, normalise, takeFileName, (</>), replaceExtension, dropExtension, takeExtension)
+import System.FilePath (dropFileName, dropTrailingPathSeparator, normalise, takeFileName, (</>), replaceExtension, takeExtension)
 
 
 main :: IO ()
@@ -206,6 +206,7 @@ initServer args@MkServerArgs{mStaticFiles, mSocketPath} = do
       (pure HM.empty)
       (flip withCurrentDirectory (listFilesWithContents "."))
       mStaticFiles
+  print $ HM.keys staticFiles
 
   let
     app = websocketsOr
@@ -250,23 +251,32 @@ wsServer MkServerArgs{mkBroadcastChan, currentHistory} pending = do
 
 listFilesWithContents :: FilePath -> IO (HashMap StrictByteString (MimeType, LazyByteString))
 listFilesWithContents dir = do
-  entries <- listDirectory dir
-  let paths = map (dir </>) entries
+  paths <- map (dir </>) <$> listDirectory dir
   subdirs <- filterM doesDirectoryExist paths
-  files <- filterM (fmap not . doesDirectoryExist) paths
+  files <- (`filterM` paths) $ \path ->
+    (&&)
+      <$> (fmap not . doesDirectoryExist) path
+      <*> (pure . isDocFile) path
   fileContents <- forM files $ \file -> do
     content <- B.readFile file
-    return (prepareFilePath file, (defaultMimeLookup (T.pack file), content))
+    return
+      ( prepareFilePath file
+      , (defaultMimeLookup (T.pack $ filePathToUrlPath file), content)
+      )
   nestedMaps <- forM subdirs listFilesWithContents
   return $ HM.unions (HM.fromList fileContents : nestedMaps)
   where
+  isDocFile :: FilePath -> Bool
+  isDocFile fp
+    | takeExtension fp `elem` [".html", ".lhs", ".ttf", ".svg", ".css", ".js"] = True
+    | otherwise              = False
+
   prepareFilePath :: FilePath -> StrictByteString
   prepareFilePath = dropIndexHtml . filePathToUrlPath . normalise . ("/" </>)
 
   filePathToUrlPath :: FilePath -> FilePath
   filePathToUrlPath fp
-    | takeFileName fp == "index.html" = replaceExtension fp "html"
-    | takeExtension fp == "html"      = dropExtension fp
+    | takeExtension fp == ".lhs" = replaceExtension fp "html"
     | otherwise = fp
 
 dropIndexHtml :: FilePath -> StrictByteString

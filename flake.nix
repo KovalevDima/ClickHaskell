@@ -68,10 +68,7 @@
         };
         # Build documnetation
         packages = {
-          "documentation" = import ./contribution/documentation.nix {
-            inherit pkgs;
-            compiler = lib.getExe' self'.packages.ghc966-documentation "documentation-compiler";
-          };
+          "documentation" = import ./contribution/documentation.nix {inherit pkgs;};
           "ClickHaskell-dist" = import ./contribution/hackage.nix {
             inherit pkgs;
             distPackage = self'.packages.ghc966-ClickHaskell;

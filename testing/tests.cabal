@@ -24,7 +24,7 @@ common dump-core
       -dlint
 
 executable tests
-  main-is: README.lhs
+  main-is: index.lhs
   hs-source-dirs: .
   ghc-options:
     -O2 -threaded -rtsopts
