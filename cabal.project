@@ -3,7 +3,7 @@ packages:
     ./contribution/html2hs
     ./contribution/server
     ./testing
-    ./usage/generateRandom
-    ./usage/insertInto
-    ./usage/select
-    ./usage/selectFromView
+    ./usage/api/generateRandom
+    ./usage/api/insertInto
+    ./usage/api/select
+    ./usage/api/selectFromView

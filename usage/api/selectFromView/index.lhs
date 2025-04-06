@@ -1,5 +1,14 @@
-<h1>selectFromView</h1>
+<nav style="display: flex; flex-direction: row; align-items: center;">
+    <p>Library API</p>
+    <ul type="square">
+        <li><a href="/#/usage/api/generateRandom">/generateRandom</a></li>
+        <li><a href="/#/usage/api/insertInto">/insertInto</a></li>
+        <li><a href="/#/usage/api/select">/select</a></li>
+        <li><a href="/#/usage/api/selectFromView">/selectFromView</a></li>
+    </ul>
+</nav>
 
+<h1>selectFromView</h1>
 
 Lets imagine we have database with parametrized view <b>exampleParametrizedView</b>
 
