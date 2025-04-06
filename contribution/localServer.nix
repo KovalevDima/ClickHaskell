@@ -10,6 +10,7 @@
     "executable" = {
       command = ''
       CLICKHASKELL_STATIC_FILES_DIR=. \
+        DEV= \
         ${app.program}
       '';
       depends_on."database".condition = "process_healthy";
