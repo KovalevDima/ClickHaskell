@@ -4,7 +4,6 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE DerivingStrategies #-}
-
 import ClickHaskell
   ( ChString, DateTime
   , UInt16, UInt32, UInt64
@@ -22,7 +21,8 @@ import Data.Aeson (ToJSON, encode)
 import Data.ByteString (StrictByteString)
 import Data.ByteString.Char8 as BS8 (pack, unpack)
 import Data.ByteString.Lazy as B (LazyByteString, readFile)
-import Data.HashMap.Strict as HM (HashMap, empty, fromList, lookup, unions, keys)
+import Data.HashMap.Strict as HM (HashMap, empty, fromList, keys, lookup, unions)
+import Data.Maybe (isJust)
 import Data.Text as T (pack)
 import Data.Time (getCurrentTime)
 import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
@@ -41,13 +41,14 @@ import Network.WebSockets as WebSocket (ServerApp, acceptRequest, sendTextData)
 import Network.WebSockets.Connection (defaultConnectionOptions)
 import System.Directory (doesDirectoryExist, listDirectory, withCurrentDirectory)
 import System.Environment (lookupEnv)
-import System.FilePath (dropFileName, dropTrailingPathSeparator, normalise, takeFileName, (</>), replaceExtension, takeExtension)
+import System.FilePath (dropFileName, dropTrailingPathSeparator, normalise, replaceExtension, takeExtension, takeFileName, (</>))
 
 
 main :: IO ()
 main = do
   mSocketPath  <- lookupEnv "CLICKHASKELL_PAGE_SOCKET_PATH"
   mStaticFiles <- lookupEnv "CLICKHASKELL_STATIC_FILES_DIR"
+  isDev        <- isJust <$> lookupEnv "DEV"
 
   docsStatQueue  <- newTBQueueIO 100_000
   broadcastChan  <- newBroadcastTChanIO
@@ -185,10 +186,11 @@ type HistoryByHours =
 
 -}
 
-type StaticFiles = HashMap StrictByteString (MimeType, LazyByteString)
+type StaticFiles = HashMap StrictByteString (MimeType, IO LazyByteString)
 
 data ServerArgs = MkServerArgs
-  { mStaticFiles    :: Maybe String
+  { isDev           :: Bool
+  , mStaticFiles    :: Maybe String
   , mSocketPath     :: Maybe FilePath
   , docsStatQueue   :: TBQueue DocsStatistics
   , currentHistory  :: TVar HistoryData
@@ -200,11 +202,11 @@ data HistoryData = History{history :: [HourData]} | HistoryUpdate{realtime :: Ho
   deriving anyclass (ToJSON)
 
 initServer :: ServerArgs -> IO (Concurrently())
-initServer args@MkServerArgs{mStaticFiles, mSocketPath} = do
+initServer args@MkServerArgs{mStaticFiles, mSocketPath, isDev} = do
   staticFiles <-
     maybe
       (pure HM.empty)
-      (flip withCurrentDirectory (listFilesWithContents "."))
+      (flip withCurrentDirectory (listFilesWithContents isDev "."))
       mStaticFiles
   print $ HM.keys staticFiles
 
@@ -239,7 +241,7 @@ httpApp MkServerArgs{docsStatQueue} staticFiles req f = do
     Nothing -> f (responseLBS status404 [("Content-Type", "text/plain")] "404 - Not Found")
     Just (mimeType, content) -> do
       (atomically . writeTBQueue docsStatQueue) MkDocsStatistics{..}
-      f (responseLBS status200 [(hContentType, mimeType)] content)
+      f . responseLBS status200 [(hContentType, mimeType)] =<< content
 
 wsServer :: ServerArgs -> ServerApp
 wsServer MkServerArgs{mkBroadcastChan, currentHistory} pending = do
@@ -249,8 +251,8 @@ wsServer MkServerArgs{mkBroadcastChan, currentHistory} pending = do
   forever $ do
     sendTextData conn =<< (fmap encode . atomically . readTChan) clientChan
 
-listFilesWithContents :: FilePath -> IO (HashMap StrictByteString (MimeType, LazyByteString))
-listFilesWithContents dir = do
+listFilesWithContents :: Bool -> FilePath -> IO (HashMap StrictByteString (MimeType, IO LazyByteString))
+listFilesWithContents isDev dir = do
   paths <- map (dir </>) <$> listDirectory dir
   subdirs <- filterM doesDirectoryExist paths
   files <- (`filterM` paths) $ \path ->
@@ -259,11 +261,12 @@ listFilesWithContents dir = do
       <*> (pure . isDocFile) path
   fileContents <- forM files $ \file -> do
     content <- B.readFile file
+    let contentLoader = if isDev then (B.readFile file) else pure content
     return
       ( prepareFilePath file
-      , (defaultMimeLookup (T.pack $ filePathToUrlPath file), content)
+      , (defaultMimeLookup (T.pack $ filePathToUrlPath file), contentLoader)
       )
-  nestedMaps <- forM subdirs listFilesWithContents
+  nestedMaps <- forM subdirs (listFilesWithContents isDev)
   return $ HM.unions (HM.fromList fileContents : nestedMaps)
   where
   isDocFile :: FilePath -> Bool
