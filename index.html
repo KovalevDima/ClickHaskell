@@ -61,29 +61,32 @@
         </div>
     </header>
     <main role="main">
-        <nav>
-            <ul type="square">
-                <li><a href="/#/contribution">/contribution</a></li>
-                <li><a href="/#/testing">/testing</a></li>
-                <li><a href="/#/usage">/usage</a></li>
-            </ul>
-        </nav>
-        <h1>Efficiency</h1>
-        <p>
-            Powerful Haskell runtime system with the fastest analytical database.<br>
-            ClickHaskell is designed to:
-        </p>
-        <ul type="square">
-            <li>Handle millions of rows of data in constant memory</li>
-            <li>Efficiently utilize Haskell concurrent runtime</li>
-        </ul>
-        <h2>Real-time analytics example</h2>
-        <p>You are receiving data via WebSockets and generating<br>
-            it by loading any page from a unique IP address
-        </p>
-        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-        <canvas id="visitsChart" style="background-color: #1e1e1e"></canvas>
-        <script src="/assets/websockets.js"></script>
+        <div>
+            <div>
+                <a href="/#/contribution"><h2>/contribution</h2></a>
+            </div>
+            <div style="width: 300px;">
+                <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+                <canvas id="visitsChart" style="background-color: #1e1e1e"></canvas>
+                <script src="/assets/websockets.js"></script>
+            </div>
+            <div>
+                <a href="/#/testing"><h2>/performance</h2></a>
+                <ul type="square">
+                    <li>Handle millions of rows</li>
+                    <li>Consume constant memory</li>
+                    <li>Support Haskell concurrency</li>
+                </ul>
+            </div>
+        </div>
+        <div style="display: flex; justify-content: space-between; flex-wrap: nowrap;">
+            <div style="width:200px">
+                <a href="/#/usage"><h2 style="margin: 0;">/usage</h2></a>
+                <p>Real-time analytics<br>
+                    with type-safe API
+                </p>
+            </div>
+        </div>
     </main>
     <footer>
     </footer>

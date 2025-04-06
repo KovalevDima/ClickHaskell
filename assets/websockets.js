@@ -12,7 +12,7 @@ const visitsChart = new Chart(ctx, {
 
 function formatHour(posixTime) {
     const date = new Date(posixTime * 1000);
-    return `${date.getHours()}:00`;
+    return `${date.getHours()}`;
 }
 
 const socket = new WebSocket(`${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`);
