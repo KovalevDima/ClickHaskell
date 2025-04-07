@@ -1509,9 +1509,10 @@ instance
   GWritable columns (S1 (MetaSel (Just name) a b f) rec :*: right)
   where
   {-# INLINE gSerializeRecords #-}
-  gSerializeRecords rev
-    = (\(a, b) -> gSerializeRecords @'[Column name chType] rev a <> gSerializeRecords @restColumns rev b)
-    . unzip . map (\(l :*: r) -> (l, r))
+  gSerializeRecords rev xs
+    = let (ls, rs) = foldr (\(l :*: r) (accL, accR) -> (l:accL, r:accR)) ([], []) xs
+      in gSerializeRecords @'[Column name chType] rev ls <>
+         gSerializeRecords @restColumns rev rs
   gDeserializeInsertHeader rev = do
     gDeserializeInsertHeader @'[Column name chType] @(S1 (MetaSel (Just name) a b f) rec) rev
     gDeserializeInsertHeader @restColumns @right rev
