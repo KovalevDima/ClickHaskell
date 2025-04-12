@@ -131,6 +131,7 @@ import Network.Socket hiding (SocketOption(..))
 import Network.Socket qualified as Sock (SocketOption(..))
 import Network.Socket.ByteString (recv)
 import Network.Socket.ByteString.Lazy (sendAll)
+import GHC.Exts (inline, oneShot)
 
 -- * Connection
 
@@ -855,17 +856,19 @@ class HasColumns hasColumns => ReadableFrom hasColumns record
 
   default readingColumns :: GenericReadable record hasColumns => Builder
   readingColumns :: Builder
-  readingColumns
-    = maybe "" (uncurry (foldl (\a b -> a <> ", " <> b))) . uncons
-    . map fst
-    $ gReadingColumns @(GetColumns hasColumns) @(Rep record)
+  readingColumns = buildCols (gReadingColumns @(GetColumns hasColumns) @(Rep record))
+    where
+    buildCols [] = mempty
+    buildCols ((col, _):[])   = col
+    buildCols ((col, _):rest) = col <> ", " <> buildCols rest
 
   default readingColumnsAndTypes :: GenericReadable record hasColumns => Builder
-  readingColumnsAndTypes :: Builder
-  readingColumnsAndTypes
-    = maybe "" (uncurry (foldl (\a b -> a <> ", " <> b))) . uncons
-    . map (\(colName, colType) -> colName <> " " <> colType)
-    $ gReadingColumns @(GetColumns hasColumns) @(Rep record)
+  readingColumnsAndTypes ::  Builder
+  readingColumnsAndTypes = buildColsTypes (gReadingColumns @(GetColumns hasColumns) @(Rep record))
+    where
+    buildColsTypes [] = mempty
+    buildColsTypes ((col, typ):[])   = col <> " " <> typ
+    buildColsTypes ((col, typ):rest) = col <> " " <> typ <> ", " <> buildColsTypes rest
 
 
 class GReadable (columns :: [Type]) f
