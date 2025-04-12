@@ -1485,6 +1485,7 @@ instance
   where
   {-# INLINE gSerializeRecords #-}
   gSerializeRecords rev = gSerializeRecords @columns rev . map (unM1 . unM1)
+  {-# INLINE gDeserializeInsertHeader #-}
   gDeserializeInsertHeader rev = gDeserializeInsertHeader @columns @f rev
   gWritingColumns = gWritingColumns @columns @f
   gColumnsCount = gColumnsCount @columns @f
@@ -1496,6 +1497,7 @@ instance
   where
   {-# INLINE gSerializeRecords #-}
   gSerializeRecords rev = gSerializeRecords @columns rev . map (\((l1 :*: l2) :*: r) -> l1 :*: (l2 :*: r))
+  {-# INLINE gDeserializeInsertHeader #-}
   gDeserializeInsertHeader rev = void $ gDeserializeInsertHeader @columns @(left1 :*: (left2 :*: right)) rev
   gWritingColumns = gWritingColumns @columns @(left1 :*: (left2 :*: right))
   gColumnsCount = gColumnsCount @columns @(left1 :*: (left2 :*: right))
@@ -1513,6 +1515,7 @@ instance
     = let (ls, rs) = foldr (\(l :*: r) (accL, accR) -> (l:accL, r:accR)) ([], []) xs
       in gSerializeRecords @'[Column name chType] rev ls <>
          gSerializeRecords @restColumns rev rs
+  {-# INLINE gDeserializeInsertHeader #-}
   gDeserializeInsertHeader rev = do
     gDeserializeInsertHeader @'[Column name chType] @(S1 (MetaSel (Just name) a b f) rec) rev
     gDeserializeInsertHeader @restColumns @right rev
@@ -1532,6 +1535,7 @@ instance {-# OVERLAPPING #-}
   where
   {-# INLINE gSerializeRecords #-}
   gSerializeRecords rev = serialize rev . mkColumn @(Column name chType) . map (toChType . unK1 . unM1)
+  {-# INLINE gDeserializeInsertHeader #-}
   gDeserializeInsertHeader rev = void $ deserializeColumn @(Column name chType) rev False 0
   gWritingColumns = renderColumnName @(Column name chType)
   gColumnsCount = 1
