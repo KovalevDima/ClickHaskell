@@ -65,12 +65,12 @@
           default = pkgs.mkShell {
             inputsFrom = [config.haskellProjects.ghc966.outputs.devShell];
             packages = with pkgs; with haskellPackages; with (self'.packages);
-              [clickhouse nixfmt nil eventlog2html graphmod cabal-plan ghc966-html2hs];
+              [clickhouse nil eventlog2html graphmod ghc966-html2hs];
           };
           ghc8107 = pkgs.mkShell {
-            inputsFrom = [config.haskellProjects.ghc8107.outputs.devShell];
+            inputsFrom = [];
             packages = with pkgs; with haskellPackages; with (self'.packages);
-              [clickhouse nixfmt nil eventlog2html graphmod cabal-plan ghc8107-html2hs];
+              [clickhouse nil eventlog2html graphmod ghc8107-html2hs haskell.compiler.ghc8107 cabal-install];
           };
         };
         # Build documnetation
