@@ -30,6 +30,7 @@
 {-# OPTIONS_GHC
   -Wno-orphans
   -Wno-unused-top-binds
+  -Wno-unused-imports
 #-}
 
 module ClickHaskell
@@ -91,6 +92,7 @@ module ClickHaskell
 import Paths_ClickHaskell (version)
 
 -- GHC included
+import Control.Applicative (liftA2)
 import Control.Concurrent (MVar, newMVar, putMVar, takeMVar)
 import Control.DeepSeq (NFData)
 import Control.Exception (Exception, SomeException, bracketOnError, catch, finally, mask, onException, throw, throwIO)
@@ -907,9 +909,10 @@ instance
   where
   {-# INLINE gFromColumns #-}
   gFromColumns rev size = do
-    zipWith (:*:)
-      <$> gFromColumns @'[Column name chType] rev size
-      <*> gFromColumns @restColumns rev size
+    liftA2
+      (zipWith (:*:))
+      (gFromColumns @'[Column name chType] rev size)
+      (gFromColumns @restColumns rev size)
   gReadingColumns =
     (renderColumnName @(Column name chType), renderColumnType @(Column name chType))
     : gReadingColumns @restColumns @right
