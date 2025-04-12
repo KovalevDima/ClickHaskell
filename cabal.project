@@ -3,6 +3,8 @@ packages:
     ./contribution/html2hs
     ./contribution/server
     ./testing
+    ./performance/p1-million-rw
+    ./performance/p2-100-million-r
     ./usage/generateRandom
     ./usage/insertInto
     ./usage/select
