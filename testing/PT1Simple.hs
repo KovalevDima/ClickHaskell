@@ -64,7 +64,7 @@ data ExampleData = MkExampleData
   , a6 :: Nullable ChString
   , a7 :: ChString
   }
-  deriving (Generic, Show)
+  deriving (Generic)
   deriving anyclass
     ( ReadableFrom (Columns ExampleColumns)
     , WritableInto (Table "profiler" ExampleColumns)

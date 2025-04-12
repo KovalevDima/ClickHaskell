@@ -52,9 +52,9 @@ executable prof-simple
   ghc-options:
     -O2 -Wall
     -rtsopts -threaded
-  --if impl(ghc >= 9.4)
-  --  ghc-prof-options:
-  --    -fprof-late
+  if impl(ghc >= 9.4)
+    ghc-prof-options:
+      -fprof-late
   ghc-prof-options:
     "-with-rtsopts=-s -M32m -A4m -AL8m -p -hy -L250 -l-agu -N1"
   build-depends:
