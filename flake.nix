@@ -44,7 +44,7 @@
         lib.mergeAttrsList (
           map (
             {ghc, app}: {
-              "test-${ghc}-${app}" = import ./testing/testing.nix {
+              "test-${ghc}-${app}" = import ./contribution/testing.nix {
                 inherit pkgs inputs schemas;
                 app = self'.apps."${ghc}-${app}";
               };
