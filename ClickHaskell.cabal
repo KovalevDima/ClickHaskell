@@ -37,7 +37,6 @@ Library
     ./
   GHC-Options:
     -Wall
-    -fno-warn-type-defaults
     -Wunused-packages
 
   Build-depends:

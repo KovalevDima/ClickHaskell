@@ -5,24 +5,6 @@ version:            0.0.0.1
 build-type:         Simple
 license:            BSD-3-Clause
 
-common dump-core
-  ghc-options:
-    -ddump-to-file
-    -ddump-simpl
-    -ddump-spec
-    -ddump-simpl-stats
-    -ddump-rule-firings
-    -dsuppress-type-applications
-    -dsuppress-coercions
-    -dsuppress-idinfo
-    -dsuppress-type-signatures
-    -dsuppress-var-kinds
-    -dsuppress-module-prefixes
-    -dsuppress-uniques
-  if impl(ghc >= 9.4)
-    ghc-options:
-      -dlint
-
 executable tests
   main-is: index.lhs
   hs-source-dirs: .
@@ -41,44 +23,4 @@ executable tests
     T2WriteReadEquality
     T3Multithreading
     T4MissmatchErrors
-  default-language: Haskell2010
-
--- * Profiling
-
-executable prof-simple
-  import: dump-core
-  main-is: PT1Simple.hs
-  hs-source-dirs: .
-  ghc-options:
-    -O2 -Wall
-    -rtsopts -threaded
-  --if impl(ghc >= 9.4)
-  --  ghc-prof-options:
-  --    -fprof-late
-  ghc-prof-options:
-    "-with-rtsopts=-s -M32m -A4m -AL8m -p -hy -L250 -l-agu -N1"
-  build-depends:
-      ClickHaskell
-    , base
-    , bytestring
-  default-language: Haskell2010
-
-executable prof-1bil-stream
-  import: dump-core
-  main-is: PT2OneBillionStream.hs
-  hs-source-dirs: .
-  ghc-options:
-    -O2 -threaded
-    -main-is PT2OneBillionStream
-    -Wall
-  if impl(ghc >= 9.4)
-    ghc-prof-options:
-      -fprof-late
-  ghc-prof-options:
-    -rtsopts "-with-rtsopts=-s -A8m -AL256m -p -hy -L250 -l-agu -N1"
-  build-depends:
-      ClickHaskell
-    , base
-    , bytestring
-    , deepseq
   default-language: Haskell2010

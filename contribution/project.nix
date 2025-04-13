@@ -6,6 +6,7 @@
   basePackages = pkgs.haskell.packages.${ghc};
   settings = {
     ClickHaskell = {libraryProfiling = true; haddock = true;};
-    tests        = {libraryProfiling = true; executableProfiling = true;};
+    prof-1bil-stream = {libraryProfiling = true; executableProfiling = true;};
+    prof-simple = {libraryProfiling = true; executableProfiling = true;};
   };
 }

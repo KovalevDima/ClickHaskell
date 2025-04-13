@@ -30,6 +30,7 @@
 {-# OPTIONS_GHC
   -Wno-orphans
   -Wno-unused-top-binds
+  -Wno-unused-imports
 #-}
 
 module ClickHaskell
@@ -91,6 +92,7 @@ module ClickHaskell
 import Paths_ClickHaskell (version)
 
 -- GHC included
+import Control.Applicative (liftA2)
 import Control.Concurrent (MVar, newMVar, putMVar, takeMVar)
 import Control.DeepSeq (NFData)
 import Control.Exception (Exception, SomeException, bracketOnError, catch, finally, mask, onException, throw, throwIO)
@@ -131,6 +133,7 @@ import Network.Socket hiding (SocketOption(..))
 import Network.Socket qualified as Sock (SocketOption(..))
 import Network.Socket.ByteString (recv)
 import Network.Socket.ByteString.Lazy (sendAll)
+import GHC.Exts (inline, oneShot)
 
 -- * Connection
 
@@ -855,17 +858,19 @@ class HasColumns hasColumns => ReadableFrom hasColumns record
 
   default readingColumns :: GenericReadable record hasColumns => Builder
   readingColumns :: Builder
-  readingColumns
-    = maybe "" (uncurry (foldl (\a b -> a <> ", " <> b))) . uncons
-    . map fst
-    $ gReadingColumns @(GetColumns hasColumns) @(Rep record)
+  readingColumns = buildCols (gReadingColumns @(GetColumns hasColumns) @(Rep record))
+    where
+    buildCols [] = mempty
+    buildCols ((col, _):[])   = col
+    buildCols ((col, _):rest) = col <> ", " <> buildCols rest
 
   default readingColumnsAndTypes :: GenericReadable record hasColumns => Builder
-  readingColumnsAndTypes :: Builder
-  readingColumnsAndTypes
-    = maybe "" (uncurry (foldl (\a b -> a <> ", " <> b))) . uncons
-    . map (\(colName, colType) -> colName <> " " <> colType)
-    $ gReadingColumns @(GetColumns hasColumns) @(Rep record)
+  readingColumnsAndTypes ::  Builder
+  readingColumnsAndTypes = buildColsTypes (gReadingColumns @(GetColumns hasColumns) @(Rep record))
+    where
+    buildColsTypes [] = mempty
+    buildColsTypes ((col, typ):[])   = col <> " " <> typ
+    buildColsTypes ((col, typ):rest) = col <> " " <> typ <> ", " <> buildColsTypes rest
 
 
 class GReadable (columns :: [Type]) f
@@ -904,9 +909,10 @@ instance
   where
   {-# INLINE gFromColumns #-}
   gFromColumns rev size = do
-    zipWith (:*:)
-      <$> gFromColumns @'[Column name chType] rev size
-      <*> gFromColumns @restColumns rev size
+    liftA2
+      (zipWith (:*:))
+      (gFromColumns @'[Column name chType] rev size)
+      (gFromColumns @restColumns rev size)
   gReadingColumns =
     (renderColumnName @(Column name chType), renderColumnType @(Column name chType))
     : gReadingColumns @restColumns @right
@@ -1485,6 +1491,7 @@ instance
   where
   {-# INLINE gSerializeRecords #-}
   gSerializeRecords rev = gSerializeRecords @columns rev . map (unM1 . unM1)
+  {-# INLINE gDeserializeInsertHeader #-}
   gDeserializeInsertHeader rev = gDeserializeInsertHeader @columns @f rev
   gWritingColumns = gWritingColumns @columns @f
   gColumnsCount = gColumnsCount @columns @f
@@ -1496,6 +1503,7 @@ instance
   where
   {-# INLINE gSerializeRecords #-}
   gSerializeRecords rev = gSerializeRecords @columns rev . map (\((l1 :*: l2) :*: r) -> l1 :*: (l2 :*: r))
+  {-# INLINE gDeserializeInsertHeader #-}
   gDeserializeInsertHeader rev = void $ gDeserializeInsertHeader @columns @(left1 :*: (left2 :*: right)) rev
   gWritingColumns = gWritingColumns @columns @(left1 :*: (left2 :*: right))
   gColumnsCount = gColumnsCount @columns @(left1 :*: (left2 :*: right))
@@ -1513,6 +1521,7 @@ instance
     = let (ls, rs) = foldr (\(l :*: r) (accL, accR) -> (l:accL, r:accR)) ([], []) xs
       in gSerializeRecords @'[Column name chType] rev ls <>
          gSerializeRecords @restColumns rev rs
+  {-# INLINE gDeserializeInsertHeader #-}
   gDeserializeInsertHeader rev = do
     gDeserializeInsertHeader @'[Column name chType] @(S1 (MetaSel (Just name) a b f) rec) rev
     gDeserializeInsertHeader @restColumns @right rev
@@ -1532,6 +1541,7 @@ instance {-# OVERLAPPING #-}
   where
   {-# INLINE gSerializeRecords #-}
   gSerializeRecords rev = serialize rev . mkColumn @(Column name chType) . map (toChType . unK1 . unM1)
+  {-# INLINE gDeserializeInsertHeader #-}
   gDeserializeInsertHeader rev = void $ deserializeColumn @(Column name chType) rev False 0
   gWritingColumns = renderColumnName @(Column name chType)
   gColumnsCount = 1
