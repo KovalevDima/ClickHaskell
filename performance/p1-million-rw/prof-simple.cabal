@@ -1,6 +1,6 @@
 Cabal-version:      3.0
 
-name:               tests
+name:               prof-simple
 version:            0.0.0.1
 build-type:         Simple
 license:            BSD-3-Clause
