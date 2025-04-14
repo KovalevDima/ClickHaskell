@@ -7,12 +7,23 @@ let chartData = {
 const visitsChart = new Chart(ctx, {
     type: 'bar',
     data: chartData,
-    options: { scales: { y: { beginAtZero: true } } }
+    options: {
+      
+      scales: {
+        x: {
+          title: {
+            display: true,
+            text: "Hours"
+          },
+        },
+        y: { beginAtZero: true }
+      }
+    }
 });
 
 function formatHour(posixTime) {
     const date = new Date(posixTime * 1000);
-    return `${date.getHours()}`;
+    return `${date.getHours()}`.padStart(2, '0');
 }
 
 const socket = new WebSocket(`${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`);
