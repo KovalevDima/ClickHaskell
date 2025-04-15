@@ -9,6 +9,8 @@ executable server
   main-is: index.hs
   build-depends:
       ClickHaskell
+    , ClickHaskell-rts-stats
+    , ClickHaskell-visits
     , aeson
     , async
     , base >=4.7 && <5
@@ -27,4 +29,4 @@ executable server
     , warp
     , wai-websockets
     , websockets
-  ghc-options: -threaded -Wall -rtsopts "-with-rtsopts=-T -A8m -AL32m -N"
+  ghc-options: -threaded -Wall -Wunused-packages -rtsopts "-with-rtsopts=-T -A8m -AL32m -N"
