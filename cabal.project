@@ -9,5 +9,6 @@ packages:
     ./usage/api/insertInto
     ./usage/api/select
     ./usage/api/selectFromView
+    ./usage/modules/eventlog-writer
     ./usage/modules/visits
     ./usage/modules/rts-stats
