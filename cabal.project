@@ -5,7 +5,9 @@ packages:
     ./testing
     ./performance/p1-million-rw
     ./performance/p2-100-million-r
-    ./usage/generateRandom
-    ./usage/insertInto
-    ./usage/select
-    ./usage/selectFromView
+    ./usage/api/generateRandom
+    ./usage/api/insertInto
+    ./usage/api/select
+    ./usage/api/selectFromView
+    ./usage/modules/visits
+    ./usage/modules/rts-stats
