@@ -29,7 +29,7 @@
           (extractSqlFromMarkdown ./usage/api/insertInto/index.lhs)
           (extractSqlFromMarkdown ./usage/api/selectFromView/index.lhs)
           (extractSqlFromMarkdown ./testing/T2WriteReadEquality.hs)
-          (extractSqlFromMarkdown ./contribution/server/index.hs)
+          (extractSqlFromMarkdown ./usage/modules/visits/ChVisits.hs)
         ];
       in
       {

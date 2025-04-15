@@ -7,5 +7,7 @@ packages:
     ./usage/api/insertInto
     ./usage/api/select
     ./usage/api/selectFromView
+    ./usage/modules/visits
+    ./usage/modules/rts-stats
     ./performance/p1-million-rw
     ./performance/p2-100-million-r

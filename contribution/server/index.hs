@@ -9,20 +9,11 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE DeriveGeneric #-}
 
-import ClickHaskell
-  ( ChString, DateTime
-  , UInt16, UInt32, UInt64
-  , WritableInto, insertInto
-  , Connection, openNativeConnection, defaultCredentials
-  , ReadableFrom, Column, Table
-  , View, selectFromView, Parameter, parameter, ChCredential
-  )
-import Control.Concurrent (threadDelay)
+import ClickHaskell (defaultCredentials)
 import Control.Concurrent.Async (Concurrently (..))
-import Control.Concurrent.STM (TBQueue, TChan, TVar, atomically, dupTChan, flushTBQueue, newBroadcastTChanIO, newTBQueueIO, newTVarIO, readTChan, readTVarIO, writeTBQueue, writeTChan, writeTVar)
-import Control.Exception (SomeException, catch)
+import Control.Concurrent.STM (TBQueue, TChan, TVar, atomically, dupTChan, newBroadcastTChanIO, newTBQueueIO, readTChan, readTVarIO, writeTBQueue)
 import Control.Monad (filterM, forM, forever)
-import Data.Aeson (ToJSON, encode)
+import Data.Aeson (encode)
 import Data.ByteString (StrictByteString)
 import Data.ByteString.Char8 as BS8 (pack, unpack)
 import Data.ByteString.Lazy as B (LazyByteString, readFile)
@@ -30,10 +21,6 @@ import Data.HashMap.Strict as HM (HashMap, empty, fromList, keys, lookup, unions
 import Data.Maybe (isJust)
 import Data.Text as T (pack)
 import Data.Time (getCurrentTime)
-import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
-import Data.Word (Word32)
-import GHC.Generics (Generic)
-import GHC.Stats (RTSStats (..), getRTSStats)
 import Net.IPv4 (decodeUtf8, getIPv4)
 import Network.HTTP.Types (status200, status404)
 import Network.HTTP.Types.Header (hContentType)
@@ -47,6 +34,8 @@ import Network.WebSockets.Connection (defaultConnectionOptions)
 import System.Directory (doesDirectoryExist, listDirectory, withCurrentDirectory)
 import System.Environment (lookupEnv)
 import System.FilePath (dropFileName, dropTrailingPathSeparator, normalise, replaceExtension, takeExtension, takeFileName, (</>))
+import ChVisits
+import ChRtsStats
 
 
 main :: IO ()
@@ -71,119 +60,6 @@ main = do
     *> perfStatCollector
     *> server
 
-{-
-
-  * Performance stats handler
-
--}
-
-initPerformanceTracker :: ChCredential -> IO (Concurrently())
-initPerformanceTracker cred = do
-  _perfChConnection <- openNativeConnection cred
-  performanceQueue <- newTBQueueIO 100
-
-  pure $ 
-    Concurrently (forever $ do
-      atomically . writeTBQueue performanceQueue . (\RTSStats{..} -> MkPerformanceStat{..})
-        =<< getRTSStats
-      threadDelay 1_000_000
-    )
-    *>
-    Concurrently (forever $ do
-      _ <- atomically (flushTBQueue performanceQueue)
-      threadDelay 10_000_000
-    )
-
-data PerformanceStat = MkPerformanceStat
-  { max_live_bytes :: UInt64
-  }
-  deriving (Generic)
-
-{-
-
-  * Visits stats handler
-
--}
-
-data DocsStatisticsArgs = MkDocsStatisticsArgs
-  { docsStatQueue  :: TBQueue DocsStatistics
-  , broadcastChan  :: TChan HistoryData
-  }
-
-initVisitsTracker :: DocsStatisticsArgs -> IO (Concurrently (), TVar HistoryData)
-initVisitsTracker MkDocsStatisticsArgs{..} = do
-  clickHouse     <- openNativeConnection defaultCredentials
-  currentHistory <- newTVarIO . History =<< readCurrentHistoryLast clickHouse 24
-
-  pure
-    ( Concurrently (forever $ do
-        catch (do
-            dataToWrite <- (atomically . flushTBQueue) docsStatQueue
-            insertInto @DocsStatTable clickHouse dataToWrite
-          )
-          (print @SomeException)
-        threadDelay 5_000_000
-      )
-      *>
-      Concurrently (forever $ do
-        historyByHours <- readCurrentHistoryLast clickHouse 1
-        case historyByHours of
-          update:_ -> atomically $ (writeTChan broadcastChan) (HistoryUpdate update)
-          _        -> pure ()
-        threadDelay 1_000_000
-      )
-      *>
-      Concurrently (forever $ do
-        atomically . writeTVar currentHistory . History =<< readCurrentHistoryLast clickHouse 24
-        threadDelay 300_000_000
-      )
-    , currentHistory
-    )
-
-readCurrentHistoryLast :: Connection -> UInt16 -> IO [HourData]
-readCurrentHistoryLast clickHouse hours =
-  concat <$>
-    selectFromView
-      @HistoryByHours
-      clickHouse
-      (parameter @"hoursLength" @UInt16 hours)
-      pure
-
--- ** Writing data
-
-data DocsStatistics = MkDocsStatistics
-  { time       :: Word32
-  , path       :: StrictByteString
-  , remoteAddr :: Word32
-  }
-  deriving stock (Generic)
-  deriving anyclass (WritableInto DocsStatTable)
-
-type DocsStatTable = 
-  Table 
-    "ClickHaskellStats"
-   '[ Column "time" (DateTime "")
-    , Column "path" ChString
-    , Column "remoteAddr" UInt32
-    ]
-
--- ** Reading data
-
-data HourData = MkHourData
-  { hour :: Word32
-  , visits :: Word32
-  }
-  deriving stock (Generic)
-  deriving anyclass (ToJSON, ReadableFrom HistoryByHours)
-
-type HistoryByHours =
-  View
-    "historyByHours"
-   '[ Column "hour" UInt32
-    , Column "visits" UInt32
-    ]
-   '[ Parameter "hoursLength" UInt16
-    ]
 
 {-
 
@@ -201,10 +77,6 @@ data ServerArgs = MkServerArgs
   , currentHistory  :: TVar HistoryData
   , mkBroadcastChan :: IO (TChan HistoryData)
   }
-
-data HistoryData = History{history :: [HourData]} | HistoryUpdate{realtime :: HourData}
-  deriving stock (Generic)
-  deriving anyclass (ToJSON)
 
 initServer :: ServerArgs -> IO (Concurrently())
 initServer args@MkServerArgs{mStaticFiles, mSocketPath, isDev} = do
@@ -238,10 +110,9 @@ initServer args@MkServerArgs{mStaticFiles, mSocketPath, isDev} = do
 
 httpApp :: ServerArgs -> StaticFiles -> Application
 httpApp MkServerArgs{docsStatQueue} staticFiles req f = do
-  currentTime <- getCurrentTime
+  time <- getCurrentTime
   let path       = (dropIndexHtml . BS8.unpack . rawPathInfo) req
       remoteAddr = maybe 0 getIPv4 (decodeUtf8 =<< Prelude.lookup "X-Real-IP" (requestHeaders req))
-      time       = (floor . utcTimeToPOSIXSeconds) currentTime
   case HM.lookup path staticFiles of
     Nothing -> f (responseLBS status404 [("Content-Type", "text/plain")] "404 - Not Found")
     Just (mimeType, content) -> do
@@ -292,28 +163,3 @@ dropIndexHtml fp = BS8.pack .  dropTrailingPathSeparator $
   if takeFileName fp == "index.html"
   then dropFileName fp
   else fp
-
-
-{-
-<pre><code class="sql" data-lang="sql"
->CREATE TABLE default.ClickHaskellStats
-(
-    `time` DateTime,
-    `path` LowCardinality(String),
-    `remoteAddr` UInt32
-)
-ENGINE = MergeTree
-PARTITION BY path
-ORDER BY path
-SETTINGS index_granularity = 8192;
-
-CREATE OR REPLACE VIEW default.historyByHours
-AS SELECT
-    toUInt32(intDiv(toUInt32(time), 3600) * 3600) AS hour,
-    toUInt32(countDistinct(remoteAddr)) AS visits
-FROM default.ClickHaskellStats
-WHERE hour > (now() - ({hoursLength:UInt16} * 3600))
-GROUP BY hour
-ORDER BY hour ASC;
-</code></pre>
--}
