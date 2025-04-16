@@ -10,7 +10,7 @@
     "executable" = {
       command = ''
       CLICKHASKELL_STATIC_FILES_DIR=. \
-        CLICKHASKELL_EVENTLOG_SOCKET_PATH="./.eventlog.sock" \
+        # CLICKHASKELL_EVENTLOG_SOCKET_PATH="./.eventlog.sock" \
         DEV= \
         ${app.program}
       '';
