@@ -17,6 +17,7 @@ executable server
     , base >=4.7 && <5
     , bytestring
     , directory
+    , eventlog-socket
     , filepath
     , http-types
     , ip

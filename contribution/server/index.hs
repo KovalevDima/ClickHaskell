@@ -9,10 +9,10 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE DeriveGeneric #-}
 
-import ChEventlogWriter
+import GHC.Eventlog.Socket (start)
 import ChRtsStats
 import ChVisits
-import ClickHaskell (defaultCredentials, openNativeConnection)
+import ClickHaskell (defaultCredentials)
 import Control.Concurrent.Async (Concurrently (..))
 import Control.Concurrent.STM (TBQueue, TChan, TVar, atomically, dupTChan, newBroadcastTChanIO, newTBQueueIO, readTChan, readTVarIO, writeTBQueue)
 import Control.Monad (filterM, forM, forever)
@@ -41,10 +41,7 @@ import System.FilePath (dropFileName, dropTrailingPathSeparator, normalise, repl
 
 main :: IO ()
 main = do
-  maybe
-    mempty
-    (chEventlogWrite (openNativeConnection defaultCredentials))
-    =<< lookupEnv "CLICKHASKELL_EVENTLOG_SOCKET_PATH"
+  maybe mempty start =<< lookupEnv "CLICKHASKELL_EVENTLOG_SOCKET_PATH"
 
   mSocketPath  <- lookupEnv "CLICKHASKELL_PAGE_SOCKET_PATH"
   mStaticFiles <- lookupEnv "CLICKHASKELL_STATIC_FILES_DIR"
