@@ -9,6 +9,7 @@ executable server
   main-is: index.hs
   build-depends:
       ClickHaskell
+    , ClickHaskell-eventlog-writer
     , ClickHaskell-rts-stats
     , ClickHaskell-visits
     , aeson
@@ -16,6 +17,7 @@ executable server
     , base >=4.7 && <5
     , bytestring
     , directory
+    , eventlog-socket
     , filepath
     , http-types
     , ip

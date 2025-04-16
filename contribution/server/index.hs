@@ -9,6 +9,9 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE DeriveGeneric #-}
 
+import GHC.Eventlog.Socket (start)
+import ChRtsStats
+import ChVisits
 import ClickHaskell (defaultCredentials)
 import Control.Concurrent.Async (Concurrently (..))
 import Control.Concurrent.STM (TBQueue, TChan, TVar, atomically, dupTChan, newBroadcastTChanIO, newTBQueueIO, readTChan, readTVarIO, writeTBQueue)
@@ -34,12 +37,12 @@ import Network.WebSockets.Connection (defaultConnectionOptions)
 import System.Directory (doesDirectoryExist, listDirectory, withCurrentDirectory)
 import System.Environment (lookupEnv)
 import System.FilePath (dropFileName, dropTrailingPathSeparator, normalise, replaceExtension, takeExtension, takeFileName, (</>))
-import ChVisits
-import ChRtsStats
 
 
 main :: IO ()
 main = do
+  maybe mempty start =<< lookupEnv "CLICKHASKELL_EVENTLOG_SOCKET_PATH"
+
   mSocketPath  <- lookupEnv "CLICKHASKELL_PAGE_SOCKET_PATH"
   mStaticFiles <- lookupEnv "CLICKHASKELL_STATIC_FILES_DIR"
   isDev        <- isJust <$> lookupEnv "DEV"
