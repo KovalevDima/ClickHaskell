@@ -19,6 +19,7 @@ module T2WriteReadEquality
 import ClickHaskell
   ( WritableInto, insertInto
   , ReadableFrom, selectFrom
+  , command
   , Connection
   , Table
   , Column
@@ -36,6 +37,8 @@ import GHC.Generics       (Generic)
 
 t2 :: Connection -> IO ()
 t2 connection = do
+  command connection "TRUNCATE writeReadEqualityTable;"
+
   insertInto
     @TestTable
     @TestData
