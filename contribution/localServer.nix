@@ -8,9 +8,9 @@
   };
   settings.processes = {
     "executable" = {
+      # CLICKHASKELL_EVENTLOG_SOCKET_PATH="./.eventlog.sock" \
       command = ''
       CLICKHASKELL_STATIC_FILES_DIR=. \
-        # CLICKHASKELL_EVENTLOG_SOCKET_PATH="./.eventlog.sock" \
         DEV= \
         ${app.program}
       '';
