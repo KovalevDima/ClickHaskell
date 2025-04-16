@@ -16,6 +16,7 @@ library
     , bytestring
     , eventlog-socket
     , time
+    , network
     , stm
     , ghc-events
   ghc-options:
