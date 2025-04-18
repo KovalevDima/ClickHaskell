@@ -49,13 +49,13 @@ Library
   Build-depends:
     -- GHC included libraries
       base >= 4.7 && <5
-    , bytestring < 0.13
+    , bytestring < 1
     , binary < 9
-    , deepseq < 1.6
-    , text < 2.2
-    , time < 1.13
+    , deepseq < 2
+    , text < 3
+    , time < 2
 
     -- External dependencies
-    , network
-    , wide-word < 0.2
+    , network < 4
+    , wide-word < 1
   Default-language: Haskell2010
