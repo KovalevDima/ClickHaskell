@@ -1050,12 +1050,16 @@ instance
   gDeserialize rev = M1 . M1 <$> gDeserialize rev
 
 instance
-  GDeserializable (left :*: (right1 :*: right2))
+  (GDeserializable left, GDeserializable right1, GDeserializable right2)
   =>
   GDeserializable ((left :*: right1) :*: right2)
   where
   {-# INLINE gDeserialize #-}
-  gDeserialize rev = (\(l :*: (r1 :*: r2)) -> (l :*: r1) :*: r2) <$> gDeserialize rev
+  gDeserialize rev = do
+    l  <- gDeserialize rev
+    r1 <- gDeserialize rev
+    r2 <- gDeserialize rev
+    pure ((l :*: r1) :*: r2)
 
 instance
   (GDeserializable (S1 metaSel field), GDeserializable right)
