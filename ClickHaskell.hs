@@ -888,15 +888,22 @@ instance
   gReadingColumns = gReadingColumns @columns @f
 
 instance
-  GReadable columns (left :*: (right1 :*: right2))
+  (GReadable columns left, GReadable columns right1,  GReadable columns right2)
   =>
   GReadable columns ((left :*: right1) :*: right2)
   where
   {-# INLINE gFromColumns #-}
-  gFromColumns rev size = do
-    list <- gFromColumns @columns rev size
-    pure [(l :*: r1) :*: r2 | (l :*: (r1 :*: r2)) <- list]
-  gReadingColumns = gReadingColumns @columns @(left :*: (right1 :*: right2))
+  gFromColumns rev size =
+    liftA2
+      (zipWith (:*:))
+      (liftA2
+        (zipWith (:*:))
+        (gFromColumns @columns @left rev size)
+        (gFromColumns @columns @right1 rev size)
+      )
+      (gFromColumns @columns @right2 rev size)
+
+  gReadingColumns = gReadingColumns @columns @left ++ gReadingColumns @columns @right1 ++ gReadingColumns @columns @right2
 
 instance
   ( KnownColumn (Column name chType)
