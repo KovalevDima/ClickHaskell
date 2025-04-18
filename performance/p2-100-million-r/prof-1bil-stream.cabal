@@ -12,12 +12,7 @@ common dump-core
     -ddump-spec
     -ddump-simpl-stats
     -ddump-rule-firings
-    -dsuppress-type-applications
-    -dsuppress-coercions
-    -dsuppress-idinfo
-    -dsuppress-type-signatures
-    -dsuppress-var-kinds
-    -dsuppress-module-prefixes
+    -dsuppress-all
     -dsuppress-uniques
   if impl(ghc >= 9.4)
     ghc-options:

@@ -38,6 +38,13 @@ Library
   GHC-Options:
     -Wall
     -Wunused-packages
+    -- -ddump-to-file
+    -- -ddump-simpl
+    -- -ddump-spec
+    -- -ddump-simpl-stats
+    -- -ddump-rule-firings
+    -- -dsuppress-all
+    -- -dsuppress-uniques
 
   Build-depends:
     -- GHC included libraries
