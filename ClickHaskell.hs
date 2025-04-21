@@ -92,7 +92,7 @@ module ClickHaskell
 import Paths_ClickHaskell (version)
 
 -- GHC included
-import Control.Applicative (liftA2)
+import Control.Applicative (liftA2, liftA3)
 import Control.Concurrent (MVar, newMVar, putMVar, takeMVar)
 import Control.DeepSeq (NFData)
 import Control.Exception (Exception, SomeException, bracketOnError, catch, finally, mask, onException, throw, throwIO)
@@ -894,13 +894,10 @@ instance
   where
   {-# INLINE gFromColumns #-}
   gFromColumns rev size =
-    liftA2
-      (zipWith (:*:))
-      (liftA2
-        (zipWith (:*:))
-        (gFromColumns @columns @left rev size)
-        (gFromColumns @columns @right1 rev size)
-      )
+    liftA3
+      (zipWith3 (\a b c -> (a :*: b) :*: c))
+      (gFromColumns @columns @left rev size)
+      (gFromColumns @columns @right1 rev size)
       (gFromColumns @columns @right2 rev size)
 
   gReadingColumns = gReadingColumns @columns @left ++ gReadingColumns @columns @right1 ++ gReadingColumns @columns @right2
