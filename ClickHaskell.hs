@@ -1071,7 +1071,7 @@ instance
   GDeserializable (S1 metaSel field :*: right)
   where
   {-# INLINE gDeserialize #-}
-  gDeserialize rev = (:*:) <$> gDeserialize rev <*> gDeserialize rev
+  gDeserialize rev = liftA2 (:*:) (gDeserialize rev)  (gDeserialize rev)
 
 instance {-# OVERLAPPING #-}
   (GDeserializable right)
