@@ -12,7 +12,9 @@
     <link rel="canonical" href="https://clickhaskell.dev/">
     <link href="/assets/logo.svg" rel="icon" type="image/x-icon" />
     <link href="/assets/index.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.0/dist/chart.min.js"></script>
     <script src="/assets/github-stars.js"></script>
+    <script src="/assets/websockets.js"></script>
     <script src="/assets/routing.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/vs2015.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
@@ -30,7 +32,7 @@
                 background-color: rgb(30, 30, 30);
                 gap: 8px;
                 "
-                href="/"
+                href="/#/"
             >
                 <img alt="logo" width="28" height="28" src="/assets/logo.svg">
                 ClickHaskell
@@ -84,9 +86,7 @@
         <p>You are receiving data via WebSockets and generating<br>
             it by loading any page from a unique IP address
         </p>
-        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
         <canvas id="visitsChart" style="background-color: #1e1e1e"></canvas>
-        <script src="/assets/websockets.js"></script>
     </main>
     <footer>
     </footer>

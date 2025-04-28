@@ -1,29 +1,32 @@
-document.addEventListener('DOMContentLoaded', () => {
-    const main = document.querySelector('main');
+let visitsChart;
+let chartData = {
+  labels: [],
+  datasets: [{ label: 'Visitors', data: [], backgroundColor: '#121212' }]
+};
 
-    async function loadPage(path) {
-        try {
-            const res = await fetch(path);
-            const text = await res.text();
-            const doc = new DOMParser().parseFromString(text, 'text/html');
-            const newMain = doc.querySelector('main');
-            main.innerHTML = newMain ? newMain.innerHTML : text;
+function initChart() {
+  const canvas = document.getElementById('visitsChart');
+  if (!canvas) return;
 
-            document.querySelectorAll('pre code').forEach(block => {
-                hljs.highlightElement(block);
-            });
-        } catch (err) {
-            main.innerHTML = `<p>Ошибка загрузки страницы</p>`;
-        }
+  const ctx = canvas.getContext('2d');
+
+  if (visitsChart) {
+    visitsChart.destroy();
+  }
+
+  visitsChart = new Chart(ctx, {
+    type: 'bar',
+    data: chartData,
+    options: {
+      scales: {
+        x: { title: { display: true, text: "Hours" } },
+        y: { beginAtZero: true }
+      }
     }
+  });
+}
 
-    function handleHash() {
-        const path = location.hash.slice(1);
-        if (path) {
-            loadPage(path);
-        }
-    }
-
-    window.addEventListener('hashchange', handleHash);
-    handleHash();
-});
+function formatHour(posixTime) {
+  const date = new Date(posixTime * 1000);
+  return `${date.getHours()}`.padStart(2, '0');
+}
