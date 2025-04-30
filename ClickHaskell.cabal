@@ -26,6 +26,11 @@ Source-repository head
   Type: git
   Location: https://github.com/KovalevDima/ClickHaskell
 
+Flag dev
+  Description: Dumps Core representation
+  Default:     False
+  Manual:      True
+
 Library
   Autogen-Modules:
     Paths_ClickHaskell
@@ -38,13 +43,6 @@ Library
   GHC-Options:
     -Wall
     -Wunused-packages
-    -- -ddump-to-file
-    -- -ddump-simpl
-    -- -ddump-spec
-    -- -ddump-simpl-stats
-    -- -ddump-rule-firings
-    -- -dsuppress-all
-    -- -dsuppress-uniques
 
   Build-depends:
     -- GHC included libraries
@@ -59,3 +57,12 @@ Library
     , network < 4
     , wide-word < 1
   Default-language: Haskell2010
+  if flag(dev)
+    GHC-Options:
+      -ddump-to-file
+      -ddump-simpl
+      -ddump-spec
+      -ddump-simpl-stats
+      -ddump-rule-firings
+      -dsuppress-all
+      -dsuppress-uniques
