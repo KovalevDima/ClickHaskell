@@ -44,10 +44,10 @@ module ClickHaskell
   , Columns, Column, KnownColumn(..), DeserializableColumn(..)
 
   -- * Reading
-  , ReadableFrom(..)
+  , ReadableFrom(..), FromChType(fromChType)
   , select
   , selectFrom
-  , selectFromView, View, parameter, Parameter, Parameters, viewParameters
+  , selectFromView, View, ToQueryPart(toQueryPart), parameter, Parameter, Parameters, viewParameters
   , generateRandom
   -- ** Internal
   , handleSelect
@@ -59,7 +59,7 @@ module ClickHaskell
   , InternalError(..)
 
   -- * Writing
-  , WritableInto(..)
+  , WritableInto(..), ToChType(toChType)
   , insertInto
 
   -- * Arbitrary commands
@@ -70,22 +70,35 @@ module ClickHaskell
 
   -- * ClickHouse types
   , IsChType(ToChTypeName, chTypeName, defaultValueOfTypeName)
-  , ToChType(toChType)
-  , FromChType(fromChType)
-  , ToQueryPart(toQueryPart)
-
   , DateTime(..)
-
-  , module Data.Int
-  , UInt8, UInt16, UInt32, UInt64, UInt128
+  , Int8, Int16, Int32, Int64, Int128(..)
+  , UInt8, UInt16, UInt32, UInt64, UInt128, Word128(..)
   , Nullable
   , LowCardinality, IsLowCardinalitySupported
   , UUID(..)
   , Array(..)
   , ChString(..)
 
+
+  -- * Protocol parts
+  -- ** Shared
   , UVarInt(..)
-  , module Data.WideWord
+  {- *** Data packet -}, DataPacket(..), BlockInfo(..)
+
+  -- ** Client
+  {- *** Hello -}, HelloPacket(..), Addendum(..)
+  {- *** Ping -}, PingPacket(..)
+  {- *** Query -}
+  , QueryPacket(..)
+  , DbSettings(..), QueryParameters(..), QueryStage(..)
+  , ClientInfo(..), QueryKind(..)
+  
+  -- ** Server
+  {- *** Hello -}, HelloResponse(..), PasswordComplexityRules(..)
+  {- *** Exception -}, ExceptionPacket(..)
+  {- *** Progress -}, ProgressPacket(..)
+  {- *** ProfileInfo -}, ProfileInfo(..)
+  {- *** TableColumns -}, TableColumns(..)
   ) where
 
 -- Internal
