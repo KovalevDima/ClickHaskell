@@ -1,12 +1,22 @@
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE DataKinds #-}
+
 module ChEventlogWriter where
 
-import ClickHaskell (Connection)
+import ClickHaskell
+import Control.Concurrent (forkIO)
 import Control.Exception (SomeException, bracketOnError, catch, finally)
+import Control.Monad (forever, void)
+import Data.ByteString as BS (ByteString, length)
+import Data.IORef (IORef, atomicModifyIORef, atomicWriteIORef, newIORef, readIORef)
 import GHC.Eventlog.Socket (start)
-import GHC.RTS.Events.Incremental (Decoder (..), decodeEventLog)
+import GHC.RTS.Events.Incremental (Decoder (..), decodeEvents, decodeHeader)
 import Network.Socket
 import Network.Socket.ByteString (recv)
 import System.Timeout (timeout)
@@ -14,7 +24,7 @@ import System.Timeout (timeout)
 chEventlogWrite :: IO Connection -> FilePath -> IO ()
 chEventlogWrite _initConn socketPath = do
   start socketPath
-  _sock <- 
+  sock <- 
     maybe (error "Socket connection timeout") pure
       =<< timeout 3_000_000 (
         bracketOnError
@@ -29,13 +39,45 @@ chEventlogWrite _initConn socketPath = do
             pure sock
           )
         )
-  pure ()
+  streamFromSocket sock
 
 streamFromSocket :: Socket -> IO ()
-streamFromSocket sock = loop decodeEventLog
+streamFromSocket sock = do
+  buffer <- initBuffer sock
+  header <- loop buffer decodeHeader
+  print header
+  void . forkIO . forever $ do
+    print =<< loop buffer (decodeEvents header)
   where
-  loop = \case
-    Error   _bs err -> error err
-    Produce _a _dec -> error "a"
-    Consume dec     -> loop . dec =<< recv sock 4096
-    Done _leftover  -> putStrLn "Done"
+  loop buff decoder = case decoder of
+    Produce res (Done left) -> writeToBuffer buff left *> pure res
+    Produce res dec -> print res *> loop buff dec
+    Consume dec     -> loop buff . dec =<< readBuffer buff
+    Error _bs err -> error err
+    Done _ -> error "Unexpected done"
+
+data Buffer = MkBuffer {bufferSocket :: Socket, buff :: IORef ByteString}
+
+initBuffer :: Socket -> IO Buffer
+initBuffer sock = MkBuffer sock <$> newIORef ""
+
+flushBuffer :: Buffer -> IO ()
+flushBuffer MkBuffer{buff} = atomicWriteIORef buff ""
+
+writeToBuffer :: Buffer -> BS.ByteString -> IO ()
+writeToBuffer MkBuffer{..} val = void (atomicModifyIORef buff (val,))
+
+readBuffer :: Buffer -> IO BS.ByteString
+readBuffer buffer@MkBuffer{..} =
+  readIORef buff
+    >>= (\currentBuffer ->
+      case BS.length currentBuffer of
+        0 -> recv bufferSocket 4096
+        _ -> flushBuffer buffer *> pure currentBuffer
+    )
+
+type EventlogTable = 
+  Table 
+    "haskell_eventlog"
+   '[ Column "time" (DateTime "")
+    ]
