@@ -20,7 +20,7 @@ import Data.Aeson (encode)
 import Data.ByteString (StrictByteString)
 import Data.ByteString.Char8 as BS8 (pack, unpack)
 import Data.ByteString.Lazy as B (LazyByteString, readFile)
-import Data.HashMap.Strict as HM (HashMap, empty, fromList, keys, lookup, unions)
+import Data.HashMap.Strict as HM (HashMap, empty, fromList, lookup, unions)
 import Data.Maybe (isJust)
 import Data.Text as T (pack)
 import Data.Time (getCurrentTime)
@@ -89,7 +89,6 @@ initServer args@MkServerArgs{mStaticFiles, mSocketPath, isDev} = do
       (pure HM.empty)
       (flip withCurrentDirectory (listFilesWithContents isDev "."))
       mStaticFiles
-  print $ HM.keys staticFiles
 
   let
     app = websocketsOr
