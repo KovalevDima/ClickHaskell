@@ -61,18 +61,26 @@
             (ghc: {"${ghc}" = import ./contribution/project.nix {inherit pkgs ghc;};})
             supportedGHCs
         );
-        devShells = {
-          default = pkgs.mkShell {
-            inputsFrom = [config.haskellProjects.ghc966.outputs.devShell];
-            packages = with pkgs; with haskellPackages; with (self'.packages);
-              [clickhouse nil eventlog2html graphmod ghc966-html2hs];
+        devShells =
+          lib.mergeAttrsList (
+            map
+              (ghc: {"dev-${ghc}" = pkgs.mkShell {
+                inputsFrom = [];
+                packages = with pkgs; with haskellPackages; with (self'.packages);
+                  [ clickhouse nil eventlog2html graphmod
+                    self'.packages."${ghc}-html2hs" haskell.compiler."${ghc}" cabal-install
+                  ];
+              };})
+              supportedGHCs
+          )
+          //
+          {
+            default = pkgs.mkShell {
+              inputsFrom = [config.haskellProjects.ghc966.outputs.devShell];
+              packages = with pkgs; with haskellPackages; with (self'.packages);
+                [clickhouse nil eventlog2html graphmod ghc966-html2hs];
+            };
           };
-          ghc8107 = pkgs.mkShell {
-            inputsFrom = [];
-            packages = with pkgs; with haskellPackages; with (self'.packages);
-              [clickhouse nil eventlog2html graphmod ghc8107-html2hs haskell.compiler.ghc8107 cabal-install];
-          };
-        };
         # Build documnetation
         packages = {
           "documentation" = import ./contribution/documentation.nix {inherit pkgs;};
