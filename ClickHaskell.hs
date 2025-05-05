@@ -54,7 +54,7 @@ module ClickHaskell
   , WritableInto(..), ToChType(toChType)
   {- ** Arbitrary commands -}, command, ping
   {- ** Shared -}
-  , Column
+  , Column, KnownColumn
   , Table, View, Columns
   {- *** Query -}
   , ToQueryPart(toQueryPart), parameter, Parameter, Parameters, viewParameters
