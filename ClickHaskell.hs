@@ -33,6 +33,16 @@
   -Wno-unused-imports
 #-}
 
+{- |
+  Module:      ClickHaskell
+  Copyright:   (c) 2023 Dmitry Kovalev
+  License:     BSD-3-Clause
+  Maintainer:  Dmitry Kovalev
+  Stability:   Experimental
+
+  For full documentation, visit: https://clickhaskell.dev/
+-}
+
 module ClickHaskell
   (
   {- * Connection -}
