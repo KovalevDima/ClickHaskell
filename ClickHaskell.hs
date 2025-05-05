@@ -35,40 +35,31 @@
 
 module ClickHaskell
   (
-  -- * Connection
+  {- * Connection -}
     ChCredential(..), defaultCredentials
   , Connection(..), openNativeConnection
 
-  -- * Reading and writing
-  , Table
-  , Columns, Column, KnownColumn(..), DeserializableColumn(..)
-
-  -- * Reading
-  , ReadableFrom(..), FromChType(fromChType)
-  , select
-  , selectFrom
-  , selectFromView, View, ToQueryPart(toQueryPart), parameter, Parameter, Parameters, viewParameters
-  , generateRandom
-  -- ** Internal
-  , handleSelect
-
-  -- * Errors
+  {- * Errors -}
   , ClientError(..)
   , ConnectionError(..)
   , UserError(..)
   , InternalError(..)
 
-  -- * Writing
-  , WritableInto(..), ToChType(toChType)
+  {- * Client wrappers -}
+  {- ** SELECT -}
+  , select, selectFrom, selectFromView, generateRandom
+  , ReadableFrom(..), FromChType(fromChType)
+  {- ** INSERT -}
   , insertInto
+  , WritableInto(..), ToChType(toChType)
+  {- ** Arbitrary commands -}, command, ping
+  {- ** Shared -}
+  , Column, KnownColumn, DeserializableColumn
+  , Table, View, Columns
+  {- *** Query -}
+  , ToQueryPart(toQueryPart), parameter, Parameter, Parameters, viewParameters
 
-  -- * Arbitrary commands
-  , command
-
-  -- * Ping database connection
-  , ping
-
-  -- * ClickHouse types
+  {- * ClickHouse types -}
   , IsChType(ToChTypeName, chTypeName, defaultValueOfTypeName)
   , DateTime(..)
   , Int8, Int16, Int32, Int64, Int128(..)
@@ -80,12 +71,13 @@ module ClickHaskell
   , ChString(..)
 
 
-  -- * Protocol parts
-  -- ** Shared
+  {- * Protocol parts -}
+
+  {- ** Shared -}
   , UVarInt(..)
   {- *** Data packet -}, DataPacket(..), BlockInfo(..)
 
-  -- ** Client
+  {- ** Client -}
   {- *** Hello -}, HelloPacket(..), Addendum(..)
   {- *** Ping -}, PingPacket(..)
   {- *** Query -}
@@ -93,7 +85,7 @@ module ClickHaskell
   , DbSettings(..), QueryParameters(..), QueryStage(..)
   , ClientInfo(..), QueryKind(..)
   
-  -- ** Server
+  {- ** Server -}
   {- *** Hello -}, HelloResponse(..), PasswordComplexityRules(..)
   {- *** Exception -}, ExceptionPacket(..)
   {- *** Progress -}, ProgressPacket(..)
@@ -189,9 +181,6 @@ data ConnectionState = MkConnectionState
   , creds    :: ChCredential
   }
 
-data ConnectionError = NoAdressResolved | EstablishTimeout
-  deriving (Show, Exception)
-
 writeToConnection :: Serializable packet => ConnectionState -> packet -> IO ()
 writeToConnection MkConnectionState{sock, revision} packet =
   (sendAll sock . toLazyByteString . serialize revision) packet
@@ -255,9 +244,11 @@ createConnectionState creds@MkChCredential{chHost, chPort, chLogin, chPass, chDa
 
 
 {- |
-  Arbitrary commands wrapper
+  Arbitrary commands wrapper.
 
-  For example: `CREATE`
+  Might be used for any command without data responses
+
+  For example: __CREATE__, __TRUNCATE__, __KILL__, __SET__, __GRANT__
 -}
 command :: HasCallStack => Connection -> ChString -> IO ()
 command conn query = do
@@ -473,28 +464,48 @@ runBufferReader buffer = \case
 
 -- * Errors handling
 
+{- |
+  A wrapper for all client-related errors.
+  Every client function should handle this error.
+-}
 data ClientError where
   UserError :: HasCallStack => UserError -> ClientError
   InternalError :: HasCallStack => InternalError -> ClientError
+  deriving anyclass (Exception)
 
 instance Show ClientError where
-  show (UserError err)         = "UserError " <> show err <> "\n" <> prettyCallStack callStack
-  show (InternalError err)     = "InternalError " <> show err <> "\n" <> prettyCallStack callStack
-
-deriving anyclass instance Exception ClientError
+  show (UserError err)     = "UserError " <> show err <> "\n" <> prettyCallStack callStack
+  show (InternalError err) = "InternalError " <> show err <> "\n" <> prettyCallStack callStack
 
 {- |
-  You shouldn't see this exceptions. Please report a bug if it appears
+  Errors occured on connection operations
+-}
+data ConnectionError
+  = NoAdressResolved
+  -- ^ Occurs when 'getAddrInfo' returns an empty result
+  | EstablishTimeout
+  -- ^ Occurs on 'socket' connection timeout
+  deriving (Show, Exception)
+
+{- |
+  Errors intended to be handled by developers
+-} 
+data UserError
+  = UnmatchedType String
+  -- ^ Column type mismatch in data packet
+  | UnmatchedColumn String
+  -- ^ Column name mismatch in data packet
+  | DatabaseException ExceptionPacket
+  -- ^ Database responded with an exception packet
+  deriving (Show, Exception)
+
+{- |
+  These exceptions might indicate internal bugs.
+  If you encounter one, please report it.
 -}
 data InternalError
   = UnexpectedPacketType UVarInt
   | DeserializationError String
-  deriving (Show, Exception)
-
-data UserError
-  = UnmatchedType String
-  | UnmatchedColumn String
-  | DatabaseException ExceptionPacket
   deriving (Show, Exception)
 
 
