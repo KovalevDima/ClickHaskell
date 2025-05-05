@@ -46,8 +46,8 @@
 module ClickHaskell
   (
   {- * Connection -}
-    ChCredential(..), defaultCredentials
-  , Connection(..), openNativeConnection
+    ConnectionArgs, defaultConnectionArgs
+  , Connection(..), openConnection
 
   {- * Errors -}
   , ClientError(..)
@@ -152,22 +152,37 @@ import GHC.Exts (inline, oneShot)
 
 -- * Connection
 
-data ChCredential = MkChCredential
-  { chLogin    :: Text
-  , chPass     :: Text
-  , chDatabase :: Text
-  , chHost     :: HostName
-  , chPort     :: ServiceName
+data ConnectionArgs = MkConnectionArgs
+  { user :: Text
+  , pass :: Text
+  , db   :: Text
+  , host :: HostName
+  , port :: ServiceName
   }
 
-defaultCredentials :: ChCredential
-defaultCredentials = MkChCredential
-  { chLogin    = "default"
-  , chPass     = ""
-  , chHost     = "localhost"
-  , chDatabase = "default"
-  , chPort     = "9000"
+defaultConnectionArgs :: ConnectionArgs
+defaultConnectionArgs = MkConnectionArgs
+  { user = "default"
+  , pass = ""
+  , host = "localhost"
+  , db   = "default"
+  , port = "9000"
   }
+
+setUser :: Text -> ConnectionArgs -> ConnectionArgs
+setUser new MkConnectionArgs{..} = MkConnectionArgs{user=new, ..}
+
+setPassword :: Text -> ConnectionArgs -> ConnectionArgs
+setPassword new MkConnectionArgs{..} = MkConnectionArgs{pass=new, ..}
+
+setHost :: HostName -> ConnectionArgs -> ConnectionArgs
+setHost host conn = conn{host=host}
+
+setPort :: ServiceName -> ConnectionArgs -> ConnectionArgs
+setPort port conn = conn{port=port} 
+
+setDatabase :: Text -> ConnectionArgs -> ConnectionArgs
+setDatabase new MkConnectionArgs{..} = MkConnectionArgs{db=new, ..}
 
 data Connection where MkConnection :: (MVar ConnectionState) -> Connection
 
@@ -188,7 +203,7 @@ data ConnectionState = MkConnectionState
   , os_user  :: ChString
   , buffer   :: Buffer
   , revision :: ProtocolRevision
-  , creds    :: ChCredential
+  , creds    :: ConnectionArgs
   }
 
 writeToConnection :: Serializable packet => ConnectionState -> packet -> IO ()
@@ -199,8 +214,8 @@ writeToConnectionEncode :: ConnectionState -> (ProtocolRevision -> Builder) -> I
 writeToConnectionEncode MkConnectionState{sock, revision} serializer =
   (sendAll sock . toLazyByteString) (serializer revision)
 
-openNativeConnection :: HasCallStack => ChCredential -> IO Connection
-openNativeConnection creds = fmap MkConnection . newMVar =<< createConnectionState creds
+openConnection :: HasCallStack => ConnectionArgs -> IO Connection
+openConnection creds = fmap MkConnection . newMVar =<< createConnectionState creds
 
 reopenConnection :: ConnectionState -> IO ConnectionState
 reopenConnection MkConnectionState{..} = do
@@ -208,16 +223,16 @@ reopenConnection MkConnectionState{..} = do
   close sock
   createConnectionState creds
 
-createConnectionState :: ChCredential -> IO ConnectionState
-createConnectionState creds@MkChCredential{chHost, chPort, chLogin, chPass, chDatabase} = do
+createConnectionState :: ConnectionArgs -> IO ConnectionState
+createConnectionState creds@MkConnectionArgs{host, port, user, pass, db} = do
   hostname <- maybe "" toChType <$> lookupEnv "HOSTNAME"
   os_user <- maybe "" toChType <$> lookupEnv "USER"
   AddrInfo{addrFamily, addrSocketType, addrProtocol, addrAddress}
     <- maybe (throwIO NoAdressResolved) pure . listToMaybe
     =<< getAddrInfo
       (Just defaultHints{addrFlags = [AI_ADDRCONFIG], addrSocketType = Stream})
-      (Just chHost)
-      (Just chPort)
+      (Just host)
+      (Just port)
   sock <- maybe (throwIO EstablishTimeout) pure
     =<< timeout 3_000_000 (
       bracketOnError
@@ -246,7 +261,7 @@ createConnectionState creds@MkChCredential{chHost, chPort, chLogin, chPass, chDa
   case serverPacketType of
     HelloResponse MkHelloResponse{server_revision} -> do
       let revision = min server_revision latestSupportedRevision
-          conn = MkConnectionState{user = toChType chLogin, ..}
+          conn = MkConnectionState{user = toChType user, ..}
       writeToConnection conn mkAddendum
       pure conn
     Exception exception -> throwIO (UserError $ DatabaseException exception)
@@ -557,22 +572,22 @@ instance Deserializable (Packet (packetType :: ClientPacketType)) where
 -- ** Hello
 
 data HelloParameters = MkHelloParameters
-  { chDatabase :: Text
-  , chLogin :: Text
-  , chPass :: Text
+  { db :: Text
+  , user :: Text
+  , pass :: Text
   }
 
 mkHelloPacket :: HelloParameters -> HelloPacket
-mkHelloPacket MkHelloParameters{chDatabase, chLogin, chPass} =
+mkHelloPacket MkHelloParameters{db, user, pass} =
   MkHelloPacket
     { packet_type          = MkPacket
     , client_name          = clientName
     , client_version_major = major
     , client_version_minor = minor
     , tcp_protocol_version = latestSupportedRevision
-    , default_database     = toChType chDatabase
-    , user                 = toChType chLogin
-    , password             = toChType chPass
+    , default_database     = toChType db
+    , user                 = toChType user
+    , pass             = toChType pass
     }
 
 data HelloPacket = MkHelloPacket
@@ -583,7 +598,7 @@ data HelloPacket = MkHelloPacket
   , tcp_protocol_version :: ProtocolRevision
   , default_database     :: ChString
   , user                 :: ChString
-  , password             :: ChString
+  , pass             :: ChString
   }
   deriving (Generic, Serializable)
 

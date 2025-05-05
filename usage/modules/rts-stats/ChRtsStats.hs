@@ -19,9 +19,9 @@ import Control.Monad (forever)
 import GHC.Generics (Generic)
 import GHC.Stats
 
-initPerformanceTracker :: ChCredential -> IO (Concurrently())
-initPerformanceTracker cred = do
-  _perfChConnection <- openNativeConnection cred
+initPerformanceTracker :: ConnectionArgs -> IO (Concurrently())
+initPerformanceTracker args = do
+  _perfChConnection <- openConnection args
   performanceQueue <- newTBQueueIO 100
 
   pure $ 

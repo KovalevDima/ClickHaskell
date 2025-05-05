@@ -15,7 +15,7 @@ You can use this function in Haskell with given wrapper
 
 import ClickHaskell
   ( ReadableFrom, generateRandom
-  , openNativeConnection, defaultCredentials
+  , openConnection, defaultConnectionArgs
   , Columns, Column
   , ChString, UUID, DateTime
   )
@@ -26,7 +26,7 @@ import GHC.Generics (Generic)
 
 main :: IO ()
 main = do
-  connection <- openNativeConnection defaultCredentials
+  connection <- openConnection defaultConnectionArgs
   _ <-
     generateRandom
       @ExampleColumns

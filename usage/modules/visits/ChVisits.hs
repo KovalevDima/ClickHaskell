@@ -15,7 +15,7 @@ import ClickHaskell
   ( ChString, DateTime
   , UInt16, UInt32
   , WritableInto, insertInto
-  , Connection, openNativeConnection, defaultCredentials
+  , Connection, openConnection, defaultConnectionArgs
   , ReadableFrom, Column, Table
   , View, selectFromView, Parameter, parameter
   )
@@ -38,7 +38,7 @@ data DocsStatisticsArgs = MkDocsStatisticsArgs
 
 initVisitsTracker :: DocsStatisticsArgs -> IO (Concurrently (), TVar HistoryData)
 initVisitsTracker MkDocsStatisticsArgs{..} = do
-  clickHouse     <- openNativeConnection defaultCredentials
+  clickHouse     <- openConnection defaultConnectionArgs
   currentHistory <- newTVarIO . History =<< readCurrentHistoryLast clickHouse 24
 
   pure

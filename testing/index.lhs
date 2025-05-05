@@ -48,11 +48,11 @@ You can manually run database and tests:
 <h2>Main function</h2>
 
 <pre><code data-lang="haskell" class="haskell"
->import ClickHaskell (openNativeConnection, defaultCredentials)
+>import ClickHaskell (openConnection, defaultConnectionArgs)
 
 main :: IO ()
 main = do
-  connection <- openNativeConnection defaultCredentials
+  connection <- openConnection defaultConnectionArgs
   mapM_
     (\runner -> runner connection) 
     [t1,t2,t3,t4]
