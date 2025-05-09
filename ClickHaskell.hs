@@ -1654,10 +1654,8 @@ instance ToChType chType inputType => ToChType (Array chType) [inputType]
 
 
 
-class
-  IsChType chType
+class IsChType chType
   where
-
   -- | Shows database original type name
   --
   -- @
@@ -1668,61 +1666,55 @@ class
 
   defaultValueOfTypeName :: chType
 
-instance IsChType Int8 where
-  chTypeName = "Int8"
-  defaultValueOfTypeName = 0
+instance IsChType Int8 where; chTypeName = "Int8"; defaultValueOfTypeName = 0
+instance IsChType Int16 where; chTypeName = "Int16"; defaultValueOfTypeName = 0
+instance IsChType Int32 where; chTypeName = "Int32"; defaultValueOfTypeName = 0
+instance IsChType Int64 where; chTypeName = "Int64"; defaultValueOfTypeName = 0
+instance IsChType Int128 where; chTypeName = "Int128"; defaultValueOfTypeName = 0
 
-instance IsChType Int16 where
-  chTypeName = "Int16"
-  defaultValueOfTypeName = 0
-
-instance IsChType Int32 where
-  chTypeName = "Int32"
-  defaultValueOfTypeName = 0
-
-instance IsChType Int64 where
-  chTypeName = "Int64"
-  defaultValueOfTypeName = 0
-
-instance IsChType Int128 where
-  chTypeName = "Int128"
-  defaultValueOfTypeName = 0
--- | ClickHouse UInt8 column type
+{- | ClickHouse UInt8 column type -}
 type UInt8 = Word8
-instance IsChType UInt8 where
-  chTypeName = "UInt8"
-  defaultValueOfTypeName = 0
+instance IsChType UInt8 where; chTypeName = "UInt8"; defaultValueOfTypeName = 0
 
--- | ClickHouse UInt16 column type
+{- | ClickHouse UInt16 column type -}
 type UInt16 = Word16
-instance IsChType UInt16 where
-  chTypeName = "UInt16"
-  defaultValueOfTypeName = 0
+instance IsChType UInt16 where; chTypeName = "UInt16"; defaultValueOfTypeName = 0
 
--- | ClickHouse UInt32 column type
+{- | ClickHouse UInt32 column type -}
 type UInt32 = Word32
-instance IsChType UInt32 where
-  chTypeName = "UInt32"
-  defaultValueOfTypeName = 0
+instance IsChType UInt32 where; chTypeName = "UInt32"; defaultValueOfTypeName = 0
 
--- | ClickHouse UInt64 column type
+{- | ClickHouse UInt64 column type -}
 type UInt64 = Word64
-instance IsChType UInt64 where
-  chTypeName = "UInt64"
-  defaultValueOfTypeName = 0
+instance IsChType UInt64 where; chTypeName = "UInt64"; defaultValueOfTypeName = 0
 
--- | ClickHouse UInt128 column type
+{- | ClickHouse UInt128 column type -}
 type UInt128 = Word128
-instance IsChType UInt128 where
-  chTypeName = "UInt128"
-  defaultValueOfTypeName = 0
+instance IsChType UInt128 where; chTypeName = "UInt128"; defaultValueOfTypeName = 0
 
--- | ClickHouse UUID column type
+{- | ClickHouse Date column type -}
+newtype Date = MkChDate Word16
+  deriving newtype (Show, Eq, Bits, Bounded, Enum, NFData, Num)
+instance IsChType Date where; chTypeName = "Date"; defaultValueOfTypeName = 0
+
+{- | ClickHouse String column type -}
+newtype ChString = MkChString BS.ByteString
+  deriving newtype (Show, Eq, IsString, NFData)
+instance IsChType ChString where; chTypeName = "String"; defaultValueOfTypeName = ""
+
+{- | ClickHouse UUID column type -}
 newtype UUID = MkChUUID Word128
-  deriving newtype (Generic, Show, Eq, NFData, Bounded, Enum)
-instance IsChType UUID where
-  chTypeName = "UUID"
-  defaultValueOfTypeName = MkChUUID 0
+  deriving newtype (Generic, Show, Eq, NFData, Bounded, Enum, Num)
+instance IsChType UUID where; chTypeName = "UUID"; defaultValueOfTypeName = 0
+
+{- | ClickHouse Nullable(T) column type
+ (type synonym for Maybe)
+ -}
+type Nullable = Maybe
+instance IsChType chType => IsChType (Nullable chType)
+  where
+  chTypeName = "Nullable(" <> chTypeName @chType <> ")"
+  defaultValueOfTypeName = Nothing
 
 {- |
 ClickHouse DateTime column type (paramtrized with timezone)
@@ -1742,42 +1734,13 @@ instance KnownSymbol (DateTimeTypeName tz) => IsChType (DateTime tz)
   chTypeName = symbolVal @(DateTimeTypeName tz) $ Proxy
   defaultValueOfTypeName = MkDateTime 0
 
--- | ClickHouse String column type
-newtype ChString = MkChString BS.ByteString
-  deriving newtype (Show, Eq, IsString, NFData)
-instance IsChType ChString where
-  chTypeName = "String"
-  defaultValueOfTypeName = ""
-
--- | ClickHouse Date column type
-newtype Date = MkChDate Word16
-  deriving newtype (Show, Eq, Bits, Bounded, Enum, NFData)
-instance IsChType Date where
-  chTypeName = "Date"
-  defaultValueOfTypeName = MkChDate 0
-
 -- | ClickHouse Array column type
 newtype Array a = MkChArray [a]
   deriving newtype (Show, Eq, NFData)
 instance IsChType chType => IsChType (Array chType)
   where
-  chTypeName = "Array(" <> chTypeName @(chType) <> ")"
+  chTypeName = "Array(" <> chTypeName @chType <> ")"
   defaultValueOfTypeName = MkChArray []
-
-
--- | ClickHouse Nullable(T) column type
--- (type synonym for Maybe)
-type Nullable = Maybe
-
-instance
-  ( IsChType chType
-  )
-  =>
-  IsChType (Nullable chType)
-  where
-  chTypeName = "Nullable(" <> chTypeName @chType <> ")"
-  defaultValueOfTypeName = Nothing
-
 
 -- | ClickHouse LowCardinality(T) column type
 newtype LowCardinality chType = MkLowCardinality chType
