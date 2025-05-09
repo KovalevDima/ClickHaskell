@@ -56,7 +56,7 @@ module ClickHaskell
   {- * Protocol parts -}
 
   {- ** Shared -}
-  , UVarInt(..)
+  , UVarInt(..), SinceRevision(..)
   {- *** Data packet -}, DataPacket(..), BlockInfo(..)
 
   {- ** Client -}
@@ -120,7 +120,6 @@ import Network.Socket hiding (SocketOption(..))
 import Network.Socket qualified as Sock (SocketOption(..))
 import Network.Socket.ByteString (recv)
 import Network.Socket.ByteString.Lazy (sendAll)
-import GHC.Exts (inline, oneShot)
 
 -- * Connection
 
@@ -1825,6 +1824,12 @@ instance {-# OVERLAPPABLE #-}
 
 
 
+
+
+
+
+-- * Protocol parts
+
 {- |
   Unsigned variable-length quantity encoding
   
@@ -1833,14 +1838,6 @@ instance {-# OVERLAPPABLE #-}
 newtype UVarInt = MkUVarInt Word64
   deriving newtype (Show, Eq, Num, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
 
-
-
-
-
-
-
-
--- * Versioning
 
 major, minor, patch :: UVarInt
 major = case versionBranch version of (x:_) -> fromIntegral x; _ -> 0
@@ -1852,9 +1849,7 @@ clientName = fromString $
   "ClickHaskell-" <> show major <> "." <> show minor <> "." <> show patch
 
 newtype ProtocolRevision = MkProtocolRevision Word64
-  deriving newtype (Eq, Num, Ord)
-
-instance Serializable ProtocolRevision where serialize rev = serialize @UVarInt rev . coerce
+  deriving newtype (Eq, Num, Ord, Serializable)
 
 {-# INLINE [0] afterRevision #-}
 afterRevision
@@ -1870,9 +1865,6 @@ latestSupportedRevision :: ProtocolRevision
 latestSupportedRevision = (fromIntegral . natVal) (Proxy @DBMS_TCP_PROTOCOL_VERSION)
 
 data SinceRevision a (revisionNumber :: Nat) = MkSinceRevision a | NotPresented
-instance Show a => Show (SinceRevision a revisionNumber) where
-  show (MkSinceRevision a) = show a
-  show NotPresented = ""
 
 instance
   (KnownNat revision, Deserializable chType)
