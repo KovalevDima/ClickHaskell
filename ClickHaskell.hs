@@ -1848,7 +1848,7 @@ clientName :: ChString
 clientName = fromString $
   "ClickHaskell-" <> show major <> "." <> show minor <> "." <> show patch
 
-newtype ProtocolRevision = MkProtocolRevision Word64
+newtype ProtocolRevision = MkProtocolRevision UVarInt
   deriving newtype (Eq, Num, Ord, Serializable)
 
 {-# INLINE [0] afterRevision #-}
