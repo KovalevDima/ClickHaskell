@@ -5,6 +5,8 @@
 - ~20% optimization of time and alloc (perf test 1 benchmark)
 
 ## Breaking changes:
+- ### IsChType instance changes
+  `ToChType` type family was deleted
 - ### Connection initialization API changes
   1. `ChCredential` renamed to `ConnectionArgs`
   2. `defaultCredentials` renamed to `defaultConnectionArgs`

@@ -56,7 +56,7 @@ Library
     -- External dependencies
     , network < 4
     , wide-word < 1
-  Default-language: Haskell2010
+
   if flag(dev)
     GHC-Options:
       -ddump-to-file
@@ -66,3 +66,32 @@ Library
       -ddump-rule-firings
       -dsuppress-all
       -dsuppress-uniques
+
+  default-language: Haskell2010
+  default-extensions:
+    AllowAmbiguousTypes
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveAnyClass
+    DeriveGeneric
+    DerivingStrategies
+    DuplicateRecordFields
+    GADTs
+    GeneralizedNewtypeDeriving
+    ImportQualifiedPost
+    FlexibleContexts
+    FlexibleInstances
+    LambdaCase
+    MultiParamTypeClasses
+    NamedFieldPuns
+    NumericUnderscores
+    OverloadedStrings
+    RecordWildCards
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeOperators
+    ScopedTypeVariables
+    StandaloneDeriving
+    UndecidableInstances

@@ -1,32 +1,3 @@
-{-# LANGUAGE
-    AllowAmbiguousTypes
-  , ConstraintKinds
-  , DataKinds
-  , DefaultSignatures
-  , DeriveAnyClass
-  , DeriveGeneric
-  , DerivingStrategies
-  , DuplicateRecordFields
-  , GADTs
-  , GeneralizedNewtypeDeriving
-  , ImportQualifiedPost
-  , FlexibleContexts
-  , FlexibleInstances
-  , LambdaCase
-  , MultiParamTypeClasses
-  , NamedFieldPuns
-  , NumericUnderscores
-  , OverloadedStrings
-  , RecordWildCards
-  , TupleSections
-  , TypeApplications
-  , TypeFamilies
-  , TypeOperators
-  , ScopedTypeVariables
-  , StandaloneDeriving
-  , UndecidableInstances
-#-}
-
 {-# OPTIONS_GHC
   -Wno-orphans
   -Wno-unused-top-binds
@@ -71,7 +42,7 @@ module ClickHaskell
   , ToQueryPart(toQueryPart), parameter, Parameter, Parameters, viewParameters
 
   {- * ClickHouse types -}
-  , IsChType(ToChTypeName, chTypeName, defaultValueOfTypeName)
+  , IsChType(chTypeName, defaultValueOfTypeName)
   , DateTime(..)
   , Int8, Int16, Int32, Int64, Int128(..)
   , UInt8, UInt16, UInt32, UInt64, UInt128, Word128(..)
@@ -85,7 +56,7 @@ module ClickHaskell
   {- * Protocol parts -}
 
   {- ** Shared -}
-  , UVarInt(..)
+  , UVarInt(..), SinceRevision(..)
   {- *** Data packet -}, DataPacket(..), BlockInfo(..)
 
   {- ** Client -}
@@ -149,7 +120,6 @@ import Network.Socket hiding (SocketOption(..))
 import Network.Socket qualified as Sock (SocketOption(..))
 import Network.Socket.ByteString (recv)
 import Network.Socket.ByteString.Lazy (sendAll)
-import GHC.Exts (inline, oneShot)
 
 -- * Connection
 
@@ -198,8 +168,7 @@ withConnection (MkConnection connStateMVar) f =
     return b
 
 data ConnectionState = MkConnectionState
-  { sock     :: Socket
-  , user     :: ChString
+  { user     :: ChString
   , hostname :: ChString
   , os_user  :: ChString
   , buffer   :: Buffer
@@ -208,18 +177,18 @@ data ConnectionState = MkConnectionState
   }
 
 writeToConnection :: Serializable packet => ConnectionState -> packet -> IO ()
-writeToConnection MkConnectionState{sock, revision} packet =
+writeToConnection MkConnectionState{revision, buffer=MkBuffer{sock}} packet =
   (sendAll sock . toLazyByteString . serialize revision) packet
 
 writeToConnectionEncode :: ConnectionState -> (ProtocolRevision -> Builder) -> IO ()
-writeToConnectionEncode MkConnectionState{sock, revision} serializer =
+writeToConnectionEncode MkConnectionState{revision, buffer=MkBuffer{sock}} serializer =
   (sendAll sock . toLazyByteString) (serializer revision)
 
 openConnection :: HasCallStack => ConnectionArgs -> IO Connection
 openConnection creds = fmap MkConnection . newMVar =<< createConnectionState creds
 
 reopenConnection :: ConnectionState -> IO ConnectionState
-reopenConnection MkConnectionState{..} = do
+reopenConnection MkConnectionState{creds, buffer=buffer@MkBuffer{sock}} = do
   flushBuffer buffer
   close sock
   createConnectionState creds
@@ -240,10 +209,7 @@ createConnectionState creds@MkConnectionArgs{host, port, user, pass, db} = do
         (socket addrFamily addrSocketType addrProtocol)
         (\sock ->
           catch @SomeException
-            (finally
-              (shutdown sock ShutdownBoth)
-              (close sock)
-            )
+            (finally (shutdown sock ShutdownBoth) (close sock))
             (const $ pure ())
         )
         (\sock -> do
@@ -255,7 +221,7 @@ createConnectionState creds@MkConnectionArgs{host, port, user, pass, db} = do
       )
 
   (sendAll sock . toLazyByteString . serialize latestSupportedRevision)
-    (mkHelloPacket MkHelloParameters{..})
+    (mkHelloPacket db user pass)
 
   buffer <- initBuffer 4096 sock
   serverPacketType <- rawBufferizedRead buffer (deserialize latestSupportedRevision)
@@ -430,7 +396,7 @@ insertInto conn columnsData = do
   query = toChType $
     "INSERT INTO " <> (byteString . BS8.pack . symbolVal @name $ Proxy)
     <> " (" <> writingColumns @table @record <> ") VALUES"
-    
+
 
 handleInsertResult :: forall columns record . WritableInto columns record => ConnectionState -> [record] -> IO ()
 handleInsertResult conn@MkConnectionState{..} records = do
@@ -454,7 +420,7 @@ handleInsertResult conn@MkConnectionState{..} records = do
 
 data Buffer = MkBuffer
   { bufferSize :: Int
-  , bufferSocket :: Socket
+  , sock :: Socket
   , buff :: IORef BS.ByteString
   }
 
@@ -469,20 +435,17 @@ readBuffer buffer@MkBuffer{..} =
   readIORef buff
     >>= (\currentBuffer ->
       case BS.length currentBuffer of
-        0 -> recv bufferSocket bufferSize
+        0 -> recv sock bufferSize
         _ -> flushBuffer buffer *> pure currentBuffer
     )
-
-writeToBuffer :: Buffer -> BS.ByteString -> IO ()
-writeToBuffer MkBuffer{..} val = void (atomicModifyIORef buff (val,))
 
 rawBufferizedRead :: Buffer -> Get packet -> IO packet
 rawBufferizedRead buffer parser = runBufferReader buffer (runGetIncremental parser)
 
 runBufferReader :: Buffer -> Decoder packet -> IO packet
-runBufferReader buffer = \case
+runBufferReader buffer@MkBuffer{..} = \case
   (Partial decoder) -> readBuffer buffer >>= runBufferReader buffer . decoder . Just
-  (Done leftover _consumed packet) -> packet <$ writeToBuffer buffer leftover
+  (Done leftover _consumed packet) -> packet <$ atomicModifyIORef buff (leftover,)
   (Fail _leftover _consumed msg) -> throwIO (InternalError $ DeserializationError msg)
 
 
@@ -572,14 +535,8 @@ instance Deserializable (Packet (packetType :: ClientPacketType)) where
 
 -- ** Hello
 
-data HelloParameters = MkHelloParameters
-  { db :: Text
-  , user :: Text
-  , pass :: Text
-  }
-
-mkHelloPacket :: HelloParameters -> HelloPacket
-mkHelloPacket MkHelloParameters{db, user, pass} =
+mkHelloPacket :: Text -> Text -> Text -> HelloPacket
+mkHelloPacket db user pass =
   MkHelloPacket
     { packet_type          = MkPacket
     , client_name          = clientName
@@ -802,8 +759,6 @@ serverPacketToNum = \case
   (ProfileEvents)   -> 14; (UnknownPacket num)   -> num
 
 
--- ** HelloResponse
-
 {-
   https://github.com/ClickHouse/ClickHouse/blob/eb4a74d7412a1fcf52727cd8b00b365d6b9ed86c/src/Client/Connection.cpp#L520
 -}
@@ -834,8 +789,6 @@ instance Deserializable [PasswordComplexityRules] where
     len <- deserialize @UVarInt rev
     replicateM (fromIntegral len) (deserialize @PasswordComplexityRules rev)
 
--- ** Exception
-
 data ExceptionPacket = MkExceptionPacket
   { code        :: Int32
   , name        :: ChString
@@ -844,8 +797,6 @@ data ExceptionPacket = MkExceptionPacket
   , nested      :: UInt8
   }
   deriving (Generic, Show, Deserializable)
-
--- ** Progress
 
 data ProgressPacket = MkProgressPacket
   { rows        :: UVarInt
@@ -858,8 +809,6 @@ data ProgressPacket = MkProgressPacket
   }
   deriving (Generic, Deserializable)
 
--- ** ProfileInfo
-
 data ProfileInfo = MkProfileInfo
   { rows                         :: UVarInt
   , blocks                       :: UVarInt
@@ -871,8 +820,6 @@ data ProfileInfo = MkProfileInfo
   , rows_before_aggregation      :: UVarInt `SinceRevision` DBMS_MIN_REVISION_WITH_ROWS_BEFORE_AGGREGATION
   }
   deriving (Generic, Deserializable)
-
--- ** TableColumns
 
 data TableColumns = MkTableColumns
   { table_name :: ChString
@@ -1303,7 +1250,7 @@ class
   renderColumnName = (stringUtf8 . symbolVal @(GetColumnName column)) Proxy
 
   renderColumnType :: Builder
-  renderColumnType = chTypeName @(GetColumnType column)
+  renderColumnType = byteString . BS8.pack $ chTypeName @(GetColumnType column)
 
   mkColumn :: [GetColumnType column] -> Column (GetColumnName column) (GetColumnType column)
 
@@ -1708,77 +1655,73 @@ instance ToChType chType inputType => ToChType (Array chType) [inputType]
 
 
 class
-  KnownSymbol (ToChTypeName chType)
-  =>
   IsChType chType
   where
+
   -- | Shows database original type name
   --
   -- @
-  -- type ToChTypeName ChString = \"String\"
-  -- type ToChTypeName (Nullable UInt32) = \"Nullable(UInt32)\"
+  -- chTypeName \@ChString = \"String\"
+  -- chTypeName \@(Nullable UInt32) = \"Nullable(UInt32)\"
   -- @
-  type ToChTypeName chType :: Symbol
-
-  chTypeName :: Builder
-  chTypeName = byteString . BS8.pack . symbolVal @(ToChTypeName chType) $ Proxy
+  chTypeName :: String
 
   defaultValueOfTypeName :: chType
 
 instance IsChType Int8 where
-  type ToChTypeName Int8 = "Int8"
+  chTypeName = "Int8"
   defaultValueOfTypeName = 0
 
 instance IsChType Int16 where
-  type ToChTypeName Int16 = "Int16"
+  chTypeName = "Int16"
   defaultValueOfTypeName = 0
 
 instance IsChType Int32 where
-  type ToChTypeName Int32 = "Int32"
+  chTypeName = "Int32"
   defaultValueOfTypeName = 0
 
 instance IsChType Int64 where
-  type ToChTypeName Int64 = "Int64"
+  chTypeName = "Int64"
   defaultValueOfTypeName = 0
 
 instance IsChType Int128 where
-  type ToChTypeName Int128 = "Int128"
+  chTypeName = "Int128"
   defaultValueOfTypeName = 0
 -- | ClickHouse UInt8 column type
 type UInt8 = Word8
 instance IsChType UInt8 where
-  type ToChTypeName UInt8 = "UInt8"
+  chTypeName = "UInt8"
   defaultValueOfTypeName = 0
 
 -- | ClickHouse UInt16 column type
 type UInt16 = Word16
 instance IsChType UInt16 where
-  type ToChTypeName UInt16 = "UInt16"
+  chTypeName = "UInt16"
   defaultValueOfTypeName = 0
 
 -- | ClickHouse UInt32 column type
 type UInt32 = Word32
 instance IsChType UInt32 where
-  type ToChTypeName UInt32 = "UInt32"
+  chTypeName = "UInt32"
   defaultValueOfTypeName = 0
 
 -- | ClickHouse UInt64 column type
 type UInt64 = Word64
 instance IsChType UInt64 where
-  type ToChTypeName UInt64 = "UInt64"
+  chTypeName = "UInt64"
   defaultValueOfTypeName = 0
 
 -- | ClickHouse UInt128 column type
 type UInt128 = Word128
 instance IsChType UInt128 where
-  type ToChTypeName UInt128 = "UInt128"
+  chTypeName = "UInt128"
   defaultValueOfTypeName = 0
 
 -- | ClickHouse UUID column type
 newtype UUID = MkChUUID Word128
   deriving newtype (Generic, Show, Eq, NFData, Bounded, Enum)
 instance IsChType UUID where
-  type ToChTypeName UUID = "UUID"
+  chTypeName = "UUID"
   defaultValueOfTypeName = MkChUUID 0
 
 {- |
@@ -1792,34 +1735,33 @@ ClickHouse DateTime column type (paramtrized with timezone)
 newtype DateTime (tz :: Symbol) = MkDateTime Word32
   deriving newtype (Show, Eq, Num, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
 
-instance KnownSymbol (ToChTypeName (DateTime tz)) => IsChType (DateTime tz)
+type DateTimeTypeName tz = If (tz == "") ("DateTime") ("DateTime('" `AppendSymbol` tz `AppendSymbol` "')")
+
+instance KnownSymbol (DateTimeTypeName tz) => IsChType (DateTime tz)
   where
-  type ToChTypeName (DateTime tz) = If (tz == "") ("DateTime") ("DateTime('" `AppendSymbol` tz `AppendSymbol` "')")
+  chTypeName = symbolVal @(DateTimeTypeName tz) $ Proxy
   defaultValueOfTypeName = MkDateTime 0
 
 -- | ClickHouse String column type
 newtype ChString = MkChString BS.ByteString
   deriving newtype (Show, Eq, IsString, NFData)
 instance IsChType ChString where
-  type ToChTypeName ChString = "String"
+  chTypeName = "String"
   defaultValueOfTypeName = ""
 
 -- | ClickHouse Date column type
 newtype Date = MkChDate Word16
   deriving newtype (Show, Eq, Bits, Bounded, Enum, NFData)
 instance IsChType Date where
-  type ToChTypeName Date = "Date"
+  chTypeName = "Date"
   defaultValueOfTypeName = MkChDate 0
 
 -- | ClickHouse Array column type
 newtype Array a = MkChArray [a]
   deriving newtype (Show, Eq, NFData)
-instance
-  KnownSymbol (AppendSymbol (AppendSymbol "Array(" (ToChTypeName chType)) ")")
-  =>
-  IsChType (Array chType)
+instance IsChType chType => IsChType (Array chType)
   where
-  type ToChTypeName (Array chType) = "Array(" `AppendSymbol` ToChTypeName chType `AppendSymbol` ")"
+  chTypeName = "Array(" <> chTypeName @(chType) <> ")"
   defaultValueOfTypeName = MkChArray []
 
 
@@ -1827,28 +1769,21 @@ instance
 -- (type synonym for Maybe)
 type Nullable = Maybe
 
-type NullableTypeName chType = "Nullable(" `AppendSymbol` ToChTypeName chType `AppendSymbol` ")"
-
 instance
   ( IsChType chType
-  , KnownSymbol ("Nullable(" `AppendSymbol` ToChTypeName chType `AppendSymbol` ")")
   )
   =>
   IsChType (Nullable chType)
   where
-  type ToChTypeName (Nullable chType) = NullableTypeName chType
+  chTypeName = "Nullable(" <> chTypeName @chType <> ")"
   defaultValueOfTypeName = Nothing
 
 
 -- | ClickHouse LowCardinality(T) column type
 newtype LowCardinality chType = MkLowCardinality chType
-instance
-  ( IsLowCardinalitySupported chType
-  , KnownSymbol ("LowCardinality(" `AppendSymbol` ToChTypeName chType `AppendSymbol` ")")
-  ) =>
-  IsChType (LowCardinality chType)
+instance IsLowCardinalitySupported chType => IsChType (LowCardinality chType)
   where
-  type ToChTypeName (LowCardinality chType) = "LowCardinality(" `AppendSymbol` ToChTypeName chType `AppendSymbol` ")"
+  chTypeName = "LowCardinality(" <> chTypeName @chType <> ")"
   defaultValueOfTypeName = MkLowCardinality $ defaultValueOfTypeName @chType
 
 deriving newtype instance (Eq chType, IsLowCardinalitySupported chType) => Eq (LowCardinality chType)
@@ -1877,6 +1812,12 @@ instance {-# OVERLAPPABLE #-}
 
 
 
+
+
+
+
+-- * Protocol parts
+
 {- |
   Unsigned variable-length quantity encoding
   
@@ -1885,14 +1826,6 @@ instance {-# OVERLAPPABLE #-}
 newtype UVarInt = MkUVarInt Word64
   deriving newtype (Show, Eq, Num, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
 
-
-
-
-
-
-
-
--- * Versioning
 
 major, minor, patch :: UVarInt
 major = case versionBranch version of (x:_) -> fromIntegral x; _ -> 0
@@ -1903,10 +1836,8 @@ clientName :: ChString
 clientName = fromString $
   "ClickHaskell-" <> show major <> "." <> show minor <> "." <> show patch
 
-newtype ProtocolRevision = MkProtocolRevision Word64
-  deriving newtype (Eq, Num, Ord)
-
-instance Serializable ProtocolRevision where serialize rev = serialize @UVarInt rev . coerce
+newtype ProtocolRevision = MkProtocolRevision UVarInt
+  deriving newtype (Eq, Num, Ord, Serializable)
 
 {-# INLINE [0] afterRevision #-}
 afterRevision
@@ -1922,9 +1853,6 @@ latestSupportedRevision :: ProtocolRevision
 latestSupportedRevision = (fromIntegral . natVal) (Proxy @DBMS_TCP_PROTOCOL_VERSION)
 
 data SinceRevision a (revisionNumber :: Nat) = MkSinceRevision a | NotPresented
-instance Show a => Show (SinceRevision a revisionNumber) where
-  show (MkSinceRevision a) = show a
-  show NotPresented = ""
 
 instance
   (KnownNat revision, Deserializable chType)
