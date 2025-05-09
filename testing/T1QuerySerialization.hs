@@ -31,7 +31,8 @@ import ClickHaskell
 -- GHC included
 import Control.Monad (when)
 import Data.ByteString as BS (singleton)
-import Data.ByteString.Builder (toLazyByteString)
+import Data.ByteString.Char8 as BS8 (pack)
+import Data.ByteString.Builder (toLazyByteString, byteString)
 import GHC.Generics (Generic)
 
 
@@ -64,7 +65,7 @@ runTestForType ::
   =>
   Connection -> [chType] -> IO ()
 runTestForType connection testValues = do
-  let typeName = chTypeName @chType
+  let typeName = (byteString . BS8.pack) (chTypeName @chType)
   mapM_
     (\chType -> do
       [selectChType] <-
