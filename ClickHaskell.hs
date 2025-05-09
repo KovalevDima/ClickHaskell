@@ -177,10 +177,10 @@ setPassword :: Text -> ConnectionArgs -> ConnectionArgs
 setPassword new MkConnectionArgs{..} = MkConnectionArgs{pass=new, ..}
 
 setHost :: HostName -> ConnectionArgs -> ConnectionArgs
-setHost host conn = conn{host=host}
+setHost new MkConnectionArgs{..} = MkConnectionArgs{host=new, ..}
 
 setPort :: ServiceName -> ConnectionArgs -> ConnectionArgs
-setPort port conn = conn{port=port} 
+setPort new MkConnectionArgs{..} = MkConnectionArgs{port=new, ..} 
 
 setDatabase :: Text -> ConnectionArgs -> ConnectionArgs
 setDatabase new MkConnectionArgs{..} = MkConnectionArgs{db=new, ..}
@@ -588,7 +588,7 @@ mkHelloPacket MkHelloParameters{db, user, pass} =
     , tcp_protocol_version = latestSupportedRevision
     , default_database     = toChType db
     , user                 = toChType user
-    , pass             = toChType pass
+    , pass                 = toChType pass
     }
 
 data HelloPacket = MkHelloPacket
@@ -599,7 +599,7 @@ data HelloPacket = MkHelloPacket
   , tcp_protocol_version :: ProtocolRevision
   , default_database     :: ChString
   , user                 :: ChString
-  , pass             :: ChString
+  , pass                 :: ChString
   }
   deriving (Generic, Serializable)
 
