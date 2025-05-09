@@ -42,7 +42,7 @@ module ClickHaskell
   , ToQueryPart(toQueryPart), parameter, Parameter, Parameters, viewParameters
 
   {- * ClickHouse types -}
-  , IsChType(ToChTypeName, chTypeName, defaultValueOfTypeName)
+  , IsChType(chTypeName, defaultValueOfTypeName)
   , DateTime(..)
   , Int8, Int16, Int32, Int64, Int128(..)
   , UInt8, UInt16, UInt32, UInt64, UInt128, Word128(..)
@@ -1250,7 +1250,7 @@ class
   renderColumnName = (stringUtf8 . symbolVal @(GetColumnName column)) Proxy
 
   renderColumnType :: Builder
-  renderColumnType = chTypeName @(GetColumnType column)
+  renderColumnType = byteString . BS8.pack $ chTypeName @(GetColumnType column)
 
   mkColumn :: [GetColumnType column] -> Column (GetColumnName column) (GetColumnType column)
 
@@ -1655,77 +1655,73 @@ instance ToChType chType inputType => ToChType (Array chType) [inputType]
 
 
 class
-  KnownSymbol (ToChTypeName chType)
-  =>
   IsChType chType
   where
+
   -- | Shows database original type name
   --
   -- @
-  -- type ToChTypeName ChString = \"String\"
-  -- type ToChTypeName (Nullable UInt32) = \"Nullable(UInt32)\"
+  -- chTypeName \@ChString = \"String\"
+  -- chTypeName \@(Nullable UInt32) = \"Nullable(UInt32)\"
   -- @
-  type ToChTypeName chType :: Symbol
-
-  chTypeName :: Builder
-  chTypeName = byteString . BS8.pack . symbolVal @(ToChTypeName chType) $ Proxy
+  chTypeName :: String
 
   defaultValueOfTypeName :: chType
 
 instance IsChType Int8 where
-  type ToChTypeName Int8 = "Int8"
+  chTypeName = "Int8"
   defaultValueOfTypeName = 0
 
 instance IsChType Int16 where
-  type ToChTypeName Int16 = "Int16"
+  chTypeName = "Int16"
   defaultValueOfTypeName = 0
 
 instance IsChType Int32 where
-  type ToChTypeName Int32 = "Int32"
+  chTypeName = "Int32"
   defaultValueOfTypeName = 0
 
 instance IsChType Int64 where
-  type ToChTypeName Int64 = "Int64"
+  chTypeName = "Int64"
   defaultValueOfTypeName = 0
 
 instance IsChType Int128 where
-  type ToChTypeName Int128 = "Int128"
+  chTypeName = "Int128"
   defaultValueOfTypeName = 0
 -- | ClickHouse UInt8 column type
 type UInt8 = Word8
 instance IsChType UInt8 where
-  type ToChTypeName UInt8 = "UInt8"
+  chTypeName = "UInt8"
   defaultValueOfTypeName = 0
 
 -- | ClickHouse UInt16 column type
 type UInt16 = Word16
 instance IsChType UInt16 where
-  type ToChTypeName UInt16 = "UInt16"
+  chTypeName = "UInt16"
   defaultValueOfTypeName = 0
 
 -- | ClickHouse UInt32 column type
 type UInt32 = Word32
 instance IsChType UInt32 where
-  type ToChTypeName UInt32 = "UInt32"
+  chTypeName = "UInt32"
   defaultValueOfTypeName = 0
 
 -- | ClickHouse UInt64 column type
 type UInt64 = Word64
 instance IsChType UInt64 where
-  type ToChTypeName UInt64 = "UInt64"
+  chTypeName = "UInt64"
   defaultValueOfTypeName = 0
 
 -- | ClickHouse UInt128 column type
 type UInt128 = Word128
 instance IsChType UInt128 where
-  type ToChTypeName UInt128 = "UInt128"
+  chTypeName = "UInt128"
   defaultValueOfTypeName = 0
 
 -- | ClickHouse UUID column type
 newtype UUID = MkChUUID Word128
   deriving newtype (Generic, Show, Eq, NFData, Bounded, Enum)
 instance IsChType UUID where
-  type ToChTypeName UUID = "UUID"
+  chTypeName = "UUID"
   defaultValueOfTypeName = MkChUUID 0
 
 {- |
@@ -1739,34 +1735,33 @@ ClickHouse DateTime column type (paramtrized with timezone)
 newtype DateTime (tz :: Symbol) = MkDateTime Word32
   deriving newtype (Show, Eq, Num, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
 
-instance KnownSymbol (ToChTypeName (DateTime tz)) => IsChType (DateTime tz)
+type DateTimeTypeName tz = If (tz == "") ("DateTime") ("DateTime('" `AppendSymbol` tz `AppendSymbol` "')")
+
+instance KnownSymbol (DateTimeTypeName tz) => IsChType (DateTime tz)
   where
-  type ToChTypeName (DateTime tz) = If (tz == "") ("DateTime") ("DateTime('" `AppendSymbol` tz `AppendSymbol` "')")
+  chTypeName = symbolVal @(DateTimeTypeName tz) $ Proxy
   defaultValueOfTypeName = MkDateTime 0
 
 -- | ClickHouse String column type
 newtype ChString = MkChString BS.ByteString
   deriving newtype (Show, Eq, IsString, NFData)
 instance IsChType ChString where
-  type ToChTypeName ChString = "String"
+  chTypeName = "String"
   defaultValueOfTypeName = ""
 
 -- | ClickHouse Date column type
 newtype Date = MkChDate Word16
   deriving newtype (Show, Eq, Bits, Bounded, Enum, NFData)
 instance IsChType Date where
-  type ToChTypeName Date = "Date"
+  chTypeName = "Date"
   defaultValueOfTypeName = MkChDate 0
 
 -- | ClickHouse Array column type
 newtype Array a = MkChArray [a]
   deriving newtype (Show, Eq, NFData)
-instance
-  KnownSymbol (AppendSymbol (AppendSymbol "Array(" (ToChTypeName chType)) ")")
-  =>
-  IsChType (Array chType)
+instance IsChType chType => IsChType (Array chType)
   where
-  type ToChTypeName (Array chType) = "Array(" `AppendSymbol` ToChTypeName chType `AppendSymbol` ")"
+  chTypeName = "Array(" <> chTypeName @(chType) <> ")"
   defaultValueOfTypeName = MkChArray []
 
 
@@ -1774,28 +1769,21 @@ instance
 -- (type synonym for Maybe)
 type Nullable = Maybe
 
-type NullableTypeName chType = "Nullable(" `AppendSymbol` ToChTypeName chType `AppendSymbol` ")"
-
 instance
   ( IsChType chType
-  , KnownSymbol ("Nullable(" `AppendSymbol` ToChTypeName chType `AppendSymbol` ")")
   )
   =>
   IsChType (Nullable chType)
   where
-  type ToChTypeName (Nullable chType) = NullableTypeName chType
+  chTypeName = "Nullable(" <> chTypeName @chType <> ")"
   defaultValueOfTypeName = Nothing
 
 
 -- | ClickHouse LowCardinality(T) column type
 newtype LowCardinality chType = MkLowCardinality chType
-instance
-  ( IsLowCardinalitySupported chType
-  , KnownSymbol ("LowCardinality(" `AppendSymbol` ToChTypeName chType `AppendSymbol` ")")
-  ) =>
-  IsChType (LowCardinality chType)
+instance IsLowCardinalitySupported chType => IsChType (LowCardinality chType)
   where
-  type ToChTypeName (LowCardinality chType) = "LowCardinality(" `AppendSymbol` ToChTypeName chType `AppendSymbol` ")"
+  chTypeName = "LowCardinality(" <> chTypeName @chType <> ")"
   defaultValueOfTypeName = MkLowCardinality $ defaultValueOfTypeName @chType
 
 deriving newtype instance (Eq chType, IsLowCardinalitySupported chType) => Eq (LowCardinality chType)
