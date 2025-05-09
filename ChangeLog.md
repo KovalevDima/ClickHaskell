@@ -4,6 +4,31 @@
 - Support and CI for GHCs: `8.10.7`, `9.0.2`, `9.2.6`
 - ~20% optimization of time and alloc (perf test 1 benchmark)
 
+## Breaking changes:
+- ### Connection initialization API changes
+  1. `ChCredential` renamed to `ConnectionArgs`
+  2. `defaultCredentials` renamed to `defaultConnectionArgs`
+  3. `openNativeConnection` renamed to `openConnection`
+  4. `ConnectionArgs` constructor now are not exported
+
+     You need to use new modifiers:\
+     `setHost`, `setPort`, `setUser`, `setDatabase`, `setPassword`
+
+     Connection initialization example:
+     ```haskell
+     initMyConnection :: IO Connection
+     initMyConnection = do
+       connection <-
+         openConnection
+           . setUser "default"
+           . setPassword ""
+           . setDatabase "default"
+           . setPort "9000"
+           . setHost "localhost"
+           $ defaultConnectionArgs
+       pure connection
+     ```
+
 # 0.2.0 -- 23-03-2023
 
 ClickHaskell documentation got it's own domain name: https://clickhaskell.dev/

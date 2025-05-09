@@ -26,14 +26,14 @@ module Main where
 import ClickHaskell
   ( ReadableFrom, selectFromView, Column
   , View, Parameter, parameter
-  , openNativeConnection, defaultCredentials
+  , openConnection, defaultConnectionArgs
   , ChString, Int32
   )
 import GHC.Generics (Generic)
 
 main :: IO ()
 main = do
-  connection <- openNativeConnection defaultCredentials
+  connection <- openConnection defaultConnectionArgs
   _ <-
     selectFromView
       @ExampleView

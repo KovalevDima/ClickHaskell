@@ -12,7 +12,7 @@
 import ChEventlogWriter (chEventlogWrite)
 import ChRtsStats (initPerformanceTracker)
 import ChVisits (DocsStatistics (..), DocsStatisticsArgs (..), HistoryData, initVisitsTracker)
-import ClickHaskell (defaultCredentials, openNativeConnection)
+import ClickHaskell (openConnection, defaultConnectionArgs)
 import Control.Concurrent.Async (Concurrently (..))
 import Control.Concurrent.STM (TBQueue, TChan, TVar, atomically, dupTChan, newBroadcastTChanIO, newTBQueueIO, readTChan, readTVarIO, writeTBQueue)
 import Control.Monad (filterM, forM, forever)
@@ -41,7 +41,7 @@ import System.FilePath (dropFileName, dropTrailingPathSeparator, normalise, repl
 
 main :: IO ()
 main = do
-  maybe mempty (chEventlogWrite (openNativeConnection defaultCredentials))
+  maybe mempty (chEventlogWrite (openConnection defaultConnectionArgs))
     =<< lookupEnv "CLICKHASKELL_EVENTLOG_SOCKET_PATH"
 
   mSocketPath  <- lookupEnv "CLICKHASKELL_PAGE_SOCKET_PATH"
@@ -52,7 +52,7 @@ main = do
   broadcastChan  <- newBroadcastTChanIO
 
   (visitsCollector, currentHistory) <- initVisitsTracker MkDocsStatisticsArgs{..}
-  perfStatCollector <- initPerformanceTracker defaultCredentials
+  perfStatCollector <- initPerformanceTracker defaultConnectionArgs
 
   server <-
     let mkBroadcastChan = atomically (dupTChan broadcastChan)

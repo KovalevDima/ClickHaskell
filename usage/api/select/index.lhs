@@ -21,14 +21,14 @@ module Main where
 import ClickHaskell
   ( ReadableFrom, select
   , Column, Columns
-  , openNativeConnection, defaultCredentials
+  , openConnection, defaultConnectionArgs
   , UInt8
   )
 import GHC.Generics (Generic)
 
 main :: IO ()
 main = do
-  connection <- openNativeConnection defaultCredentials
+  connection <- openConnection defaultConnectionArgs
   _ <-
     select
       @ExampleColumns

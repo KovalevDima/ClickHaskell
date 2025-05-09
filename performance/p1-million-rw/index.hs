@@ -23,9 +23,8 @@ import GHC.Generics (Generic)
 main :: IO ()
 main = do
   traceMarkerIO "Initialization"  
-  let credentials = MkChCredential "default" "" "" "localhost" "9000"
-  readingConnection <- openNativeConnection credentials
-  writingConnection <- openNativeConnection credentials
+  readingConnection <- openConnection defaultConnectionArgs
+  writingConnection <- openConnection defaultConnectionArgs
 
   let totalRows = 1_000_000
   command readingConnection

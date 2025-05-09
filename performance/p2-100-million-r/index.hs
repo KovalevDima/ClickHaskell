@@ -22,8 +22,7 @@ import Control.DeepSeq (NFData)
 main :: IO ()
 main = do
   traceMarkerIO "Initialization" 
-  let credentials = MkChCredential "default" "" "" "localhost" "9000"
-  connection <- openNativeConnection credentials
+  connection <- openConnection defaultConnectionArgs
 
   let totalRows = 100_000_000
 
