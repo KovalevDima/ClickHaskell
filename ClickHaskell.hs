@@ -1,32 +1,3 @@
-{-# LANGUAGE
-    AllowAmbiguousTypes
-  , ConstraintKinds
-  , DataKinds
-  , DefaultSignatures
-  , DeriveAnyClass
-  , DeriveGeneric
-  , DerivingStrategies
-  , DuplicateRecordFields
-  , GADTs
-  , GeneralizedNewtypeDeriving
-  , ImportQualifiedPost
-  , FlexibleContexts
-  , FlexibleInstances
-  , LambdaCase
-  , MultiParamTypeClasses
-  , NamedFieldPuns
-  , NumericUnderscores
-  , OverloadedStrings
-  , RecordWildCards
-  , TupleSections
-  , TypeApplications
-  , TypeFamilies
-  , TypeOperators
-  , ScopedTypeVariables
-  , StandaloneDeriving
-  , UndecidableInstances
-#-}
-
 {-# OPTIONS_GHC
   -Wno-orphans
   -Wno-unused-top-binds
@@ -198,8 +169,7 @@ withConnection (MkConnection connStateMVar) f =
     return b
 
 data ConnectionState = MkConnectionState
-  { sock     :: Socket
-  , user     :: ChString
+  { user     :: ChString
   , hostname :: ChString
   , os_user  :: ChString
   , buffer   :: Buffer
@@ -208,18 +178,18 @@ data ConnectionState = MkConnectionState
   }
 
 writeToConnection :: Serializable packet => ConnectionState -> packet -> IO ()
-writeToConnection MkConnectionState{sock, revision} packet =
+writeToConnection MkConnectionState{revision, buffer=MkBuffer{sock}} packet =
   (sendAll sock . toLazyByteString . serialize revision) packet
 
 writeToConnectionEncode :: ConnectionState -> (ProtocolRevision -> Builder) -> IO ()
-writeToConnectionEncode MkConnectionState{sock, revision} serializer =
+writeToConnectionEncode MkConnectionState{revision, buffer=MkBuffer{sock}} serializer =
   (sendAll sock . toLazyByteString) (serializer revision)
 
 openConnection :: HasCallStack => ConnectionArgs -> IO Connection
 openConnection creds = fmap MkConnection . newMVar =<< createConnectionState creds
 
 reopenConnection :: ConnectionState -> IO ConnectionState
-reopenConnection MkConnectionState{..} = do
+reopenConnection MkConnectionState{creds, buffer=buffer@MkBuffer{sock}} = do
   flushBuffer buffer
   close sock
   createConnectionState creds
@@ -240,10 +210,7 @@ createConnectionState creds@MkConnectionArgs{host, port, user, pass, db} = do
         (socket addrFamily addrSocketType addrProtocol)
         (\sock ->
           catch @SomeException
-            (finally
-              (shutdown sock ShutdownBoth)
-              (close sock)
-            )
+            (finally (shutdown sock ShutdownBoth) (close sock))
             (const $ pure ())
         )
         (\sock -> do
@@ -255,7 +222,7 @@ createConnectionState creds@MkConnectionArgs{host, port, user, pass, db} = do
       )
 
   (sendAll sock . toLazyByteString . serialize latestSupportedRevision)
-    (mkHelloPacket MkHelloParameters{..})
+    (mkHelloPacket db user pass)
 
   buffer <- initBuffer 4096 sock
   serverPacketType <- rawBufferizedRead buffer (deserialize latestSupportedRevision)
@@ -430,7 +397,7 @@ insertInto conn columnsData = do
   query = toChType $
     "INSERT INTO " <> (byteString . BS8.pack . symbolVal @name $ Proxy)
     <> " (" <> writingColumns @table @record <> ") VALUES"
-    
+
 
 handleInsertResult :: forall columns record . WritableInto columns record => ConnectionState -> [record] -> IO ()
 handleInsertResult conn@MkConnectionState{..} records = do
@@ -454,7 +421,7 @@ handleInsertResult conn@MkConnectionState{..} records = do
 
 data Buffer = MkBuffer
   { bufferSize :: Int
-  , bufferSocket :: Socket
+  , sock :: Socket
   , buff :: IORef BS.ByteString
   }
 
@@ -469,20 +436,17 @@ readBuffer buffer@MkBuffer{..} =
   readIORef buff
     >>= (\currentBuffer ->
       case BS.length currentBuffer of
-        0 -> recv bufferSocket bufferSize
+        0 -> recv sock bufferSize
         _ -> flushBuffer buffer *> pure currentBuffer
     )
-
-writeToBuffer :: Buffer -> BS.ByteString -> IO ()
-writeToBuffer MkBuffer{..} val = void (atomicModifyIORef buff (val,))
 
 rawBufferizedRead :: Buffer -> Get packet -> IO packet
 rawBufferizedRead buffer parser = runBufferReader buffer (runGetIncremental parser)
 
 runBufferReader :: Buffer -> Decoder packet -> IO packet
-runBufferReader buffer = \case
+runBufferReader buffer@MkBuffer{..} = \case
   (Partial decoder) -> readBuffer buffer >>= runBufferReader buffer . decoder . Just
-  (Done leftover _consumed packet) -> packet <$ writeToBuffer buffer leftover
+  (Done leftover _consumed packet) -> packet <$ atomicModifyIORef buff (leftover,)
   (Fail _leftover _consumed msg) -> throwIO (InternalError $ DeserializationError msg)
 
 
@@ -572,14 +536,8 @@ instance Deserializable (Packet (packetType :: ClientPacketType)) where
 
 -- ** Hello
 
-data HelloParameters = MkHelloParameters
-  { db :: Text
-  , user :: Text
-  , pass :: Text
-  }
-
-mkHelloPacket :: HelloParameters -> HelloPacket
-mkHelloPacket MkHelloParameters{db, user, pass} =
+mkHelloPacket :: Text -> Text -> Text -> HelloPacket
+mkHelloPacket db user pass =
   MkHelloPacket
     { packet_type          = MkPacket
     , client_name          = clientName
@@ -802,8 +760,6 @@ serverPacketToNum = \case
   (ProfileEvents)   -> 14; (UnknownPacket num)   -> num
 
 
--- ** HelloResponse
-
 {-
   https://github.com/ClickHouse/ClickHouse/blob/eb4a74d7412a1fcf52727cd8b00b365d6b9ed86c/src/Client/Connection.cpp#L520
 -}
@@ -834,8 +790,6 @@ instance Deserializable [PasswordComplexityRules] where
     len <- deserialize @UVarInt rev
     replicateM (fromIntegral len) (deserialize @PasswordComplexityRules rev)
 
--- ** Exception
-
 data ExceptionPacket = MkExceptionPacket
   { code        :: Int32
   , name        :: ChString
@@ -844,8 +798,6 @@ data ExceptionPacket = MkExceptionPacket
   , nested      :: UInt8
   }
   deriving (Generic, Show, Deserializable)
-
--- ** Progress
 
 data ProgressPacket = MkProgressPacket
   { rows        :: UVarInt
@@ -858,8 +810,6 @@ data ProgressPacket = MkProgressPacket
   }
   deriving (Generic, Deserializable)
 
--- ** ProfileInfo
-
 data ProfileInfo = MkProfileInfo
   { rows                         :: UVarInt
   , blocks                       :: UVarInt
@@ -871,8 +821,6 @@ data ProfileInfo = MkProfileInfo
   , rows_before_aggregation      :: UVarInt `SinceRevision` DBMS_MIN_REVISION_WITH_ROWS_BEFORE_AGGREGATION
   }
   deriving (Generic, Deserializable)
-
--- ** TableColumns
 
 data TableColumns = MkTableColumns
   { table_name :: ChString
