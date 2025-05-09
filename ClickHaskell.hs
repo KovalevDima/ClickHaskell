@@ -47,6 +47,7 @@ module ClickHaskell
   (
   {- * Connection -}
     ConnectionArgs, defaultConnectionArgs
+  , setHost, setPort, setUser, setDatabase, setPassword
   , Connection(..), openConnection
 
   {- * Errors -}
