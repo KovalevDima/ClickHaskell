@@ -48,9 +48,9 @@ t1 conn = do
   runTestForType @UInt64 conn [minBound, toEnum 0, maxBound]
   runTestForType @UUID conn [minBound, toEnum 0, maxBound]
   runTestForType @ChString conn (map (toChType . BS.singleton) [1..255])
-  -- ToDo: querySerializationTest @(LowCardinality ChString) connection (map (toChType . BS.singleton) [0..255])
-  -- ToDo: querySerializationTest @(ChArray ChString) connection [toChType $ map BS.singleton [0..255]]
-  -- ToDo: querySerializationTest @(ChArray ChInt64) connection [toChType [0 :: ChInt64 .. 255]]
+  -- ToDo: runTestForType @(LowCardinality ChString) connection (map (toChType . BS.singleton) [0..255])
+  -- ToDo: runTestForType @(ChArray ChString) connection [toChType $ map BS.singleton [0..255]]
+  -- ToDo: runTestForType @(ChArray ChInt64) connection [toChType [0 :: ChInt64 .. 255]]
 
 
 runTestForType ::
