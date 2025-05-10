@@ -14,9 +14,9 @@ module ChVisits where
 import ClickHaskell
   ( ChString, DateTime
   , UInt16, UInt32
-  , WritableInto, insertInto
+  , ClickHaskell, insertInto
   , Connection, openConnection, defaultConnectionArgs
-  , ReadableFrom, Column, Table
+  , ClickHaskell, Column, Table
   , View, selectFromView, Parameter, parameter
   )
 import Control.Concurrent (threadDelay)
@@ -87,15 +87,14 @@ data DocsStatistics = MkDocsStatistics
   , remoteAddr :: Word32
   }
   deriving stock (Generic)
-  deriving anyclass (WritableInto DocsStatTable)
+  deriving anyclass (ClickHaskell DocStatColumns)
 
-type DocsStatTable = 
-  Table 
-    "ClickHaskellStats"
-   '[ Column "time" (DateTime "")
-    , Column "path" ChString
-    , Column "remoteAddr" UInt32
-    ]
+type DocsStatTable = Table "ClickHaskellStats" DocStatColumns
+type DocStatColumns =
+ '[ Column "time" (DateTime "")
+  , Column "path" ChString
+  , Column "remoteAddr" UInt32
+  ]
 
 -- ** Reading data
 
@@ -104,16 +103,18 @@ data HourData = MkHourData
   , visits :: Word32
   }
   deriving stock (Generic)
-  deriving anyclass (ToJSON, ReadableFrom HistoryByHours)
+  deriving anyclass (ToJSON, ClickHaskell HistoryColumns)
 
 type HistoryByHours =
   View
     "historyByHours"
-   '[ Column "hour" UInt32
-    , Column "visits" UInt32
-    ]
+    HistoryColumns
    '[ Parameter "hoursLength" UInt16
     ]
+type HistoryColumns =
+ '[ Column "hour" UInt32
+  , Column "visits" UInt32
+  ]
 
 {-
 <pre><code class="sql" data-lang="sql"

@@ -34,7 +34,7 @@ data ExampleData = MkExampleData
   { a1 :: Int64
   }
   deriving (Generic)
-  deriving anyclass (ReadableFrom (Columns ExampleColumns))
+  deriving anyclass (ClickHaskell ExampleColumns)
 
 
 type ExampleColumns =

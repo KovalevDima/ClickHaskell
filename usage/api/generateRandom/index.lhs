@@ -14,9 +14,9 @@ You can use this function in Haskell with given wrapper
 #-}
 
 import ClickHaskell
-  ( ReadableFrom, generateRandom
+  ( ClickHaskell, generateRandom
   , openConnection, defaultConnectionArgs
-  , Columns, Column
+  , Column
   , ChString, UUID, DateTime
   )
 import Data.ByteString (ByteString)
@@ -40,7 +40,7 @@ main = do
 {- Before GHC 9.8 its better to use standalone deriving
    since type errors occures exact on deriving declaration.
 -}
-deriving instance ReadableFrom (Columns ExampleColumns) ExampleData
+deriving instance ClickHaskell ExampleColumns ExampleData
 
 type ExampleColumns =
  '[ Column "a1" Int64

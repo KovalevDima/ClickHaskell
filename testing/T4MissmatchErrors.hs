@@ -55,7 +55,7 @@ data ExpectedName = MkExpectedName
   { expectedName :: Int64
   }
   deriving (Generic)
-  deriving anyclass (ReadableFrom (Columns ExpectedColumns))
+  deriving anyclass (ClickHaskell ExpectedColumns)
 
 
 type ExpectedColumns =

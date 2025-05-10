@@ -27,7 +27,7 @@ There are a simple "How to do" example:
 module Main where
 
 import ClickHaskell
-  ( WritableInto, insertInto
+  ( ClickHaskell, insertInto
   , openConnection, defaultConnectionArgs
   , Table, Column
   , toChType
@@ -56,16 +56,15 @@ main = do
 {- Before GHC 9.8 its better to use standalone deriving
    since type errors occures exact on deriving declaration.
 -}
-deriving instance WritableInto ExampleTable ExampleData
+deriving instance ClickHaskell ExampleColumns ExampleData
 
-type ExampleTable =
-  Table
-    "exampleWriteRead"
-   '[ Column "a1" Int64
-    , Column "a2" ChString
-    , Column "a3" (DateTime "")
-    , Column "a4" UUID
-    ]
+type ExampleTable = Table "exampleWriteRead" ExampleColumns
+type ExampleColumns =
+  '[ Column "a1" Int64
+   , Column "a2" ChString
+   , Column "a3" (DateTime "")
+   , Column "a4" UUID
+   ]
 
 data ExampleData = MkExampleData
   { a1 :: Int64

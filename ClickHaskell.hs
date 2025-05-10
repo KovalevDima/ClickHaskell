@@ -30,13 +30,13 @@ module ClickHaskell
   {- * Client wrappers -}
   {- ** SELECT -}
   , select, selectFrom, selectFromView, generateRandom
-  , ReadableFrom(..), FromChType(fromChType)
+  , ClickHaskell(..), FromChType(fromChType)
   {- ** INSERT -}
   , insertInto
-  , WritableInto(..), ToChType(toChType)
+  , ToChType(toChType)
   {- ** Arbitrary commands -}, command, ping
   {- ** Shared -}
-  , Column, KnownColumn, DeserializableColumn
+  , Column, KnownColumn, DeserializableColumn, Serializable
   , Table, View, Columns
   {- *** Query -}
   , ToQueryPart(toQueryPart), parameter, Parameter, Parameters, viewParameters
@@ -278,14 +278,14 @@ ping conn = do
 select ::
   forall columns record result
   .
-  (ReadableFrom (Columns columns) record)
+  (ClickHaskell columns record)
   =>
   Connection -> ChString -> ([record] -> IO result) -> IO [result]
 select conn query f = do
   withConnection conn $ \connState -> do
     writeToConnection connState (mkQueryPacket connState query)
     writeToConnection connState (mkDataPacket "" 0 0)
-    handleSelect @(Columns columns) connState (\x -> id <$!> f x)
+    handleSelect @columns connState (\x -> id <$!> f x)
 
 data Table (name :: Symbol) (columns :: [Type])
 
@@ -294,7 +294,7 @@ selectFrom ::
   .
   ( table ~ Table name columns
   , KnownSymbol name
-  , ReadableFrom table record
+  , ClickHaskell columns record
   )
   =>
   Connection -> ([record] -> IO a) -> IO [a]
@@ -302,10 +302,10 @@ selectFrom conn f = do
   withConnection conn $ \connState -> do
     writeToConnection connState (mkQueryPacket connState (toChType query))
     writeToConnection connState (mkDataPacket "" 0 0)
-    handleSelect @table connState (\x -> id <$!> f x)
+    handleSelect @columns connState (\x -> id <$!> f x)
   where
     query =
-      "SELECT " <> readingColumns @table @record <>
+      "SELECT " <> columns @columns @record <>
       " FROM " <> (byteString . BS8.pack) (symbolVal $ Proxy @name)
 
 data View (name :: Symbol) (columns :: [Type]) (parameters :: [Type])
@@ -313,7 +313,7 @@ data View (name :: Symbol) (columns :: [Type]) (parameters :: [Type])
 selectFromView ::
   forall view record result name columns parameters passedParameters
   .
-  ( ReadableFrom view record
+  ( ClickHaskell columns record
   , KnownSymbol name
   , view ~ View name columns parameters
   , CheckParameters parameters passedParameters
@@ -323,29 +323,29 @@ selectFromView conn interpreter f = do
   withConnection conn $ \connState -> do
     writeToConnection connState (mkQueryPacket connState (toChType query))
     writeToConnection connState (mkDataPacket "" 0 0)
-    handleSelect @view connState (\x -> id <$!> f x)
+    handleSelect @columns connState (\x -> id <$!> f x)
     where
     query =
-      "SELECT " <> readingColumns @view @record <>
+      "SELECT " <> columns @columns @record <>
       " FROM " <> (byteString . BS8.pack . symbolVal @name) Proxy <> viewParameters interpreter
 
 generateRandom ::
   forall columns record result
   .
-  (ReadableFrom (Columns columns) record)
+  (ClickHaskell columns record)
   =>
   Connection -> (UInt64, UInt64, UInt64) -> UInt64 -> ([record] -> IO result) -> IO [result]
 generateRandom conn (randomSeed, maxStrLen, maxArrayLen) limit f = do
   withConnection conn $ \connState -> do
     writeToConnection connState (mkQueryPacket connState query)
     writeToConnection connState (mkDataPacket "" 0 0)
-    handleSelect @(Columns columns) connState (\x -> id <$!> f x)
+    handleSelect @columns connState (\x -> id <$!> f x)
   where
   query =
-    let columns = readingColumnsAndTypes @(Columns columns) @record
+    let cols = readingColumnsAndTypes @columns @record
     in toChType $
       "SELECT * FROM generateRandom(" <>
-          "'" <> columns <> "' ," <>
+          "'" <> cols <> "' ," <>
             toQueryPart randomSeed <> "," <>
             toQueryPart maxStrLen <> "," <>
             toQueryPart maxArrayLen <>
@@ -357,7 +357,7 @@ generateRandom conn (randomSeed, maxStrLen, maxArrayLen) limit f = do
 handleSelect ::
   forall hasColumns record result
   .
-  ReadableFrom hasColumns record
+  ClickHaskell hasColumns record
   =>
   ConnectionState -> ([record] -> IO result) -> IO [result]
 handleSelect MkConnectionState{..} f = loop []
@@ -383,7 +383,7 @@ insertInto ::
   forall table record name columns
   .
   ( table ~ Table name columns
-  , WritableInto table record
+  , ClickHaskell columns record
   , KnownSymbol name
   )
   => Connection -> [record] -> IO ()
@@ -391,14 +391,14 @@ insertInto conn columnsData = do
   withConnection conn $ \connState -> do
     writeToConnection connState (mkQueryPacket connState query)
     writeToConnection connState (mkDataPacket "" 0 0)
-    handleInsertResult @table connState columnsData
+    handleInsertResult @columns connState columnsData
   where
   query = toChType $
     "INSERT INTO " <> (byteString . BS8.pack . symbolVal @name $ Proxy)
-    <> " (" <> writingColumns @table @record <> ") VALUES"
+    <> " (" <> columns @columns @record <> ") VALUES"
 
 
-handleInsertResult :: forall columns record . WritableInto columns record => ConnectionState -> [record] -> IO ()
+handleInsertResult :: forall columns record . ClickHaskell columns record => ConnectionState -> [record] -> IO ()
 handleInsertResult conn@MkConnectionState{..} records = do
   firstPacket <- rawBufferizedRead buffer (deserialize revision)
   case firstPacket of
@@ -838,75 +838,95 @@ data TableColumns = MkTableColumns
 
 -- ** Generic API
 
-type GenericReadable record hasColumns =
+type GenericClickHaskell record hasColumns =
   ( Generic record
-  , GReadable (GetColumns hasColumns) (Rep record)
+  , GClickHaskell hasColumns (Rep record)
   )
 
-class HasColumns hasColumns => ReadableFrom hasColumns record
+class ClickHaskell columns record
   where
-  default deserializeColumns :: GenericReadable record hasColumns => ProtocolRevision -> UVarInt -> Get [record]
+  default deserializeColumns :: GenericClickHaskell record columns => ProtocolRevision -> UVarInt -> Get [record]
   deserializeColumns :: ProtocolRevision -> UVarInt -> Get [record]
   deserializeColumns rev size = do
-    list <- gFromColumns @(GetColumns hasColumns) rev size
+    list <- gFromColumns @columns rev size
     pure $ do
       element <- list
       case to element of res -> pure $! res
 
-  default readingColumns :: GenericReadable record hasColumns => Builder
-  readingColumns :: Builder
-  readingColumns = buildCols (gReadingColumns @(GetColumns hasColumns) @(Rep record))
+  default columns :: GenericClickHaskell record columns => Builder
+  columns :: Builder
+  columns = buildCols (gReadingColumns @columns @(Rep record))
     where
     buildCols [] = mempty
     buildCols ((col, _):[])   = col
     buildCols ((col, _):rest) = col <> ", " <> buildCols rest
 
-  default readingColumnsAndTypes :: GenericReadable record hasColumns => Builder
+  default readingColumnsAndTypes :: GenericClickHaskell record columns => Builder
   readingColumnsAndTypes ::  Builder
-  readingColumnsAndTypes = buildColsTypes (gReadingColumns @(GetColumns hasColumns) @(Rep record))
+  readingColumnsAndTypes = buildColsTypes (gReadingColumns @columns @(Rep record))
     where
     buildColsTypes [] = mempty
     buildColsTypes ((col, typ):[])   = col <> " " <> typ
     buildColsTypes ((col, typ):rest) = col <> " " <> typ <> ", " <> buildColsTypes rest
 
+  default deserializeInsertHeader :: GenericClickHaskell record columns => ProtocolRevision -> Get ()
+  deserializeInsertHeader :: ProtocolRevision -> Get ()
+  deserializeInsertHeader rev = gDeserializeInsertHeader @columns @(Rep record) rev
 
-class GReadable (columns :: [Type]) f
+  default serializeRecords :: GenericClickHaskell record columns => [record] -> ProtocolRevision -> Builder
+  serializeRecords :: [record] -> ProtocolRevision -> Builder
+  serializeRecords records rev = gSerializeRecords @columns rev (map from records)
+
+  default columnsCount :: GenericClickHaskell record columns => UVarInt
+  columnsCount :: UVarInt
+  columnsCount = gColumnsCount @columns @(Rep record)
+
+class GClickHaskell (columns :: [Type]) f
   where
   gFromColumns :: ProtocolRevision -> UVarInt -> Get [f p]
   gReadingColumns :: [(Builder, Builder)]
+  gDeserializeInsertHeader :: ProtocolRevision -> Get ()
+  gSerializeRecords :: ProtocolRevision -> [f p] -> Builder
+  gColumnsCount :: UVarInt
 
 instance
-  GReadable columns f
+  GClickHaskell columns f
   =>
-  GReadable columns (D1 c (C1 c2 f))
+  GClickHaskell columns (D1 c (C1 c2 f))
   where
   {-# INLINE gFromColumns #-}
   gFromColumns rev size = map (M1 . M1) <$> gFromColumns @columns rev size
   gReadingColumns = gReadingColumns @columns @f
+  {-# INLINE gSerializeRecords #-}
+  gSerializeRecords rev = gSerializeRecords @columns rev . map (unM1 . unM1)
+  {-# INLINE gDeserializeInsertHeader #-}
+  gDeserializeInsertHeader rev = gDeserializeInsertHeader @columns @f rev
+  gColumnsCount = gColumnsCount @columns @f
 
 instance
-  (GReadable columns left, GReadable columns right1,  GReadable columns right2)
+  GClickHaskell columns (left :*: (right1 :*: right2))
   =>
-  GReadable columns ((left :*: right1) :*: right2)
+  GClickHaskell columns ((left :*: right1) :*: right2)
   where
   {-# INLINE gFromColumns #-}
-  gFromColumns rev size =
-    liftA3
-      (zipWith3 (\a b c -> (a :*: b) :*: c))
-      (gFromColumns @columns @left rev size)
-      (gFromColumns @columns @right1 rev size)
-      (gFromColumns @columns @right2 rev size)
-
-  gReadingColumns = gReadingColumns @columns @left ++ gReadingColumns @columns @right1 ++ gReadingColumns @columns @right2
+  gFromColumns rev size = do
+    res <- gFromColumns @columns @(left :*: (right1 :*: right2)) rev size
+    pure $! map (\(l :*: (r1 :*: r2)) -> (l :*: r1) :*: r2) res
+  gReadingColumns = gReadingColumns @columns @(left :*: (right1 :*: right2))
+  {-# INLINE gSerializeRecords #-}
+  gSerializeRecords rev = gSerializeRecords @columns rev . ((\((l1 :*: l2) :*: r) -> l1 :*: (l2 :*: r)) <$>)
+  {-# INLINE gDeserializeInsertHeader #-}
+  gDeserializeInsertHeader rev = void $ gDeserializeInsertHeader @columns @(left :*: (right1 :*: right2)) rev
+  gColumnsCount = gColumnsCount @columns @(left :*: (right1 :*: right2))
 
 instance
   ( KnownColumn (Column name chType)
-  , GReadable '[Column name chType] (S1 (MetaSel (Just name) a b f) rec)
-  , GReadable restColumns right
+  , GClickHaskell '[Column name chType] (S1 (MetaSel (Just name) a b f) rec)
+  , GClickHaskell restColumns right
   , '(Column name chType, restColumns) ~ TakeColumn name columns
   )
   =>
-  GReadable columns (S1 (MetaSel (Just name) a b f) rec :*: right)
+  GClickHaskell columns (S1 (MetaSel (Just name) a b f) rec :*: right)
   where
   {-# INLINE gFromColumns #-}
   gFromColumns rev size = do
@@ -917,19 +937,36 @@ instance
   gReadingColumns =
     (renderColumnName @(Column name chType), renderColumnType @(Column name chType))
     : gReadingColumns @restColumns @right
+  {-# INLINE gSerializeRecords #-}
+  gSerializeRecords rev xs =
+    (\(ls,rs) -> gSerializeRecords @'[Column name chType] rev ls <> gSerializeRecords @restColumns rev rs)
+      (foldr (\(l :*: r) (accL, accR) -> (l:accL, r:accR)) ([], []) xs)
+  {-# INLINE gDeserializeInsertHeader #-}
+  gDeserializeInsertHeader rev = do
+    gDeserializeInsertHeader @'[Column name chType] @(S1 (MetaSel (Just name) a b f) rec) rev
+    gDeserializeInsertHeader @restColumns @right rev
+  gColumnsCount = gColumnsCount @'[Column name chType] @(S1 (MetaSel (Just name) a b f) rec) + gColumnsCount @restColumns @right
+
 
 instance
   ( KnownColumn (Column name chType)
   , DeserializableColumn (Column name chType)
+  , Serializable (Column name chType)
   , FromChType chType inputType
+  , ToChType chType inputType
   , '(Column name chType, restColumns) ~ TakeColumn name columns
-  ) => GReadable columns ((S1 (MetaSel (Just name) a b f)) (Rec0 inputType))
+  ) => GClickHaskell columns ((S1 (MetaSel (Just name) a b f)) (Rec0 inputType))
   where
   {-# INLINE gFromColumns #-}
   gFromColumns rev size =
     map (M1 . K1 . fromChType @chType) . columnValues
       <$> deserializeColumn @(Column name chType) rev True size
   gReadingColumns = (renderColumnName @(Column name chType), renderColumnType @(Column name chType)) : []
+  {-# INLINE gSerializeRecords #-}
+  gSerializeRecords rev = serialize rev . mkColumn @(Column name chType) . map (toChType . unK1 . unM1)
+  {-# INLINE gDeserializeInsertHeader #-}
+  gDeserializeInsertHeader rev = void $ deserializeColumn @(Column name chType) rev False 0
+  gColumnsCount = 1
 
 
 -- ** Column deserialization
@@ -1300,7 +1337,7 @@ instance (Serializable (Columns columns), Serializable col)
   Serializable (Columns (col ': columns))
   where
   {-# INLINE serialize #-}
-  serialize rev (AddColumn col columns) = serialize rev col <> serialize rev columns
+  serialize rev (AddColumn col cols) = serialize rev col <> serialize rev cols
 
 instance (KnownColumn (Column name chType), Serializable chType)
   =>
@@ -1454,101 +1491,6 @@ instance (IsChType chType, ToQueryPart chType) => ToQueryPart (Array chType)
 -- * Serialization
 
 -- *** Generic API
-
-type GenericWritable record columns =
-  ( Generic record
-  , GWritable columns (Rep record)
-  )
-
-class
-  ( HasColumns (Columns (GetColumns columns))
-  , Serializable (Columns (GetColumns columns))
-  ) =>
-  WritableInto columns record
-  where
-  default deserializeInsertHeader :: GenericWritable record (GetColumns columns) => ProtocolRevision -> Get ()
-  deserializeInsertHeader :: ProtocolRevision -> Get ()
-  deserializeInsertHeader rev = gDeserializeInsertHeader @(GetColumns columns) @(Rep record) rev
-
-  default serializeRecords :: GenericWritable record (GetColumns columns) => [record] -> ProtocolRevision -> Builder
-  serializeRecords :: [record] -> ProtocolRevision -> Builder
-  serializeRecords records rev = gSerializeRecords @(GetColumns columns) rev (map from records)
-
-  default writingColumns :: GenericWritable record (GetColumns columns) => Builder
-  writingColumns :: Builder
-  writingColumns = gWritingColumns @(GetColumns columns) @(Rep record)
-
-  default columnsCount :: GenericWritable record (GetColumns columns) => UVarInt
-  columnsCount :: UVarInt
-  columnsCount = gColumnsCount @(GetColumns columns) @(Rep record)
-
-class GWritable (columns :: [Type]) f
-  where
-  gDeserializeInsertHeader :: ProtocolRevision -> Get ()
-  gSerializeRecords :: ProtocolRevision -> [f p] -> Builder
-  gWritingColumns :: Builder
-  gColumnsCount :: UVarInt
-
-instance
-  GWritable columns f
-  =>
-  GWritable columns (D1 c (C1 c2 f))
-  where
-  {-# INLINE gSerializeRecords #-}
-  gSerializeRecords rev = gSerializeRecords @columns rev . map (unM1 . unM1)
-  {-# INLINE gDeserializeInsertHeader #-}
-  gDeserializeInsertHeader rev = gDeserializeInsertHeader @columns @f rev
-  gWritingColumns = gWritingColumns @columns @f
-  gColumnsCount = gColumnsCount @columns @f
-
-instance
-  GWritable columns (left1 :*: (left2 :*: right))
-  =>
-  GWritable columns ((left1 :*: left2) :*: right)
-  where
-  {-# INLINE gSerializeRecords #-}
-  gSerializeRecords rev = gSerializeRecords @columns rev . map (\((l1 :*: l2) :*: r) -> l1 :*: (l2 :*: r))
-  {-# INLINE gDeserializeInsertHeader #-}
-  gDeserializeInsertHeader rev = void $ gDeserializeInsertHeader @columns @(left1 :*: (left2 :*: right)) rev
-  gWritingColumns = gWritingColumns @columns @(left1 :*: (left2 :*: right))
-  gColumnsCount = gColumnsCount @columns @(left1 :*: (left2 :*: right))
-
-instance
-  ( GWritable '[Column name chType] (S1 (MetaSel (Just name) a b f) rec)
-  , GWritable restColumns right
-  , '(Column name chType, restColumns)~ TakeColumn name columns
-  )
-  =>
-  GWritable columns (S1 (MetaSel (Just name) a b f) rec :*: right)
-  where
-  {-# INLINE gSerializeRecords #-}
-  gSerializeRecords rev xs =
-    (\(ls,rs) -> gSerializeRecords @'[Column name chType] rev ls <> gSerializeRecords @restColumns rev rs)
-      (foldr (\(l :*: r) (accL, accR) -> (l:accL, r:accR)) ([], []) xs)
-  {-# INLINE gDeserializeInsertHeader #-}
-  gDeserializeInsertHeader rev = do
-    gDeserializeInsertHeader @'[Column name chType] @(S1 (MetaSel (Just name) a b f) rec) rev
-    gDeserializeInsertHeader @restColumns @right rev
-  gWritingColumns =
-    gWritingColumns @'[Column name chType] @(S1 (MetaSel (Just name) a b f) rec)
-    <> ", " <> gWritingColumns @restColumns @right
-  gColumnsCount = gColumnsCount @'[Column name chType] @(S1 (MetaSel (Just name) a b f) rec) + gColumnsCount @restColumns @right
-
-instance {-# OVERLAPPING #-}
-  ( KnownColumn (Column name chType)
-  , ToChType chType inputType
-  , Serializable (Column name chType)
-  , DeserializableColumn (Column name chType)
-  , '(Column name chType, restColumns) ~ TakeColumn name columns
-  ) =>
-  GWritable columns (S1 (MetaSel (Just name) a b f) (Rec0 inputType))
-  where
-  {-# INLINE gSerializeRecords #-}
-  gSerializeRecords rev = serialize rev . mkColumn @(Column name chType) . map (toChType . unK1 . unM1)
-  {-# INLINE gDeserializeInsertHeader #-}
-  gDeserializeInsertHeader rev = void $ deserializeColumn @(Column name chType) rev False 0
-  gWritingColumns = renderColumnName @(Column name chType)
-  gColumnsCount = 1
 
 class Serializable chType
   where
