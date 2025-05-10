@@ -904,48 +904,25 @@ instance
   gColumnsCount = gColumnsCount @columns @f
 
 instance
-  GClickHaskell columns (left :*: (right1 :*: right2))
+  (GClickHaskell columns left, GClickHaskell columns right)
   =>
-  GClickHaskell columns ((left :*: right1) :*: right2)
+  GClickHaskell columns (left :*: right)
   where
   {-# INLINE gFromColumns #-}
-  gFromColumns rev size = do
-    res <- gFromColumns @columns @(left :*: (right1 :*: right2)) rev size
-    pure $! map (\(l :*: (r1 :*: r2)) -> (l :*: r1) :*: r2) res
-  gReadingColumns = gReadingColumns @columns @(left :*: (right1 :*: right2))
-  {-# INLINE gSerializeRecords #-}
-  gSerializeRecords rev = gSerializeRecords @columns rev . ((\((l1 :*: l2) :*: r) -> l1 :*: (l2 :*: r)) <$>)
-  {-# INLINE gDeserializeInsertHeader #-}
-  gDeserializeInsertHeader rev = void $ gDeserializeInsertHeader @columns @(left :*: (right1 :*: right2)) rev
-  gColumnsCount = gColumnsCount @columns @(left :*: (right1 :*: right2))
-
-instance
-  ( KnownColumn (Column name chType)
-  , GClickHaskell '[Column name chType] (S1 (MetaSel (Just name) a b f) rec)
-  , GClickHaskell columns right
-  , Column name chType ~ TakeColumn name columns
-  )
-  =>
-  GClickHaskell columns (S1 (MetaSel (Just name) a b f) rec :*: right)
-  where
-  {-# INLINE gFromColumns #-}
-  gFromColumns rev size = do
-    liftA2
-      (zipWith (:*:))
-      (gFromColumns @'[Column name chType] rev size)
-      (gFromColumns @columns rev size)
-  gReadingColumns =
-    (renderColumnName @(Column name chType), renderColumnType @(Column name chType))
-    : gReadingColumns @columns @right
+  gFromColumns rev size =
+    liftA2 (zipWith (:*:))
+      (gFromColumns @columns @left rev size)
+      (gFromColumns @columns @right rev size)
+  gReadingColumns = gReadingColumns @columns @left ++ gReadingColumns @columns @right
   {-# INLINE gSerializeRecords #-}
   gSerializeRecords rev xs =
-    (\(ls,rs) -> gSerializeRecords @'[Column name chType] rev ls <> gSerializeRecords @columns rev rs)
+    (\(ls,rs) -> gSerializeRecords @columns rev ls <> gSerializeRecords @columns rev rs)
       (foldr (\(l :*: r) (accL, accR) -> (l:accL, r:accR)) ([], []) xs)
   {-# INLINE gDeserializeInsertHeader #-}
   gDeserializeInsertHeader rev = do
-    gDeserializeInsertHeader @'[Column name chType] @(S1 (MetaSel (Just name) a b f) rec) rev
+    gDeserializeInsertHeader @columns @left rev
     gDeserializeInsertHeader @columns @right rev
-  gColumnsCount = gColumnsCount @'[Column name chType] @(S1 (MetaSel (Just name) a b f) rec) + gColumnsCount @columns @right
+  gColumnsCount = gColumnsCount @columns @left + gColumnsCount @columns @right
 
 
 instance
