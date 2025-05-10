@@ -1,11 +1,11 @@
 Cabal-version:      3.0
 
-name:               selectFromView
+name:               usage
 version:            0.0.0.1
 build-type:         Simple
 license:            BSD-3-Clause
 
-executable selectFromView
+executable usage
   default-language: Haskell2010
   default-extensions:
     DeriveGeneric,
@@ -18,5 +18,6 @@ executable selectFromView
   build-depends:
       ClickHaskell
     , base >=4.7 && <5
+    , bytestring
   ghc-options: -pgmL html2hs -Wall
   build-tool-depends: html2hs:html2hs
