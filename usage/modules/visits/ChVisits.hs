@@ -16,7 +16,7 @@ import ClickHaskell
   , UInt16, UInt32
   , ClickHaskell, insertInto
   , Connection, openConnection, defaultConnectionArgs
-  , ClickHaskell, Column, Table
+  , Column, Table
   , View, selectFromView, Parameter, parameter
   )
 import Control.Concurrent (threadDelay)
