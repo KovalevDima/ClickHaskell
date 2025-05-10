@@ -922,8 +922,8 @@ instance
 instance
   ( KnownColumn (Column name chType)
   , GClickHaskell '[Column name chType] (S1 (MetaSel (Just name) a b f) rec)
-  , GClickHaskell restColumns right
-  , '(Column name chType, restColumns) ~ TakeColumn name columns
+  , GClickHaskell columns right
+  , Column name chType ~ TakeColumn name columns
   )
   =>
   GClickHaskell columns (S1 (MetaSel (Just name) a b f) rec :*: right)
@@ -933,19 +933,19 @@ instance
     liftA2
       (zipWith (:*:))
       (gFromColumns @'[Column name chType] rev size)
-      (gFromColumns @restColumns rev size)
+      (gFromColumns @columns rev size)
   gReadingColumns =
     (renderColumnName @(Column name chType), renderColumnType @(Column name chType))
-    : gReadingColumns @restColumns @right
+    : gReadingColumns @columns @right
   {-# INLINE gSerializeRecords #-}
   gSerializeRecords rev xs =
-    (\(ls,rs) -> gSerializeRecords @'[Column name chType] rev ls <> gSerializeRecords @restColumns rev rs)
+    (\(ls,rs) -> gSerializeRecords @'[Column name chType] rev ls <> gSerializeRecords @columns rev rs)
       (foldr (\(l :*: r) (accL, accR) -> (l:accL, r:accR)) ([], []) xs)
   {-# INLINE gDeserializeInsertHeader #-}
   gDeserializeInsertHeader rev = do
     gDeserializeInsertHeader @'[Column name chType] @(S1 (MetaSel (Just name) a b f) rec) rev
-    gDeserializeInsertHeader @restColumns @right rev
-  gColumnsCount = gColumnsCount @'[Column name chType] @(S1 (MetaSel (Just name) a b f) rec) + gColumnsCount @restColumns @right
+    gDeserializeInsertHeader @columns @right rev
+  gColumnsCount = gColumnsCount @'[Column name chType] @(S1 (MetaSel (Just name) a b f) rec) + gColumnsCount @columns @right
 
 
 instance
@@ -954,7 +954,7 @@ instance
   , Serializable (Column name chType)
   , FromChType chType inputType
   , ToChType chType inputType
-  , '(Column name chType, restColumns) ~ TakeColumn name columns
+  , Column name chType ~ TakeColumn name columns
   ) => GClickHaskell columns ((S1 (MetaSel (Just name) a b f)) (Rec0 inputType))
   where
   {-# INLINE gFromColumns #-}
@@ -967,6 +967,22 @@ instance
   {-# INLINE gDeserializeInsertHeader #-}
   gDeserializeInsertHeader rev = void $ deserializeColumn @(Column name chType) rev False 0
   gColumnsCount = 1
+
+
+type family
+  TakeColumn (name :: Symbol) (columns :: [Type]) :: Type
+  where
+  TakeColumn name columns = GoTakeColumn name columns '[]
+
+type family
+  GoTakeColumn name (columns :: [Type]) (acc :: [Type]) :: Type
+  where
+  GoTakeColumn name (Column name chType ': columns) acc = Column name chType
+  GoTakeColumn name (Column name1 chType ': columns) acc = (GoTakeColumn name columns (Column name1 chType ': acc))
+  GoTakeColumn name '[]                 acc = TypeError
+    (    'Text "There is no column \"" :<>: 'Text name :<>: 'Text "\" in table"
+    :$$: 'Text "You can't use this field"
+    )
 
 
 -- ** Column deserialization
@@ -1198,38 +1214,6 @@ instance FromChType chType inputType => FromChType (Array chType) [inputType]
 
 
 -- * Columns
-
--- ** Columns extraction helper
-
-class HasColumns hasColumns where type GetColumns hasColumns :: [Type]
-instance HasColumns (Columns columns)          where type GetColumns (Columns columns) = columns
-instance HasColumns (Table name columns)       where type GetColumns (Table _ columns) = columns
-instance HasColumns (View name columns params) where type GetColumns (View _ columns _) = columns
-
-
--- ** Take column by name from list of columns
-
-type family
-  TakeColumn (name :: Symbol) (columns :: [Type]) :: (Type, [Type])
-  where
-  TakeColumn name columns = GoTakeColumn name columns '[]
-
-type family
-  GoTakeColumn name (columns :: [Type]) (acc :: [Type]) :: (Type, [Type])
-  where
-  GoTakeColumn name (Column name chType ': columns) acc = '(Column name chType, acc ++ columns)
-  GoTakeColumn name (Column name1 chType ': columns) acc = (GoTakeColumn name columns (Column name1 chType ': acc))
-  GoTakeColumn name '[]                 acc = TypeError
-    (    'Text "There is no column \"" :<>: 'Text name :<>: 'Text "\" in table"
-    :$$: 'Text "You can't use this field"
-    )
-
-type family
-  (++) (list1 :: [Type]) (list2 :: [Type]) :: [Type]
-  where
-  (++) '[]            list = list
-  (++) (head ': tail) list = tail ++ (head ': list)
-
 
 data Columns (columns :: [Type]) where
   Empty :: Columns '[]
