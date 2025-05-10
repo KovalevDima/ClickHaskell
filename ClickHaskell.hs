@@ -1081,24 +1081,12 @@ instance
   gDeserialize rev = M1 . M1 <$> gDeserialize rev
 
 instance
-  (GDeserializable left, GDeserializable right1, GDeserializable right2)
+  (GDeserializable left, GDeserializable right)
   =>
-  GDeserializable ((left :*: right1) :*: right2)
+  GDeserializable (left :*: right)
   where
   {-# INLINE gDeserialize #-}
-  gDeserialize rev = do
-    l  <- gDeserialize rev
-    r1 <- gDeserialize rev
-    r2 <- gDeserialize rev
-    pure ((l :*: r1) :*: r2)
-
-instance
-  (GDeserializable (S1 metaSel field), GDeserializable right)
-  =>
-  GDeserializable (S1 metaSel field :*: right)
-  where
-  {-# INLINE gDeserialize #-}
-  gDeserialize rev = liftA2 (:*:) (gDeserialize rev)  (gDeserialize rev)
+  gDeserialize rev = liftA2 (:*:) (gDeserialize rev) (gDeserialize rev)
 
 instance {-# OVERLAPPING #-}
   (GDeserializable right)
@@ -1497,12 +1485,12 @@ instance
   gSerialize rev (M1 (M1 re)) = gSerialize rev re
 
 instance
-  GSerializable (left1 :*: (left2 :*: right))
+  (GSerializable left1,  GSerializable right)
   =>
-  GSerializable ((left1 :*: left2) :*: right)
+  GSerializable (left1 :*: right)
   where
   {-# INLINE gSerialize #-}
-  gSerialize rev ((l1 :*: l2) :*: r) = gSerialize rev (l1 :*: (l2 :*: r))
+  gSerialize rev (l :*: r) = gSerialize rev l <> gSerialize rev r
 
 instance
   Serializable chType
@@ -1512,14 +1500,6 @@ instance
   {-# INLINE gSerialize #-}
   gSerialize rev = serialize rev . unK1 . unM1
 
-instance
-  (Serializable chType, GSerializable right)
-  =>
-  GSerializable (S1 (MetaSel (Just typeName) a b f) (Rec0 chType) :*: right)
-  where
-  {-# INLINE gSerialize #-}
-  gSerialize rev (left :*: right)
-    = (serialize rev . unK1 . unM1 $ left) <> gSerialize rev right
 
 -- ** ToChType
 
