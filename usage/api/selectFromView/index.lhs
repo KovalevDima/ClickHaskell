@@ -24,7 +24,7 @@ To perform a <b>SELECT</b> from such view you can use this snippet
 module Main where
 
 import ClickHaskell
-  ( ReadableFrom, selectFromView, Column
+  ( ClickHaskell, selectFromView, Column
   , View, Parameter, parameter
   , openConnection, defaultConnectionArgs
   , ChString, Int32
@@ -48,18 +48,21 @@ main = do
 {- Before GHC 9.8 its better to use standalone deriving
    since type errors occures exact on deriving declaration.
 -}
-deriving anyclass instance ReadableFrom ExampleView ExampleViewRecord
+deriving anyclass instance ClickHaskell ExampleColumns ExampleViewRecord
 
 type ExampleView =
   View
     "exampleParametrizedView"
-   '[ Column "a1" Int32
-    , Column "a2" Int32
-    , Column "a3" ChString
-    ]
+    ExampleColumns
    '[ Parameter "a1MoreThan" Int32
     , Parameter "a1LessThan" Int32
     ]
+
+type ExampleColumns =
+ '[ Column "a1" Int32
+  , Column "a2" Int32
+  , Column "a3" ChString
+  ]
 
 newtype ExampleViewRecord = MkExampleViewRecord
   { a1 :: Int32

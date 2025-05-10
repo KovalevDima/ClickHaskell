@@ -19,8 +19,8 @@ Such as
 module Main where
 
 import ClickHaskell
-  ( ReadableFrom, select
-  , Column, Columns
+  ( ClickHaskell, select
+  , Column
   , openConnection, defaultConnectionArgs
   , UInt8
   )
@@ -41,7 +41,7 @@ main = do
 {- Before GHC 9.8 its better to use standalone deriving
    since type errors occures exact on deriving declaration.
 -}
-deriving anyclass instance ReadableFrom (Columns ExampleColumns) ExampleTableRecord
+deriving anyclass instance ClickHaskell ExampleColumns ExampleTableRecord
 
 type ExampleColumns =
    '[ Column "num" UInt8

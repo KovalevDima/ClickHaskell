@@ -5,6 +5,24 @@
 - ~20% optimization of time and alloc (perf test 1 benchmark)
 
 ## Breaking changes:
+- ### Generic API changes
+  `ReadableFrom` and `WritableInto` was replaced with `ClickHaskell`\
+  Now you should declare single instance for every API parts
+  ```haskell
+  data MyData =
+    ...
+    deriving (Generic)
+    deriving anyclass (ClickHaskell ExampleColumns)
+  ```
+  ```haskell
+  data MyData =
+    ...
+    deriving (Generic)
+    deriving anyclass
+      ( ReadableFrom (Columns ExampleColumns)
+      , WritableInto (Table "profiler" ExampleColumns)
+      )
+  ```
 - ### IsChType instance changes
   `ToChType` type family was deleted
 - ### Connection initialization API changes

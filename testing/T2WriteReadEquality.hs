@@ -17,8 +17,7 @@ module T2WriteReadEquality
 
 -- Internal
 import ClickHaskell
-  ( WritableInto, insertInto
-  , ReadableFrom, selectFrom
+  ( ClickHaskell, selectFrom, insertInto
   , command
   , Connection
   , Table
@@ -63,7 +62,8 @@ t2 connection = do
   print $ testLabel <> "Ok"
 
 
-type TestTable = Table "writeReadEqualityTable"
+type TestTable = Table "writeReadEqualityTable" TestColumns
+type TestColumns =
   '[ Column "dateTime" (DateTime "UTC")
    , Column "dateTimeNullable" (Nullable (DateTime "UTC"))
    , Column "int128" Int128
@@ -122,8 +122,7 @@ data TestData = MkTestData
   }
   deriving (Generic, Show, Eq)
 
-instance ReadableFrom TestTable TestData
-instance WritableInto TestTable TestData
+instance ClickHaskell TestColumns TestData
 
 testData :: TestData
 testData = MkTestData

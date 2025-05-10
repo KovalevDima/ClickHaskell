@@ -19,13 +19,13 @@ module T1QuerySerialization
 -- Internal
 import ClickHaskell
   ( Connection(..)
-  , ReadableFrom, select
-  , Column, Columns, KnownColumn, DeserializableColumn
+  , ClickHaskell, select
+  , Column, KnownColumn, DeserializableColumn
   , IsChType(..), ToChType(..)
   , ToQueryPart(..)
   , UInt8, UInt16, UInt32, UInt64
   , Int8, Int16, Int32, Int64
-  , ChString, UUID
+  , ChString, UUID, Serializable
   )
 
 -- GHC included
@@ -60,7 +60,7 @@ runTestForType ::
   , IsChType chType
   , Eq chType
   , Show chType
-  , ReadableFrom (Columns '[Column "testSample" chType]) (TestSample chType)
+  , ClickHaskell '[Column "testSample" chType] (TestSample chType)
   )
   =>
   Connection -> [chType] -> IO ()
@@ -94,7 +94,8 @@ data TestSample chType = MkTestSample {testSample :: chType}
 
 instance
   ( DeserializableColumn (Column "testSample" chType)
+  , Serializable (Column "testSample" chType)
   , KnownColumn (Column "testSample" chType)
   )
   =>
-  ReadableFrom (Columns '[Column "testSample" chType]) (TestSample chType)
+  ClickHaskell '[Column "testSample" chType] (TestSample chType)

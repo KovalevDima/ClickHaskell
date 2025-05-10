@@ -64,10 +64,7 @@ data ExampleData = MkExampleData
   , a7 :: ChString
   }
   deriving (Generic)
-  deriving anyclass
-    ( ReadableFrom (Columns ExampleColumns)
-    , WritableInto (Table "profiler" ExampleColumns)
-    )
+  deriving anyclass (ClickHaskell ExampleColumns)
 
 
 type ExampleColumns =
