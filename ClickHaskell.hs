@@ -366,7 +366,7 @@ handleSelect MkConnectionState{..} f = loop []
     \packet -> case packet of
       DataResponse MkDataPacket{columns_count = 0, rows_count = 0} -> loop acc
       DataResponse MkDataPacket{rows_count} -> do
-        result <- f =<< rawBufferizedRead buffer (deserializeColumns @hasColumns revision rows_count)
+        result <- f =<< rawBufferizedRead buffer (deserializeColumns @hasColumns True revision rows_count)
         loop (result : acc)
       Progress    _       -> loop acc
       ProfileInfo _       -> loop acc
@@ -404,7 +404,7 @@ handleInsertResult conn@MkConnectionState{..} records = do
   case firstPacket of
     TableColumns      _ -> handleInsertResult @columns conn records
     DataResponse MkDataPacket{} -> do
-      _emptyDataPacket <- rawBufferizedRead buffer (deserializeInsertHeader @columns @record revision)
+      _emptyDataPacket <- rawBufferizedRead buffer (deserializeColumns @columns @record False revision 0)
       writeToConnection conn (mkDataPacket "" (columnsCount @columns @record) (fromIntegral $ Prelude.length records))
       writeToConnectionEncode conn (serializeRecords @columns records)
       writeToConnection conn (mkDataPacket "" 0 0)
@@ -845,10 +845,10 @@ type GenericClickHaskell record hasColumns =
 
 class ClickHaskell columns record
   where
-  default deserializeColumns :: GenericClickHaskell record columns => ProtocolRevision -> UVarInt -> Get [record]
-  deserializeColumns :: ProtocolRevision -> UVarInt -> Get [record]
-  deserializeColumns rev size = do
-    list <- gFromColumns @columns rev size
+  default deserializeColumns :: GenericClickHaskell record columns => Bool -> ProtocolRevision -> UVarInt -> Get [record]
+  deserializeColumns :: Bool -> ProtocolRevision -> UVarInt -> Get [record]
+  deserializeColumns isCheckRequired rev size = do
+    list <- gFromColumns @columns isCheckRequired rev size
     pure $ do
       element <- list
       case to element of res -> pure $! res
@@ -869,10 +869,6 @@ class ClickHaskell columns record
     buildColsTypes ((col, typ):[])   = col <> " " <> typ
     buildColsTypes ((col, typ):rest) = col <> " " <> typ <> ", " <> buildColsTypes rest
 
-  default deserializeInsertHeader :: GenericClickHaskell record columns => ProtocolRevision -> Get ()
-  deserializeInsertHeader :: ProtocolRevision -> Get ()
-  deserializeInsertHeader rev = gDeserializeInsertHeader @columns @(Rep record) rev
-
   default serializeRecords :: GenericClickHaskell record columns => [record] -> ProtocolRevision -> Builder
   serializeRecords :: [record] -> ProtocolRevision -> Builder
   serializeRecords records rev = gSerializeRecords @columns rev (map from records)
@@ -883,9 +879,8 @@ class ClickHaskell columns record
 
 class GClickHaskell (columns :: [Type]) f
   where
-  gFromColumns :: ProtocolRevision -> UVarInt -> Get [f p]
+  gFromColumns :: Bool -> ProtocolRevision -> UVarInt -> Get [f p]
   gReadingColumns :: [(Builder, Builder)]
-  gDeserializeInsertHeader :: ProtocolRevision -> Get ()
   gSerializeRecords :: ProtocolRevision -> [f p] -> Builder
   gColumnsCount :: UVarInt
 
@@ -895,12 +890,10 @@ instance
   GClickHaskell columns (D1 c (C1 c2 f))
   where
   {-# INLINE gFromColumns #-}
-  gFromColumns rev size = map (M1 . M1) <$> gFromColumns @columns rev size
+  gFromColumns isCheckRequired rev size = map (M1 . M1) <$> gFromColumns @columns isCheckRequired rev size
   gReadingColumns = gReadingColumns @columns @f
   {-# INLINE gSerializeRecords #-}
   gSerializeRecords rev = gSerializeRecords @columns rev . map (unM1 . unM1)
-  {-# INLINE gDeserializeInsertHeader #-}
-  gDeserializeInsertHeader rev = gDeserializeInsertHeader @columns @f rev
   gColumnsCount = gColumnsCount @columns @f
 
 instance
@@ -909,19 +902,15 @@ instance
   GClickHaskell columns (left :*: right)
   where
   {-# INLINE gFromColumns #-}
-  gFromColumns rev size =
+  gFromColumns isCheckRequired rev size =
     liftA2 (zipWith (:*:))
-      (gFromColumns @columns @left rev size)
-      (gFromColumns @columns @right rev size)
+      (gFromColumns @columns @left isCheckRequired rev size)
+      (gFromColumns @columns @right isCheckRequired rev size)
   gReadingColumns = gReadingColumns @columns @left ++ gReadingColumns @columns @right
   {-# INLINE gSerializeRecords #-}
   gSerializeRecords rev xs =
     (\(ls,rs) -> gSerializeRecords @columns rev ls <> gSerializeRecords @columns rev rs)
       (foldr (\(l :*: r) (accL, accR) -> (l:accL, r:accR)) ([], []) xs)
-  {-# INLINE gDeserializeInsertHeader #-}
-  gDeserializeInsertHeader rev = do
-    gDeserializeInsertHeader @columns @left rev
-    gDeserializeInsertHeader @columns @right rev
   gColumnsCount = gColumnsCount @columns @left + gColumnsCount @columns @right
 
 
@@ -935,14 +924,12 @@ instance
   ) => GClickHaskell columns ((S1 (MetaSel (Just name) a b f)) (Rec0 inputType))
   where
   {-# INLINE gFromColumns #-}
-  gFromColumns rev size =
+  gFromColumns isCheckRequired rev size =
     map (M1 . K1 . fromChType @chType) . columnValues
-      <$> deserializeColumn @(Column name chType) rev True size
+      <$> deserializeColumn @(Column name chType) rev isCheckRequired size
   gReadingColumns = (renderColumnName @(Column name chType), renderColumnType @(Column name chType)) : []
   {-# INLINE gSerializeRecords #-}
   gSerializeRecords rev = serialize rev . mkColumn @(Column name chType) . map (toChType . unK1 . unM1)
-  {-# INLINE gDeserializeInsertHeader #-}
-  gDeserializeInsertHeader rev = void $ deserializeColumn @(Column name chType) rev False 0
   gColumnsCount = 1
 
 
@@ -1096,7 +1083,7 @@ instance {-# OVERLAPPING #-}
   {-# INLINE gDeserialize #-}
   gDeserialize rev = do
     chosenRev <- min rev . coerce <$> deserialize @UVarInt rev
-    (:*:) (M1 $ K1 chosenRev) <$> gDeserialize @right chosenRev
+    liftA2 (:*:) (pure . M1 . K1 $ chosenRev) (gDeserialize @right chosenRev)
 
 instance
   Deserializable chType
@@ -1120,9 +1107,11 @@ instance Deserializable UInt32 where deserialize _ = toChType <$> getWord32le; {
 instance Deserializable UInt64 where deserialize _ = toChType <$> getWord64le; {-# INLINE deserialize #-}
 instance Deserializable UInt128 where deserialize _ = toChType <$> liftA2 (flip Word128) getWord64le getWord64le; {-# INLINE deserialize #-}
 instance Deserializable UUID where deserialize _ = MkChUUID <$> liftA2 (flip Word128) getWord64le getWord64le; {-# INLINE deserialize #-}
-instance Deserializable ChString where deserialize = (\n -> toChType <$> readN n (BS.take n)) . fromIntegral <=< deserialize @UVarInt; {-# INLINE deserialize #-}
 instance Deserializable Date where deserialize _ = toChType <$> getWord16le; {-# INLINE deserialize #-}
 instance Deserializable (DateTime tz) where deserialize _ = toChType <$> getWord32le; {-# INLINE deserialize #-}
+instance Deserializable ChString where
+  {-# INLINE deserialize #-}
+  deserialize = (\n -> toChType <$> readN n (BS.take n)) . fromIntegral <=< deserialize @UVarInt
 instance Deserializable UVarInt where
   {-# INLINE deserialize #-}
   deserialize _ = go 0 (0 :: UVarInt)
