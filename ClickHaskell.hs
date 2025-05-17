@@ -531,19 +531,20 @@ data ClientPacket where
   deriving (Generic)
 
 instance Serializable ClientPacket where
-  serialize rev (Hello hello) = serialize @UVarInt rev 0 <> serialize rev hello
-  serialize rev (Query query) = serialize @UVarInt rev 1 <> serialize rev query
-  serialize rev (Data dataP) = serialize @UVarInt rev 2 <> serialize rev dataP
-  serialize rev (Cancel) = serialize @UVarInt rev 3
-  serialize rev (Ping) = serialize @UVarInt rev 4
-  serialize rev (TablesStatusRequest) = serialize @UVarInt rev 5
-  serialize rev (KeepAlive) = serialize @UVarInt rev 6
-  serialize rev (Scalar) = serialize @UVarInt rev 7
-  serialize rev (IgnoredPartUUIDs) = serialize @UVarInt rev 8
-  serialize rev (ReadTaskResponse) = serialize @UVarInt rev 9
-  serialize rev (MergeTreeReadTaskResponse) = serialize @UVarInt rev 10
-  serialize rev (SSHChallengeRequest) = serialize @UVarInt rev 11
-  serialize rev (SSHChallengeResponse) = serialize @UVarInt rev 12
+  serialize rev packet = case packet of
+    (Hello p)                   -> serialize @UVarInt rev 0 <> serialize rev p
+    (Query p)                   -> serialize @UVarInt rev 1 <> serialize rev p
+    (Data p)                    -> serialize @UVarInt rev 2 <> serialize rev p
+    (Cancel)                    -> serialize @UVarInt rev 3
+    (Ping)                      -> serialize @UVarInt rev 4
+    (TablesStatusRequest)       -> serialize @UVarInt rev 5
+    (KeepAlive)                 -> serialize @UVarInt rev 6
+    (Scalar)                    -> serialize @UVarInt rev 7
+    (IgnoredPartUUIDs)          -> serialize @UVarInt rev 8
+    (ReadTaskResponse)          -> serialize @UVarInt rev 9
+    (MergeTreeReadTaskResponse) -> serialize @UVarInt rev 10
+    (SSHChallengeRequest)       -> serialize @UVarInt rev 11
+    (SSHChallengeResponse)      -> serialize @UVarInt rev 12
 
 -- ** Hello
 
