@@ -23,7 +23,8 @@
       , WritableInto (Table "profiler" ExampleColumns)
       )
   ```
-- ### IsChType instance changes
+- ### `Columns` type was deleted
+- ### `IsChType` instance changes
   `ToChType` type family was deleted
 - ### Connection initialization API changes
   1. `ChCredential` renamed to `ConnectionArgs`
