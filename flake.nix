@@ -24,7 +24,7 @@
               (builtins.readFile path)
             )
           );
-        supportedGHCs = [ "ghc8107" "ghc902" "ghc926" "ghc948" "ghc966" "ghc984" "ghc9101"];
+        supportedGHCs = ["ghc8107" "ghc902" "ghc928" "ghc948" "ghc966" "ghc984" "ghc9101" "ghc9122"];
         schemas = [
           (extractSqlFromMarkdown ./testing/T2WriteReadEquality.hs)
           (extractSqlFromMarkdown ./usage/modules/visits/ChVisits.hs)
@@ -74,9 +74,9 @@
           //
           {
             default = pkgs.mkShell {
-              inputsFrom = [config.haskellProjects.ghc966.outputs.devShell];
+              inputsFrom = [config.haskellProjects.ghc984.outputs.devShell];
               packages = with pkgs; with haskellPackages; with (self'.packages);
-                [clickhouse nil eventlog2html graphmod ghc966-html2hs];
+                [clickhouse nil eventlog2html graphmod ghc984-html2hs];
             };
           };
         # Build documnetation
@@ -84,7 +84,7 @@
           "documentation" = import ./contribution/documentation.nix {inherit pkgs;};
           "ClickHaskell-dist" = import ./contribution/hackage.nix {
             inherit pkgs;
-            distPackage = self'.packages.ghc966-ClickHaskell;
+            distPackage = self'.packages.ghc984-ClickHaskell;
           };
         };
       };
