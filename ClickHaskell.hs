@@ -59,14 +59,14 @@ module ClickHaskell
   , UVarInt(..), SinceRevision(..)
   {- *** Data packet -}, DataPacket(..), BlockInfo(..)
 
-  {- ** Client -}
+  {- ** Client -}, ClientPacket(..)
   {- *** Hello -}, HelloPacket(..), Addendum(..)
   {- *** Query -}
   , QueryPacket(..)
   , DbSettings(..), QueryParameters(..), QueryStage(..)
   , ClientInfo(..), QueryKind(..)
   
-  {- ** Server -}
+  {- ** Server -}, ServerPacket(..)
   {- *** Hello -}, HelloResponse(..), PasswordComplexityRules(..)
   {- *** Exception -}, ExceptionPacket(..)
   {- *** Progress -}, ProgressPacket(..)
@@ -705,25 +705,25 @@ data BlockInfo = MkBlockInfo
 
 -- * Server packets
 
-data ServerPacketType where
-  HelloResponse :: HelloResponse -> ServerPacketType
-  DataResponse :: DataPacket -> ServerPacketType
-  Exception :: ExceptionPacket -> ServerPacketType
-  Progress :: ProgressPacket -> ServerPacketType
-  Pong :: ServerPacketType
-  EndOfStream :: ServerPacketType
-  ProfileInfo :: ProfileInfo -> ServerPacketType
-  Totals :: ServerPacketType
-  Extremes :: ServerPacketType
-  TablesStatusResponse :: ServerPacketType
-  Log :: ServerPacketType
-  TableColumns :: TableColumns -> ServerPacketType
-  UUIDs :: ServerPacketType
-  ReadTaskRequest :: ServerPacketType
-  ProfileEvents :: ServerPacketType
-  UnknownPacket :: UVarInt -> ServerPacketType
+data ServerPacket where
+  HelloResponse        :: HelloResponse -> ServerPacket
+  DataResponse         :: DataPacket -> ServerPacket
+  Exception            :: ExceptionPacket -> ServerPacket
+  Progress             :: ProgressPacket -> ServerPacket
+  Pong                 :: ServerPacket
+  EndOfStream          :: ServerPacket
+  ProfileInfo          :: ProfileInfo -> ServerPacket
+  Totals               :: ServerPacket
+  Extremes             :: ServerPacket
+  TablesStatusResponse :: ServerPacket
+  Log                  :: ServerPacket
+  TableColumns         :: TableColumns -> ServerPacket
+  UUIDs                :: ServerPacket
+  ReadTaskRequest      :: ServerPacket
+  ProfileEvents        :: ServerPacket
+  UnknownPacket        :: UVarInt -> ServerPacket
 
-instance Deserializable ServerPacketType where
+instance Deserializable ServerPacket where
   deserialize rev = do
     packetNum <- deserialize @UVarInt rev
     case packetNum of
@@ -744,7 +744,7 @@ instance Deserializable ServerPacketType where
       14 -> pure ProfileEvents
       _  -> pure $ UnknownPacket packetNum
 
-serverPacketToNum :: ServerPacketType -> UVarInt
+serverPacketToNum :: ServerPacket -> UVarInt
 serverPacketToNum = \case
   (HelloResponse _) -> 0; (DataResponse _)       -> 1
   (Exception _)     -> 2; (Progress _)           -> 3;
