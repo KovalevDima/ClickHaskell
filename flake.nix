@@ -24,7 +24,7 @@
               (builtins.readFile path)
             )
           );
-        supportedGHCs = [ "ghc8107" "ghc902" "ghc926" "ghc948" "ghc966" "ghc984" "ghc9101"];
+        supportedGHCs = ["ghc8107" "ghc902" "ghc928" "ghc948" "ghc966" "ghc984" "ghc9101" "ghc9122"];
         schemas = [
           (extractSqlFromMarkdown ./testing/T2WriteReadEquality.hs)
           (extractSqlFromMarkdown ./usage/modules/visits/ChVisits.hs)
