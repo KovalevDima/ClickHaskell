@@ -275,10 +275,18 @@ ping conn = do
 
 -- * Reading
 
+class IsTable table where
+  type GetColumns table :: [Type]
+  tableName :: Builder
+
+class HasParameters view where
+  type GetParams view :: [Type]
+
+
 select ::
   forall columns record result
   .
-  (ClickHaskell columns record)
+  ClickHaskell columns record
   =>
   Connection -> ChString -> ([record] -> IO result) -> IO [result]
 select conn query f = do
@@ -289,24 +297,30 @@ select conn query f = do
 
 data Table (name :: Symbol) (columns :: [Type])
 
-selectFrom ::
-  forall table record name columns a
-  .
-  ( table ~ Table name columns
-  , KnownSymbol name
-  , ClickHaskell columns record
+instance KnownSymbol name => IsTable (Table name columns) where
+  type GetColumns (Table name columns) = columns
+  tableName = (byteString . BS8.pack) (symbolVal $ Proxy @name)
+
+type ClickHaskellTable table record =
+  ( IsTable table
+  , ClickHaskell (GetColumns table) record
   )
+
+selectFrom ::
+  forall table output result
+  .
+  ClickHaskellTable table output
   =>
-  Connection -> ([record] -> IO a) -> IO [a]
+  Connection -> ([output] -> IO result) -> IO [result]
 selectFrom conn f = do
   withConnection conn $ \connState -> do
     writeToConnection connState (mkQueryPacket connState (toChType query))
     writeToConnection connState (mkDataPacket "" 0 0)
-    handleSelect @columns connState (\x -> id <$!> f x)
+    handleSelect @(GetColumns table) connState (\x -> id <$!> f x)
   where
     query =
-      "SELECT " <> columns @columns @record <>
-      " FROM " <> (byteString . BS8.pack) (symbolVal $ Proxy @name)
+      "SELECT " <> columns @(GetColumns table) @output <>
+      " FROM " <> tableName @table
 
 data View (name :: Symbol) (columns :: [Type]) (parameters :: [Type])
 
@@ -316,7 +330,6 @@ selectFromView ::
   ( ClickHaskell columns record
   , KnownSymbol name
   , view ~ View name columns parameters
-  , CheckParameters parameters passedParameters
   )
   => Connection -> (Parameters '[] -> Parameters passedParameters) -> ([record] -> IO result) -> IO [result]
 selectFromView conn interpreter f = do
@@ -330,11 +343,11 @@ selectFromView conn interpreter f = do
       " FROM " <> (byteString . BS8.pack . symbolVal @name) Proxy <> viewParameters interpreter
 
 generateRandom ::
-  forall columns record result
+  forall columns output result
   .
-  (ClickHaskell columns record)
+  ClickHaskell columns output
   =>
-  Connection -> (UInt64, UInt64, UInt64) -> UInt64 -> ([record] -> IO result) -> IO [result]
+  Connection -> (UInt64, UInt64, UInt64) -> UInt64 -> ([output] -> IO result) -> IO [result]
 generateRandom conn (randomSeed, maxStrLen, maxArrayLen) limit f = do
   withConnection conn $ \connState -> do
     writeToConnection connState (mkQueryPacket connState query)
@@ -342,7 +355,7 @@ generateRandom conn (randomSeed, maxStrLen, maxArrayLen) limit f = do
     handleSelect @columns connState (\x -> id <$!> f x)
   where
   query =
-    let cols = readingColumnsAndTypes @columns @record
+    let cols = readingColumnsAndTypes @columns @output
     in toChType $
       "SELECT * FROM generateRandom(" <>
           "'" <> cols <> "' ," <>
@@ -1049,47 +1062,37 @@ class
   Deserializable chType
   where
   {-# INLINE deserialize #-}
-  default deserialize :: (Generic chType, GDeserializable (Rep chType)) => ProtocolRevision -> Get chType
+  default deserialize :: (Generic chType, GDeserial (Rep chType)) => ProtocolRevision -> Get chType
   deserialize :: ProtocolRevision -> Get chType
   deserialize rev = to <$> gDeserialize rev
 
-class GDeserializable f
+class GDeserial f
   where
   gDeserialize :: ProtocolRevision -> Get (f p)
 
-instance
-  GDeserializable f
-  =>
-  GDeserializable (D1 c (C1 c2 f))
+instance GDeserial f => GDeserial (D1 c (C1 c2 f))
   where
-  {-# INLINE gDeserialize #-}
   gDeserialize rev = M1 . M1 <$> gDeserialize rev
-
-instance
-  (GDeserializable left, GDeserializable right)
-  =>
-  GDeserializable (left :*: right)
-  where
   {-# INLINE gDeserialize #-}
+
+instance (GDeserial left, GDeserial right) => GDeserial (left :*: right) where
   gDeserialize rev = liftA2 (:*:) (gDeserialize rev) (gDeserialize rev)
+  {-# INLINE gDeserialize #-}
 
 instance {-# OVERLAPPING #-}
-  (GDeserializable right)
-  =>
-  (GDeserializable (S1 metaSel (Rec0 ProtocolRevision) :*: right))
-  where
-  {-# INLINE gDeserialize #-}
+  GDeserial right => GDeserial (S1 metaSel (Rec0 ProtocolRevision) :*: right) where
   gDeserialize rev = do
     chosenRev <- min rev . coerce <$> deserialize @UVarInt rev
     liftA2 (:*:) (pure . M1 . K1 $ chosenRev) (gDeserialize @right chosenRev)
+  {-# INLINE gDeserialize #-}
 
 instance
   Deserializable chType
   =>
-  GDeserializable (S1 (MetaSel (Just typeName) a b f) (Rec0 chType))
+  GDeserial (S1 metaSel (Rec0 chType))
   where
   {-# INLINE gDeserialize #-}
-  gDeserialize rev =  M1 . K1 <$> deserialize @chType rev
+  gDeserialize rev = M1 . K1 <$> deserialize @chType rev 
 
 
 -- ** Database types
@@ -1340,33 +1343,18 @@ parameter val = AddParameter (MkParamater $ toChType val)
 renderParameter :: forall name chType . KnownParameter (Parameter name chType) => Parameter name chType -> Builder
 renderParameter (MkParamater chType) = (byteString . BS8.pack . symbolVal @name) Proxy <> "=" <> toQueryPart chType
 
-type family CheckParameters (required :: [Type]) (passed :: [Type]) :: Constraint
-  where
-  CheckParameters required passed = GoCheckParameters required passed '[]
-
-type family GoCheckParameters required passed acc :: Constraint
-  where
-  GoCheckParameters '[] '[] '[] = ()
-  GoCheckParameters (Parameter name _ ': _) '[] '[] = TypeError ('Text "Missing parameter \"" :<>: 'Text name :<>: 'Text "\".")
-  GoCheckParameters '[] (p ': _) _ = TypeError ('Text "More parameters passed than used in the view")
-  GoCheckParameters '[] '[] (p ': _) = TypeError ('Text "More parameters passed than used in the view")
-  GoCheckParameters (Parameter name1 _ ': ps) '[] (Parameter name2 _ ': ps') = TypeError ('Text "Missing  \"" :<>: 'Text name1 :<>: 'Text "\" in passed parameters")
-  GoCheckParameters (p ': ps) '[] (p' ': ps') = GoCheckParameters (p ': ps) (p' ': ps') '[]
-  GoCheckParameters (Parameter name1 _ ': ps) (Parameter name1 _ ': ps') acc = (GoCheckParameters ps ps' acc)
-  GoCheckParameters (Parameter name1 chType1 ': ps) (Parameter name2 chType2 ': ps') acc
-    = (GoCheckParameters (Parameter name1 chType1 ': ps) ps' (Parameter name2 chType2 ': acc))
     
 class ToQueryPart chType where toQueryPart :: chType -> BS.Builder
-instance ToQueryPart Int8 where toQueryPart = BS.byteString . BS8.pack . show
-instance ToQueryPart Int16 where toQueryPart = BS.byteString . BS8.pack . show
-instance ToQueryPart Int32 where toQueryPart = BS.byteString . BS8.pack . show
-instance ToQueryPart Int64 where toQueryPart = BS.byteString . BS8.pack . show
-instance ToQueryPart Int128 where toQueryPart = BS.byteString . BS8.pack . show
-instance ToQueryPart UInt8 where toQueryPart = BS.byteString . BS8.pack . show
-instance ToQueryPart UInt16 where toQueryPart = BS.byteString . BS8.pack . show
-instance ToQueryPart UInt32 where toQueryPart = BS.byteString . BS8.pack . show
-instance ToQueryPart UInt64 where toQueryPart = BS.byteString . BS8.pack . show
-instance ToQueryPart UInt128 where toQueryPart = BS.byteString . BS8.pack . show
+instance ToQueryPart Int8 where toQueryPart = byteString . BS8.pack . show
+instance ToQueryPart Int16 where toQueryPart = byteString . BS8.pack . show
+instance ToQueryPart Int32 where toQueryPart = byteString . BS8.pack . show
+instance ToQueryPart Int64 where toQueryPart = byteString . BS8.pack . show
+instance ToQueryPart Int128 where toQueryPart = byteString . BS8.pack . show
+instance ToQueryPart UInt8 where toQueryPart = byteString . BS8.pack . show
+instance ToQueryPart UInt16 where toQueryPart = byteString . BS8.pack . show
+instance ToQueryPart UInt32 where toQueryPart = byteString . BS8.pack . show
+instance ToQueryPart UInt64 where toQueryPart = byteString . BS8.pack . show
+instance ToQueryPart UInt128 where toQueryPart = byteString . BS8.pack . show
 instance ToQueryPart chType => ToQueryPart (Nullable chType)
   where
   toQueryPart = maybe "null" toQueryPart
@@ -1383,12 +1371,11 @@ instance ToQueryPart ChString where
   toQueryPart (MkChString string) =  "'" <> escapeQuery string <> "'"
     where
     escapeQuery :: BS.ByteString -> Builder
-    escapeQuery -- [ClickHaskell.DbTypes.ToDo.1]: Optimize
-      = BS.byteString . BS8.concatMap (\case '\'' -> "\\\'"; '\\' -> "\\\\"; sym -> BS8.singleton sym;)
+    escapeQuery = byteString . BS8.concatMap (\case '\'' -> "\\\'"; '\\' -> "\\\\"; sym -> singleton sym;)
 instance ToQueryPart (DateTime tz)
   where
   toQueryPart chDateTime = let time = BS8.pack . show . fromChType @(DateTime tz) @Word32 $ chDateTime
-    in BS.byteString (BS8.replicate (10 - BS8.length time) '0' <> time)
+    in byteString (BS8.replicate (10 - BS8.length time) '0' <> time)
 instance (IsChType chType, ToQueryPart chType) => ToQueryPart (Array chType)
   where
   toQueryPart
@@ -1409,7 +1396,7 @@ instance (IsChType chType, ToQueryPart chType) => ToQueryPart (Array chType)
 
 class Serializable chType
   where
-  default serialize :: (Generic chType, GSerializable (Rep chType)) => ProtocolRevision -> chType -> Builder
+  default serialize :: (Generic chType, GSerial (Rep chType)) => ProtocolRevision -> chType -> Builder
   serialize :: ProtocolRevision -> chType -> Builder
   serialize rev = gSerialize rev . from
 
@@ -1438,33 +1425,20 @@ instance Serializable Date where serialize _ = word16LE . fromChType
 
 -- ** Generics
 
-class GSerializable f
-  where
+class GSerial f where
   gSerialize :: ProtocolRevision -> f p -> Builder
 
-instance
-  GSerializable f
-  =>
-  GSerializable (D1 c (C1 c2 f))
-  where
-  {-# INLINE gSerialize #-}
+instance GSerial f => GSerial (D1 c (C1 c2 f)) where
   gSerialize rev (M1 (M1 re)) = gSerialize rev re
-
-instance
-  (GSerializable left1,  GSerializable right)
-  =>
-  GSerializable (left1 :*: right)
-  where
   {-# INLINE gSerialize #-}
+
+instance (GSerial left1,  GSerial right) => GSerial (left1 :*: right) where
   gSerialize rev (l :*: r) = gSerialize rev l <> gSerialize rev r
-
-instance
-  Serializable chType
-  =>
-  GSerializable (S1 (MetaSel (Just typeName) a b f) (Rec0 chType))
-  where
   {-# INLINE gSerialize #-}
-  gSerialize rev = serialize rev . unK1 . unM1
+
+instance Serializable chType => GSerial (S1 metaSel (Rec0 chType)) where
+  gSerialize rev (M1 (K1 re)) = serialize rev re
+  {-# INLINE gSerialize #-}
 
 
 -- ** ToChType
@@ -1653,11 +1627,11 @@ newtype ProtocolRevision = MkProtocolRevision UVarInt
 
 {-# INLINE [0] afterRevision #-}
 afterRevision
-  :: forall revision monoid
-  .  (KnownNat revision, Monoid monoid)
+  :: forall rev monoid
+  . (KnownNat rev, Monoid monoid)
   => ProtocolRevision -> monoid -> monoid
 afterRevision chosenRevision monoid =
-  if chosenRevision >= (fromIntegral . natVal) (Proxy @revision)
+  if chosenRevision >= (fromIntegral . natVal) (Proxy @rev)
   then monoid
   else mempty
 
