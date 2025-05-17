@@ -74,9 +74,9 @@
           //
           {
             default = pkgs.mkShell {
-              inputsFrom = [config.haskellProjects.ghc966.outputs.devShell];
+              inputsFrom = [config.haskellProjects.ghc984.outputs.devShell];
               packages = with pkgs; with haskellPackages; with (self'.packages);
-                [clickhouse nil eventlog2html graphmod ghc966-html2hs];
+                [clickhouse nil eventlog2html graphmod ghc984-html2hs];
             };
           };
         # Build documnetation
@@ -84,7 +84,7 @@
           "documentation" = import ./contribution/documentation.nix {inherit pkgs;};
           "ClickHaskell-dist" = import ./contribution/hackage.nix {
             inherit pkgs;
-            distPackage = self'.packages.ghc966-ClickHaskell;
+            distPackage = self'.packages.ghc984-ClickHaskell;
           };
         };
       };
