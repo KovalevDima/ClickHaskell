@@ -37,7 +37,7 @@ module ClickHaskell
   {- ** Arbitrary commands -}, command, ping
   {- ** Shared -}
   , Column, KnownColumn, DeserializableColumn, Serializable
-  , Table, View, Columns
+  , Table, View
   {- *** Query -}
   , ToQueryPart(toQueryPart), parameter, Parameter, Parameters, viewParameters
 
@@ -1167,15 +1167,7 @@ instance FromChType chType inputType => FromChType (Array chType) [inputType]
 
 
 
--- * Columns
-
-data Columns (columns :: [Type]) where
-  Empty :: Columns '[]
-  AddColumn
-    :: KnownColumn (Column name chType)
-    => Column name chType
-    -> Columns columns
-    -> Columns (Column name chType ': columns)
+-- * Column
 
 {- |
 Column declaration
@@ -1262,20 +1254,7 @@ instance
 instance KnownSymbol name => KnownColumn (Column name (Array ChString)) where mkColumn = ArrayColumn
 
 
--- ** Columns
-
-instance
-  Serializable (Columns '[])
-  where
-  {-# INLINE serialize #-}
-  serialize _rev Empty = ""
-
-instance (Serializable (Columns columns), Serializable col)
-  =>
-  Serializable (Columns (col ': columns))
-  where
-  {-# INLINE serialize #-}
-  serialize rev (AddColumn col cols) = serialize rev col <> serialize rev cols
+-- ** Serialization
 
 instance (KnownColumn (Column name chType), Serializable chType)
   =>
