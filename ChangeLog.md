@@ -24,6 +24,8 @@
       )
   ```
 - ### `Columns` type was deleted
+- ### `Serializable` type class was unexported
+- ### `DeserializableColumn` type class was renamed to `SerializableColumn`
 - ### `IsChType` instance changes
   `ToChType` type family was deleted
 - ### Connection initialization API changes
