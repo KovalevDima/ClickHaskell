@@ -61,7 +61,6 @@ module ClickHaskell
 
   {- ** Client -}
   {- *** Hello -}, HelloPacket(..), Addendum(..)
-  {- *** Ping -}, PingPacket(..)
   {- *** Query -}
   , QueryPacket(..)
   , DbSettings(..), QueryParameters(..), QueryStage(..)
@@ -229,7 +228,7 @@ createConnectionState creds@MkConnectionArgs{host, port, user, pass, db} = do
     HelloResponse MkHelloResponse{server_revision} -> do
       let revision = min server_revision latestSupportedRevision
           conn = MkConnectionState{user = toChType user, ..}
-      writeToConnection conn mkAddendum
+      writeToConnection conn MkAddendum{quota_key = MkSinceRevision ""}
       pure conn
     Exception exception -> throwIO (UserError $ DatabaseException exception)
     otherPacket         -> throwIO (InternalError $ UnexpectedPacketType $ serverPacketToNum otherPacket)
@@ -263,7 +262,7 @@ command conn query = do
 ping :: HasCallStack => Connection -> IO ()
 ping conn = do
   withConnection conn $ \connState@MkConnectionState{revision, buffer} -> do
-    writeToConnection connState mkPingPacket
+    writeToConnection connState Ping
     responsePacket <- rawBufferizedRead buffer (deserialize revision)
     case responsePacket of
       Pong                -> pure ()
@@ -515,44 +514,43 @@ data InternalError
 
 -- * Client packets
 
-data ClientPacketType
-  = Hello | Query | Data | Cancel | Ping | TablesStatusRequest
-  | KeepAlive | Scalar | IgnoredPartUUIDs | ReadTaskResponse
-  | MergeTreeReadTaskResponse | SSHChallengeRequest | SSHChallengeResponse
-  deriving (Enum)
+data ClientPacket where
+  Hello                     :: HelloPacket -> ClientPacket
+  Query                     :: QueryPacket -> ClientPacket
+  Data                      :: DataPacket -> ClientPacket
+  Cancel                    :: ClientPacket
+  Ping                      :: ClientPacket
+  TablesStatusRequest       :: ClientPacket
+  KeepAlive                 :: ClientPacket
+  Scalar                    :: ClientPacket
+  IgnoredPartUUIDs          :: ClientPacket
+  ReadTaskResponse          :: ClientPacket
+  MergeTreeReadTaskResponse :: ClientPacket
+  SSHChallengeRequest       :: ClientPacket
+  SSHChallengeResponse      :: ClientPacket
+  deriving (Generic)
 
-type family PacketTypeNumber (packetType :: ClientPacketType)
-  where
-  PacketTypeNumber Hello                     = 0; PacketTypeNumber Query = 1
-  PacketTypeNumber Data                      = 2; PacketTypeNumber Cancel = 3
-  PacketTypeNumber Ping                      = 4; PacketTypeNumber TablesStatusRequest = 5
-  PacketTypeNumber KeepAlive                 = 6; PacketTypeNumber Scalar = 7
-  PacketTypeNumber IgnoredPartUUIDs          = 8; PacketTypeNumber ReadTaskResponse = 9
-  PacketTypeNumber MergeTreeReadTaskResponse = 10; PacketTypeNumber SSHChallengeRequest = 11
-  PacketTypeNumber SSHChallengeResponse      = 12
-
-data Packet (packetType :: ClientPacketType) = MkPacket
-
-packetNumVal :: forall packetType . KnownNat (PacketTypeNumber packetType) => UVarInt
-packetNumVal = fromIntegral . natVal $ Proxy @(PacketTypeNumber packetType)
-
-instance
-  KnownNat (PacketTypeNumber packetType)
-  =>
-  Serializable (Packet (packetType :: ClientPacketType)) where
-  serialize rev _ = serialize @UVarInt rev (packetNumVal @packetType)
-
-instance Deserializable (Packet (packetType :: ClientPacketType)) where
-  deserialize _rev = pure (MkPacket @packetType)
-
+instance Serializable ClientPacket where
+  serialize rev (Hello hello) = serialize @UVarInt rev 0 <> serialize rev hello
+  serialize rev (Query query) = serialize @UVarInt rev 1 <> serialize rev query
+  serialize rev (Data dataP) = serialize @UVarInt rev 2 <> serialize rev dataP
+  serialize rev (Cancel) = serialize @UVarInt rev 3
+  serialize rev (Ping) = serialize @UVarInt rev 4
+  serialize rev (TablesStatusRequest) = serialize @UVarInt rev 5
+  serialize rev (KeepAlive) = serialize @UVarInt rev 6
+  serialize rev (Scalar) = serialize @UVarInt rev 7
+  serialize rev (IgnoredPartUUIDs) = serialize @UVarInt rev 8
+  serialize rev (ReadTaskResponse) = serialize @UVarInt rev 9
+  serialize rev (MergeTreeReadTaskResponse) = serialize @UVarInt rev 10
+  serialize rev (SSHChallengeRequest) = serialize @UVarInt rev 11
+  serialize rev (SSHChallengeResponse) = serialize @UVarInt rev 12
 
 -- ** Hello
 
-mkHelloPacket :: Text -> Text -> Text -> HelloPacket
-mkHelloPacket db user pass =
+mkHelloPacket :: Text -> Text -> Text -> ClientPacket
+mkHelloPacket db user pass = Hello
   MkHelloPacket
-    { packet_type          = MkPacket
-    , client_name          = clientName
+    { client_name          = clientName
     , client_version_major = major
     , client_version_minor = minor
     , tcp_protocol_version = latestSupportedRevision
@@ -562,8 +560,7 @@ mkHelloPacket db user pass =
     }
 
 data HelloPacket = MkHelloPacket
-  { packet_type          :: Packet Hello
-  , client_name          :: ChString
+  { client_name          :: ChString
   , client_version_major :: UVarInt
   , client_version_minor :: UVarInt
   , tcp_protocol_version :: ProtocolRevision
@@ -576,24 +573,13 @@ data HelloPacket = MkHelloPacket
 
 data Addendum = MkAddendum{quota_key :: ChString `SinceRevision` DBMS_MIN_PROTOCOL_VERSION_WITH_QUOTA_KEY}
   deriving (Generic, Serializable)
-mkAddendum :: Addendum
-mkAddendum = MkAddendum{quota_key = MkSinceRevision ""}
-
-
--- ** Ping
-
-data PingPacket = MkPingPacket{packet_type :: Packet Ping}
-  deriving (Generic, Serializable)
-mkPingPacket :: PingPacket
-mkPingPacket = MkPingPacket{packet_type = MkPacket}
-
 
 -- ** Query
 
-mkQueryPacket :: ConnectionState -> ChString -> QueryPacket
-mkQueryPacket MkConnectionState{..} query = MkQueryPacket
-  { query_packet = MkPacket
-  , query_id = ""
+mkQueryPacket :: ConnectionState -> ChString -> ClientPacket
+mkQueryPacket MkConnectionState{..} query = Query
+  MkQueryPacket
+  { query_id = ""
   , client_info                    = MkSinceRevision MkClientInfo
     { query_kind                   = InitialQuery
     , initial_user                 = user
@@ -623,8 +609,7 @@ mkQueryPacket MkConnectionState{..} query = MkQueryPacket
   }
 
 data QueryPacket = MkQueryPacket
-  { query_packet       :: Packet Query
-  , query_id           :: ChString
+  { query_id           :: ChString
   , client_info        :: ClientInfo `SinceRevision` DBMS_MIN_REVISION_WITH_CLIENT_INFO
   , settings           :: DbSettings
   , interserver_secret :: ChString `SinceRevision` DBMS_MIN_REVISION_WITH_INTERSERVER_SECRET
@@ -686,11 +671,10 @@ instance Serializable QueryKind where
 
 -- ** Data
 
-mkDataPacket :: ChString -> UVarInt -> UVarInt -> DataPacket
-mkDataPacket table_name columns_count rows_count =
+mkDataPacket :: ChString -> UVarInt -> UVarInt -> ClientPacket
+mkDataPacket table_name columns_count rows_count = Data
   MkDataPacket
-    { packet_type   = MkPacket
-    , table_name
+    { table_name
     , block_info    = MkBlockInfo
       { field_num1   = 1, is_overflows = 0
       , field_num2   = 2, bucket_num   = -1
@@ -701,8 +685,7 @@ mkDataPacket table_name columns_count rows_count =
     }
 
 data DataPacket = MkDataPacket
-  { packet_type   :: Packet Data
-  , table_name    :: ChString
+  { table_name    :: ChString
   , block_info    :: BlockInfo
   , columns_count :: UVarInt
   , rows_count    :: UVarInt
