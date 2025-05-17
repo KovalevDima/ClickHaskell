@@ -970,6 +970,9 @@ handleColumnHeader rev isCheckRequired = do
     . throw . UserError . UnmatchedType
       $  "Column " <> show resultColumnName <> " has type " <> show resultType <> ". But expected type is " <> show expectedType
 
+  _isCustom <- deserialize @(UInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION) rev
+  pure ()
+
 instance
   ( KnownColumn (Column name chType)
   , Deserializable chType
@@ -978,9 +981,8 @@ instance
   {-# INLINE deserializeColumn #-}
   deserializeColumn rev isCheckRequired rows = do
     handleColumnHeader @(Column name chType) rev isCheckRequired
-    _isCustom <- deserialize @(UInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION) rev
-    column <- replicateM (fromIntegral rows) (deserialize @chType rev)
-    pure $ mkColumn @(Column name chType) column
+    mkColumn @(Column name chType)
+      <$> replicateM (fromIntegral rows) (deserialize @chType rev)
 
 instance {-# OVERLAPPING #-}
   ( KnownColumn (Column name (Nullable chType))
@@ -990,16 +992,14 @@ instance {-# OVERLAPPING #-}
   {-# INLINE deserializeColumn #-}
   deserializeColumn rev isCheckRequired rows = do
     handleColumnHeader @(Column name (Nullable chType)) rev isCheckRequired
-    _isCustom <- deserialize @(UInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION) rev
     nulls <- replicateM (fromIntegral rows) (deserialize @UInt8 rev)
-    nullable <-
+    mkColumn @(Column name (Nullable chType)) <$>
       forM
         nulls
         (\case
           0 -> Just <$> deserialize @chType rev
           _ -> (Nothing <$ deserialize @chType rev)
         )
-    pure $ mkColumn @(Column name (Nullable chType)) nullable
 
 instance {-# OVERLAPPING #-}
   ( KnownColumn (Column name (LowCardinality chType))
@@ -1011,12 +1011,11 @@ instance {-# OVERLAPPING #-}
   {-# INLINE deserializeColumn #-}
   deserializeColumn rev isCheckRequired rows = do
     handleColumnHeader @(Column name (LowCardinality chType)) rev isCheckRequired
-    _isCustom <- deserialize @(UInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION) rev
     _serializationType <- (.&. 0xf) <$> deserialize @UInt64 rev
     _index_size <- deserialize @Int64 rev
     -- error $ "Trace | " <> show _serializationType <> " : " <> show _index_size
-    lc <- replicateM (fromIntegral rows) (toChType <$> deserialize @chType rev)
-    pure $ mkColumn @(Column name (LowCardinality chType)) lc
+    mkColumn @(Column name (LowCardinality chType))
+      <$> replicateM (fromIntegral rows) (toChType <$> deserialize @chType rev)
 
 instance {-# OVERLAPPING #-}
   ( KnownColumn (Column name (Array chType))
@@ -1027,7 +1026,6 @@ instance {-# OVERLAPPING #-}
   {-# INLINE deserializeColumn #-}
   deserializeColumn rev isCheckRequired _rows = do
     handleColumnHeader @(Column name (Array chType)) rev isCheckRequired
-    _isCustom <- deserialize @(UInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION) rev
     (arraySize, _offsets) <- readOffsets rev
     _types <- replicateM (fromIntegral arraySize) (deserialize @chType rev)
     pure $ mkColumn @(Column name (Array chType)) []
