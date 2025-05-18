@@ -14,7 +14,7 @@ module ChVisits where
 import ClickHaskell
   ( ChString, DateTime
   , UInt16, UInt32
-  , ClickHaskell, insertInto
+  , ClickHaskell, insertInto, command
   , Connection, openConnection, defaultConnectionArgs
   , Column, Table
   , View, selectFromView, Parameter, parameter
@@ -40,6 +40,28 @@ initVisitsTracker :: DocsStatisticsArgs -> IO (Concurrently (), TVar HistoryData
 initVisitsTracker MkDocsStatisticsArgs{..} = do
   clickHouse     <- openConnection defaultConnectionArgs
   currentHistory <- newTVarIO . History =<< readCurrentHistoryLast clickHouse 24
+
+  command clickHouse
+    "CREATE TABLE IF NOT EXISTS default.ClickHaskellStats \
+    \( \
+    \    `time` DateTime, \
+    \    `path` LowCardinality(String), \
+    \    `remoteAddr` UInt32 \
+    \) \
+    \ENGINE = MergeTree \
+    \PARTITION BY path \
+    \ORDER BY path \
+    \SETTINGS index_granularity = 8192;"
+
+  command clickHouse
+    "CREATE OR REPLACE VIEW default.historyByHours \
+    \AS SELECT \
+    \    toUInt32(intDiv(toUInt32(time), 3600) * 3600) AS hour, \
+    \    toUInt32(countDistinct(remoteAddr)) AS visits \
+    \FROM default.ClickHaskellStats \
+    \WHERE hour > (now() - ({hoursLength:UInt16} * 3600)) \
+    \GROUP BY hour \
+    \ORDER BY hour ASC;"
 
   pure
     ( Concurrently (forever $ do
@@ -115,27 +137,3 @@ type HistoryColumns =
  '[ Column "hour" UInt32
   , Column "visits" UInt32
   ]
-
-{-
-<pre><code class="sql" data-lang="sql"
->CREATE TABLE default.ClickHaskellStats
-(
-    `time` DateTime,
-    `path` LowCardinality(String),
-    `remoteAddr` UInt32
-)
-ENGINE = MergeTree
-PARTITION BY path
-ORDER BY path
-SETTINGS index_granularity = 8192;
-
-CREATE OR REPLACE VIEW default.historyByHours
-AS SELECT
-    toUInt32(intDiv(toUInt32(time), 3600) * 3600) AS hour,
-    toUInt32(countDistinct(remoteAddr)) AS visits
-FROM default.ClickHaskellStats
-WHERE hour > (now() - ({hoursLength:UInt16} * 3600))
-GROUP BY hour
-ORDER BY hour ASC;
-</code></pre>
--}
