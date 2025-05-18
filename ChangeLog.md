@@ -4,6 +4,10 @@
 - Support and CI for GHCs: `8.10.7`, `9.0.2`, `9.2.6`
 - ~20% optimization of time and alloc (perf test 1 benchmark)
 
+## Fixes:
+- Fixed unexpected behavior when the number of result columns was different from expected.
+  A `UserError` exception `UnmatchedColumnsCount` is now raised in such cases
+
 ## Breaking changes:
 - ### Generic API changes
   `ReadableFrom` and `WritableInto` was replaced with `ClickHaskell`\

@@ -48,6 +48,20 @@ t4 connection = do
     Right _ -> error "Expected an error, but got success"
     Left  e -> error ("MissmatchErrors: " <> show e)
 
+  res3 <-
+    try (
+      select
+        @ExpectedColumns
+        @ExpectedName
+        connection
+        (toChType "SELECT * FROM generateRandom('expectedName Int64, unexpectedColumn Int64', 1, 10, 2) LIMIT 1")
+        pure
+    )
+  case res3 of
+    Left (UserError (UnmatchedColumnsCount _)) -> pure ()
+    Right _ -> error "Expected an error, but got success"
+    Left  e -> error ("MissmatchErrors: " <> show e)
+
   print "MissmatchErrors: Ok"
 
 
