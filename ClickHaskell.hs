@@ -311,15 +311,11 @@ selectFrom ::
   ClickHaskellTable table output
   =>
   Connection -> ([output] -> IO result) -> IO [result]
-selectFrom conn f = do
-  withConnection conn $ \connState -> do
-    writeToConnection connState (mkQueryPacket connState (toChType query))
-    writeToConnection connState (mkDataPacket "" 0 0)
-    handleSelect @(GetColumns table) connState (\x -> id <$!> f x)
+selectFrom conn f = select @(GetColumns table) conn query f
   where
-    query =
-      "SELECT " <> columns @(GetColumns table) @output <>
-      " FROM " <> tableName @table
+  query = toChType $
+    "SELECT " <> columns @(GetColumns table) @output <>
+    " FROM " <> tableName @table
 
 data View (name :: Symbol) (columns :: [Type]) (parameters :: [Type])
 
@@ -331,15 +327,11 @@ selectFromView ::
   , view ~ View name columns parameters
   )
   => Connection -> (Parameters '[] -> Parameters passedParameters) -> ([record] -> IO result) -> IO [result]
-selectFromView conn interpreter f = do
-  withConnection conn $ \connState -> do
-    writeToConnection connState (mkQueryPacket connState (toChType query))
-    writeToConnection connState (mkDataPacket "" 0 0)
-    handleSelect @columns connState (\x -> id <$!> f x)
-    where
-    query =
-      "SELECT " <> columns @columns @record <>
-      " FROM " <> (byteString . BS8.pack . symbolVal @name) Proxy <> viewParameters interpreter
+selectFromView conn interpreter f = select @columns conn query f
+  where
+  query = toChType $
+    "SELECT " <> columns @columns @record <>
+    " FROM " <> (byteString . BS8.pack . symbolVal @name) Proxy <> viewParameters interpreter
 
 generateRandom ::
   forall columns output result
@@ -347,22 +339,16 @@ generateRandom ::
   ClickHaskell columns output
   =>
   Connection -> (UInt64, UInt64, UInt64) -> UInt64 -> ([output] -> IO result) -> IO [result]
-generateRandom conn (randomSeed, maxStrLen, maxArrayLen) limit f = do
-  withConnection conn $ \connState -> do
-    writeToConnection connState (mkQueryPacket connState query)
-    writeToConnection connState (mkDataPacket "" 0 0)
-    handleSelect @columns connState (\x -> id <$!> f x)
+generateRandom conn (randomSeed, maxStrLen, maxArrayLen) limit f = select @columns conn query f
   where
-  query =
-    let cols = readingColumnsAndTypes @columns @output
-    in toChType $
-      "SELECT * FROM generateRandom(" <>
-          "'" <> cols <> "' ," <>
-            toQueryPart randomSeed <> "," <>
-            toQueryPart maxStrLen <> "," <>
-            toQueryPart maxArrayLen <>
-        ")" <>
-      " LIMIT " <> toQueryPart limit <> ";"
+  query = toChType $
+    "SELECT * FROM generateRandom(" <>
+        "'" <> readingColumnsAndTypes @columns @output <> "' ," <>
+          toQueryPart randomSeed <> "," <>
+          toQueryPart maxStrLen <> "," <>
+          toQueryPart maxArrayLen <>
+      ")" <>
+    " LIMIT " <> toQueryPart limit <> ";"
 
 -- *** Internal
 
