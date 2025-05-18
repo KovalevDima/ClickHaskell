@@ -10,7 +10,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 
 import ChEventlogWriter (chEventlogWrite)
-import ChRtsStats (initPerformanceTracker)
 import ChVisits (DocsStatistics (..), DocsStatisticsArgs (..), HistoryData, initVisitsTracker)
 import ClickHaskell (openConnection, defaultConnectionArgs)
 import Control.Concurrent.Async (Concurrently (..))
@@ -52,7 +51,6 @@ main = do
   broadcastChan  <- newBroadcastTChanIO
 
   (visitsCollector, currentHistory) <- initVisitsTracker MkDocsStatisticsArgs{..}
-  perfStatCollector <- initPerformanceTracker defaultConnectionArgs
 
   server <-
     let mkBroadcastChan = atomically (dupTChan broadcastChan)
@@ -61,7 +59,6 @@ main = do
   runConcurrently
     $ pure ()
     *> visitsCollector
-    *> perfStatCollector
     *> server
 
 
