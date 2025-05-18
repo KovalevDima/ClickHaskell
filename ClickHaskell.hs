@@ -235,11 +235,11 @@ createConnectionState creds@MkConnectionArgs{host, port, user, pass, db} = do
 
 
 {- |
-  Arbitrary commands wrapper.
-
   Might be used for any command without data responses
 
-  For example: __CREATE__, __TRUNCATE__, __KILL__, __SET__, __GRANT__
+  For example: CREATE, TRUNCATE, KILL, SET, GRANT
+
+  __Throws exception if any data was returned__
 -}
 command :: HasCallStack => Connection -> ChString -> IO ()
 command conn query = do
