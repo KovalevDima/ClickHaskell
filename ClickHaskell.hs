@@ -377,7 +377,10 @@ handleSelect MkConnectionState{..} f = loop []
   loop acc = rawBufferizedRead buffer (deserialize revision) >>=
     \packet -> case packet of
       DataResponse MkDataPacket{columns_count = 0, rows_count = 0} -> loop acc
-      DataResponse MkDataPacket{rows_count} -> do
+      DataResponse MkDataPacket{columns_count, rows_count} -> do
+        let actual = columns_count; expected = columnsCount @hasColumns @record
+        when (expected /= actual)
+          (throw . UserError . UnmatchedColumnsCount $ "Expected " <> show expected <> " columns but got " <> show actual)
         result <- f =<< rawBufferizedRead buffer (deserializeColumns @hasColumns True revision rows_count)
         loop (result : acc)
       Progress    _       -> loop acc
@@ -496,6 +499,8 @@ data UserError
   -- ^ Column type mismatch in data packet
   | UnmatchedColumn String
   -- ^ Column name mismatch in data packet
+  | UnmatchedColumnsCount String
+  -- ^ Occurs when actual columns count less or more than expected
   | DatabaseException ExceptionPacket
   -- ^ Database responded with an exception packet
   deriving (Show, Exception)
