@@ -1,4 +1,4 @@
-{app, schemas ? [], inputs, pkgs}:
+{app, inputs, pkgs}:
 let
   programName = builtins.baseNameOf app.program;
   isPerformanceTest = pkgs.lib.hasPrefix "prof-" programName;
@@ -8,7 +8,7 @@ in
   services.clickhouse."database" = {
     enable = true;
     extraConfig.http_port = 8123;
-    initialDatabases = [ {name="default"; schemas=schemas;} ];
+    initialDatabases = [ {name="default";} ];
   }; 
   settings.processes = {
     "executable" = {

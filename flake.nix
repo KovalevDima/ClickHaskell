@@ -17,23 +17,12 @@
       ];
       perSystem = {self', pkgs, config, lib, ...}:
       let
-        extractSqlFromMarkdown = path:
-          builtins.toFile (builtins.baseNameOf path) (
-            lib.strings.concatStrings (
-              builtins.match ".*<pre><code class=\"sql\" data-lang=\"sql\"\n>(.*);\n</code></pre>.*"
-              (builtins.readFile path)
-            )
-          );
         supportedGHCs = ["ghc8107" "ghc902" "ghc928" "ghc948" "ghc966" "ghc984" "ghc9101" "ghc9122"];
-        schemas = [
-          (extractSqlFromMarkdown ./testing/T2WriteReadEquality.hs)
-          (extractSqlFromMarkdown ./usage/modules/visits/ChVisits.hs)
-        ];
       in
       {
         process-compose = {
           default = import ./contribution/localServer.nix {
-            inherit inputs schemas;
+            inherit inputs;
             app = self'.apps.ghc966-server;
             docDirPath = self'.packages."documentation";
           };
@@ -43,7 +32,7 @@
           map (
             {ghc, app}: {
               "test-${ghc}-${app}" = import ./contribution/testing.nix {
-                inherit pkgs inputs schemas;
+                inherit pkgs inputs;
                 app = self'.apps."${ghc}-${app}";
               };
             }

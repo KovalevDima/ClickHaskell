@@ -1,10 +1,10 @@
-{app, docDirPath, schemas ? [], inputs}:
+{app, docDirPath, inputs}:
 {
   imports = [inputs.services-flake.processComposeModules.default];
   services.clickhouse."database" = {
     enable = true;
     extraConfig.http_port = 8123;
-    initialDatabases = [ {name="default"; schemas=schemas;} ];
+    initialDatabases = [ {name="default";} ];
   };
   settings.processes = {
     "executable" = {
