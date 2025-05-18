@@ -8,4 +8,3 @@ packages:
     ./usage/
     ./usage/modules/eventlog-writer
     ./usage/modules/visits
-    ./usage/modules/rts-stats
