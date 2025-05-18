@@ -10,7 +10,6 @@ executable server
   build-depends:
       ClickHaskell
     , ClickHaskell-eventlog-writer
-    , ClickHaskell-rts-stats
     , ClickHaskell-visits
     , aeson
     , async
