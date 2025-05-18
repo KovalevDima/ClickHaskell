@@ -283,11 +283,11 @@ class HasParameters view where
 
 
 select ::
-  forall columns record result
+  forall columns output result
   .
-  ClickHaskell columns record
+  ClickHaskell columns output
   =>
-  Connection -> ChString -> ([record] -> IO result) -> IO [result]
+  Connection -> ChString -> ([output] -> IO result) -> IO [result]
 select conn query f = do
   withConnection conn $ \connState -> do
     writeToConnection connState (mkQueryPacket connState query)
@@ -320,17 +320,17 @@ selectFrom conn f = select @(GetColumns table) conn query f
 data View (name :: Symbol) (columns :: [Type]) (parameters :: [Type])
 
 selectFromView ::
-  forall view record result name columns parameters passedParameters
+  forall view output result name columns parameters passedParameters
   .
-  ( ClickHaskell columns record
+  ( ClickHaskell columns output
   , KnownSymbol name
   , view ~ View name columns parameters
   )
-  => Connection -> (Parameters '[] -> Parameters passedParameters) -> ([record] -> IO result) -> IO [result]
+  => Connection -> (Parameters '[] -> Parameters passedParameters) -> ([output] -> IO result) -> IO [result]
 selectFromView conn interpreter f = select @columns conn query f
   where
   query = toChType $
-    "SELECT " <> columns @columns @record <>
+    "SELECT " <> columns @columns @output <>
     " FROM " <> (byteString . BS8.pack . symbolVal @name) Proxy <> viewParameters interpreter
 
 generateRandom ::
@@ -353,21 +353,22 @@ generateRandom conn (randomSeed, maxStrLen, maxArrayLen) limit f = select @colum
 -- *** Internal
 
 handleSelect ::
-  forall hasColumns record result
+  forall columns output result
   .
-  ClickHaskell hasColumns record
+  ClickHaskell columns output
   =>
-  ConnectionState -> ([record] -> IO result) -> IO [result]
+  ConnectionState -> ([output] -> IO result) -> IO [result]
 handleSelect MkConnectionState{..} f = loop []
   where
   loop acc = rawBufferizedRead buffer (deserialize revision) >>=
     \packet -> case packet of
       DataResponse MkDataPacket{columns_count = 0, rows_count = 0} -> loop acc
       DataResponse MkDataPacket{columns_count, rows_count} -> do
-        let actual = columns_count; expected = columnsCount @hasColumns @record
-        when (expected /= actual)
-          (throw . UserError . UnmatchedColumnsCount $ "Expected " <> show expected <> " columns but got " <> show actual)
-        result <- f =<< rawBufferizedRead buffer (deserializeColumns @hasColumns True revision rows_count)
+        let expected = columnsCount @columns @output
+        when (columns_count /= expected) $
+          (throw . UserError . UnmatchedColumnsCount)
+            ("Expected " <> show expected <> " columns but got " <> show columns_count)
+        result <- f =<< rawBufferizedRead buffer (deserializeColumns @columns True revision rows_count)
         loop (result : acc)
       Progress    _       -> loop acc
       ProfileInfo _       -> loop acc
