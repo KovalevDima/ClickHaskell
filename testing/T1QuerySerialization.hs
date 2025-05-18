@@ -20,12 +20,12 @@ module T1QuerySerialization
 import ClickHaskell
   ( Connection(..)
   , ClickHaskell, select
-  , Column, KnownColumn, DeserializableColumn
+  , Column, KnownColumn, SerializableColumn
   , IsChType(..), ToChType(..)
   , ToQueryPart(..)
   , UInt8, UInt16, UInt32, UInt64
   , Int8, Int16, Int32, Int64
-  , ChString, UUID, Serializable
+  , ChString, UUID
   )
 
 -- GHC included
@@ -93,8 +93,7 @@ data TestSample chType = MkTestSample {testSample :: chType}
 
 
 instance
-  ( DeserializableColumn (Column "testSample" chType)
-  , Serializable (Column "testSample" chType)
+  ( SerializableColumn (Column "testSample" chType)
   , KnownColumn (Column "testSample" chType)
   )
   =>

@@ -36,7 +36,7 @@ module ClickHaskell
   , ToChType(toChType)
   {- ** Arbitrary commands -}, command, ping
   {- ** Shared -}
-  , Column, KnownColumn, DeserializableColumn, Serializable
+  , Column, KnownColumn, SerializableColumn
   , Table, View
   {- *** Query -}
   , ToQueryPart(toQueryPart), parameter, Parameter, Parameters, viewParameters
@@ -913,8 +913,7 @@ instance
 
 instance
   ( KnownColumn (Column name chType)
-  , DeserializableColumn (Column name chType)
-  , Serializable (Column name chType)
+  , SerializableColumn (Column name chType)
   , FromChType chType inputType
   , ToChType chType inputType
   , Column name chType ~ TakeColumn name columns
@@ -926,7 +925,7 @@ instance
       <$> deserializeColumn @(Column name chType) rev isCheckRequired size
   gReadingColumns = (renderColumnName @(Column name chType), renderColumnType @(Column name chType)) : []
   {-# INLINE gSerializeRecords #-}
-  gSerializeRecords rev = serialize rev . mkColumn @(Column name chType) . map (toChType . unK1 . unM1)
+  gSerializeRecords rev = serializeColumn rev . mkColumn @(Column name chType) . map (toChType . unK1 . unM1)
   gColumnsCount = 1
 
 
@@ -950,8 +949,9 @@ type family
 
 {-# SPECIALIZE replicateM :: Int -> Get chType -> Get [chType] #-}
 
-class DeserializableColumn column where
+class SerializableColumn column where
   deserializeColumn :: ProtocolRevision -> Bool -> UVarInt -> Get column
+  serializeColumn :: ProtocolRevision -> column -> Builder
 
 handleColumnHeader :: forall column . KnownColumn column => ProtocolRevision -> Bool -> Get ()
 handleColumnHeader rev isCheckRequired = do
@@ -973,19 +973,31 @@ handleColumnHeader rev isCheckRequired = do
 instance
   ( KnownColumn (Column name chType)
   , Deserializable chType
+  , Serializable chType
+  , IsChType chType
   ) =>
-  DeserializableColumn (Column name chType) where
+  SerializableColumn (Column name chType) where
   {-# INLINE deserializeColumn #-}
   deserializeColumn rev isCheckRequired rows = do
     handleColumnHeader @(Column name chType) rev isCheckRequired
     mkColumn @(Column name chType)
       <$> replicateM (fromIntegral rows) (deserialize @chType rev)
 
+  {-# INLINE serializeColumn #-}
+  serializeColumn rev column
+    =  serialize rev (toChType @ChString $ renderColumnName @(Column name chType))
+    <> serialize rev (toChType @ChString $ renderColumnType @(Column name chType))
+    -- serialization is not custom
+    <> afterRevision @DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION rev (serialize @UInt8 rev 0)
+    <> mconcat (Prelude.map (serialize @chType rev) (columnValues column))
+
 instance {-# OVERLAPPING #-}
   ( KnownColumn (Column name (Nullable chType))
   , Deserializable chType
+  , Serializable chType
+  , IsChType chType
   ) =>
-  DeserializableColumn (Column name (Nullable chType)) where
+  SerializableColumn (Column name (Nullable chType)) where
   {-# INLINE deserializeColumn #-}
   deserializeColumn rev isCheckRequired rows = do
     handleColumnHeader @(Column name (Nullable chType)) rev isCheckRequired
@@ -998,13 +1010,24 @@ instance {-# OVERLAPPING #-}
           _ -> (Nothing <$ deserialize @chType rev)
         )
 
+  {-# INLINE serializeColumn #-}
+  serializeColumn rev column
+    =  serialize rev (toChType @ChString $ renderColumnName @(Column name (Nullable chType)))
+    <> serialize rev (toChType @ChString $ renderColumnType @(Column name (Nullable chType)))
+    -- serialization is not custom
+    <> afterRevision @DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION rev (serialize @UInt8 rev 0)
+    -- Nulls
+    <> mconcat (Prelude.map (serialize @UInt8 rev . maybe 1 (const 0)) (columnValues column))
+    -- Values
+    <> mconcat (Prelude.map (serialize @chType rev . maybe defaultValueOfTypeName id) (columnValues column))
+
 instance {-# OVERLAPPING #-}
   ( KnownColumn (Column name (LowCardinality chType))
   , Deserializable chType
   , IsLowCardinalitySupported chType
   , TypeError ('Text "LowCardinality deserialization still unsupported")
   ) =>
-  DeserializableColumn (Column name (LowCardinality chType)) where
+  SerializableColumn (Column name (LowCardinality chType)) where
   {-# INLINE deserializeColumn #-}
   deserializeColumn rev isCheckRequired rows = do
     handleColumnHeader @(Column name (LowCardinality chType)) rev isCheckRequired
@@ -1014,12 +1037,20 @@ instance {-# OVERLAPPING #-}
     mkColumn @(Column name (LowCardinality chType))
       <$> replicateM (fromIntegral rows) (toChType <$> deserialize @chType rev)
 
+  {-# INLINE serializeColumn #-}
+  serializeColumn rev (LowCardinalityColumn column)
+    =  serialize rev (toChType @ChString $ renderColumnName @(Column name (Nullable chType)))
+    <> serialize rev (toChType @ChString $ renderColumnType @(Column name (Nullable chType)))
+    -- serialization is not custom
+    <> afterRevision @DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION rev (serialize @UInt8 rev 0)
+    <> undefined column
+
 instance {-# OVERLAPPING #-}
   ( KnownColumn (Column name (Array chType))
   , Deserializable chType
   , TypeError ('Text "Arrays deserialization still unsupported")
   )
-  => DeserializableColumn (Column name (Array chType)) where
+  => SerializableColumn (Column name (Array chType)) where
   {-# INLINE deserializeColumn #-}
   deserializeColumn rev isCheckRequired _rows = do
     handleColumnHeader @(Column name (Array chType)) rev isCheckRequired
@@ -1039,6 +1070,8 @@ instance {-# OVERLAPPING #-}
           then pure [nextOffset]
           else (nextOffset :) <$> go arraySize
 
+  {-# INLINE serializeColumn #-}
+  serializeColumn _rev _column = undefined
 
 -- ** Generics
 
@@ -1237,50 +1270,6 @@ instance
   ) =>
   KnownColumn (Column name (LowCardinality chType)) where mkColumn = LowCardinalityColumn . map fromChType
 instance KnownSymbol name => KnownColumn (Column name (Array ChString)) where mkColumn = ArrayColumn
-
-
--- ** Serialization
-
-instance (KnownColumn (Column name chType), Serializable chType)
-  =>
-  Serializable (Column name chType) where
-  {-# INLINE serialize #-}
-  serialize rev column
-    =  serialize rev (toChType @ChString $ renderColumnName @(Column name chType))
-    <> serialize rev (toChType @ChString $ renderColumnType @(Column name chType))
-    -- serialization is not custom
-    <> afterRevision @DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION rev (serialize @UInt8 rev 0)
-    <> mconcat (Prelude.map (serialize @chType rev) (columnValues column))
-
-instance {-# OVERLAPPING #-}
-  ( KnownColumn (Column name (Nullable chType))
-  , IsChType chType
-  , Serializable chType
-  ) => Serializable (Column name (Nullable chType)) where
-  {-# INLINE serialize #-}
-  serialize rev column
-    =  serialize rev (toChType @ChString $ renderColumnName @(Column name (Nullable chType)))
-    <> serialize rev (toChType @ChString $ renderColumnType @(Column name (Nullable chType)))
-    -- serialization is not custom
-    <> afterRevision @DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION rev (serialize @UInt8 rev 0)
-    -- Nulls
-    <> mconcat (Prelude.map (serialize @UInt8 rev . maybe 1 (const 0)) (columnValues column))
-    -- Values
-    <> mconcat (Prelude.map (serialize @chType rev . maybe defaultValueOfTypeName id) (columnValues column))
-
-instance {-# OVERLAPPING #-}
-  ( KnownColumn (Column name (Nullable chType))
-  , IsChType chType
-  , Serializable chType
-  , TypeError ('Text "LowCardinality serialization still unsupported")
-  ) => Serializable (Column name (LowCardinality chType)) where
-  {-# INLINE serialize #-}
-  serialize rev (LowCardinalityColumn column)
-    =  serialize rev (toChType @ChString $ renderColumnName @(Column name (Nullable chType)))
-    <> serialize rev (toChType @ChString $ renderColumnType @(Column name (Nullable chType)))
-    -- serialization is not custom
-    <> afterRevision @DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION rev (serialize @UInt8 rev 0)
-    <> undefined column
 
 
 
