@@ -3,6 +3,7 @@
 ## Features:
 - Support and CI for GHCs: `8.10.7`, `9.0.2`, `9.2.6`
 - ~20% optimization of time and alloc (perf test 1 benchmark)
+- Added function `command` for statements with no result
 
 ## Fixes:
 - Fixed unexpected behavior when the number of result columns was different from expected.
