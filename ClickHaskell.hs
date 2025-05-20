@@ -56,7 +56,7 @@ module ClickHaskell
   {- * Protocol parts -}
 
   {- ** Shared -}
-  , UVarInt(..), SinceRevision(..)
+  , UVarInt(..), SinceRevision(..), ProtocolRevision
   {- *** Data packet -}, DataPacket(..), BlockInfo(..)
 
   {- ** Client -}, ClientPacket(..)

@@ -44,6 +44,14 @@ body {
     max-width: 720px;
     width: 100%;
 }
+table{
+    border: 1px solid;
+    border-collapse: collapse;
+}
+th,td{
+    border: 1px solid;
+    padding: 5px 3px 3px 5px;
+}
 main {padding: 0px 8px 0px 8px; }
 a {color: rgb(155, 155, 155);}
 a:link {color: rgb(155, 155, 155);}
