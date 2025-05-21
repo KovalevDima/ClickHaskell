@@ -10,17 +10,19 @@
     "executable" = {
       command = ''
       CLICKHASKELL_STATIC_FILES_DIR=. \
-        CLICKHASKELL_EVENTLOG_SOCKET_PATH="./.eventlog.sock" \
+        EVENTLOG_SOCKET_PATH="./.eventlog.sock" \
         DEV= \
-        ${app.program}
+        ${app.program} +RTS -l-agpf --eventlog-flush-interval=1 -RTS
       '';
       depends_on."database".condition = "process_healthy";
     };
     "agent" = {
       command = ''
-      CLICKHASKELL_EVENTLOG_SOCKET_PATH="./.eventlog.sock" \
+      sleep 3
+      EVENTLOG_SOCKET_PATH="./.eventlog.sock" \
         ${agent.program}
       '';
+      depends_on."executable".condition = "process_started";
     };
   };
 }

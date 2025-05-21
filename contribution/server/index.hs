@@ -40,8 +40,8 @@ import System.FilePath (dropFileName, dropTrailingPathSeparator, normalise, repl
 
 main :: IO ()
 main = do
-  maybe mempty (start )
-    =<< lookupEnv "CLICKHASKELL_EVENTLOG_SOCKET_PATH"
+  maybe mempty start
+    =<< lookupEnv "EVENTLOG_SOCKET_PATH"
 
   mSocketPath  <- lookupEnv "CLICKHASKELL_PAGE_SOCKET_PATH"
   mStaticFiles <- lookupEnv "CLICKHASKELL_STATIC_FILES_DIR"

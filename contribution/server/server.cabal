@@ -33,5 +33,4 @@ executable server
   ghc-options:
     -threaded
     -Wall -Wunused-packages
-    -rtsopts "-with-rtsopts=-T -A8m -AL32m -N -l-agpf --eventlog-flush-interval=1"
-    
+    -rtsopts "-with-rtsopts=-T -A8m -AL32m -N"
