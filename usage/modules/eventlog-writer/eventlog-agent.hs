@@ -7,24 +7,27 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE DataKinds #-}
 
-module ChEventlogWriter where
+module Main (main) where
 
 import ClickHaskell
-import Control.Concurrent (forkIO)
 import Control.Exception (SomeException, bracketOnError, catch, finally)
 import Control.Monad (forever, void)
 import Data.ByteString as BS (ByteString, length)
 import Data.IORef (IORef, atomicModifyIORef, atomicWriteIORef, newIORef, readIORef)
-import GHC.Eventlog.Socket (start)
 import GHC.RTS.Events.Incremental (Decoder (..), decodeEvents, decodeHeader)
 import Network.Socket
 import Network.Socket.ByteString (recv)
 import System.Timeout (timeout)
+import System.Environment (lookupEnv)
+
+main :: IO ()
+main = do
+  maybe mempty (chEventlogWrite undefined)
+    =<< lookupEnv "CLICKHASKELL_EVENTLOG_SOCKET_PATH"
 
 chEventlogWrite :: IO Connection -> FilePath -> IO ()
 chEventlogWrite _initConn socketPath = do
-  start socketPath
-  sock <- 
+  sock <-
     maybe (error "Socket connection timeout") pure
       =<< timeout 3_000_000 (
         bracketOnError
@@ -46,7 +49,7 @@ streamFromSocket sock = do
   buffer <- initBuffer sock
   header <- loop buffer decodeHeader
   print header
-  void . forkIO . forever $ do
+  void . forever $ do
     print =<< loop buffer (decodeEvents header)
   where
   loop buff decoder = case decoder of
