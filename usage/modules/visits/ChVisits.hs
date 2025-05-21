@@ -39,7 +39,6 @@ data DocsStatisticsArgs = MkDocsStatisticsArgs
 initVisitsTracker :: DocsStatisticsArgs -> IO (Concurrently (), TVar HistoryData)
 initVisitsTracker MkDocsStatisticsArgs{..} = do
   clickHouse     <- openConnection defaultConnectionArgs
-  currentHistory <- newTVarIO . History =<< readCurrentHistoryLast clickHouse 24
 
   command clickHouse
     "CREATE TABLE IF NOT EXISTS default.ClickHaskellStats \
@@ -62,6 +61,8 @@ initVisitsTracker MkDocsStatisticsArgs{..} = do
     \WHERE hour > (now() - ({hoursLength:UInt16} * 3600)) \
     \GROUP BY hour \
     \ORDER BY hour ASC;"
+
+  currentHistory <- newTVarIO . History =<< readCurrentHistoryLast clickHouse 24
 
   pure
     ( Concurrently (forever $ do
