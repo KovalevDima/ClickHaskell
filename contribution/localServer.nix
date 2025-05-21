@@ -1,4 +1,4 @@
-{app, docDirPath, inputs}:
+{app, agent, docDirPath, inputs}:
 {
   imports = [inputs.services-flake.processComposeModules.default];
   services.clickhouse."database" = {
@@ -8,13 +8,21 @@
   };
   settings.processes = {
     "executable" = {
-      # CLICKHASKELL_EVENTLOG_SOCKET_PATH="./.eventlog.sock" \
       command = ''
       CLICKHASKELL_STATIC_FILES_DIR=. \
+        EVENTLOG_SOCKET_PATH="./.eventlog.sock" \
         DEV= \
-        ${app.program}
+        ${app.program} +RTS -l-agpf --eventlog-flush-interval=1 -RTS
       '';
       depends_on."database".condition = "process_healthy";
+    };
+    "agent" = {
+      command = ''
+      sleep 3
+      EVENTLOG_SOCKET_PATH="./.eventlog.sock" \
+        ${agent.program}
+      '';
+      depends_on."executable".condition = "process_started";
     };
   };
 }

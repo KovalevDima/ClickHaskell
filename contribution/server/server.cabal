@@ -9,7 +9,6 @@ executable server
   main-is: index.hs
   build-depends:
       ClickHaskell
-    , ClickHaskell-eventlog-writer
     , ClickHaskell-protocol-docs
     , ClickHaskell-visits
     , aeson
@@ -35,4 +34,3 @@ executable server
     -threaded
     -Wall -Wunused-packages
     -rtsopts "-with-rtsopts=-T -A8m -AL32m -N"
-    -- realtime profiling: -l-agpfT --eventlog-flush-interval=1
