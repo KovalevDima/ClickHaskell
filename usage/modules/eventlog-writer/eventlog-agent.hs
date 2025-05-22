@@ -140,7 +140,7 @@ initChConnection = do
   pure conn
 
 data EventRep = MkEventRep
-  { time      :: UInt32
+  { time      :: UInt64
   , eventType :: ByteString
   }
   deriving (Generic, ClickHaskell EventLogColumns)
@@ -150,7 +150,7 @@ write = insertInto @EventLogTable @EventRep
 
 type EventLogTable = Table "haskell_eventlog" EventLogColumns
 type EventLogColumns =
- '[ Column "time"      (DateTime "")
+ '[ Column "time"      (DateTime64 "")
   , Column "eventType" (ChString)
   ]
 
@@ -158,7 +158,7 @@ createEventLogTable :: Connection -> IO ()
 createEventLogTable conn = command conn
     "CREATE TABLE IF NOT EXISTS haskell_eventlog \
     \( \
-    \    `time` DateTime, \
+    \    `time` DateTime64, \
     \    `eventType` LowCardinality(String) \
     \) \
     \ENGINE = MergeTree \
