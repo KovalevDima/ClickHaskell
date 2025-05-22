@@ -33,11 +33,8 @@
         name = "ClickHouse";
         type = "grafana-clickhouse-datasource";
         jsonData = {
-          defaultDatabase = "default";
           port = "9000";
           host = "localhost";
-          username = "default";
-          tlsSkipVerify = "false";
         };
       }
     ];
