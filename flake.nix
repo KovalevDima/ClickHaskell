@@ -22,7 +22,7 @@
       {
         process-compose = {
           default = import ./contribution/localServer.nix {
-            inherit inputs;
+            inherit inputs pkgs;
             app = self'.apps.ghc984-server;
             agent = self'.apps.ghc984-eventlog-agent;
             docDirPath = self'.packages."documentation";

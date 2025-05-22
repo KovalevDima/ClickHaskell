@@ -1,4 +1,4 @@
-{app, agent, docDirPath, inputs}:
+{app, agent, docDirPath, inputs, pkgs}:
 {
   imports = [inputs.services-flake.processComposeModules.default];
   services.clickhouse."database" = {
@@ -24,5 +24,22 @@
       '';
       depends_on."executable".condition = "process_started";
     };
+  };
+  services.grafana."grafana" = {
+    enable = true;
+    http_port = 8080;
+    datasources = [
+      {
+        name = "ClickHouse";
+        type = "grafana-clickhouse-datasource";
+        jsonData = {
+          port = "9000";
+          host = "localhost";
+        };
+      }
+    ];
+    declarativePlugins = [
+      pkgs.grafanaPlugins.grafana-clickhouse-datasource
+    ];
   };
 }
