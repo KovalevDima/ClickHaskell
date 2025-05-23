@@ -150,7 +150,7 @@ write = insertInto @EventLogTable @EventRep
 
 type EventLogTable = Table "haskell_eventlog" EventLogColumns
 type EventLogColumns =
- '[ Column "time"      (DateTime64 "")
+ '[ Column "time"      (UInt64)
   , Column "eventType" (ChString)
   ]
 

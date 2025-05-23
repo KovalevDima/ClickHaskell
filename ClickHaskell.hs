@@ -43,7 +43,7 @@ module ClickHaskell
 
   {- * ClickHouse types -}
   , IsChType(chTypeName, defaultValueOfTypeName)
-  , DateTime(..), DateTime64
+  , DateTime(..) -- , DateTime64
   , Int8, Int16, Int32, Int64, Int128(..)
   , UInt8, UInt16, UInt32, UInt64, UInt128, Word128(..)
   , Nullable
@@ -109,7 +109,7 @@ import Data.Version (Version (..))
 import Data.Word (Word16, Word32, Word64, Word8)
 import GHC.Generics (C1, D1, Generic (..), K1 (K1, unK1), M1 (M1, unM1), Meta (MetaSel), Rec0, S1, type (:*:) (..))
 import GHC.Stack (HasCallStack, callStack, prettyCallStack)
-import GHC.TypeLits (AppendSymbol, ErrorMessage (..), KnownNat, KnownSymbol, Nat, Symbol, TypeError, natVal, symbolVal)
+import GHC.TypeLits (AppendSymbol, ErrorMessage (..), KnownNat, KnownSymbol, Nat, Symbol, TypeError, natVal, symbolVal, Natural)
 import System.Environment (lookupEnv)
 import System.Timeout (timeout)
 
@@ -1119,7 +1119,7 @@ instance Deserializable UInt128 where deserialize _ = toChType <$> liftA2 (flip 
 instance Deserializable UUID where deserialize _ = MkChUUID <$> liftA2 (flip Word128) getWord64le getWord64le; {-# INLINE deserialize #-}
 instance Deserializable Date where deserialize _ = toChType <$> getWord16le; {-# INLINE deserialize #-}
 instance Deserializable (DateTime tz) where deserialize _ = toChType <$> getWord32le; {-# INLINE deserialize #-}
-instance Deserializable (DateTime64 tz) where deserialize _ = toChType <$> getWord64le; {-# INLINE deserialize #-}
+instance Deserializable (DateTime64 precision tz) where deserialize _ = toChType <$> getWord64le; {-# INLINE deserialize #-}
 instance Deserializable ChString where
   {-# INLINE deserialize #-}
   deserialize = (\n -> toChType <$> readN n (BS.take n)) . fromIntegral <=< deserialize @UVarInt
@@ -1141,7 +1141,7 @@ instance FromChType UUID (Word64, Word64) where fromChType (MkChUUID (Word128 w6
 instance {-# OVERLAPPABLE #-} (IsChType chType, chType ~ inputType) => FromChType chType inputType where fromChType = id
 instance FromChType (DateTime tz) Word32     where fromChType = coerce
 instance FromChType (DateTime tz) UTCTime    where fromChType (MkDateTime w32) = posixSecondsToUTCTime (fromIntegral w32)
-instance FromChType (DateTime64 tz) Word64 where fromChType = coerce
+instance FromChType (DateTime64 precision tz) Word64 where fromChType = coerce
 instance
   FromChType chType inputType
   =>
@@ -1197,7 +1197,7 @@ data Column (name :: Symbol) (chType :: Type) where
   UInt64Column  :: [UInt64]  -> Column name UInt64;  Int64Column  :: [Int64]  -> Column name Int64
   UInt128Column :: [UInt128] -> Column name UInt128; Int128Column :: [Int128] -> Column name Int128
   DateTimeColumn :: [DateTime tz] -> Column name (DateTime tz)
-  DateTime64Column :: [DateTime64 tz] -> Column name (DateTime64 tz)
+  DateTime64Column :: [DateTime64 precision tz] -> Column name (DateTime64 precision tz)
   DateColumn :: [Date] -> Column name Date
   UUIDColumn :: [UUID] -> Column name UUID
   StringColumn :: [ChString] -> Column name ChString
@@ -1252,9 +1252,9 @@ instance
   KnownColumn (Column name (DateTime tz)) where mkColumn = DateTimeColumn
 instance
   ( KnownSymbol name
-  , IsChType (DateTime64 tz)
+  , IsChType (DateTime64 precision tz)
   ) =>
-  KnownColumn (Column name (DateTime64 tz)) where mkColumn = DateTime64Column
+  KnownColumn (Column name (DateTime64 precision tz)) where mkColumn = DateTime64Column
 instance KnownSymbol name => KnownColumn (Column name UUID) where mkColumn = UUIDColumn
 instance
   ( KnownSymbol name
@@ -1345,6 +1345,13 @@ instance ToQueryPart ChString where
     where
     escapeQuery :: BS.ByteString -> Builder
     escapeQuery = byteString . BS8.concatMap (\case '\'' -> "\\\'"; '\\' -> "\\\\"; sym -> singleton sym;)
+
+instance ToQueryPart (DateTime64 precision tz)
+  where
+  toQueryPart chDateTime =
+    let time = BS8.pack . show . fromChType @_ @Word64 $ chDateTime
+    in byteString (BS8.replicate (12 - BS8.length time) '0' <> time)
+
 instance ToQueryPart (DateTime tz)
   where
   toQueryPart chDateTime = let time = BS8.pack . show . fromChType @(DateTime tz) @Word32 $ chDateTime
@@ -1393,7 +1400,7 @@ instance Serializable UInt32 where serialize _ = word32LE . fromChType
 instance Serializable UInt64 where serialize _ = word64LE . fromChType
 instance Serializable UInt128 where serialize _ = (\(Word128 hi lo) -> word64LE lo <> word64LE hi) . fromChType
 instance Serializable (DateTime tz) where serialize _ = word32LE . fromChType
-instance Serializable (DateTime64 tz) where serialize _ = word64LE . fromChType
+instance Serializable (DateTime64 precision tz) where serialize _ = word64LE . fromChType
 instance Serializable Date where serialize _ = word16LE . fromChType
 
 
@@ -1439,7 +1446,7 @@ instance ToChType UUID (Word64, Word64) where toChType = MkChUUID . uncurry (fli
 instance ToChType (DateTime tz) Word32     where toChType = MkDateTime
 instance ToChType (DateTime tz) UTCTime    where toChType = MkDateTime . floor . utcTimeToPOSIXSeconds
 instance ToChType (DateTime tz) ZonedTime  where toChType = MkDateTime . floor . utcTimeToPOSIXSeconds . zonedTimeToUTC
-instance ToChType (DateTime64 tz) Word64 where toChType = MkDateTime64
+instance ToChType (DateTime64 precision tz) Word64 where toChType = MkDateTime64
 instance ToChType Date Word16 where toChType = MkChDate
 instance ToChType chType inputType => ToChType (Array chType) [inputType]
   where
@@ -1535,19 +1542,31 @@ instance KnownSymbol (DateTimeTypeName tz) => IsChType (DateTime tz)
 {- |
 ClickHouse DateTime64 column type (paramtrized with timezone)
 
->>> chTypeName @(DateTime64 "")
-"DateTime64"
->>> chTypeName @(DateTime64 "UTC")
-"DateTime64('UTC')"
+>>> chTypeName @(DateTime64 3 "")
+"DateTime64(3)"
+>>> chTypeName @(DateTime64 3 "UTC")
+"DateTime64(3, 'UTC')"
 -}
-newtype DateTime64 (tz :: Symbol) = MkDateTime64 Word64
+newtype
+  DateTime64
+    (precision :: Natural)
+    (tz :: Symbol)
+  = MkDateTime64 Word64
   deriving newtype (Show, Eq, Num, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
 
-type DateTime64TypeName tz = If (tz == "") ("DateTime64") ("DateTime64('" `AppendSymbol` tz `AppendSymbol` "')")
-
-instance KnownSymbol (DateTime64TypeName tz) => IsChType (DateTime64 tz)
+instance
+  (KnownSymbol tz, KnownNat precision)
+  =>
+  IsChType (DateTime64 precision tz)
   where
-  chTypeName = symbolVal @(DateTime64TypeName tz) $ Proxy
+  chTypeName =
+    let
+      prec = show (natVal @precision Proxy)
+      tz = symbolVal @tz Proxy
+    in
+    case tz of
+      "" -> "DateTime64(" <> prec <> ")"
+      _  -> "DateTime64(" <> prec <> ", '" <> tz <> "')"
   defaultValueOfTypeName = MkDateTime64 0
 
 
