@@ -25,7 +25,7 @@ import ClickHaskell
   , toChType
   , UInt8, UInt16, UInt32, UInt64, UInt128
   , UUID, DateTime, ChString, Int128, Word128
-  , Nullable, DateTime
+  , Nullable, DateTime64
   )
 
 -- GHC included
@@ -67,8 +67,8 @@ type TestTable = Table "writeReadEqualityTable" TestColumns
 type TestColumns =
   '[ Column "dateTime" (DateTime "UTC")
    , Column "dateTimeNullable" (Nullable (DateTime "UTC"))
---   , Column "dateTime64" (DateTime64 3 "UTC")
---   , Column "dateTime64Nullable" (Nullable (DateTime64 3 "UTC"))
+   , Column "dateTime64" (DateTime64 3 "UTC")
+   , Column "dateTime64Nullable" (Nullable (DateTime64 3 "UTC"))
    , Column "int128" Int128
    , Column "int128Nullable" (Nullable Int128)
    , Column "int16" Int16
@@ -98,8 +98,8 @@ type TestColumns =
 data TestData = MkTestData
   { dateTime :: DateTime "UTC"
   , dateTimeNullable :: Nullable (DateTime "UTC")
---  , dateTime64 :: DateTime64 3 "UTC"
---  , dateTime64Nullable :: Nullable (DateTime64 3 "UTC")
+  , dateTime64 :: DateTime64 3 "UTC"
+  , dateTime64Nullable :: Nullable (DateTime64 3 "UTC")
   , int128 :: Int128
   , int128Nullable :: Nullable Int128
   , int16 :: Int16
@@ -133,8 +133,8 @@ testData :: TestData
 testData = MkTestData
   { dateTime = toChType (0 :: Word32)
   , dateTimeNullable = Just 42
---  , dateTime64 = 42
---  , dateTime64Nullable = Just 42
+  , dateTime64 = 42
+  , dateTime64Nullable = Just 42
   , int128 = toChType (-128 :: Int128)
   , int128Nullable = toChType $ Just (-128 :: Int128)
   , int16 = toChType (-16 :: Int16)

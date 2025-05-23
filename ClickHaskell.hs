@@ -43,7 +43,7 @@ module ClickHaskell
 
   {- * ClickHouse types -}
   , IsChType(chTypeName, defaultValueOfTypeName)
-  , DateTime(..) -- , DateTime64
+  , DateTime(..), DateTime64
   , Int8, Int16, Int32, Int64, Int128(..)
   , UInt8, UInt16, UInt32, UInt64, UInt128, Word128(..)
   , Nullable
@@ -1346,11 +1346,12 @@ instance ToQueryPart ChString where
     escapeQuery :: BS.ByteString -> Builder
     escapeQuery = byteString . BS8.concatMap (\case '\'' -> "\\\'"; '\\' -> "\\\\"; sym -> singleton sym;)
 
-instance ToQueryPart (DateTime64 precision tz)
-  where
-  toQueryPart chDateTime =
-    let time = BS8.pack . show . fromChType @_ @Word64 $ chDateTime
-    in byteString (BS8.replicate (12 - BS8.length time) '0' <> time)
+-- ToDo: Need to be fixed
+-- instance ToQueryPart (DateTime64 precision tz)
+--   where
+--   toQueryPart chDateTime =
+--     let time = BS8.pack . show . fromChType @_ @Word64 $ chDateTime
+--     in byteString (BS8.replicate (12 - BS8.length time) '0' <> time)
 
 instance ToQueryPart (DateTime tz)
   where
