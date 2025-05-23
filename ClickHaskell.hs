@@ -89,8 +89,8 @@ import Data.Bits (Bits (setBit, unsafeShiftL, unsafeShiftR, (.&.), (.|.)))
 import Data.ByteString as BS (ByteString, length, take)
 import Data.ByteString.Builder
 import Data.ByteString.Builder as BS (Builder, byteString)
-import Data.ByteString.Lazy as BSL (toStrict)
 import Data.ByteString.Char8 as BS8 (concatMap, length, pack, replicate, singleton)
+import Data.ByteString.Lazy as BSL (toStrict)
 import Data.Coerce (coerce)
 import Data.IORef (IORef, atomicModifyIORef, atomicWriteIORef, newIORef, readIORef)
 import Data.Int (Int16, Int32, Int64, Int8)
@@ -110,7 +110,6 @@ import Data.Word (Word16, Word32, Word64, Word8)
 import GHC.Generics (C1, D1, Generic (..), K1 (K1, unK1), M1 (M1, unM1), Meta (MetaSel), Rec0, S1, type (:*:) (..))
 import GHC.Stack (HasCallStack, callStack, prettyCallStack)
 import GHC.TypeLits (AppendSymbol, ErrorMessage (..), KnownNat, KnownSymbol, Nat, Symbol, TypeError, natVal, symbolVal)
-import GHC.TypeNats (Natural)
 import System.Environment (lookupEnv)
 import System.Timeout (timeout)
 
@@ -1548,11 +1547,7 @@ ClickHouse DateTime64 column type (paramtrized with timezone)
 >>> chTypeName @(DateTime64 3 "UTC")
 "DateTime64(3, 'UTC')"
 -}
-newtype
-  DateTime64
-    (precision :: Natural)
-    (tz :: Symbol)
-  = MkDateTime64 Word64
+newtype DateTime64 (precision :: Nat) (tz :: Symbol) = MkDateTime64 Word64
   deriving newtype (Show, Eq, Num, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
 
 instance
