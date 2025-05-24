@@ -15,21 +15,22 @@
 module Main (main) where
 
 import ClickHaskell
-import Control.Concurrent.STM (atomically, flushTBQueue, newTBQueueIO, writeTBQueue, TBQueue)
+import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async (Concurrently (..))
+import Control.Concurrent.STM (TBQueue, atomically, flushTBQueue, newTBQueueIO, writeTBQueue)
 import Control.Exception (SomeException, bracketOnError, catch, finally)
 import Control.Monad (forever, void)
 import Data.ByteString as BS (ByteString, length)
 import Data.IORef (IORef, atomicModifyIORef, atomicWriteIORef, newIORef, readIORef)
 import Data.Text as T (pack)
+import Data.Time (UTCTime, getCurrentTime)
 import GHC.Generics (Generic)
-import GHC.RTS.Events (Event (..), Header, EventInfo (..))
+import GHC.RTS.Events (Event (..), EventInfo (..), Header)
 import GHC.RTS.Events.Incremental (Decoder (..), decodeEvents, decodeHeader)
 import Network.Socket
 import Network.Socket.ByteString (recv)
 import System.Environment (lookupEnv)
 import System.Timeout (timeout)
-import Control.Concurrent (threadDelay)
 
 main :: IO ()
 main = do
@@ -39,10 +40,11 @@ main = do
     Just socketPath -> do
       conn <- initChConnection
       queue <- newTBQueueIO @EventRep 1_000_000
+      time <- getCurrentTime
       runConcurrently
         $ pure ()
         *> runClickHouseWriter conn queue
-        *> chEventlogWrite socketPath (atomically . writeTBQueue queue . eventToRep)
+        *> chEventlogWrite socketPath (atomically . writeTBQueue queue . eventToRep time)
 
 
 -- * Network
@@ -140,8 +142,9 @@ initChConnection = do
   pure conn
 
 data EventRep = MkEventRep
-  { time      :: UInt32
-  , eventType :: ByteString
+  { startTime :: UTCTime
+  , evTime :: UInt64
+  , evType :: ByteString
   }
   deriving (Generic, ClickHaskell EventLogColumns)
 
@@ -150,28 +153,30 @@ write = insertInto @EventLogTable @EventRep
 
 type EventLogTable = Table "haskell_eventlog" EventLogColumns
 type EventLogColumns =
- '[ Column "time"      (DateTime "")
-  , Column "eventType" (ChString)
+ '[ Column "startTime" (DateTime "")
+  , Column "evTime"    (DateTime64 9 "")
+  , Column "evType"    (ChString)
   ]
 
 createEventLogTable :: Connection -> IO ()
 createEventLogTable conn = command conn
     "CREATE TABLE IF NOT EXISTS haskell_eventlog \
     \( \
-    \    `time` DateTime, \
-    \    `eventType` LowCardinality(String) \
+    \    `startTime` DateTime, \
+    \    `evTime` DateTime64(9), \
+    \    `evType` LowCardinality(String) \
     \) \
     \ENGINE = MergeTree \
-    \PARTITION BY eventType \
-    \ORDER BY eventType \
+    \PARTITION BY evType \
+    \ORDER BY evType \
     \SETTINGS index_granularity = 8192;"
 
 
-eventToRep :: Event -> EventRep
-eventToRep Event{evTime, evSpec} =
-  let mkEvent = \evType -> MkEventRep{time = fromIntegral evTime, eventType=evType} in
+eventToRep :: UTCTime -> Event -> EventRep
+eventToRep startTime Event{evTime, evSpec} =
+  let mkEvent = \evType -> MkEventRep{..} in
   case evSpec of
-    EventBlock{}                -> mkEvent "EventBlock"
+    EventBlock{}                -> let evType = "EventBlock" in MkEventRep{..}
     UnknownEvent{}              -> mkEvent "UnknownEvent"
     Startup{}                   -> mkEvent "Startup"
     Shutdown{}                  -> mkEvent "Shutdown"
