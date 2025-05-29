@@ -173,114 +173,112 @@ createEventLogTable conn = command conn
 
 
 eventToRep :: UTCTime -> Event -> EventRep
-eventToRep startTime Event{evTime, evSpec} =
-  let mkEvent = \evType -> MkEventRep{..} in
-  case evSpec of
-    EventBlock{}                -> let evType = "EventBlock" in MkEventRep{..}
-    UnknownEvent{}              -> mkEvent "UnknownEvent"
-    Startup{}                   -> mkEvent "Startup"
-    Shutdown{}                  -> mkEvent "Shutdown"
-    CreateThread{}              -> mkEvent "CreateThread"
-    RunThread{}                 -> mkEvent "RunThread"
-    StopThread{}                -> mkEvent "StopThread"
-    ThreadRunnable{}            -> mkEvent "ThreadRunnable"
-    MigrateThread{}             -> mkEvent "MigrateThread"
-    WakeupThread{}              -> mkEvent "WakeupThread"
-    ThreadLabel{}               -> mkEvent "ThreadLabel"
-    CreateSparkThread{}         -> mkEvent "CreateSparkThread"
-    SparkCounters{}             -> mkEvent "SparkCounters"
-    SparkCreate{}               -> mkEvent "SparkCreate"
-    SparkDud{}                  -> mkEvent "SparkDud"
-    SparkOverflow{}             -> mkEvent "SparkOverflow"
-    SparkRun{}                  -> mkEvent "SparkRun"
-    SparkSteal{}                -> mkEvent "SparkSteal"
-    SparkFizzle{}               -> mkEvent "SparkFizzle"
-    SparkGC{}                   -> mkEvent "SparkGC"
-    TaskCreate{}                -> mkEvent "TaskCreate"
-    TaskMigrate{}               -> mkEvent "TaskMigrate"
-    TaskDelete{}                -> mkEvent "TaskDelete"
-    RequestSeqGC{}              -> mkEvent "RequestSeqGC"
-    RequestParGC{}              -> mkEvent "RequestParGC"
-    StartGC{}                   -> mkEvent "StartGC"
-    GCWork{}                    -> mkEvent "GCWork"
-    GCIdle{}                    -> mkEvent "GCIdle"
-    GCDone{}                    -> mkEvent "GCDone"
-    EndGC{}                     -> mkEvent "EndGC"
-    GlobalSyncGC{}              -> mkEvent "GlobalSyncGC"
-    GCStatsGHC{}                -> mkEvent "GCStatsGHC"
-    MemReturn{}                 -> mkEvent "MemReturn"
-    HeapAllocated{}             -> mkEvent "HeapAllocated"
-    HeapSize{}                  -> mkEvent "HeapSize"
-    BlocksSize{}                -> mkEvent "BlocksSize"
-    HeapLive{}                  -> mkEvent "HeapLive"
-    HeapInfoGHC{}               -> mkEvent "HeapInfoGHC"
-    CapCreate{}                 -> mkEvent "CapCreate"
-    CapDelete{}                 -> mkEvent "CapDelete"
-    CapDisable{}                -> mkEvent "CapDisable"
-    CapEnable{}                 -> mkEvent "CapEnable"
-    CapsetCreate{}              -> mkEvent "CapsetCreate"
-    CapsetDelete{}              -> mkEvent "CapsetDelete"
-    CapsetAssignCap{}           -> mkEvent "CapsetAssignCap"
-    CapsetRemoveCap{}           -> mkEvent "CapsetRemoveCap"
-    RtsIdentifier{}             -> mkEvent "RtsIdentifier"
-    ProgramArgs{}               -> mkEvent "ProgramArgs"
-    ProgramEnv{}                -> mkEvent "ProgramEnv"
-    OsProcessPid{}              -> mkEvent "OsProcessPid"
-    OsProcessParentPid{}        -> mkEvent "OsProcessParentPid"
-    WallClockTime{}             -> mkEvent "WallClockTime"
-    Message{}                   -> mkEvent "Message"
-    UserMessage{}               -> mkEvent "UserMessage"
-    UserMarker{}                -> mkEvent "UserMarker"
-    Version{}                   -> mkEvent "Version"
-    ProgramInvocation{}         -> mkEvent "ProgramInvocation"
-    CreateMachine{}             -> mkEvent "CreateMachine"
-    KillMachine{}               -> mkEvent "KillMachine"
-    CreateProcess{}             -> mkEvent "CreateProcess"
-    KillProcess{}               -> mkEvent "KillProcess"
-    AssignThreadToProcess{}     -> mkEvent "AssignThreadToProcess"
-    EdenStartReceive{}          -> mkEvent "EdenStartReceive"
-    EdenEndReceive{}            -> mkEvent "EdenEndReceive"
-    SendMessage{}               -> mkEvent "SendMessage"
-    ReceiveMessage{}            -> mkEvent "ReceiveMessage"
-    SendReceiveLocalMessage{}   -> mkEvent "SendReceiveLocalMessage"
-    InternString{}              -> mkEvent "InternString"
-    MerStartParConjunction{}    -> mkEvent "MerStartParConjunction"
-    MerEndParConjunction{}      -> mkEvent "MerEndParConjunction"
-    MerEndParConjunct{}         -> mkEvent "MerEndParConjunct"
-    MerCreateSpark{}            -> mkEvent "MerCreateSpark"
-    MerFutureCreate{}           -> mkEvent "MerFutureCreate"
-    MerFutureWaitNosuspend{}    -> mkEvent "MerFutureWaitNosuspend"
-    MerFutureWaitSuspended{}    -> mkEvent "MerFutureWaitSuspended"
-    MerFutureSignal{}           -> mkEvent "MerFutureSignal"
-    MerLookingForGlobalThread{} -> mkEvent "MerLookingForGlobalThread"
-    MerWorkStealing{}           -> mkEvent "MerWorkStealing"
-    MerLookingForLocalSpark{}   -> mkEvent "MerLookingForLocalSpark"
-    MerReleaseThread{}          -> mkEvent "MerReleaseThread"
-    MerCapSleeping{}            -> mkEvent "MerCapSleeping"
-    MerCallingMain{}            -> mkEvent "MerCallingMain"
-    PerfName{}                  -> mkEvent "PerfName"
-    PerfCounter{}               -> mkEvent "PerfCounter"
-    PerfTracepoint{}            -> mkEvent "PerfTracepoint"
-    HeapProfBegin{}             -> mkEvent "HeapProfBegin"
-    HeapProfCostCentre{}        -> mkEvent "HeapProfCostCentre"
-    InfoTableProv{}             -> mkEvent "InfoTableProv"
-    HeapProfSampleBegin{}       -> mkEvent "HeapProfSampleBegin"
-    HeapProfSampleEnd{}         -> mkEvent "HeapProfSampleEnd"
-    HeapBioProfSampleBegin{}    -> mkEvent "HeapBioProfSampleBegin"
-    HeapProfSampleCostCentre{}  -> mkEvent "HeapProfSampleCostCentre"
-    HeapProfSampleString{}      -> mkEvent "HeapProfSampleString"
-    ProfSampleCostCentre{}      -> mkEvent "ProfSampleCostCentre"
-    ProfBegin{}                 -> mkEvent "ProfBegin"
-    UserBinaryMessage{}         -> mkEvent "UserBinaryMessage"
-    ConcMarkBegin{}             -> mkEvent "ConcMarkBegin"
-    ConcMarkEnd{}               -> mkEvent "ConcMarkEnd"
-    ConcSyncBegin{}             -> mkEvent "ConcSyncBegin"
-    ConcSyncEnd{}               -> mkEvent "ConcSyncEnd"
-    ConcSweepBegin{}            -> mkEvent "ConcSweepBegin"
-    ConcSweepEnd{}              -> mkEvent "ConcSweepEnd"
-    ConcUpdRemSetFlush{}        -> mkEvent "ConcUpdRemSetFlush"
-    NonmovingHeapCensus{}       -> mkEvent "NonmovingHeapCensus"
-    NonmovingPrunedSegments{}   -> mkEvent "NonmovingPrunedSegments"
-    TickyCounterDef{}           -> mkEvent "TickyCounterDef"
-    TickyCounterSample{}        -> mkEvent "TickyCounterSample"
-    TickyBeginSample{}          -> mkEvent "TickyBeginSample"
+eventToRep startTime Event{evTime, evSpec} = case evSpec of
+  EventBlock{}                -> let evType = "EventBlock" in MkEventRep{..}
+  UnknownEvent{}              -> let evType = "UnknownEvent" in MkEventRep{..}
+  Startup{}                   -> let evType = "Startup" in MkEventRep{..}
+  Shutdown{}                  -> let evType = "Shutdown" in MkEventRep{..}
+  CreateThread{}              -> let evType = "CreateThread" in MkEventRep{..}
+  RunThread{}                 -> let evType = "RunThread" in MkEventRep{..}
+  StopThread{}                -> let evType = "StopThread" in MkEventRep{..}
+  ThreadRunnable{}            -> let evType = "ThreadRunnable" in MkEventRep{..}
+  MigrateThread{}             -> let evType = "MigrateThread" in MkEventRep{..}
+  WakeupThread{}              -> let evType = "WakeupThread" in MkEventRep{..}
+  ThreadLabel{}               -> let evType = "ThreadLabel" in MkEventRep{..}
+  CreateSparkThread{}         -> let evType = "CreateSparkThread" in MkEventRep{..}
+  SparkCounters{}             -> let evType = "SparkCounters" in MkEventRep{..}
+  SparkCreate{}               -> let evType = "SparkCreate" in MkEventRep{..}
+  SparkDud{}                  -> let evType = "SparkDud" in MkEventRep{..}
+  SparkOverflow{}             -> let evType = "SparkOverflow" in MkEventRep{..}
+  SparkRun{}                  -> let evType = "SparkRun" in MkEventRep{..}
+  SparkSteal{}                -> let evType = "SparkSteal" in MkEventRep{..}
+  SparkFizzle{}               -> let evType = "SparkFizzle" in MkEventRep{..}
+  SparkGC{}                   -> let evType = "SparkGC" in MkEventRep{..}
+  TaskCreate{}                -> let evType = "TaskCreate" in MkEventRep{..}
+  TaskMigrate{}               -> let evType = "TaskMigrate" in MkEventRep{..}
+  TaskDelete{}                -> let evType = "TaskDelete" in MkEventRep{..}
+  RequestSeqGC{}              -> let evType = "RequestSeqGC" in MkEventRep{..}
+  RequestParGC{}              -> let evType = "RequestParGC" in MkEventRep{..}
+  StartGC{}                   -> let evType = "StartGC" in MkEventRep{..}
+  GCWork{}                    -> let evType = "GCWork" in MkEventRep{..}
+  GCIdle{}                    -> let evType = "GCIdle" in MkEventRep{..}
+  GCDone{}                    -> let evType = "GCDone" in MkEventRep{..}
+  EndGC{}                     -> let evType = "EndGC" in MkEventRep{..}
+  GlobalSyncGC{}              -> let evType = "GlobalSyncGC" in MkEventRep{..}
+  GCStatsGHC{}                -> let evType = "GCStatsGHC" in MkEventRep{..}
+  MemReturn{}                 -> let evType = "MemReturn" in MkEventRep{..}
+  HeapAllocated{}             -> let evType = "HeapAllocated" in MkEventRep{..}
+  HeapSize{}                  -> let evType = "HeapSize" in MkEventRep{..}
+  BlocksSize{}                -> let evType = "BlocksSize" in MkEventRep{..}
+  HeapLive{}                  -> let evType = "HeapLive" in MkEventRep{..}
+  HeapInfoGHC{}               -> let evType = "HeapInfoGHC" in MkEventRep{..}
+  CapCreate{}                 -> let evType = "CapCreate" in MkEventRep{..}
+  CapDelete{}                 -> let evType = "CapDelete" in MkEventRep{..}
+  CapDisable{}                -> let evType = "CapDisable" in MkEventRep{..}
+  CapEnable{}                 -> let evType = "CapEnable" in MkEventRep{..}
+  CapsetCreate{}              -> let evType = "CapsetCreate" in MkEventRep{..}
+  CapsetDelete{}              -> let evType = "CapsetDelete" in MkEventRep{..}
+  CapsetAssignCap{}           -> let evType = "CapsetAssignCap" in MkEventRep{..}
+  CapsetRemoveCap{}           -> let evType = "CapsetRemoveCap" in MkEventRep{..}
+  RtsIdentifier{}             -> let evType = "RtsIdentifier" in MkEventRep{..}
+  ProgramArgs{}               -> let evType = "ProgramArgs" in MkEventRep{..}
+  ProgramEnv{}                -> let evType = "ProgramEnv" in MkEventRep{..}
+  OsProcessPid{}              -> let evType = "OsProcessPid" in MkEventRep{..}
+  OsProcessParentPid{}        -> let evType = "OsProcessParentPid" in MkEventRep{..}
+  WallClockTime{}             -> let evType = "WallClockTime" in MkEventRep{..}
+  Message{}                   -> let evType = "Message" in MkEventRep{..}
+  UserMessage{}               -> let evType = "UserMessage" in MkEventRep{..}
+  UserMarker{}                -> let evType = "UserMarker" in MkEventRep{..}
+  Version{}                   -> let evType = "Version" in MkEventRep{..}
+  ProgramInvocation{}         -> let evType = "ProgramInvocation" in MkEventRep{..}
+  CreateMachine{}             -> let evType = "CreateMachine" in MkEventRep{..}
+  KillMachine{}               -> let evType = "KillMachine" in MkEventRep{..}
+  CreateProcess{}             -> let evType = "CreateProcess" in MkEventRep{..}
+  KillProcess{}               -> let evType = "KillProcess" in MkEventRep{..}
+  AssignThreadToProcess{}     -> let evType = "AssignThreadToProcess" in MkEventRep{..}
+  EdenStartReceive{}          -> let evType = "EdenStartReceive" in MkEventRep{..}
+  EdenEndReceive{}            -> let evType = "EdenEndReceive" in MkEventRep{..}
+  SendMessage{}               -> let evType = "SendMessage" in MkEventRep{..}
+  ReceiveMessage{}            -> let evType = "ReceiveMessage" in MkEventRep{..}
+  SendReceiveLocalMessage{}   -> let evType = "SendReceiveLocalMessage" in MkEventRep{..}
+  InternString{}              -> let evType = "InternString" in MkEventRep{..}
+  MerStartParConjunction{}    -> let evType = "MerStartParConjunction" in MkEventRep{..}
+  MerEndParConjunction{}      -> let evType = "MerEndParConjunction" in MkEventRep{..}
+  MerEndParConjunct{}         -> let evType = "MerEndParConjunct" in MkEventRep{..}
+  MerCreateSpark{}            -> let evType = "MerCreateSpark" in MkEventRep{..}
+  MerFutureCreate{}           -> let evType = "MerFutureCreate" in MkEventRep{..}
+  MerFutureWaitNosuspend{}    -> let evType = "MerFutureWaitNosuspend" in MkEventRep{..}
+  MerFutureWaitSuspended{}    -> let evType = "MerFutureWaitSuspended" in MkEventRep{..}
+  MerFutureSignal{}           -> let evType = "MerFutureSignal" in MkEventRep{..}
+  MerLookingForGlobalThread{} -> let evType = "MerLookingForGlobalThread" in MkEventRep{..}
+  MerWorkStealing{}           -> let evType = "MerWorkStealing" in MkEventRep{..}
+  MerLookingForLocalSpark{}   -> let evType = "MerLookingForLocalSpark" in MkEventRep{..}
+  MerReleaseThread{}          -> let evType = "MerReleaseThread" in MkEventRep{..}
+  MerCapSleeping{}            -> let evType = "MerCapSleeping" in MkEventRep{..}
+  MerCallingMain{}            -> let evType = "MerCallingMain" in MkEventRep{..}
+  PerfName{}                  -> let evType = "PerfName" in MkEventRep{..}
+  PerfCounter{}               -> let evType = "PerfCounter" in MkEventRep{..}
+  PerfTracepoint{}            -> let evType = "PerfTracepoint" in MkEventRep{..}
+  HeapProfBegin{}             -> let evType = "HeapProfBegin" in MkEventRep{..}
+  HeapProfCostCentre{}        -> let evType = "HeapProfCostCentre" in MkEventRep{..}
+  InfoTableProv{}             -> let evType = "InfoTableProv" in MkEventRep{..}
+  HeapProfSampleBegin{}       -> let evType = "HeapProfSampleBegin" in MkEventRep{..}
+  HeapProfSampleEnd{}         -> let evType = "HeapProfSampleEnd" in MkEventRep{..}
+  HeapBioProfSampleBegin{}    -> let evType = "HeapBioProfSampleBegin" in MkEventRep{..}
+  HeapProfSampleCostCentre{}  -> let evType = "HeapProfSampleCostCentre" in MkEventRep{..}
+  HeapProfSampleString{}      -> let evType = "HeapProfSampleString" in MkEventRep{..}
+  ProfSampleCostCentre{}      -> let evType = "ProfSampleCostCentre" in MkEventRep{..}
+  ProfBegin{}                 -> let evType = "ProfBegin" in MkEventRep{..}
+  UserBinaryMessage{}         -> let evType = "UserBinaryMessage" in MkEventRep{..}
+  ConcMarkBegin{}             -> let evType = "ConcMarkBegin" in MkEventRep{..}
+  ConcMarkEnd{}               -> let evType = "ConcMarkEnd" in MkEventRep{..}
+  ConcSyncBegin{}             -> let evType = "ConcSyncBegin" in MkEventRep{..}
+  ConcSyncEnd{}               -> let evType = "ConcSyncEnd" in MkEventRep{..}
+  ConcSweepBegin{}            -> let evType = "ConcSweepBegin" in MkEventRep{..}
+  ConcSweepEnd{}              -> let evType = "ConcSweepEnd" in MkEventRep{..}
+  ConcUpdRemSetFlush{}        -> let evType = "ConcUpdRemSetFlush" in MkEventRep{..}
+  NonmovingHeapCensus{}       -> let evType = "NonmovingHeapCensus" in MkEventRep{..}
+  NonmovingPrunedSegments{}   -> let evType = "NonmovingPrunedSegments" in MkEventRep{..}
+  TickyCounterDef{}           -> let evType = "TickyCounterDef" in MkEventRep{..}
+  TickyCounterSample{}        -> let evType = "TickyCounterSample" in MkEventRep{..}
+  TickyBeginSample{}          -> let evType = "TickyBeginSample" in MkEventRep{..}
