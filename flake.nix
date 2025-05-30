@@ -17,6 +17,7 @@
       ];
       perSystem = {self', pkgs, config, lib, ...}:
       let
+        mapMergeAttrsList = f: x: lib.mergeAttrsList (map f x);
         supportedGHCs = ["ghc8107" "ghc902" "ghc928" "ghc948" "ghc966" "ghc984" "ghc9101" "ghc9122"];
       in
       {
@@ -29,9 +30,8 @@
           };
         }
         //
-        lib.mergeAttrsList (
-          map (
-            {ghc, app}: {
+        mapMergeAttrsList
+          ({ghc, app}: {
               "test-${ghc}-${app}" = import ./contribution/testing.nix {
                 inherit pkgs inputs;
                 app = self'.apps."${ghc}-${app}";
@@ -41,26 +41,22 @@
           (lib.cartesianProduct {
             ghc = supportedGHCs; 
             app = ["prof-1bil-stream" "prof-simple" "tests"];
-          })
-        );
-        # ClickHaskell project itself with Haskell env
-        haskellProjects = lib.mergeAttrsList (
-          map
+          });
+        haskellProjects =
+          mapMergeAttrsList
             (ghc: {"${ghc}" = import ./contribution/project.nix {inherit pkgs ghc;};})
-            supportedGHCs
-        );
+            supportedGHCs;
         devShells =
-          lib.mergeAttrsList (
-            map
-              (ghc: {"dev-${ghc}" = pkgs.mkShell {
-                inputsFrom = [];
-                packages = with pkgs; with haskellPackages; with (self'.packages);
-                  [ clickhouse nil eventlog2html graphmod
-                    self'.packages."${ghc}-html2hs" haskell.compiler."${ghc}" cabal-install
-                  ];
-              };})
-              supportedGHCs
-          )
+          mapMergeAttrsList
+            (ghc: {"dev-${ghc}" = pkgs.mkShell {
+              inputsFrom = [];
+              packages = with pkgs; with haskellPackages; with (self'.packages);
+                [ clickhouse nil eventlog2html graphmod
+                  self'.packages."${ghc}-html2hs" haskell.compiler."${ghc}" cabal-install
+                ];
+              };
+            })
+            supportedGHCs
           //
           {
             default = pkgs.mkShell {
