@@ -1,8 +1,0 @@
-<config>
-  <secure>true</secure>
-  <openSSL>
-    <client>
-      <caConfig>./contribution/certs/localhost.crt</caConfig>
-    </client>
-  </openSSL>
-</config>
