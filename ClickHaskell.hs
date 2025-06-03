@@ -96,7 +96,7 @@ import Data.IORef (IORef, atomicModifyIORef, atomicWriteIORef, newIORef, readIOR
 import Data.Int (Int16, Int32, Int64, Int8)
 import Data.Kind (Constraint, Type)
 import Data.List (uncons)
-import Data.Maybe (listToMaybe)
+import Data.Maybe (listToMaybe, fromMaybe)
 import Data.String (IsString (..))
 import Data.Text (Text)
 import Data.Text.Encoding as Text (encodeUtf8)
@@ -127,7 +127,7 @@ data ConnectionArgs = MkConnectionArgs
   , pass :: Text
   , db   :: Text
   , host :: HostName
-  , port :: ServiceName
+  , mPort :: Maybe ServiceName
   }
 
 defaultConnectionArgs :: ConnectionArgs
@@ -136,7 +136,7 @@ defaultConnectionArgs = MkConnectionArgs
   , pass = ""
   , host = "localhost"
   , db   = "default"
-  , port = "9000"
+  , mPort = Nothing
   }
 
 setUser :: Text -> ConnectionArgs -> ConnectionArgs
@@ -149,7 +149,7 @@ setHost :: HostName -> ConnectionArgs -> ConnectionArgs
 setHost new MkConnectionArgs{..} = MkConnectionArgs{host=new, ..}
 
 setPort :: ServiceName -> ConnectionArgs -> ConnectionArgs
-setPort new MkConnectionArgs{..} = MkConnectionArgs{port=new, ..} 
+setPort new MkConnectionArgs{..} = MkConnectionArgs{mPort=Just new, ..} 
 
 setDatabase :: Text -> ConnectionArgs -> ConnectionArgs
 setDatabase new MkConnectionArgs{..} = MkConnectionArgs{db=new, ..}
@@ -187,13 +187,14 @@ openConnection :: HasCallStack => ConnectionArgs -> IO Connection
 openConnection creds = fmap MkConnection . newMVar =<< createConnectionState creds
 
 reopenConnection :: ConnectionState -> IO ConnectionState
-reopenConnection MkConnectionState{creds, buffer=buffer@MkBuffer{sock}} = do
+reopenConnection MkConnectionState{creds, buffer} = do
   flushBuffer buffer
-  close sock
+  closeConnection buffer
   createConnectionState creds
 
 createConnectionState :: ConnectionArgs -> IO ConnectionState
-createConnectionState creds@MkConnectionArgs{host, port, user, pass, db} = do
+createConnectionState creds@MkConnectionArgs{host, mPort, user, pass, db} = do
+  let port = fromMaybe "9000" mPort
   hostname <- maybe "" toChType <$> lookupEnv "HOSTNAME"
   os_user <- maybe "" toChType <$> lookupEnv "USER"
   AddrInfo{addrFamily, addrSocketType, addrProtocol, addrAddress}
@@ -429,26 +430,29 @@ data Buffer = MkBuffer
 initBuffer :: Int -> Socket -> IO Buffer
 initBuffer size sock = MkBuffer size sock <$> newIORef ""
 
+closeConnection :: Buffer -> IO ()
+closeConnection MkBuffer{sock} = close sock
+
 flushBuffer :: Buffer -> IO ()
 flushBuffer MkBuffer{buff} = atomicWriteIORef buff ""
 
-readBuffer ::  Buffer -> IO BS.ByteString
-readBuffer buffer@MkBuffer{..} =
-  readIORef buff
-    >>= (\currentBuffer ->
-      case BS.length currentBuffer of
-        0 -> recv sock bufferSize
-        _ -> flushBuffer buffer *> pure currentBuffer
-    )
-
 rawBufferizedRead :: Buffer -> Get packet -> IO packet
-rawBufferizedRead buffer parser = runBufferReader buffer (runGetIncremental parser)
+rawBufferizedRead buffer@MkBuffer{..} parser = runBufferReader (runGetIncremental parser)
+  where
+  runBufferReader :: Decoder packet -> IO packet
+  runBufferReader = \case
+    (Partial decoder) -> readBuffer >>= runBufferReader . decoder . Just
+    (Done leftover _consumed packet) -> packet <$ atomicModifyIORef buff (leftover,)
+    (Fail _leftover _consumed msg) -> throwIO (InternalError $ DeserializationError msg)
 
-runBufferReader :: Buffer -> Decoder packet -> IO packet
-runBufferReader buffer@MkBuffer{..} = \case
-  (Partial decoder) -> readBuffer buffer >>= runBufferReader buffer . decoder . Just
-  (Done leftover _consumed packet) -> packet <$ atomicModifyIORef buff (leftover,)
-  (Fail _leftover _consumed msg) -> throwIO (InternalError $ DeserializationError msg)
+  readBuffer :: IO BS.ByteString
+  readBuffer =
+    readIORef buff
+      >>= (\currentBuffer ->
+        case BS.length currentBuffer of
+          0 -> recv sock bufferSize
+          _ -> flushBuffer buffer *> pure currentBuffer
+      )
 
 
 
