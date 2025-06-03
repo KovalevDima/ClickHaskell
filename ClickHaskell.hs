@@ -90,7 +90,7 @@ import Data.ByteString as BS (ByteString, length, take)
 import Data.ByteString.Builder
 import Data.ByteString.Builder as BS (Builder, byteString)
 import Data.ByteString.Char8 as BS8 (concatMap, length, pack, replicate, singleton)
-import Data.ByteString.Lazy as BSL (toStrict)
+import Data.ByteString.Lazy as BSL (toStrict, ByteString)
 import Data.Coerce (coerce)
 import Data.IORef (IORef, atomicModifyIORef, atomicWriteIORef, newIORef, readIORef)
 import Data.Int (Int16, Int32, Int64, Int8)
@@ -128,6 +128,9 @@ data ConnectionArgs = MkConnectionArgs
   , db   :: Text
   , host :: HostName
   , mPort :: Maybe ServiceName
+  , sockWrite :: Socket -> BSL.ByteString -> IO ()
+  , sockRead :: Socket -> IO BS.ByteString
+  , sockConn :: SockAddr -> Socket -> IO Socket
   }
 
 defaultConnectionArgs :: ConnectionArgs
@@ -137,6 +140,13 @@ defaultConnectionArgs = MkConnectionArgs
   , host = "localhost"
   , db   = "default"
   , mPort = Nothing
+  , sockWrite = \sock -> (\bs -> sendAll sock bs)
+  , sockRead  = \sock -> (recv sock 4096)
+  , sockConn  = \addrAddress sock -> do
+      setSocketOption sock Sock.NoDelay 1
+      setSocketOption sock Sock.KeepAlive 1
+      connect sock addrAddress
+      pure sock
   }
 
 setUser :: Text -> ConnectionArgs -> ConnectionArgs
@@ -176,12 +186,12 @@ data ConnectionState = MkConnectionState
   }
 
 writeToConnection :: Serializable packet => ConnectionState -> packet -> IO ()
-writeToConnection MkConnectionState{revision, buffer=MkBuffer{sock}} packet =
-  (sendAll sock . toLazyByteString . serialize revision) packet
+writeToConnection MkConnectionState{revision, buffer} packet =
+  (writeSock buffer . toLazyByteString . serialize revision) packet
 
 writeToConnectionEncode :: ConnectionState -> (ProtocolRevision -> Builder) -> IO ()
-writeToConnectionEncode MkConnectionState{revision, buffer=MkBuffer{sock}} serializer =
-  (sendAll sock . toLazyByteString) (serializer revision)
+writeToConnectionEncode MkConnectionState{revision, buffer} serializer =
+  (writeSock buffer . toLazyByteString) (serializer revision)
 
 openConnection :: HasCallStack => ConnectionArgs -> IO Connection
 openConnection creds = fmap MkConnection . newMVar =<< createConnectionState creds
@@ -189,11 +199,11 @@ openConnection creds = fmap MkConnection . newMVar =<< createConnectionState cre
 reopenConnection :: ConnectionState -> IO ConnectionState
 reopenConnection MkConnectionState{creds, buffer} = do
   flushBuffer buffer
-  closeConnection buffer
+  closeSock buffer
   createConnectionState creds
 
 createConnectionState :: ConnectionArgs -> IO ConnectionState
-createConnectionState creds@MkConnectionArgs{host, mPort, user, pass, db} = do
+createConnectionState creds@MkConnectionArgs {user, pass, db, host, mPort, sockWrite, sockRead, sockConn} = do
   let port = fromMaybe "9000" mPort
   hostname <- maybe "" toChType <$> lookupEnv "HOSTNAME"
   os_user <- maybe "" toChType <$> lookupEnv "USER"
@@ -212,18 +222,21 @@ createConnectionState creds@MkConnectionArgs{host, mPort, user, pass, db} = do
             (finally (shutdown sock ShutdownBoth) (close sock))
             (const $ pure ())
         )
-        (\sock -> do
-           setSocketOption sock Sock.NoDelay 1
-           setSocketOption sock Sock.KeepAlive 1
-           connect sock addrAddress
-           pure sock
-        )
+        (\sock -> sockConn addrAddress sock)
       )
 
-  (sendAll sock . toLazyByteString . serialize latestSupportedRevision)
+  (sockWrite sock . toLazyByteString . serialize latestSupportedRevision)
     (mkHelloPacket db user pass)
 
-  buffer <- initBuffer 4096 sock
+  buff <- newIORef ""
+  let
+    buffer =
+      MkBuffer
+        { writeSock = sockWrite sock
+        , readSock  = sockRead sock
+        , closeSock = close sock
+        , buff
+        }
   serverPacketType <- rawBufferizedRead buffer (deserialize latestSupportedRevision)
   case serverPacketType of
     HelloResponse MkHelloResponse{server_revision} -> do
@@ -422,16 +435,11 @@ handleInsertResult conn@MkConnectionState{..} records = do
 -- * Bufferization
 
 data Buffer = MkBuffer
-  { bufferSize :: Int
-  , sock :: Socket
+  { readSock :: IO BS.ByteString
+  , writeSock :: BSL.ByteString -> IO ()
+  , closeSock :: IO ()
   , buff :: IORef BS.ByteString
   }
-
-initBuffer :: Int -> Socket -> IO Buffer
-initBuffer size sock = MkBuffer size sock <$> newIORef ""
-
-closeConnection :: Buffer -> IO ()
-closeConnection MkBuffer{sock} = close sock
 
 flushBuffer :: Buffer -> IO ()
 flushBuffer MkBuffer{buff} = atomicWriteIORef buff ""
@@ -450,7 +458,7 @@ rawBufferizedRead buffer@MkBuffer{..} parser = runBufferReader (runGetIncrementa
     readIORef buff
       >>= (\currentBuffer ->
         case BS.length currentBuffer of
-          0 -> recv sock bufferSize
+          0 -> readSock
           _ -> flushBuffer buffer *> pure currentBuffer
       )
 
