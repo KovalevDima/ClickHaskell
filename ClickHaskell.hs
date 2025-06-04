@@ -128,9 +128,7 @@ data ConnectionArgs = MkConnectionArgs
   , db   :: Text
   , host :: HostName
   , mPort :: Maybe ServiceName
-  , sockWrite :: Socket -> BSL.ByteString -> IO ()
-  , sockRead :: Socket -> IO BS.ByteString
-  , sockConn :: SockAddr -> Socket -> IO Socket
+  , initBuffer :: SockAddr -> Socket -> IO Buffer
   }
 
 defaultConnectionArgs :: ConnectionArgs
@@ -140,13 +138,18 @@ defaultConnectionArgs = MkConnectionArgs
   , host = "localhost"
   , db   = "default"
   , mPort = Nothing
-  , sockWrite = \sock -> (\bs -> sendAll sock bs)
-  , sockRead  = \sock -> (recv sock 4096)
-  , sockConn  = \addrAddress sock -> do
+  , initBuffer  = \addrAddress sock -> do
       setSocketOption sock Sock.NoDelay 1
       setSocketOption sock Sock.KeepAlive 1
       connect sock addrAddress
-      pure sock
+      buff <- newIORef ""
+      pure
+        MkBuffer
+          { writeSock = \bs -> sendAll sock bs
+          , readSock  = recv sock 4096
+          , closeSock = close sock
+          , buff
+          }
   }
 
 setUser :: Text -> ConnectionArgs -> ConnectionArgs
@@ -203,7 +206,7 @@ reopenConnection MkConnectionState{creds, buffer} = do
   createConnectionState creds
 
 createConnectionState :: ConnectionArgs -> IO ConnectionState
-createConnectionState creds@MkConnectionArgs {user, pass, db, host, mPort, sockWrite, sockRead, sockConn} = do
+createConnectionState creds@MkConnectionArgs {user, pass, db, host, mPort, initBuffer} = do
   let port = fromMaybe "9000" mPort
   hostname <- maybe "" toChType <$> lookupEnv "HOSTNAME"
   os_user <- maybe "" toChType <$> lookupEnv "USER"
@@ -213,7 +216,7 @@ createConnectionState creds@MkConnectionArgs {user, pass, db, host, mPort, sockW
       (Just defaultHints{addrFlags = [AI_ADDRCONFIG], addrSocketType = Stream})
       (Just host)
       (Just port)
-  sock <- maybe (throwIO EstablishTimeout) pure
+  buffer <- maybe (throwIO EstablishTimeout) pure
     =<< timeout 3_000_000 (
       bracketOnError
         (socket addrFamily addrSocketType addrProtocol)
@@ -222,21 +225,11 @@ createConnectionState creds@MkConnectionArgs {user, pass, db, host, mPort, sockW
             (finally (shutdown sock ShutdownBoth) (close sock))
             (const $ pure ())
         )
-        (\sock -> sockConn addrAddress sock)
+        (\sock -> initBuffer addrAddress sock)
       )
 
-  (sockWrite sock . toLazyByteString . serialize latestSupportedRevision)
+  (writeSock buffer . toLazyByteString . serialize latestSupportedRevision)
     (mkHelloPacket db user pass)
-
-  buff <- newIORef ""
-  let
-    buffer =
-      MkBuffer
-        { writeSock = sockWrite sock
-        , readSock  = sockRead sock
-        , closeSock = close sock
-        , buff
-        }
   serverPacketType <- rawBufferizedRead buffer (deserialize latestSupportedRevision)
   case serverPacketType of
     HelloResponse MkHelloResponse{server_revision} -> do
