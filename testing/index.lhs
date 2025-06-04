@@ -1,7 +1,8 @@
 <h2>Testing</h2>
 
 <pre><code data-lang="haskell" class="haskell"
->module Tests where
+>{-# LANGUAGE OverloadedStrings #-}
+module Tests where
 </code></pre>
 
 
@@ -48,11 +49,22 @@ You can manually run database and tests:
 <h2>Main function</h2>
 
 <pre><code data-lang="haskell" class="haskell"
->import ClickHaskell (openConnection, defaultConnectionArgs)
+>import ClickHaskell (openConnection, defaultConnectionArgs, overrideTLS)
+import Network.TLS (defaultParamsClient, ClientParams (..), Shared (..), ValidationCache (..), ValidationCacheResult (..))
+import Data.Default.Class 
 
 main :: IO ()
 main = do
-  connection <- openConnection defaultConnectionArgs
+  connection <- openConnection
+    . overrideTLS (defaultParamsClient "localhost" "9440")
+        { clientShared = def
+          { sharedValidationCache =
+              ValidationCache
+                (\_ _ _ -> return ValidationCachePass)
+                (\_ _ _ -> return ())
+          }
+        }
+    $ defaultConnectionArgs
   mapM_
     (\runner -> runner connection) 
     [t1,t2,t3,t4]

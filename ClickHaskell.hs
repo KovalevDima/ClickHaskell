@@ -20,6 +20,8 @@ module ClickHaskell
     ConnectionArgs, defaultConnectionArgs
   , setHost, setPort, setUser, setDatabase, setPassword
   , Connection(..), openConnection
+  {- ** TLS -}
+  , setSecure, overrideTLS
 
   {- * Errors -}
   , ClientError(..)
@@ -119,6 +121,7 @@ import Network.Socket hiding (SocketOption(..))
 import Network.Socket qualified as Sock (SocketOption(..))
 import Network.Socket.ByteString (recv)
 import Network.Socket.ByteString.Lazy (sendAll)
+import Network.TLS (ClientParams (..), contextNew, contextClose, sendData, recvData, defaultParamsClient, handshake)
 
 -- * Connection
 
@@ -128,7 +131,9 @@ data ConnectionArgs = MkConnectionArgs
   , db   :: Text
   , host :: HostName
   , mPort :: Maybe ServiceName
-  , initBuffer :: SockAddr -> Socket -> IO Buffer
+  , isTLS :: Bool
+  , overriddenTLS :: Maybe ClientParams
+  , initBuffer :: HostName -> SockAddr -> Socket -> IO Buffer
   }
 
 defaultConnectionArgs :: ConnectionArgs
@@ -137,8 +142,10 @@ defaultConnectionArgs = MkConnectionArgs
   , pass = ""
   , host = "localhost"
   , db   = "default"
+  , isTLS = False
   , mPort = Nothing
-  , initBuffer  = \addrAddress sock -> do
+  , overriddenTLS = Nothing
+  , initBuffer  = \_hostname addrAddress sock -> do
       setSocketOption sock Sock.NoDelay 1
       setSocketOption sock Sock.KeepAlive 1
       connect sock addrAddress
@@ -151,6 +158,36 @@ defaultConnectionArgs = MkConnectionArgs
           , buff
           }
   }
+
+{-|
+  Sets custom TLS settings and applies 'setSecure'.
+-}
+overrideTLS :: ClientParams -> ConnectionArgs -> ConnectionArgs
+overrideTLS clientParams MkConnectionArgs{..} =
+  setSecure $ MkConnectionArgs{overriddenTLS = Just clientParams, ..}
+
+{-|
+  Sets TLS connection.
+-}
+setSecure :: ConnectionArgs -> ConnectionArgs
+setSecure MkConnectionArgs{..} =
+  MkConnectionArgs{initBuffer = initTLS, isTLS=True, ..}
+  where
+  initTLS = \hostname addrAddress sock -> do
+    setSocketOption sock Sock.NoDelay 1
+    setSocketOption sock Sock.KeepAlive 1
+    connect sock addrAddress
+    let defClientParams = (defaultParamsClient hostname "")
+    context <- contextNew sock (fromMaybe defClientParams overriddenTLS)
+    handshake context
+    buff <- newIORef ""
+    pure
+      MkBuffer
+        { writeSock = \bs -> sendData context bs
+        , readSock  = recvData context
+        , closeSock = contextClose context
+        , buff
+        }
 
 setUser :: Text -> ConnectionArgs -> ConnectionArgs
 setUser new MkConnectionArgs{..} = MkConnectionArgs{user=new, ..}
@@ -206,8 +243,8 @@ reopenConnection MkConnectionState{creds, buffer} = do
   createConnectionState creds
 
 createConnectionState :: ConnectionArgs -> IO ConnectionState
-createConnectionState creds@MkConnectionArgs {user, pass, db, host, mPort, initBuffer} = do
-  let port = fromMaybe "9000" mPort
+createConnectionState creds@MkConnectionArgs {user, pass, db, host, mPort, initBuffer, isTLS} = do
+  let port = fromMaybe (if isTLS then "9440" else "9000") mPort
   hostname <- maybe "" toChType <$> lookupEnv "HOSTNAME"
   os_user <- maybe "" toChType <$> lookupEnv "USER"
   AddrInfo{addrFamily, addrSocketType, addrProtocol, addrAddress}
@@ -225,7 +262,7 @@ createConnectionState creds@MkConnectionArgs {user, pass, db, host, mPort, initB
             (finally (shutdown sock ShutdownBoth) (close sock))
             (const $ pure ())
         )
-        (\sock -> initBuffer addrAddress sock)
+        (\sock -> initBuffer host addrAddress sock)
       )
 
   (writeSock buffer . toLazyByteString . serialize latestSupportedRevision)

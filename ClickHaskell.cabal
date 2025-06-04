@@ -55,6 +55,7 @@ Library
 
     -- External dependencies
     , network < 4
+    , tls
     , wide-word < 1
 
   if flag(dev)
