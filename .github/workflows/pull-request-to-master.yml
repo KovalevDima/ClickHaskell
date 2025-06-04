@@ -8,7 +8,7 @@ jobs:
   tests:
     strategy:
       matrix:
-        ghc: [ghc8107, ghc928, ghc948, ghc966, ghc984, ghc9101]
+        ghc: [ghc8107, ghc902, ghc928, ghc948, ghc966, ghc984, ghc9101]
     runs-on: ubuntu-latest
     steps: 
       - name: Fetch repo
