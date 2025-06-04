@@ -7,7 +7,17 @@ in
   imports = [inputs.services-flake.processComposeModules.default];
   services.clickhouse."database" = {
     enable = true;
-    extraConfig.http_port = 8123;
+    extraConfig = {
+      http_port = 8123;
+      listen-host = "localhost";
+      tcp_port_secure = 9440;
+      openSSL = {
+        server = {
+          certificateFile = ./certs/localhost.crt;
+          privateKeyFile = ./certs/localhost.key;
+        };
+      };
+    };
     initialDatabases = [ {name="default";} ];
   }; 
   settings.processes = {
