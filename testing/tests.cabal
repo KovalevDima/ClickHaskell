@@ -16,6 +16,8 @@ executable tests
   build-depends:
       ClickHaskell
     , async
+    , tls
+    , data-default-class
     , base >=4.7 && <5
     , bytestring
   other-modules:
