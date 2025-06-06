@@ -1,5 +1,5 @@
 packages:
-    ./
+    ./library
     ./contribution/html2hs
     ./contribution/server
     ./testing

@@ -20,7 +20,6 @@ Build-Type:     Simple
 extra-doc-files:
   README.md
   ChangeLog.md
-  assets/logo.svg
 
 Source-repository head
   Type: git
