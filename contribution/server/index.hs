@@ -8,6 +8,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE BlockArguments #-}
 
 import ChProtocolDocs (serverDoc)
 import ChVisits (DocsStatistics (..), DocsStatisticsArgs (..), HistoryData, initVisitsTracker)
@@ -33,7 +34,7 @@ import Network.Wai.Handler.Warp (Port, defaultSettings, runSettings, runSettings
 import Network.Wai.Handler.WebSockets (websocketsOr)
 import Network.WebSockets as WebSocket (ServerApp, acceptRequest, sendTextData)
 import Network.WebSockets.Connection (defaultConnectionOptions)
-import System.Directory (doesDirectoryExist, listDirectory, withCurrentDirectory)
+import System.Directory (doesDirectoryExist, listDirectory)
 import System.Environment (lookupEnv)
 import System.FilePath (dropFileName, dropTrailingPathSeparator, normalise, replaceExtension, takeExtension, takeFileName, (</>))
 
@@ -84,7 +85,7 @@ initServer args@MkServerArgs{mStaticFiles, mSocketPath, isDev} = do
   staticFiles <-
     maybe
       (pure HM.empty)
-      (flip withCurrentDirectory (listFilesWithContents isDev "."))
+      (listFilesWithContents isDev)
       mStaticFiles
 
   let
@@ -131,24 +132,25 @@ wsServer MkServerArgs{mkBroadcastChan, currentHistory} pending = do
   forever $ do
     sendTextData conn =<< (fmap encode . atomically . readTChan) clientChan
 
-listFilesWithContents :: Bool -> FilePath -> IO (HashMap StrictByteString (MimeType, IO LazyByteString))
-listFilesWithContents isDev dir = do
-  paths <- map (dir </>) <$> listDirectory dir
-  subdirs <- filterM doesDirectoryExist paths
-  files <- (`filterM` paths) $ \path ->
-    (&&)
-      <$> (fmap not . doesDirectoryExist) path
-      <*> (pure . isDocFile) path
-  fileContents <- forM files $ \file -> do
-    content <- B.readFile file
-    let contentLoader = if isDev then (B.readFile file) else pure content
-    return
-      ( prepareFilePath file
-      , (defaultMimeLookup (T.pack $ filePathToUrlPath file), contentLoader)
-      )
-  nestedMaps <- forM subdirs (listFilesWithContents isDev)
-  return $ HM.unions (HM.fromList fileContents : nestedMaps)
+listFilesWithContents :: Bool -> FilePath -> IO StaticFiles
+listFilesWithContents isDev dir = go "."
   where
+  go subPath = do
+    paths <- map (subPath </>) <$> listDirectory (dir </> subPath)
+    files <- (`filterM` paths) $ \path ->
+      (&&)
+        <$> (fmap not . doesDirectoryExist) (dir </> path)
+        <*> (pure . isDocFile) (dir </> path)
+    fileContents <- forM files $ \file -> do
+      content <- B.readFile (dir </> file)
+      let contentLoader = if isDev then B.readFile (dir </> file) else pure content
+      return
+        ( prepareFilePath file
+        , (defaultMimeLookup (T.pack $ filePathToUrlPath file), contentLoader)
+        )
+    nestedMaps <- mapM go =<< filterM (\path -> doesDirectoryExist (dir </> path)) paths
+    return $ HM.unions (HM.fromList fileContents : nestedMaps)
+
   isDocFile :: FilePath -> Bool
   isDocFile fp
     | takeExtension fp `elem` [".html", ".lhs", ".ttf", ".svg", ".css", ".js"] = True
