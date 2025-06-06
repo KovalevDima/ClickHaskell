@@ -19,7 +19,7 @@
   settings.processes = {
     "executable" = {
       command = ''
-      CLICKHASKELL_STATIC_FILES_DIR=. \
+      CLICKHASKELL_STATIC_FILES_DIR=./documentation/ \
         EVENTLOG_SOCKET_PATH="./data/.eventlog.sock" \
         DEV= \
         ${app.program} +RTS -l-agpf --eventlog-flush-interval=1 -RTS
