@@ -2,10 +2,10 @@ packages:
     ./library
     ./contribution/html2hs
     ./contribution/server
+    ./contribution/modules/eventlog-writer
+    ./contribution/modules/protocol-docs
+    ./contribution/modules/visits
     ./documentation/testing
     ./documentation/performance/p1-million-rw
     ./documentation/performance/p2-100-million-r
     ./documentation/usage/
-    ./documentation/usage/modules/eventlog-writer
-    ./documentation/usage/modules/protocol-docs
-    ./documentation/usage/modules/visits
