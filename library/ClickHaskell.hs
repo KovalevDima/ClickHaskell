@@ -125,6 +125,9 @@ import Network.TLS (ClientParams (..), contextNew, contextClose, sendData, recvD
 
 -- * Connection
 
+{- |
+  See `defaultConnectionArgs` for documentation
+-}
 data ConnectionArgs = MkConnectionArgs
   { user :: Text
   , pass :: Text
@@ -136,6 +139,14 @@ data ConnectionArgs = MkConnectionArgs
   , initBuffer :: HostName -> SockAddr -> Socket -> IO Buffer
   }
 
+{- |
+  Default connection settings which follows __clickhouse-client__ defaults
+
+  Use `setUser` `setPassword` `setHost` `setPort` `setDatabase`
+  to modify connection defaults.
+
+  Or 'setSecure' 'overrideTLS' to configure TLS connection
+-}
 defaultConnectionArgs :: ConnectionArgs
 defaultConnectionArgs = MkConnectionArgs
   { user = "default"
@@ -160,14 +171,16 @@ defaultConnectionArgs = MkConnectionArgs
   }
 
 {-|
-  Sets custom TLS settings and applies 'setSecure'.
+  Sets custom TLS settings and applies 'setSecure'
 -}
 overrideTLS :: ClientParams -> ConnectionArgs -> ConnectionArgs
 overrideTLS clientParams MkConnectionArgs{..} =
   setSecure $ MkConnectionArgs{overriddenTLS = Just clientParams, ..}
 
 {-|
-  Sets TLS connection.
+  Sets TLS connection
+
+  Uses 9443 port by default. Watch 'setPort' to override it
 -}
 setSecure :: ConnectionArgs -> ConnectionArgs
 setSecure MkConnectionArgs{..} =
@@ -189,18 +202,33 @@ setSecure MkConnectionArgs{..} =
         , buff
         }
 
+{- |
+  Overrides default user __"default"__
+-}
 setUser :: Text -> ConnectionArgs -> ConnectionArgs
 setUser new MkConnectionArgs{..} = MkConnectionArgs{user=new, ..}
 
+{- |
+  Overrides default password __""__
+-}
 setPassword :: Text -> ConnectionArgs -> ConnectionArgs
 setPassword new MkConnectionArgs{..} = MkConnectionArgs{pass=new, ..}
 
+{- |
+  Overrides default hostname __"localhost"__
+-}
 setHost :: HostName -> ConnectionArgs -> ConnectionArgs
 setHost new MkConnectionArgs{..} = MkConnectionArgs{host=new, ..}
 
+{- |
+  Overrides default port __9000__ (or __9443__ for TLS)
+-}
 setPort :: ServiceName -> ConnectionArgs -> ConnectionArgs
 setPort new MkConnectionArgs{..} = MkConnectionArgs{mPort=Just new, ..} 
 
+{- |
+  Overrides default database __"default"__
+-}
 setDatabase :: Text -> ConnectionArgs -> ConnectionArgs
 setDatabase new MkConnectionArgs{..} = MkConnectionArgs{db=new, ..}
 
