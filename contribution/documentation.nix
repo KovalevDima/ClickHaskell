@@ -4,7 +4,7 @@ pkgs.stdenv.mkDerivation {
   name = "documentation";
   src = pkgs.lib.fileset.toSource {
     root = ../.;
-    fileset = ../.;
+    fileset = ../documentation;
   };
 
   dontBuild = true;
