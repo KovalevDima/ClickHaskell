@@ -6,27 +6,27 @@ Haskell implementation of [ClickHouse](https://clickhouse.com/) DBMS Native prot
 
 ClickHouse is a well known open source DBMS for building data intensive apps
 
-It's design philosophy are close to functional programming due to `append-only`, support of `lambdas` and `high order functions`
+Its design philosophy is close to functional programming due to `append-only`, support of `lambdas` and `higher-order functions`
 
-It's best in class database for storing data in event-driven architecture
+It's a best-in-class database for storing data in event-driven architecture
 
 ## Why ClickHaskell?
 
 Pros:
 
 <ul type="square">
-    <li>unique type safe and low boilerplate API</li>
+    <li>unique type-safe and low boilerplate API</li>
     <li>low dependency footprint</li>
     <li>thread-safe and well documented network code</li>
-    <li>rich and extensible CI/CD</li>
+    <li>extensible CI/CD pipeline</li>
     <li>partially formalized <a href="https://clickhouse.com/docs/native-protocol/basics">Native protocol</a> based implementation</li>
 </ul>
 
 Cons:
 <ul type="square">
   <li>single active maintainer</li>
-  <li>limited protocol features supports</li>
-  <li>too static API</li>
+  <li>limited support for protocol features</li>
+  <li>API is too static</li>
 </ul>
 
 ## Project structure
@@ -39,17 +39,17 @@ Cons:
 
 ## General state of ClickHouse+Haskell
 
-There is no other activly maintained open source alternatives to ClickHaskell at this moment.
+There are no other actively maintained open source alternatives to ClickHaskell at this moment.
 
-All of abandoned projects has sophisticated codebase and poorer QA:
+All of the abandoned projects have hard-to-maintain codebases and poorer QA:
 
 <ul type=square>
   <li><a href="https://github.com/2049foundation/clickhouse-haskell/">clickhouse-haskell</a></li>
   Provides much more dynamic API
   <li><a href="https://github.com/zaneli/hdbc-clickhouse/tree/master">hdbc-clickhouse</a></li>
   Based on RDBMS engine HDBC<br>
-  Never was released on Hackage
+  Has never been released on Hackage
   <li><a href="https://github.com/Diamondy4/persistent-clickhouse">persistent-clickhouse</a></li>
-  RDMBS backend of Persistent library<br>
-  Never was released on Hackage
+  RDBMS backend of Persistent library<br>
+  Has never been released on Hackage
 </ul>
