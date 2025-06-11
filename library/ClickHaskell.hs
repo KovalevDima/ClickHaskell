@@ -142,10 +142,10 @@ data ConnectionArgs = MkConnectionArgs
 {- |
   Default connection settings which follows __clickhouse-client__ defaults
 
-  Use `setUser` `setPassword` `setHost` `setPort` `setDatabase`
+  Use `setUser`, `setPassword`, `setHost`, `setPort`, `setDatabase`
   to modify connection defaults.
 
-  Or 'setSecure' 'overrideTLS' to configure TLS connection
+  Or 'setSecure', 'overrideTLS' to configure TLS connection
 -}
 defaultConnectionArgs :: ConnectionArgs
 defaultConnectionArgs = MkConnectionArgs
@@ -526,8 +526,7 @@ rawBufferizedRead buffer@MkBuffer{..} parser = runBufferReader (runGetIncrementa
 -- * Errors handling
 
 {- |
-  A wrapper for all client-related errors.
-  Every client function should handle this error.
+  A wrapper for all client-related errors
 -}
 data ClientError where
   UserError :: HasCallStack => UserError -> ClientError
@@ -564,6 +563,7 @@ data UserError
 
 {- |
   These exceptions might indicate internal bugs.
+
   If you encounter one, please report it.
 -}
 data InternalError
