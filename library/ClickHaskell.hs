@@ -80,23 +80,21 @@ module ClickHaskell
 import Paths_ClickHaskell (version)
 
 -- GHC included
-import Control.Applicative (liftA2, liftA3)
+import Control.Applicative (liftA2)
 import Control.Concurrent (MVar, newMVar, putMVar, takeMVar)
 import Control.DeepSeq (NFData)
 import Control.Exception (Exception, SomeException, bracketOnError, catch, finally, mask, onException, throw, throwIO)
-import Control.Monad (forM, replicateM, void, when, (<$!>), (<=<))
+import Control.Monad (forM, replicateM, when, (<$!>), (<=<))
 import Data.Binary.Get
-import Data.Binary.Get.Internal (readN)
 import Data.Bits (Bits (setBit, unsafeShiftL, unsafeShiftR, (.&.), (.|.)))
 import Data.ByteString as BS (ByteString, length, take)
 import Data.ByteString.Builder
-import Data.ByteString.Builder as BS (Builder, byteString)
 import Data.ByteString.Char8 as BS8 (concatMap, length, pack, replicate, singleton)
 import Data.ByteString.Lazy as BSL (toStrict, ByteString)
 import Data.Coerce (coerce)
 import Data.IORef (IORef, atomicModifyIORef, atomicWriteIORef, newIORef, readIORef)
 import Data.Int (Int16, Int32, Int64, Int8)
-import Data.Kind (Constraint, Type)
+import Data.Kind (Type)
 import Data.List (uncons)
 import Data.Maybe (listToMaybe, fromMaybe)
 import Data.String (IsString (..))
@@ -104,14 +102,12 @@ import Data.Text (Text)
 import Data.Text.Encoding as Text (encodeUtf8)
 import Data.Time (UTCTime, ZonedTime, zonedTimeToUTC)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
-import Data.Type.Bool (If)
-import Data.Type.Equality (type (==))
 import Data.Typeable (Proxy (..))
 import Data.Version (Version (..))
 import Data.Word (Word16, Word32, Word64, Word8)
 import GHC.Generics (C1, D1, Generic (..), K1 (K1, unK1), M1 (M1, unM1), Meta (MetaSel), Rec0, S1, type (:*:) (..))
 import GHC.Stack (HasCallStack, callStack, prettyCallStack)
-import GHC.TypeLits (AppendSymbol, ErrorMessage (..), KnownNat, KnownSymbol, Nat, Symbol, TypeError, natVal, symbolVal)
+import GHC.TypeLits (ErrorMessage (..), KnownNat, KnownSymbol, Nat, Symbol, TypeError, natVal, symbolVal)
 import System.Environment (lookupEnv)
 import System.Timeout (timeout)
 
@@ -344,15 +340,9 @@ ping conn = do
 
 
 
--- * Reading
+-- * Client wrappers
 
-class IsTable table where
-  type GetColumns table :: [Type]
-  tableName :: Builder
-
-class HasParameters view where
-  type GetParams view :: [Type]
-
+-- ** SELECT
 
 select ::
   forall columns output result
@@ -366,17 +356,6 @@ select conn query f = do
     writeToConnection connState (mkDataPacket "" 0 0)
     handleSelect @columns connState (\x -> id <$!> f x)
 
-data Table (name :: Symbol) (columns :: [Type])
-
-instance KnownSymbol name => IsTable (Table name columns) where
-  type GetColumns (Table name columns) = columns
-  tableName = (byteString . BS8.pack) (symbolVal $ Proxy @name)
-
-type ClickHaskellTable table record =
-  ( IsTable table
-  , ClickHaskell (GetColumns table) record
-  )
-
 selectFrom ::
   forall table output result
   .
@@ -389,21 +368,17 @@ selectFrom conn f = select @(GetColumns table) conn query f
     "SELECT " <> columns @(GetColumns table) @output <>
     " FROM " <> tableName @table
 
-data View (name :: Symbol) (columns :: [Type]) (parameters :: [Type])
-
 selectFromView ::
-  forall view output result name columns parameters passedParameters
+  forall view output result parameters
   .
-  ( ClickHaskell columns output
-  , KnownSymbol name
-  , view ~ View name columns parameters
-  )
-  => Connection -> (Parameters '[] -> Parameters passedParameters) -> ([output] -> IO result) -> IO [result]
-selectFromView conn interpreter f = select @columns conn query f
+  ClickHaskellView view output
+  =>
+  Connection -> (Parameters '[] -> Parameters parameters) -> ([output] -> IO result) -> IO [result]
+selectFromView conn interpreter f = select @(GetColumns view) conn query f
   where
   query = toChType $
-    "SELECT " <> columns @columns @output <>
-    " FROM " <> (byteString . BS8.pack . symbolVal @name) Proxy <> viewParameters interpreter
+    "SELECT " <> columns @(GetColumns view) @output <>
+    " FROM " <> tableName @view <> viewParameters interpreter
 
 generateRandom ::
   forall columns output result
@@ -422,8 +397,7 @@ generateRandom conn (randomSeed, maxStrLen, maxArrayLen) limit f = select @colum
       ")" <>
     " LIMIT " <> toQueryPart limit <> ";"
 
--- *** Internal
-
+-- | Internal
 handleSelect ::
   forall columns output result
   .
@@ -449,29 +423,25 @@ handleSelect MkConnectionState{..} f = loop []
       otherPacket         -> throwIO (InternalError $ UnexpectedPacketType $ serverPacketToNum otherPacket)
 
 
-
-
--- * Writing
+-- ** INSERT
 
 insertInto ::
-  forall table record name columns
+  forall table record
   .
-  ( table ~ Table name columns
-  , ClickHaskell columns record
-  , KnownSymbol name
-  )
-  => Connection -> [record] -> IO ()
+  ClickHaskellTable table record
+  =>
+  Connection -> [record] -> IO ()
 insertInto conn columnsData = do
   withConnection conn $ \connState -> do
     writeToConnection connState (mkQueryPacket connState query)
     writeToConnection connState (mkDataPacket "" 0 0)
-    handleInsertResult @columns connState columnsData
+    handleInsertResult @(GetColumns table) connState columnsData
   where
   query = toChType $
-    "INSERT INTO " <> (byteString . BS8.pack . symbolVal @name $ Proxy)
-    <> " (" <> columns @columns @record <> ") VALUES"
+    "INSERT INTO " <> tableName @table
+    <> " (" <> columns @(GetColumns table) @record <> ") VALUES"
 
-
+-- | Internal
 handleInsertResult :: forall columns record . ClickHaskell columns record => ConnectionState -> [record] -> IO ()
 handleInsertResult conn@MkConnectionState{..} records = do
   firstPacket <- rawBufferizedRead buffer (deserialize revision)
@@ -486,6 +456,44 @@ handleInsertResult conn@MkConnectionState{..} records = do
     EndOfStream         -> pure ()
     Exception exception -> throwIO (UserError $ DatabaseException exception)
     otherPacket         -> throwIO (InternalError $ UnexpectedPacketType $ serverPacketToNum otherPacket)
+
+-- ** Common parts
+
+type family GetTableName table :: Symbol
+type instance (GetTableName (Table name columns)) = name
+type instance (GetTableName (View name columns params)) = name
+
+type family GetColumns table :: [Type]
+type instance (GetColumns (Table name columns)) = columns
+type instance GetColumns (View name columns params) = columns
+
+tableName :: forall table . KnownSymbol (GetTableName table) => Builder
+tableName = (byteString . BS8.pack) (symbolVal $ Proxy @(GetTableName table))
+
+class IsTable table
+
+-- | Type wrapper for statements generation
+data Table (name :: Symbol) (columns :: [Type])
+instance IsTable (Table name columns) where
+
+type ClickHaskellTable table record =
+  ( IsTable table
+  , KnownSymbol (GetTableName table)
+  , ClickHaskell (GetColumns table) record
+  )
+
+
+class IsView view
+
+-- | Type wrapper for statements generation
+data View (name :: Symbol) (columns :: [Type]) (parameters :: [Type])
+instance IsView (View name columns parameters)
+
+type ClickHaskellView view record =
+  ( IsView view
+  , KnownSymbol (GetTableName view)
+  , ClickHaskell (GetColumns view) record
+  )
 
 
 
@@ -1192,7 +1200,7 @@ instance Deserializable (DateTime tz) where deserialize _ = toChType <$> getWord
 instance Deserializable (DateTime64 precision tz) where deserialize _ = toChType <$> getWord64le; {-# INLINE deserialize #-}
 instance Deserializable ChString where
   {-# INLINE deserialize #-}
-  deserialize = (\n -> toChType <$> readN n (BS.take n)) . fromIntegral <=< deserialize @UVarInt
+  deserialize = fmap toChType . getByteString . fromIntegral <=< deserialize @UVarInt
 instance Deserializable UVarInt where
   {-# INLINE deserialize #-}
   deserialize _ = go 0 (0 :: UVarInt)
@@ -1387,7 +1395,7 @@ renderParameter :: forall name chType . KnownParameter (Parameter name chType) =
 renderParameter (MkParamater chType) = (byteString . BS8.pack . symbolVal @name) Proxy <> "=" <> toQueryPart chType
 
     
-class ToQueryPart chType where toQueryPart :: chType -> BS.Builder
+class ToQueryPart chType where toQueryPart :: chType -> Builder
 instance ToQueryPart Int8 where toQueryPart = byteString . BS8.pack . show
 instance ToQueryPart Int16 where toQueryPart = byteString . BS8.pack . show
 instance ToQueryPart Int32 where toQueryPart = byteString . BS8.pack . show
@@ -1603,11 +1611,11 @@ ClickHouse DateTime column type (paramtrized with timezone)
 newtype DateTime (tz :: Symbol) = MkDateTime Word32
   deriving newtype (Show, Eq, Num, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
 
-type DateTimeTypeName tz = If (tz == "") ("DateTime") ("DateTime('" `AppendSymbol` tz `AppendSymbol` "')")
-
-instance KnownSymbol (DateTimeTypeName tz) => IsChType (DateTime tz)
+instance KnownSymbol tz => IsChType (DateTime tz)
   where
-  chTypeName = symbolVal @(DateTimeTypeName tz) $ Proxy
+  chTypeName = case (symbolVal @tz Proxy) of
+    "" -> "DateTime"
+    tz -> "DateTime('" <> tz <> "')" 
   defaultValueOfTypeName = MkDateTime 0
 
 {- |
@@ -1629,11 +1637,10 @@ instance
   chTypeName =
     let
       prec = show (natVal @precision Proxy)
-      tz = symbolVal @tz Proxy
     in
-    case tz of
+    case symbolVal @tz Proxy of
       "" -> "DateTime64(" <> prec <> ")"
-      _  -> "DateTime64(" <> prec <> ", '" <> tz <> "')"
+      tz -> "DateTime64(" <> prec <> ", '" <> tz <> "')"
   defaultValueOfTypeName = MkDateTime64 0
 
 
