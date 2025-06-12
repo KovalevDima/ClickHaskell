@@ -1615,7 +1615,7 @@ instance KnownSymbol tz => IsChType (DateTime tz)
   where
   chTypeName = case (symbolVal @tz Proxy) of
     "" -> "DateTime"
-    tz -> "DateTime(" <> tz <> ")" 
+    tz -> "DateTime('" <> tz <> "')" 
   defaultValueOfTypeName = MkDateTime 0
 
 {- |
