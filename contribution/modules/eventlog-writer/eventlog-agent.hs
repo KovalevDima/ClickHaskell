@@ -14,7 +14,7 @@
 
 module Main (main) where
 
-import ClickHaskell
+import ClickHaskell hiding (Buffer(..), initBuffer)
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async (Concurrently (..))
 import Control.Concurrent.STM (TBQueue, atomically, flushTBQueue, newTBQueueIO, writeTBQueue)
