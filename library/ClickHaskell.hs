@@ -17,11 +17,10 @@
 module ClickHaskell
   (
   {- * Connection -}
-    ConnectionArgs, defaultConnectionArgs
+    ConnectionArgs(..), defaultConnectionArgs
   , setHost, setPort, setUser, setDatabase, setPassword
   , Connection(..), openConnection
-  {- ** TLS -}
-  , setSecure, overrideTLS
+  , Buffer(..)
 
   {- * Errors -}
   , ClientError(..)
@@ -117,7 +116,6 @@ import Network.Socket hiding (SocketOption(..))
 import Network.Socket qualified as Sock (SocketOption(..))
 import Network.Socket.ByteString (recv)
 import Network.Socket.ByteString.Lazy (sendAll)
-import Network.TLS (ClientParams (..), contextNew, contextClose, sendData, recvData, defaultParamsClient, handshake)
 
 -- * Connection
 
@@ -131,7 +129,6 @@ data ConnectionArgs = MkConnectionArgs
   , host :: HostName
   , mPort :: Maybe ServiceName
   , isTLS :: Bool
-  , overriddenTLS :: Maybe ClientParams
   , initBuffer :: HostName -> SockAddr -> Socket -> IO Buffer
   }
 
@@ -151,7 +148,6 @@ defaultConnectionArgs = MkConnectionArgs
   , db   = "default"
   , isTLS = False
   , mPort = Nothing
-  , overriddenTLS = Nothing
   , initBuffer  = \_hostname addrAddress sock -> do
       setSocketOption sock Sock.NoDelay 1
       setSocketOption sock Sock.KeepAlive 1
@@ -166,37 +162,6 @@ defaultConnectionArgs = MkConnectionArgs
           }
   }
 
-{-|
-  Sets custom TLS settings and applies 'setSecure'
--}
-overrideTLS :: ClientParams -> ConnectionArgs -> ConnectionArgs
-overrideTLS clientParams MkConnectionArgs{..} =
-  setSecure $ MkConnectionArgs{overriddenTLS = Just clientParams, ..}
-
-{-|
-  Sets TLS connection
-
-  Uses 9443 port by default. Watch 'setPort' to override it
--}
-setSecure :: ConnectionArgs -> ConnectionArgs
-setSecure MkConnectionArgs{..} =
-  MkConnectionArgs{initBuffer = initTLS, isTLS=True, ..}
-  where
-  initTLS = \hostname addrAddress sock -> do
-    setSocketOption sock Sock.NoDelay 1
-    setSocketOption sock Sock.KeepAlive 1
-    connect sock addrAddress
-    let defClientParams = (defaultParamsClient hostname "")
-    context <- contextNew sock (fromMaybe defClientParams overriddenTLS)
-    handshake context
-    buff <- newIORef ""
-    pure
-      MkBuffer
-        { writeSock = \bs -> sendData context bs
-        , readSock  = recvData context
-        , closeSock = contextClose context
-        , buff
-        }
 
 {- |
   Overrides default user __"default"__

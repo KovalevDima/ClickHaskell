@@ -1,5 +1,6 @@
 packages:
     ./library
+    ./library/tls
     ./contribution/html2hs
     ./contribution/server
     ./contribution/modules/eventlog-writer

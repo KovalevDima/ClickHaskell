@@ -49,22 +49,11 @@ You can manually run database and tests:
 <h2>Main function</h2>
 
 <pre><code data-lang="haskell" class="haskell"
->import ClickHaskell (openConnection, defaultConnectionArgs, overrideTLS)
-import Network.TLS (defaultParamsClient, ClientParams (..), Shared (..), ValidationCache (..), ValidationCacheResult (..))
-import Data.Default.Class 
+>import ClickHaskell (openConnection, defaultConnectionArgs)
 
 main :: IO ()
 main = do
-  connection <- openConnection
-    . overrideTLS (defaultParamsClient "localhost" "9440")
-        { clientShared = def
-          { sharedValidationCache =
-              ValidationCache
-                (\_ _ _ -> return ValidationCachePass)
-                (\_ _ _ -> return ())
-          }
-        }
-    $ defaultConnectionArgs
+  connection <- openConnection defaultConnectionArgs
   mapM_
     (\runner -> runner connection) 
     [t1,t2,t3,t4]
