@@ -17,6 +17,7 @@ common dump-core
   if impl(ghc >= 9.4)
     ghc-options:
       -dlint
+      -dno-suppress-core-sizes
 
 -- * Profiling
 
@@ -31,7 +32,7 @@ executable prof-simple
     ghc-prof-options:
       -fprof-late
   ghc-prof-options:
-    "-with-rtsopts=-s -M32m -A4m -AL8m -pa -hy -L250 -l-agu -N1"
+    "-with-rtsopts=-s -M32m -A4m -AL8m -p -hy -L250 -l-agu -N1"
   build-depends:
       ClickHaskell
     , base
