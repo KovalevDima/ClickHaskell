@@ -17,8 +17,9 @@
 module ClickHaskell
   (
   {- * Connection -}
-    ConnectionArgs(..), defaultConnectionArgs
+    ConnectionArgs, defaultConnectionArgs
   , setHost, setPort, setUser, setDatabase, setPassword
+  , overrideNetwork
   , Connection(..), openConnection
   , Buffer(..)
 
@@ -192,6 +193,13 @@ setPort new MkConnectionArgs{..} = MkConnectionArgs{mPort=Just new, ..}
 -}
 setDatabase :: Text -> ConnectionArgs -> ConnectionArgs
 setDatabase new MkConnectionArgs{..} = MkConnectionArgs{db=new, ..}
+
+overrideNetwork
+  :: Bool
+  -> (HostName -> SockAddr -> Socket -> IO Buffer)
+  -> (ConnectionArgs -> ConnectionArgs)
+overrideNetwork new new2 = \MkConnectionArgs{..} ->
+  MkConnectionArgs{isTLS=new, initBuffer=new2, ..}
 
 data Connection where MkConnection :: (MVar ConnectionState) -> Connection
 
