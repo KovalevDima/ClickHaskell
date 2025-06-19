@@ -1,9 +1,9 @@
 packages:
     ./library
     ./library/tls
+    ./library/eventlog2ch
     ./contribution/html2hs
     ./contribution/server
-    ./contribution/modules/eventlog-writer
     ./contribution/modules/protocol-docs
     ./contribution/modules/visits
     ./documentation/testing
