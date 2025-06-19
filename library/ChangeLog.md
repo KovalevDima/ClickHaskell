@@ -1,7 +1,7 @@
 # 1.0.0 -- ?
 
 ## Features:
-- Support and CI for GHCs: `8.10.7`, `9.0.2`, `9.2.8`
+- Support and CI for GHCs: `8.10.7`, `9.0.2`, `9.2.8`, `9.12.2`
 - ~20% optimization of time and alloc (perf test 1 benchmark)
 - Added function `command` for statements with no result
 - Added DateTime64 type support
