@@ -1,4 +1,5 @@
 { pkgs
+, inputs
 , ghc ? "ghc966"
 }:
 {
@@ -8,5 +9,8 @@
     ClickHaskell = {libraryProfiling = true; haddock = true;};
     prof-1bil-stream = {libraryProfiling = true; executableProfiling = true;};
     prof-simple = {libraryProfiling = true; executableProfiling = true;};
+  };
+  packages = {
+    wide-word.source = inputs.wide-word;
   };
 }

@@ -85,7 +85,8 @@
         "haskell-flake": "haskell-flake",
         "nixpkgs": "nixpkgs",
         "process-compose-flake": "process-compose-flake",
-        "services-flake": "services-flake"
+        "services-flake": "services-flake",
+        "wide-word": "wide-word"
       }
     },
     "services-flake": {
@@ -100,6 +101,22 @@
       "original": {
         "owner": "juspay",
         "repo": "services-flake",
+        "type": "github"
+      }
+    },
+    "wide-word": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1750325425,
+        "narHash": "sha256-1E8qCTvRdmwvMclXfHe7zzNPxC3CgfNJgt9kalA2egY=",
+        "owner": "erikd",
+        "repo": "wide-word",
+        "rev": "d704572003463fc6fecd49425b0b92864a57c734",
+        "type": "github"
+      },
+      "original": {
+        "owner": "erikd",
+        "repo": "wide-word",
         "type": "github"
       }
     }
