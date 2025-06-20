@@ -887,11 +887,7 @@ class ClickHaskell columns record
   where
   default deserializeColumns :: GenericClickHaskell record columns => Bool -> ProtocolRevision -> UVarInt -> Get [record]
   deserializeColumns :: Bool -> ProtocolRevision -> UVarInt -> Get [record]
-  deserializeColumns isCheckRequired rev size = do
-    list <- gFromColumns @columns isCheckRequired rev size
-    pure $ do
-      element <- list
-      case to element of res -> pure $! res
+  deserializeColumns isCheckRequired rev size = (to <$!>) <$> gFromColumns @columns isCheckRequired rev size
 
   default columns :: GenericClickHaskell record columns => Builder
   columns :: Builder
