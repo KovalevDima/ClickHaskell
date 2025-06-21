@@ -907,7 +907,7 @@ class ClickHaskell columns record
 
   default serializeRecords :: GenericClickHaskell record columns => [record] -> ProtocolRevision -> Builder
   serializeRecords :: [record] -> ProtocolRevision -> Builder
-  serializeRecords records rev = gSerializeRecords @columns rev (map from records)
+  serializeRecords records rev = gSerializeRecords @columns rev (from <$!> records)
 
   default columnsCount :: GenericClickHaskell record columns => UVarInt
   columnsCount :: UVarInt
