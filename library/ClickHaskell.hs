@@ -938,7 +938,7 @@ instance
   GClickHaskell columns (left :*: right)
   where
   {-# INLINE gFromColumns #-}
-  gFromColumns isCheckRequired rev size =
+  gFromColumns isCheckRequired rev size = do
     liftA2 (zipWith (:*:))
       (gFromColumns @columns @left isCheckRequired rev size)
       (gFromColumns @columns @right isCheckRequired rev size)
@@ -1132,14 +1132,19 @@ instance GDeserial f => GDeserial (D1 c (C1 c2 f))
   {-# INLINE gDeserialize #-}
 
 instance (GDeserial left, GDeserial right) => GDeserial (left :*: right) where
-  gDeserialize rev = liftA2 (:*:) (gDeserialize rev) (gDeserialize rev)
+  gDeserialize rev = do
+    liftA2 (:*:)
+      (gDeserialize rev)
+      (gDeserialize rev)
   {-# INLINE gDeserialize #-}
 
 instance {-# OVERLAPPING #-}
   GDeserial right => GDeserial (S1 metaSel (Rec0 ProtocolRevision) :*: right) where
   gDeserialize rev = do
     chosenRev <- min rev . coerce <$> deserialize @UVarInt rev
-    liftA2 (:*:) (pure . M1 . K1 $ chosenRev) (gDeserialize @right chosenRev)
+    liftA2 (:*:)
+      (pure . M1 . K1 $ chosenRev)
+      (gDeserialize @right chosenRev)
   {-# INLINE gDeserialize #-}
 
 instance
@@ -1157,13 +1162,28 @@ instance Deserializable Int8 where deserialize _ = toChType <$> getInt8; {-# INL
 instance Deserializable Int16 where deserialize _ = toChType <$> getInt16le; {-# INLINE deserialize #-}
 instance Deserializable Int32 where deserialize _ = toChType <$> getInt32le; {-# INLINE deserialize #-}
 instance Deserializable Int64 where deserialize _ = toChType <$> getInt64le; {-# INLINE deserialize #-}
-instance Deserializable Int128 where deserialize _ = toChType <$> liftA2 (flip Int128) getWord64le getWord64le; {-# INLINE deserialize #-}
+instance Deserializable Int128 where
+  deserialize _ = do
+    liftA2 (flip Int128)
+      getWord64le
+      getWord64le
+  {-# INLINE deserialize #-}
 instance Deserializable UInt8 where deserialize _ = toChType <$> getWord8; {-# INLINE deserialize #-}
 instance Deserializable UInt16 where deserialize _ = toChType <$> getWord16le; {-# INLINE deserialize #-}
 instance Deserializable UInt32 where deserialize _ = toChType <$> getWord32le; {-# INLINE deserialize #-}
 instance Deserializable UInt64 where deserialize _ = toChType <$> getWord64le; {-# INLINE deserialize #-}
-instance Deserializable UInt128 where deserialize _ = toChType <$> liftA2 (flip Word128) getWord64le getWord64le; {-# INLINE deserialize #-}
-instance Deserializable UUID where deserialize _ = MkChUUID <$> liftA2 (flip Word128) getWord64le getWord64le; {-# INLINE deserialize #-}
+instance Deserializable UInt128 where
+  deserialize _ = do
+    liftA2 (flip Word128)
+      getWord64le
+      getWord64le
+  {-# INLINE deserialize #-}
+instance Deserializable UUID where
+  deserialize _ = do
+      MkChUUID <$> liftA2 (flip Word128)
+        getWord64le
+        getWord64le
+  {-# INLINE deserialize #-}
 instance Deserializable Date where deserialize _ = toChType <$> getWord16le; {-# INLINE deserialize #-}
 instance Deserializable (DateTime tz) where deserialize _ = toChType <$> getWord32le; {-# INLINE deserialize #-}
 instance Deserializable (DateTime64 precision tz) where deserialize _ = toChType <$> getWord64le; {-# INLINE deserialize #-}
