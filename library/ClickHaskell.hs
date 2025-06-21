@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC
   -Wno-orphans
-  -Wno-unused-top-binds
   -Wno-unused-imports
+  -Wno-unticked-promoted-constructors
 #-}
 
 {- |
@@ -87,7 +87,7 @@ import Control.Exception (Exception, SomeException, bracketOnError, catch, final
 import Control.Monad (forM, replicateM, when, (<$!>), (<=<))
 import Data.Binary.Get
 import Data.Bits (Bits (setBit, unsafeShiftL, unsafeShiftR, (.&.), (.|.)))
-import Data.ByteString as BS (ByteString, length, take)
+import Data.ByteString as BS (ByteString, length)
 import Data.ByteString.Builder
 import Data.ByteString.Char8 as BS8 (concatMap, length, pack, replicate, singleton)
 import Data.ByteString.Lazy as BSL (toStrict, ByteString)
@@ -938,7 +938,7 @@ instance
   GClickHaskell columns (left :*: right)
   where
   {-# INLINE gFromColumns #-}
-  gFromColumns isCheckRequired rev size =
+  gFromColumns isCheckRequired rev size = do
     liftA2 (zipWith (:*:))
       (gFromColumns @columns @left isCheckRequired rev size)
       (gFromColumns @columns @right isCheckRequired rev size)
@@ -1132,14 +1132,19 @@ instance GDeserial f => GDeserial (D1 c (C1 c2 f))
   {-# INLINE gDeserialize #-}
 
 instance (GDeserial left, GDeserial right) => GDeserial (left :*: right) where
-  gDeserialize rev = liftA2 (:*:) (gDeserialize rev) (gDeserialize rev)
+  gDeserialize rev = do
+    liftA2 (:*:)
+      (gDeserialize rev)
+      (gDeserialize rev)
   {-# INLINE gDeserialize #-}
 
 instance {-# OVERLAPPING #-}
   GDeserial right => GDeserial (S1 metaSel (Rec0 ProtocolRevision) :*: right) where
   gDeserialize rev = do
     chosenRev <- min rev . coerce <$> deserialize @UVarInt rev
-    liftA2 (:*:) (pure . M1 . K1 $ chosenRev) (gDeserialize @right chosenRev)
+    liftA2 (:*:)
+      (pure . M1 . K1 $ chosenRev)
+      (gDeserialize @right chosenRev)
   {-# INLINE gDeserialize #-}
 
 instance
@@ -1157,13 +1162,28 @@ instance Deserializable Int8 where deserialize _ = toChType <$> getInt8; {-# INL
 instance Deserializable Int16 where deserialize _ = toChType <$> getInt16le; {-# INLINE deserialize #-}
 instance Deserializable Int32 where deserialize _ = toChType <$> getInt32le; {-# INLINE deserialize #-}
 instance Deserializable Int64 where deserialize _ = toChType <$> getInt64le; {-# INLINE deserialize #-}
-instance Deserializable Int128 where deserialize _ = toChType <$> liftA2 (flip Int128) getWord64le getWord64le; {-# INLINE deserialize #-}
+instance Deserializable Int128 where
+  deserialize _ = do
+    low <- getWord64le
+    high <- getWord64le
+    pure $ Int128 high low
+  {-# INLINE deserialize #-}
 instance Deserializable UInt8 where deserialize _ = toChType <$> getWord8; {-# INLINE deserialize #-}
 instance Deserializable UInt16 where deserialize _ = toChType <$> getWord16le; {-# INLINE deserialize #-}
 instance Deserializable UInt32 where deserialize _ = toChType <$> getWord32le; {-# INLINE deserialize #-}
 instance Deserializable UInt64 where deserialize _ = toChType <$> getWord64le; {-# INLINE deserialize #-}
-instance Deserializable UInt128 where deserialize _ = toChType <$> liftA2 (flip Word128) getWord64le getWord64le; {-# INLINE deserialize #-}
-instance Deserializable UUID where deserialize _ = MkChUUID <$> liftA2 (flip Word128) getWord64le getWord64le; {-# INLINE deserialize #-}
+instance Deserializable UInt128 where
+  deserialize _ = do
+    low <- getWord64le
+    high <- getWord64le
+    pure $ Word128 high low
+  {-# INLINE deserialize #-}
+instance Deserializable UUID where
+  deserialize _ = do
+    low <- getWord64le
+    high <- getWord64le
+    pure $ MkChUUID (Word128 high low)
+  {-# INLINE deserialize #-}
 instance Deserializable Date where deserialize _ = toChType <$> getWord16le; {-# INLINE deserialize #-}
 instance Deserializable (DateTime tz) where deserialize _ = toChType <$> getWord32le; {-# INLINE deserialize #-}
 instance Deserializable (DateTime64 precision tz) where deserialize _ = toChType <$> getWord64le; {-# INLINE deserialize #-}
@@ -1724,48 +1744,48 @@ type DBMS_TCP_PROTOCOL_VERSION = 54448;
 type DBMS_MIN_REVISION_WITH_CLIENT_INFO = 54032;
 type DBMS_MIN_REVISION_WITH_SERVER_TIMEZONE = 54058;
 type DBMS_MIN_REVISION_WITH_QUOTA_KEY_IN_CLIENT_INFO = 54060;
-type DBMS_MIN_REVISION_WITH_TABLES_STATUS = 54226;
-type DBMS_MIN_REVISION_WITH_TIME_ZONE_PARAMETER_IN_DATETIME_DATA_TYPE = 54337;
+-- type DBMS_MIN_REVISION_WITH_TABLES_STATUS = 54226;
+-- type DBMS_MIN_REVISION_WITH_TIME_ZONE_PARAMETER_IN_DATETIME_DATA_TYPE = 54337;
 type DBMS_MIN_REVISION_WITH_SERVER_DISPLAY_NAME = 54372;
 type DBMS_MIN_REVISION_WITH_VERSION_PATCH = 54401;
-type DBMS_MIN_REVISION_WITH_SERVER_LOGS = 54406;
-type DBMS_MIN_REVISION_WITH_CURRENT_AGGREGATION_VARIANT_SELECTION_METHOD = 54448;
-type DBMS_MIN_MAJOR_VERSION_WITH_CURRENT_AGGREGATION_VARIANT_SELECTION_METHOD = 21;
-type DBMS_MIN_MINOR_VERSION_WITH_CURRENT_AGGREGATION_VARIANT_SELECTION_METHOD = 4;
-type DBMS_MIN_REVISION_WITH_COLUMN_DEFAULTS_METADATA = 54410;
-type DBMS_MIN_REVISION_WITH_LOW_CARDINALITY_TYPE = 54405;
+-- type DBMS_MIN_REVISION_WITH_SERVER_LOGS = 54406;
+-- type DBMS_MIN_REVISION_WITH_CURRENT_AGGREGATION_VARIANT_SELECTION_METHOD = 54448;
+-- type DBMS_MIN_MAJOR_VERSION_WITH_CURRENT_AGGREGATION_VARIANT_SELECTION_METHOD = 21;
+-- type DBMS_MIN_MINOR_VERSION_WITH_CURRENT_AGGREGATION_VARIANT_SELECTION_METHOD = 4;
+-- type DBMS_MIN_REVISION_WITH_COLUMN_DEFAULTS_METADATA = 54410;
+-- type DBMS_MIN_REVISION_WITH_LOW_CARDINALITY_TYPE = 54405;
 type DBMS_MIN_REVISION_WITH_CLIENT_WRITE_INFO = 54420;
-type DBMS_MIN_REVISION_WITH_SETTINGS_SERIALIZED_AS_STRINGS = 54429;
-type DBMS_MIN_REVISION_WITH_SCALARS = 54429;
+-- type DBMS_MIN_REVISION_WITH_SETTINGS_SERIALIZED_AS_STRINGS = 54429;
+-- type DBMS_MIN_REVISION_WITH_SCALARS = 54429;
 type DBMS_MIN_REVISION_WITH_OPENTELEMETRY = 54442;
-type DBMS_MIN_REVISION_WITH_AGGREGATE_FUNCTIONS_VERSIONING = 54452;
-type DBMS_CLUSTER_PROCESSING_PROTOCOL_VERSION = 1;
-type DBMS_MIN_SUPPORTED_PARALLEL_REPLICAS_PROTOCOL_VERSION = 3;
-type DBMS_PARALLEL_REPLICAS_MIN_VERSION_WITH_MARK_SEGMENT_SIZE_FIELD = 4;
-type DBMS_PARALLEL_REPLICAS_PROTOCOL_VERSION = 4;
+-- type DBMS_MIN_REVISION_WITH_AGGREGATE_FUNCTIONS_VERSIONING = 54452;
+-- type DBMS_CLUSTER_PROCESSING_PROTOCOL_VERSION = 1;
+-- type DBMS_MIN_SUPPORTED_PARALLEL_REPLICAS_PROTOCOL_VERSION = 3;
+-- type DBMS_PARALLEL_REPLICAS_MIN_VERSION_WITH_MARK_SEGMENT_SIZE_FIELD = 4;
+-- type DBMS_PARALLEL_REPLICAS_PROTOCOL_VERSION = 4;
 type DBMS_MIN_REVISION_WITH_PARALLEL_REPLICAS = 54453;
-type DBMS_MERGE_TREE_PART_INFO_VERSION = 1;
+-- type DBMS_MERGE_TREE_PART_INFO_VERSION = 1;
 type DBMS_MIN_REVISION_WITH_INTERSERVER_SECRET = 54441;
-type DBMS_MIN_REVISION_WITH_X_FORWARDED_FOR_IN_CLIENT_INFO = 54443;
-type DBMS_MIN_REVISION_WITH_REFERER_IN_CLIENT_INFO = 54447;
+-- type DBMS_MIN_REVISION_WITH_X_FORWARDED_FOR_IN_CLIENT_INFO = 54443;
+-- type DBMS_MIN_REVISION_WITH_REFERER_IN_CLIENT_INFO = 54447;
 type DBMS_MIN_PROTOCOL_VERSION_WITH_DISTRIBUTED_DEPTH = 54448;
-type DBMS_MIN_PROTOCOL_VERSION_WITH_INCREMENTAL_PROFILE_EVENTS = 54451;
+-- type DBMS_MIN_PROTOCOL_VERSION_WITH_INCREMENTAL_PROFILE_EVENTS = 54451;
 type DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION = 54454;
 type DBMS_MIN_PROTOCOL_VERSION_WITH_INITIAL_QUERY_START_TIME = 54449;
-type DBMS_MIN_PROTOCOL_VERSION_WITH_PROFILE_EVENTS_IN_INSERT = 54456;
-type DBMS_MIN_PROTOCOL_VERSION_WITH_VIEW_IF_PERMITTED = 54457;
-type DBMS_MIN_PROTOCOL_VERSION_WITH_ADDENDUM = 54458;
+-- type DBMS_MIN_PROTOCOL_VERSION_WITH_PROFILE_EVENTS_IN_INSERT = 54456;
+-- type DBMS_MIN_PROTOCOL_VERSION_WITH_VIEW_IF_PERMITTED = 54457;
+-- type DBMS_MIN_PROTOCOL_VERSION_WITH_ADDENDUM = 54458;
 type DBMS_MIN_PROTOCOL_VERSION_WITH_QUOTA_KEY = 54458;
 type DBMS_MIN_PROTOCOL_VERSION_WITH_PARAMETERS = 54459;
-type DBMS_MIN_PROTOCOL_VERSION_WITH_SERVER_QUERY_TIME_IN_PROGRESS = 54460;
+-- type DBMS_MIN_PROTOCOL_VERSION_WITH_SERVER_QUERY_TIME_IN_PROGRESS = 54460;
 type DBMS_MIN_PROTOCOL_VERSION_WITH_PASSWORD_COMPLEXITY_RULES = 54461;
 type DBMS_MIN_REVISION_WITH_INTERSERVER_SECRET_V2 = 54462;
 type DBMS_MIN_PROTOCOL_VERSION_WITH_TOTAL_BYTES_IN_PROGRESS = 54463;
-type DBMS_MIN_PROTOCOL_VERSION_WITH_TIMEZONE_UPDATES = 54464;
-type DBMS_MIN_REVISION_WITH_SPARSE_SERIALIZATION = 54465;
-type DBMS_MIN_REVISION_WITH_SSH_AUTHENTICATION = 54466;
-type DBMS_MIN_REVISION_WITH_TABLE_READ_ONLY_CHECK = 54467;
-type DBMS_MIN_REVISION_WITH_SYSTEM_KEYWORDS_TABLE = 54468;
+-- type DBMS_MIN_PROTOCOL_VERSION_WITH_TIMEZONE_UPDATES = 54464;
+-- type DBMS_MIN_REVISION_WITH_SPARSE_SERIALIZATION = 54465;
+-- type DBMS_MIN_REVISION_WITH_SSH_AUTHENTICATION = 54466;
+-- type DBMS_MIN_REVISION_WITH_TABLE_READ_ONLY_CHECK = 54467;
+-- type DBMS_MIN_REVISION_WITH_SYSTEM_KEYWORDS_TABLE = 54468;
 type DBMS_MIN_REVISION_WITH_ROWS_BEFORE_AGGREGATION = 54469;
 type DBMS_MIN_PROTOCOL_VERSION_WITH_CHUNKED_PACKETS = 54470;
 type DBMS_MIN_REVISION_WITH_VERSIONED_PARALLEL_REPLICAS_PROTOCOL = 54471;
