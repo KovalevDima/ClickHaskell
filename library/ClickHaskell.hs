@@ -1,5 +1,4 @@
 {-# OPTIONS_GHC
-  -Wno-orphans
   -Wno-unused-imports
   -Wno-unticked-promoted-constructors
 #-}
@@ -84,7 +83,7 @@ import Control.Applicative (liftA2)
 import Control.Concurrent (MVar, newMVar, putMVar, takeMVar)
 import Control.DeepSeq (NFData)
 import Control.Exception (Exception, SomeException, bracketOnError, catch, finally, mask, onException, throw, throwIO)
-import Control.Monad (forM, replicateM, when, (<$!>), (<=<))
+import Control.Monad (forM, when, (<$!>), (<=<))
 import Data.Binary.Get
 import Data.Bits (Bits (setBit, unsafeShiftL, unsafeShiftR, (.&.), (.|.)))
 import Data.ByteString as BS (ByteString, length)
@@ -827,7 +826,7 @@ data PasswordComplexityRules = MkPasswordComplexityRules
 instance Deserializable [PasswordComplexityRules] where
   deserialize rev = do
     len <- deserialize @UVarInt rev
-    replicateM (fromIntegral len) (deserialize @PasswordComplexityRules rev)
+    replicateGet (fromIntegral len) (deserialize @PasswordComplexityRules rev)
 
 data ExceptionPacket = MkExceptionPacket
   { code        :: Int32
@@ -986,7 +985,13 @@ type family
 
 -- ** Column deserialization
 
-{-# SPECIALIZE replicateM :: Int -> Get chType -> Get [chType] #-}
+{-# INLINE replicateGet #-}
+replicateGet :: Int -> Get chType -> Get [chType]
+replicateGet cnt0 f = loop cnt0
+  where
+  loop cnt
+    | cnt <= 0  = pure []
+    | otherwise = liftA2 (:) f (loop (cnt - 1))
 
 class SerializableColumn column where
   deserializeColumn :: ProtocolRevision -> Bool -> UVarInt -> Get column
@@ -1020,7 +1025,7 @@ instance
   deserializeColumn rev isCheckRequired rows = do
     handleColumnHeader @(Column name chType) rev isCheckRequired
     mkColumn @(Column name chType)
-      <$> replicateM (fromIntegral rows) (deserialize @chType rev)
+      <$> replicateGet (fromIntegral rows) (deserialize @chType rev)
 
   {-# INLINE serializeColumn #-}
   serializeColumn rev column
@@ -1040,7 +1045,7 @@ instance {-# OVERLAPPING #-}
   {-# INLINE deserializeColumn #-}
   deserializeColumn rev isCheckRequired rows = do
     handleColumnHeader @(Column name (Nullable chType)) rev isCheckRequired
-    nulls <- replicateM (fromIntegral rows) (deserialize @UInt8 rev)
+    nulls <- replicateGet (fromIntegral rows) (deserialize @UInt8 rev)
     mkColumn @(Column name (Nullable chType)) <$>
       forM
         nulls
@@ -1074,7 +1079,7 @@ instance {-# OVERLAPPING #-}
     _index_size <- deserialize @Int64 rev
     -- error $ "Trace | " <> show _serializationType <> " : " <> show _index_size
     mkColumn @(Column name (LowCardinality chType))
-      <$> replicateM (fromIntegral rows) (toChType <$> deserialize @chType rev)
+      <$> replicateGet (fromIntegral rows) (toChType <$> deserialize @chType rev)
 
   {-# INLINE serializeColumn #-}
   serializeColumn rev (LowCardinalityColumn column)
@@ -1094,7 +1099,7 @@ instance {-# OVERLAPPING #-}
   deserializeColumn rev isCheckRequired _rows = do
     handleColumnHeader @(Column name (Array chType)) rev isCheckRequired
     (arraySize, _offsets) <- readOffsets rev
-    _types <- replicateM (fromIntegral arraySize) (deserialize @chType rev)
+    _types <- replicateGet (fromIntegral arraySize) (deserialize @chType rev)
     pure $ mkColumn @(Column name (Array chType)) []
     where
     readOffsets :: ProtocolRevision -> Get (UInt64, [UInt64])
