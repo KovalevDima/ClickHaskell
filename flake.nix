@@ -65,9 +65,9 @@
           //
           {
             default = pkgs.mkShell {
-              inputsFrom = [config.haskellProjects.ghc984.outputs.devShell];
+              inputsFrom = [config.haskellProjects.ghc9122.outputs.devShell];
               packages = with pkgs; with haskellPackages; with (self'.packages);
-                [clickhouse nil eventlog2html graphmod ghc984-html2hs];
+                [clickhouse nil eventlog2html graphmod ghc9122-html2hs];
             };
           };
         # Build documnetation
