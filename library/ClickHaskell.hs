@@ -1164,9 +1164,9 @@ instance Deserializable Int32 where deserialize _ = toChType <$> getInt32le; {-#
 instance Deserializable Int64 where deserialize _ = toChType <$> getInt64le; {-# INLINE deserialize #-}
 instance Deserializable Int128 where
   deserialize _ = do
-    liftA2 (flip Int128)
-      getWord64le
-      getWord64le
+    low <- getWord64le
+    high <- getWord64le
+    pure $ Int128 high low
   {-# INLINE deserialize #-}
 instance Deserializable UInt8 where deserialize _ = toChType <$> getWord8; {-# INLINE deserialize #-}
 instance Deserializable UInt16 where deserialize _ = toChType <$> getWord16le; {-# INLINE deserialize #-}
@@ -1174,15 +1174,15 @@ instance Deserializable UInt32 where deserialize _ = toChType <$> getWord32le; {
 instance Deserializable UInt64 where deserialize _ = toChType <$> getWord64le; {-# INLINE deserialize #-}
 instance Deserializable UInt128 where
   deserialize _ = do
-    liftA2 (flip Word128)
-      getWord64le
-      getWord64le
+    low <- getWord64le
+    high <- getWord64le
+    pure $ Word128 high low
   {-# INLINE deserialize #-}
 instance Deserializable UUID where
   deserialize _ = do
-      MkChUUID <$> liftA2 (flip Word128)
-        getWord64le
-        getWord64le
+    low <- getWord64le
+    high <- getWord64le
+    pure $ MkChUUID (Word128 high low)
   {-# INLINE deserialize #-}
 instance Deserializable Date where deserialize _ = toChType <$> getWord16le; {-# INLINE deserialize #-}
 instance Deserializable (DateTime tz) where deserialize _ = toChType <$> getWord32le; {-# INLINE deserialize #-}
