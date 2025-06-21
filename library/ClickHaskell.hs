@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC
+  -Wno-orphans
   -Wno-unused-imports
   -Wno-unticked-promoted-constructors
 #-}
