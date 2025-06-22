@@ -51,3 +51,5 @@ jobs:
       - name: Build ClickHaskell-dist
         run: nix build .#ClickHaskell-dist
 
+      - name: Test devShell
+        run: nix develop .#dev-${{ matrix.ghc }} -c echo "Ok."
