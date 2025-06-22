@@ -11,8 +11,11 @@
     prof-simple = {libraryProfiling = true; executableProfiling = true;};
   };
   defaults =  {
-    devShell.tools = hp: {
+    devShell.tools = hp: with hp; {
       ghcide = null;
+      inherit
+        cabal-install
+        haskell-language-server;
     };
   };
   packages = {
