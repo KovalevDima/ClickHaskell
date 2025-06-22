@@ -10,6 +10,11 @@
     prof-1bil-stream = {libraryProfiling = true; executableProfiling = true;};
     prof-simple = {libraryProfiling = true; executableProfiling = true;};
   };
+  defaults =  {
+    devShell.tools = hp: {
+      ghcide = null;
+    };
+  };
   packages = {
     wide-word.source = inputs.wide-word;
   };
