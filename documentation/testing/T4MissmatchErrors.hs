@@ -30,7 +30,7 @@ t4 connection = do
         pure
     )
   case res1 of
-    Left (UserError (UnmatchedColumn _)) -> pure ()
+    Left (UnmatchedResult (UnmatchedColumn _)) -> pure ()
     Right _ -> error "Expected an error, but got success"
     Left  e -> error ("MissmatchErrors: " <> show e)
 
@@ -44,7 +44,7 @@ t4 connection = do
         pure
     )
   case res2 of
-    Left (UserError (UnmatchedType _)) -> pure ()
+    Left (UnmatchedResult (UnmatchedType _)) -> pure ()
     Right _ -> error "Expected an error, but got success"
     Left  e -> error ("MissmatchErrors: " <> show e)
 
@@ -58,7 +58,7 @@ t4 connection = do
         pure
     )
   case res3 of
-    Left (UserError (UnmatchedColumnsCount _)) -> pure ()
+    Left (UnmatchedResult (UnmatchedColumnsCount _)) -> pure ()
     Right _ -> error "Expected an error, but got success"
     Left  e -> error ("MissmatchErrors: " <> show e)
 

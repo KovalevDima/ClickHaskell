@@ -4,6 +4,7 @@ module ClickHaskell.Primitive where
 import Paths_ClickHaskell (version)
 
 -- GHC included
+import Control.Applicative (liftA2)
 import Control.DeepSeq (NFData)
 import Control.Monad ((<=<))
 import Data.Binary.Get
@@ -18,6 +19,7 @@ import Data.Version (Version (..))
 import Data.Word (Word16, Word32, Word64, Word8)
 import GHC.Generics (C1, D1, Generic (..), K1 (K1), M1 (M1), Rec0, S1, type (:*:) (..))
 import GHC.TypeLits (ErrorMessage (..), KnownNat, KnownSymbol, Nat, Symbol, TypeError, natVal, symbolVal)
+import Prelude hiding (liftA2)
 
 -- External
 import Data.WideWord (Int128 (..), Word128(..))

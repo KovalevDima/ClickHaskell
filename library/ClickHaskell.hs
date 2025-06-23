@@ -1,5 +1,4 @@
 {-# OPTIONS_GHC
-  -Wno-unused-imports
   -Wno-unticked-promoted-constructors
 #-}
 
@@ -79,16 +78,14 @@ module ClickHaskell
 import ClickHaskell.Columns
 import ClickHaskell.Packets
 import ClickHaskell.Primitive
-import Paths_ClickHaskell (version)
 
 -- GHC included
 import Control.Applicative (liftA2)
 import Control.Concurrent (MVar, newMVar, putMVar, takeMVar)
-import Control.DeepSeq (NFData)
 import Control.Exception (Exception, SomeException, bracketOnError, catch, finally, mask, onException, throw, throwIO)
-import Control.Monad (forM, when, (<$!>), (<=<))
+import Control.Monad (when, (<$!>))
 import Data.Binary.Get
-import Data.Bits (Bits (setBit, unsafeShiftL, unsafeShiftR, (.&.), (.|.)))
+import Data.Bits (Bits (unsafeShiftR))
 import Data.ByteString as BS (ByteString, length)
 import Data.ByteString.Builder
 import Data.ByteString.Char8 as BS8 (concatMap, length, pack, replicate, singleton)
@@ -99,17 +96,16 @@ import Data.Int (Int16, Int32, Int64, Int8)
 import Data.Kind (Type)
 import Data.List (uncons)
 import Data.Maybe (listToMaybe, fromMaybe)
-import Data.String (IsString (..))
 import Data.Text (Text)
 import Data.Text.Encoding as Text (encodeUtf8)
 import Data.Time (UTCTime, ZonedTime, zonedTimeToUTC)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
 import Data.Typeable (Proxy (..))
-import Data.Version (Version (..))
-import Data.Word (Word16, Word32, Word64, Word8)
+import Data.Word (Word16, Word32, Word64)
 import GHC.Generics (C1, D1, Generic (..), K1 (K1, unK1), M1 (M1, unM1), Meta (MetaSel), Rec0, S1, type (:*:) (..))
 import GHC.Stack (HasCallStack, callStack, prettyCallStack)
-import GHC.TypeLits (ErrorMessage (..), KnownNat, KnownSymbol, Nat, Symbol, TypeError, natVal, symbolVal)
+import GHC.TypeLits (ErrorMessage (..), KnownSymbol, Symbol, TypeError, symbolVal)
+import Prelude hiding (liftA2)
 import System.Environment (lookupEnv)
 import System.Timeout (timeout)
 
