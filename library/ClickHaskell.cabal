@@ -58,7 +58,9 @@ Library
     -- External dependencies
     , network < 4
     , wide-word < 1
-
+  ghc-options:
+    -Wno-unticked-promoted-constructors
+    -Wno-dodgy-imports
   if flag(dev)
     GHC-Options:
       -ddump-to-file

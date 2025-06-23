@@ -1,7 +1,3 @@
-{-# OPTIONS_GHC
-  -Wno-unticked-promoted-constructors
-#-}
-
 {- |
   Module:      ClickHaskell
   Copyright:   (c) 2023 Dmitry Kovalev
