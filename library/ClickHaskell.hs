@@ -561,8 +561,8 @@ mkDataPacket table_name columns_count rows_count = Data
 -}
 data ClientError where
   UnmatchedResult :: HasCallStack => UserError -> ClientError
-  DatabaseException :: ExceptionPacket -> ClientError
-  -- ^ Database responded with an exception packet
+  DatabaseException :: HasCallStack => ExceptionPacket -> ClientError
+    -- ^ Database responded with an exception packet
   InternalError :: HasCallStack => InternalError -> ClientError
   deriving anyclass (Exception)
 
