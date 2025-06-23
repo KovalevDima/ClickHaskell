@@ -684,7 +684,7 @@ instance
   where
   {-# INLINE gFromColumns #-}
   gFromColumns isCheckRequired rev size =
-    either throw (map (M1 . K1 . fromChType @chType) . columnValues)
+    either (throw . UnmatchedResult) (map (M1 . K1 . fromChType @chType) . columnValues)
       <$> deserializeColumn @(Column name chType) rev isCheckRequired size
   gReadingColumns = (renderColumnName @(Column name chType), renderColumnType @(Column name chType)) : []
   {-# INLINE gSerializeRecords #-}
