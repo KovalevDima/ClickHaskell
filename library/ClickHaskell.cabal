@@ -36,6 +36,9 @@ Library
   Exposed-Modules:
     ClickHaskell
   Other-Modules:
+    ClickHaskell.Columns
+    ClickHaskell.Packets
+    ClickHaskell.Primitive
     Paths_ClickHaskell
   HS-Source-Dirs:
     ./
