@@ -1,13 +1,22 @@
 <h1>usage</h1>
 
-Lets write simple executable with generic usage examples
+Lets write simple executable with basic usage example
 <br>
 <br>
 Before we start we need to define module
 <pre><code data-lang="haskell" class="haskell"
->{-# LANGUAGE DataKinds, DeriveAnyClass, OverloadedStrings #-}
+>{-# LANGUAGE
+  DataKinds,
+  DeriveAnyClass,
+  DeriveGeneric,
+  OverloadedStrings,
+  FlexibleInstances,
+  MultiParamTypeClasses,
+  TypeApplications,
+  StandaloneDeriving
+#-}
 
-module Main where 
+module Main where
 
 import ClickHaskell
 import GHC.Generics (Generic)
@@ -47,20 +56,10 @@ deriving instance ClickHaskell ExampleCols ExampleData
 
 <h3>Command</h3>
 
-Also we should create the table and view
+Also we should create the table
 
 <pre><code data-lang="haskell" class="haskell"
->createView :: Connection -> IO ()
-createView connection =
-  command
-    connection
-    "CREATE OR REPLACE VIEW exampleView \
-    \AS SELECT * \
-    \FROM generateRandom('a1 Int32, a2 String, a3 DateTime', 1, 10, 2) \
-    \WHERE (a1 > {a1MoreThan:Int32}) AND (a1 < {a1LessThan:Int32}) \
-    \LIMIT 5;"
-
-createTable :: Connection -> IO ()
+>createTable :: Connection -> IO ()
 createTable connection =
   command
     connection
@@ -74,77 +73,30 @@ createTable connection =
     \ORDER BY ();"
 </code></pre>
 
-
-
-<h3>View</h3>
-
-<pre><code data-lang="haskell" class="haskell"
->exampleView :: Connection -> IO [ExampleData]
-exampleView connection = 
-  mconcat <$>
-    selectFromView
-      @(View "exampleView" ExampleCols ExampleParams)
-      @ExampleData
-      connection
-      exampleParams
-      pure
-
-exampleParams :: Parameters '[] -> Parameters ExampleParams
-exampleParams =
-  ( parameter @"a1MoreThan" @Int32 ((-100_000) :: Int32)
-  . parameter @"a1LessThan" @Int32 ((100_000) :: Int32)
-  )
-
-type ExampleParams =
- '[ Parameter "a1MoreThan" Int32
-  , Parameter "a1LessThan" Int32
-  ]
-</code></pre>
-
-
-
-<h3>Insert</h3>
-
-<pre><code data-lang="haskell" class="haskell"
->exampleInsert :: Connection -> [ExampleData] -> IO ()
-exampleInsert connection x =
-  insertInto
-    @(Table "exampleTable" ExampleCols)
-    @ExampleData
-    connection
-    x
-</code></pre>
-
-
-
-<h3>Select</h3>
-
-<pre><code data-lang="haskell" class="haskell"
->exampleSelect :: Connection -> IO [ExampleData]
-exampleSelect connection =
-  mconcat <$>
-    select
-      @ExampleCols
-      @ExampleData
-      connection
-      "SELECT CAST(5, 'Int32') as a1, 'hello' as a2, CAST(5, 'DateTime') as a3 LIMIT 5;"
-      pure
-</code></pre>
-
-
-
-<h3>Connection</h3>
+<h3>Create table, read and then write</h3>
 
 <pre><code data-lang="haskell" class="haskell"
 >main :: IO ()
 main = do
   connection <- openConnection defaultConnectionArgs
 
-  createView connection
   createTable connection
 
-  selectRes <- exampleSelect connection
-  viewRes <- exampleView connection
+  results <-
+    select
+      @ExampleCols
+      @ExampleData
+      connection
+      " SELECT \
+      \   defaultValueOfTypeName('Int32') as a1,   \
+      \   defaultValueOfTypeName('String') as a2,  \
+      \   defaultValueOfTypeName('DateTime') as a3 \
+      \ LIMIT 5;"
+      pure
 
-  exampleInsert connection (selectRes <> viewRes)
+  insertInto
+    @(Table "exampleTable" ExampleCols)
+    @ExampleData
+    connection
+    (mconcat results)
 </code></pre>
