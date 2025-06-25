@@ -7,13 +7,6 @@ license:            BSD-3-Clause
 
 executable usage
   default-language: Haskell2010
-  default-extensions:
-    DeriveGeneric,
-    FlexibleInstances,
-    MultiParamTypeClasses,
-    NumericUnderscores,
-    TypeApplications,
-    StandaloneDeriving
   main-is: index.lhs
   build-depends:
       ClickHaskell
