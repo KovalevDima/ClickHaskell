@@ -4,6 +4,7 @@ module ClickHaskell.Connection where
 import ClickHaskell.Primitive
 
 -- GHC included
+import Control.Concurrent (MVar)
 import Control.Exception (throwIO)
 import Data.Binary.Builder (Builder, toLazyByteString)
 import Data.Binary.Get
@@ -51,6 +52,8 @@ writeToConnection MkConnectionState{revision, buffer} packet =
 writeToConnectionEncode :: ConnectionState -> (ProtocolRevision -> Builder) -> IO ()
 writeToConnectionEncode MkConnectionState{revision, buffer} serializer =
   (writeSock buffer . toLazyByteString) (serializer revision)
+
+data Connection where MkConnection :: (MVar ConnectionState) -> Connection
 
 data ConnectionState = MkConnectionState
   { user     :: ChString

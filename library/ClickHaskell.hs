@@ -78,7 +78,7 @@ import ClickHaskell.Primitive
 
 -- GHC included
 import Control.Applicative (liftA2)
-import Control.Concurrent (MVar, newMVar, putMVar, takeMVar)
+import Control.Concurrent (newMVar, putMVar, takeMVar)
 import Control.Exception (Exception, SomeException, bracketOnError, catch, finally, mask, onException, throw, throwIO)
 import Control.Monad (when, (<$!>))
 import Data.Binary.Get
@@ -108,8 +108,6 @@ import System.Timeout (timeout)
 -- External
 import Data.WideWord (Int128 (..), Word128(..))
 import Network.Socket hiding (SocketOption(..))
-
-data Connection where MkConnection :: (MVar ConnectionState) -> Connection
 
 readBuffer :: Buffer -> Get a -> IO a
 readBuffer buffer deseralize =
