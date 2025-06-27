@@ -4,6 +4,7 @@ module ClickHaskell.Connection where
 import ClickHaskell.Primitive
 
 -- GHC included
+import Control.Exception (throwIO)
 import Data.Binary.Builder (Builder, toLazyByteString)
 import Data.Binary.Get
 import Data.ByteString as BS (ByteString, length)
@@ -33,6 +34,24 @@ data ConnectionError
   -- ^ Occurs on 'socket' connection timeout
   deriving (Show, Exception)
 
+{- |
+  These exceptions might indicate internal bugs.
+
+  If you encounter one, please report it.
+-}
+data InternalError
+  = UnexpectedPacketType UVarInt
+  | DeserializationError String
+  deriving (Show, Exception)
+
+writeToConnection :: Serializable packet => ConnectionState -> packet -> IO ()
+writeToConnection MkConnectionState{revision, buffer} packet =
+  (writeSock buffer . toLazyByteString . serialize revision) packet
+
+writeToConnectionEncode :: ConnectionState -> (ProtocolRevision -> Builder) -> IO ()
+writeToConnectionEncode MkConnectionState{revision, buffer} serializer =
+  (writeSock buffer . toLazyByteString) (serializer revision)
+
 data ConnectionState = MkConnectionState
   { user     :: ChString
   , hostname :: ChString
@@ -42,13 +61,38 @@ data ConnectionState = MkConnectionState
   , creds    :: ConnectionArgs
   }
 
-writeToConnection :: Serializable packet => ConnectionState -> packet -> IO ()
-writeToConnection MkConnectionState{revision, buffer} packet =
-  (writeSock buffer . toLazyByteString . serialize revision) packet
+data Buffer = MkBuffer
+  { readSock :: IO BS.ByteString
+  , writeSock :: BSL.ByteString -> IO ()
+  , closeSock :: IO ()
+  , buff :: IORef BS.ByteString
+  }
 
-writeToConnectionEncode :: ConnectionState -> (ProtocolRevision -> Builder) -> IO ()
-writeToConnectionEncode MkConnectionState{revision, buffer} serializer =
-  (writeSock buffer . toLazyByteString) (serializer revision)
+flushBuffer :: Buffer -> IO ()
+flushBuffer MkBuffer{buff} = atomicWriteIORef buff ""
+
+rawBufferRead :: Buffer -> Get packet -> IO packet
+rawBufferRead buffer@MkBuffer{..} parser = runBufferReader (runGetIncremental parser)
+  where
+  runBufferReader :: Decoder packet -> IO packet
+  runBufferReader = \case
+    (Partial decoder) -> readBuffer >>= runBufferReader . decoder . Just
+    (Done leftover _consumed packet) -> packet <$ atomicModifyIORef buff (leftover,)
+    (Fail _leftover _consumed msg) -> throwIO  (DeserializationError msg)
+
+  readBuffer :: IO BS.ByteString
+  readBuffer =
+    readIORef buff
+      >>= (\currentBuffer ->
+        case BS.length currentBuffer of
+          0 -> readSock
+          _ -> flushBuffer buffer *> pure currentBuffer
+      )
+
+
+
+
+-- * Initialization
 
 {- |
   See `defaultConnectionArgs` for documentation
@@ -130,31 +174,3 @@ overrideNetwork
   -> (ConnectionArgs -> ConnectionArgs)
 overrideNetwork new new2 = \MkConnectionArgs{..} ->
   MkConnectionArgs{isTLS=new, initBuffer=new2, ..}
-
-data Buffer = MkBuffer
-  { readSock :: IO BS.ByteString
-  , writeSock :: BSL.ByteString -> IO ()
-  , closeSock :: IO ()
-  , buff :: IORef BS.ByteString
-  }
-
-flushBuffer :: Buffer -> IO ()
-flushBuffer MkBuffer{buff} = atomicWriteIORef buff ""
-
-rawBufferizedRead :: Buffer -> Get packet -> IO (Either String packet)
-rawBufferizedRead buffer@MkBuffer{..} parser = runBufferReader (runGetIncremental parser)
-  where
-  runBufferReader :: Decoder packet -> IO (Either String packet)
-  runBufferReader = \case
-    (Partial decoder) -> readBuffer >>= runBufferReader . decoder . Just
-    (Done leftover _consumed packet) -> Right packet <$ atomicModifyIORef buff (leftover,)
-    (Fail _leftover _consumed msg) -> pure (Left msg)
-
-  readBuffer :: IO BS.ByteString
-  readBuffer =
-    readIORef buff
-      >>= (\currentBuffer ->
-        case BS.length currentBuffer of
-          0 -> readSock
-          _ -> flushBuffer buffer *> pure currentBuffer
-      )

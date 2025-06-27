@@ -111,6 +111,12 @@ import Network.Socket hiding (SocketOption(..))
 
 data Connection where MkConnection :: (MVar ConnectionState) -> Connection
 
+readBuffer :: Buffer -> Get a -> IO a
+readBuffer buffer deseralize =
+  catch @InternalError
+    (rawBufferRead buffer deseralize)
+    (throwIO . InternalError)
+
 withConnection :: HasCallStack => Connection -> (ConnectionState -> IO a) -> IO a
 withConnection (MkConnection connStateMVar) f =
   mask $ \restore -> do
@@ -155,9 +161,7 @@ createConnectionState creds@MkConnectionArgs {user, pass, db, host, mPort, initB
 
   (writeSock buffer . toLazyByteString . serialize latestSupportedRevision)
     (mkHelloPacket db user pass)
-  serverPacketType <- 
-    either (throwIO . InternalError . DeserializationError) pure
-      =<< rawBufferizedRead buffer (deserialize latestSupportedRevision)
+  serverPacketType <- readBuffer buffer (deserialize latestSupportedRevision)
   case serverPacketType of
     HelloResponse MkHelloResponse{server_revision} -> do
       let revision = min server_revision latestSupportedRevision
@@ -184,8 +188,7 @@ command conn query = do
   where
   handleCreate :: ConnectionState -> IO ()
   handleCreate MkConnectionState{..} =
-    rawBufferizedRead buffer (deserialize revision)
-    >>= either (throwIO . InternalError . DeserializationError) pure
+    readBuffer buffer (deserialize revision)
     >>= \packet -> case packet of
       EndOfStream         -> pure ()
       Exception exception -> throwIO (DatabaseException exception)
@@ -198,9 +201,7 @@ ping :: HasCallStack => Connection -> IO ()
 ping conn = do
   withConnection conn $ \connState@MkConnectionState{revision, buffer} -> do
     writeToConnection connState Ping
-    responsePacket <- 
-      either (throwIO . InternalError . DeserializationError) pure 
-        =<< rawBufferizedRead buffer (deserialize revision)
+    responsePacket <- readBuffer buffer (deserialize revision)
     case responsePacket of
       Pong                -> pure ()
       Exception exception -> throwIO (DatabaseException exception)
@@ -276,20 +277,15 @@ handleSelect ::
 handleSelect MkConnectionState{..} f = loop []
   where
   loop acc =
-    rawBufferizedRead buffer (deserialize revision)
-    >>= either (throwIO . InternalError . DeserializationError) pure
-    >>=
-    \packet -> case packet of
+    readBuffer buffer (deserialize revision)
+    >>= \packet -> case packet of
       DataResponse MkDataPacket{columns_count = 0, rows_count = 0} -> loop acc
       DataResponse MkDataPacket{columns_count, rows_count} -> do
         let expected = columnsCount @columns @output
         when (columns_count /= expected) $
           (throw . UnmatchedResult . UnmatchedColumnsCount)
             ("Expected " <> show expected <> " columns but got " <> show columns_count)
-        result <-
-          f
-          =<< either (throwIO . InternalError . DeserializationError) pure
-          =<< rawBufferizedRead buffer (deserializeColumns @columns True revision rows_count)
+        result <- f =<< readBuffer buffer (deserializeColumns @columns True revision rows_count)
         loop (result : acc)
       Progress    _       -> loop acc
       ProfileInfo _       -> loop acc
@@ -319,15 +315,11 @@ insertInto conn columnsData = do
 -- | Internal
 handleInsertResult :: forall columns record . ClickHaskell columns record => ConnectionState -> [record] -> IO ()
 handleInsertResult conn@MkConnectionState{..} records = do
-  firstPacket <-
-    either (throwIO . InternalError . DeserializationError) pure
-      =<< rawBufferizedRead buffer (deserialize revision)
+  firstPacket <- readBuffer buffer (deserialize revision)
   case firstPacket of
     TableColumns      _ -> handleInsertResult @columns conn records
     DataResponse MkDataPacket{} -> do
-      _emptyDataPacket <- 
-        either (throwIO . InternalError . DeserializationError) pure
-          =<< rawBufferizedRead buffer (deserializeColumns @columns @record False revision 0)
+      _emptyDataPacket <- readBuffer buffer (deserializeColumns @columns @record False revision 0)
       writeToConnection conn (mkDataPacket "" (columnsCount @columns @record) (fromIntegral $ Prelude.length records))
       writeToConnectionEncode conn (serializeRecords @columns records)
       writeToConnection conn (mkDataPacket "" 0 0)
@@ -455,15 +447,6 @@ instance Show ClientError where
   show (DatabaseException err) = "DatabaseException " <> show err <> "\n" <> prettyCallStack callStack
   show (InternalError err) = "InternalError " <> show err <> "\n" <> prettyCallStack callStack
 
-{- |
-  These exceptions might indicate internal bugs.
-
-  If you encounter one, please report it.
--}
-data InternalError
-  = UnexpectedPacketType UVarInt
-  | DeserializationError String
-  deriving (Show, Exception)
 
 
 
