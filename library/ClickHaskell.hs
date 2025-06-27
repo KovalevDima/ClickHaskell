@@ -71,23 +71,23 @@ module ClickHaskell
   ) where
 
 -- Internal
+import ClickHaskell.Connection
 import ClickHaskell.Columns
 import ClickHaskell.Packets
 import ClickHaskell.Primitive
 
 -- GHC included
 import Control.Applicative (liftA2)
-import Control.Concurrent (MVar, newMVar, putMVar, takeMVar)
+import Control.Concurrent (newMVar, putMVar, takeMVar)
 import Control.Exception (Exception, SomeException, bracketOnError, catch, finally, mask, onException, throw, throwIO)
 import Control.Monad (when, (<$!>))
 import Data.Binary.Get
 import Data.Bits (Bits (unsafeShiftR))
-import Data.ByteString as BS (ByteString, length)
+import Data.ByteString as BS (ByteString)
 import Data.ByteString.Builder
 import Data.ByteString.Char8 as BS8 (concatMap, length, pack, replicate, singleton)
-import Data.ByteString.Lazy as BSL (toStrict, ByteString)
+import Data.ByteString.Lazy as BSL (toStrict)
 import Data.Coerce (coerce)
-import Data.IORef (IORef, atomicModifyIORef, atomicWriteIORef, newIORef, readIORef)
 import Data.Int (Int16, Int32, Int64, Int8)
 import Data.Kind (Type)
 import Data.List (uncons)
@@ -108,94 +108,12 @@ import System.Timeout (timeout)
 -- External
 import Data.WideWord (Int128 (..), Word128(..))
 import Network.Socket hiding (SocketOption(..))
-import Network.Socket qualified as Sock (SocketOption(..))
-import Network.Socket.ByteString (recv)
-import Network.Socket.ByteString.Lazy (sendAll)
 
--- * Connection
-
-{- |
-  See `defaultConnectionArgs` for documentation
--}
-data ConnectionArgs = MkConnectionArgs
-  { user :: Text
-  , pass :: Text
-  , db   :: Text
-  , host :: HostName
-  , mPort :: Maybe ServiceName
-  , isTLS :: Bool
-  , initBuffer :: HostName -> SockAddr -> Socket -> IO Buffer
-  }
-
-{- |
-  Default connection settings which follows __clickhouse-client__ defaults
-
-  Use `setUser`, `setPassword`, `setHost`, `setPort`, `setDatabase`
-  to modify connection defaults.
-
-  Or 'setSecure', 'overrideTLS' to configure TLS connection
--}
-defaultConnectionArgs :: ConnectionArgs
-defaultConnectionArgs = MkConnectionArgs
-  { user = "default"
-  , pass = ""
-  , host = "localhost"
-  , db   = "default"
-  , isTLS = False
-  , mPort = Nothing
-  , initBuffer  = \_hostname addrAddress sock -> do
-      setSocketOption sock Sock.NoDelay 1
-      setSocketOption sock Sock.KeepAlive 1
-      connect sock addrAddress
-      buff <- newIORef ""
-      pure
-        MkBuffer
-          { writeSock = \bs -> sendAll sock bs
-          , readSock  = recv sock 4096
-          , closeSock = close sock
-          , buff
-          }
-  }
-
-
-{- |
-  Overrides default user __"default"__
--}
-setUser :: Text -> ConnectionArgs -> ConnectionArgs
-setUser new MkConnectionArgs{..} = MkConnectionArgs{user=new, ..}
-
-{- |
-  Overrides default password __""__
--}
-setPassword :: Text -> ConnectionArgs -> ConnectionArgs
-setPassword new MkConnectionArgs{..} = MkConnectionArgs{pass=new, ..}
-
-{- |
-  Overrides default hostname __"localhost"__
--}
-setHost :: HostName -> ConnectionArgs -> ConnectionArgs
-setHost new MkConnectionArgs{..} = MkConnectionArgs{host=new, ..}
-
-{- |
-  Overrides default port __9000__ (or __9443__ for TLS)
--}
-setPort :: ServiceName -> ConnectionArgs -> ConnectionArgs
-setPort new MkConnectionArgs{..} = MkConnectionArgs{mPort=Just new, ..} 
-
-{- |
-  Overrides default database __"default"__
--}
-setDatabase :: Text -> ConnectionArgs -> ConnectionArgs
-setDatabase new MkConnectionArgs{..} = MkConnectionArgs{db=new, ..}
-
-overrideNetwork
-  :: Bool
-  -> (HostName -> SockAddr -> Socket -> IO Buffer)
-  -> (ConnectionArgs -> ConnectionArgs)
-overrideNetwork new new2 = \MkConnectionArgs{..} ->
-  MkConnectionArgs{isTLS=new, initBuffer=new2, ..}
-
-data Connection where MkConnection :: (MVar ConnectionState) -> Connection
+readBuffer :: Buffer -> Get a -> IO a
+readBuffer buffer deseralize =
+  catch @InternalError
+    (rawBufferRead buffer deseralize)
+    (throwIO . InternalError)
 
 withConnection :: HasCallStack => Connection -> (ConnectionState -> IO a) -> IO a
 withConnection (MkConnection connStateMVar) f =
@@ -206,23 +124,6 @@ withConnection (MkConnection connStateMVar) f =
       (putMVar connStateMVar =<< reopenConnection connState)
     putMVar connStateMVar connState
     return b
-
-data ConnectionState = MkConnectionState
-  { user     :: ChString
-  , hostname :: ChString
-  , os_user  :: ChString
-  , buffer   :: Buffer
-  , revision :: ProtocolRevision
-  , creds    :: ConnectionArgs
-  }
-
-writeToConnection :: Serializable packet => ConnectionState -> packet -> IO ()
-writeToConnection MkConnectionState{revision, buffer} packet =
-  (writeSock buffer . toLazyByteString . serialize revision) packet
-
-writeToConnectionEncode :: ConnectionState -> (ProtocolRevision -> Builder) -> IO ()
-writeToConnectionEncode MkConnectionState{revision, buffer} serializer =
-  (writeSock buffer . toLazyByteString) (serializer revision)
 
 openConnection :: HasCallStack => ConnectionArgs -> IO Connection
 openConnection creds = fmap MkConnection . newMVar =<< createConnectionState creds
@@ -258,7 +159,7 @@ createConnectionState creds@MkConnectionArgs {user, pass, db, host, mPort, initB
 
   (writeSock buffer . toLazyByteString . serialize latestSupportedRevision)
     (mkHelloPacket db user pass)
-  serverPacketType <- rawBufferizedRead buffer (deserialize latestSupportedRevision)
+  serverPacketType <- readBuffer buffer (deserialize latestSupportedRevision)
   case serverPacketType of
     HelloResponse MkHelloResponse{server_revision} -> do
       let revision = min server_revision latestSupportedRevision
@@ -267,34 +168,6 @@ createConnectionState creds@MkConnectionArgs {user, pass, db, host, mPort, initB
       pure conn
     Exception exception -> throwIO (DatabaseException exception)
     otherPacket         -> throwIO (InternalError $ UnexpectedPacketType $ serverPacketToNum otherPacket)
-
-data Buffer = MkBuffer
-  { readSock :: IO BS.ByteString
-  , writeSock :: BSL.ByteString -> IO ()
-  , closeSock :: IO ()
-  , buff :: IORef BS.ByteString
-  }
-
-flushBuffer :: Buffer -> IO ()
-flushBuffer MkBuffer{buff} = atomicWriteIORef buff ""
-
-rawBufferizedRead :: Buffer -> Get packet -> IO packet
-rawBufferizedRead buffer@MkBuffer{..} parser = runBufferReader (runGetIncremental parser)
-  where
-  runBufferReader :: Decoder packet -> IO packet
-  runBufferReader = \case
-    (Partial decoder) -> readBuffer >>= runBufferReader . decoder . Just
-    (Done leftover _consumed packet) -> packet <$ atomicModifyIORef buff (leftover,)
-    (Fail _leftover _consumed msg) -> throwIO (InternalError $ DeserializationError msg)
-
-  readBuffer :: IO BS.ByteString
-  readBuffer =
-    readIORef buff
-      >>= (\currentBuffer ->
-        case BS.length currentBuffer of
-          0 -> readSock
-          _ -> flushBuffer buffer *> pure currentBuffer
-      )
 
 
 {- |
@@ -313,7 +186,7 @@ command conn query = do
   where
   handleCreate :: ConnectionState -> IO ()
   handleCreate MkConnectionState{..} =
-    rawBufferizedRead buffer (deserialize revision)
+    readBuffer buffer (deserialize revision)
     >>= \packet -> case packet of
       EndOfStream         -> pure ()
       Exception exception -> throwIO (DatabaseException exception)
@@ -326,7 +199,7 @@ ping :: HasCallStack => Connection -> IO ()
 ping conn = do
   withConnection conn $ \connState@MkConnectionState{revision, buffer} -> do
     writeToConnection connState Ping
-    responsePacket <- rawBufferizedRead buffer (deserialize revision)
+    responsePacket <- readBuffer buffer (deserialize revision)
     case responsePacket of
       Pong                -> pure ()
       Exception exception -> throwIO (DatabaseException exception)
@@ -401,15 +274,16 @@ handleSelect ::
   ConnectionState -> ([output] -> IO result) -> IO [result]
 handleSelect MkConnectionState{..} f = loop []
   where
-  loop acc = rawBufferizedRead buffer (deserialize revision) >>=
-    \packet -> case packet of
+  loop acc =
+    readBuffer buffer (deserialize revision)
+    >>= \packet -> case packet of
       DataResponse MkDataPacket{columns_count = 0, rows_count = 0} -> loop acc
       DataResponse MkDataPacket{columns_count, rows_count} -> do
         let expected = columnsCount @columns @output
         when (columns_count /= expected) $
           (throw . UnmatchedResult . UnmatchedColumnsCount)
             ("Expected " <> show expected <> " columns but got " <> show columns_count)
-        result <- f =<< rawBufferizedRead buffer (deserializeColumns @columns True revision rows_count)
+        result <- f =<< readBuffer buffer (deserializeColumns @columns True revision rows_count)
         loop (result : acc)
       Progress    _       -> loop acc
       ProfileInfo _       -> loop acc
@@ -439,11 +313,11 @@ insertInto conn columnsData = do
 -- | Internal
 handleInsertResult :: forall columns record . ClickHaskell columns record => ConnectionState -> [record] -> IO ()
 handleInsertResult conn@MkConnectionState{..} records = do
-  firstPacket <- rawBufferizedRead buffer (deserialize revision)
+  firstPacket <- readBuffer buffer (deserialize revision)
   case firstPacket of
     TableColumns      _ -> handleInsertResult @columns conn records
     DataResponse MkDataPacket{} -> do
-      _emptyDataPacket <- rawBufferizedRead buffer (deserializeColumns @columns @record False revision 0)
+      _emptyDataPacket <- readBuffer buffer (deserializeColumns @columns @record False revision 0)
       writeToConnection conn (mkDataPacket "" (columnsCount @columns @record) (fromIntegral $ Prelude.length records))
       writeToConnectionEncode conn (serializeRecords @columns records)
       writeToConnection conn (mkDataPacket "" 0 0)
@@ -571,25 +445,6 @@ instance Show ClientError where
   show (DatabaseException err) = "DatabaseException " <> show err <> "\n" <> prettyCallStack callStack
   show (InternalError err) = "InternalError " <> show err <> "\n" <> prettyCallStack callStack
 
-{- |
-  Errors occured on connection operations
--}
-data ConnectionError
-  = NoAdressResolved
-  -- ^ Occurs when 'getAddrInfo' returns an empty result
-  | EstablishTimeout
-  -- ^ Occurs on 'socket' connection timeout
-  deriving (Show, Exception)
-
-{- |
-  These exceptions might indicate internal bugs.
-
-  If you encounter one, please report it.
--}
-data InternalError
-  = UnexpectedPacketType UVarInt
-  | DeserializationError String
-  deriving (Show, Exception)
 
 
 
