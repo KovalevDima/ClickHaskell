@@ -90,7 +90,7 @@ import Data.ByteString.Lazy as BSL (toStrict)
 import Data.Coerce (coerce)
 import Data.Int (Int16, Int32, Int64, Int8)
 import Data.Kind (Type)
-import Data.List (uncons)
+import Data.List (uncons, foldl')
 import Data.Maybe (listToMaybe, fromMaybe)
 import Data.Text (Text)
 import Data.Text.Encoding as Text (encodeUtf8)
@@ -525,7 +525,7 @@ instance
   {-# INLINE gSerializeRecords #-}
   gSerializeRecords rev xs =
     (\(ls,rs) -> gSerializeRecords @columns rev ls <> gSerializeRecords @columns rev rs)
-      (foldr (\(l :*: r) (accL, accR) -> (l:accL, r:accR)) ([], []) xs)
+      (foldl' (\(accL, accR) (l :*: r)  -> (l:accL, r:accR)) ([], []) xs)
   gColumnsCount = gColumnsCount @columns @left + gColumnsCount @columns @right
 
 
