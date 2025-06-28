@@ -197,18 +197,18 @@ class
 
 {-# INLINE replicateGet #-}
 replicateGet :: UVarInt -> Get chType -> Get [chType]
-replicateGet cnt0 f = loop cnt0
+replicateGet cnt0 f = loopGet cnt0
   where
-  loop cnt
+  loopGet cnt
     | cnt <= 0  = pure []
-    | otherwise = liftA2 (:) f (loop (cnt - 1))
+    | otherwise = liftA2 (:) f (loopGet (cnt - 1))
 
 instance Serializable UVarInt where
-  serialize _ = go
+  serialize _ = goUVarIntSer
     where
-    go i
+    goUVarIntSer i
       | i < 0x80 = word8 (fromIntegral i)
-      | otherwise = word8 (setBit (fromIntegral i) 7) <> go (i `unsafeShiftR` 7)
+      | otherwise = word8 (setBit (fromIntegral i) 7) <> goUVarIntSer (i `unsafeShiftR` 7)
 instance Serializable ChString where
   serialize rev (MkChString str) = (serialize @UVarInt rev . fromIntegral . BS.length) str <> byteString str
 instance Serializable UUID where serialize _ = (\(MkUUID (Word128 hi lo)) -> word64LE lo <> word64LE hi)
@@ -263,13 +263,13 @@ instance Deserializable ChString where
     MkChString <$> (getByteString . fromIntegral) len
 instance Deserializable UVarInt where
   {-# INLINE deserialize #-}
-  deserialize _ = go 0 (0 :: UVarInt)
+  deserialize _ = goUVarIntDeser 0 (0 :: UVarInt)
     where
-    go i o | i < 10 = do
+    goUVarIntDeser i o | i < 10 = do
       byte <- getWord8
       let o' = o .|. ((fromIntegral byte .&. 0x7f) `unsafeShiftL` (7 * i))
-      if byte .&. 0x80 == 0 then pure $! o' else go (i + 1) $! o'
-    go _ _ = fail "input exceeds varuint size"
+      if byte .&. 0x80 == 0 then pure $! o' else goUVarIntDeser (i + 1) $! o'
+    goUVarIntDeser _ _ = fail "input exceeds varuint size"
 instance Deserializable prim => Deserializable [prim] where
   deserialize rev = do
     len <- deserialize @UVarInt rev
