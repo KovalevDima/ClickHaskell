@@ -6,7 +6,6 @@ import Paths_ClickHaskell (version)
 -- GHC included
 import Control.Applicative (liftA2)
 import Control.DeepSeq (NFData)
-import Control.Monad ((<=<))
 import Data.Binary.Get
 import Data.Bits (Bits (setBit, unsafeShiftL, unsafeShiftR, (.&.), (.|.)))
 import Data.ByteString as BS (ByteString, length)
@@ -259,7 +258,9 @@ instance Deserializable (DateTime tz) where deserialize _ = MkDateTime <$> getWo
 instance Deserializable (DateTime64 precision tz) where deserialize _ = MkDateTime64 <$> getWord64le; {-# INLINE deserialize #-}
 instance Deserializable ChString where
   {-# INLINE deserialize #-}
-  deserialize = fmap MkChString . getByteString . fromIntegral <=< deserialize @UVarInt
+  deserialize rev = do
+    len <- deserialize @UVarInt rev
+    MkChString <$> (getByteString . fromIntegral) len
 instance Deserializable UVarInt where
   {-# INLINE deserialize #-}
   deserialize _ = go 0 (0 :: UVarInt)
