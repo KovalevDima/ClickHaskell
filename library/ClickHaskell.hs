@@ -272,21 +272,21 @@ handleSelect ::
   ClickHaskell columns output
   =>
   ConnectionState -> ([output] -> IO result) -> IO [result]
-handleSelect MkConnectionState{..} f = loop []
+handleSelect MkConnectionState{..} f = loopSelect []
   where
-  loop acc =
+  loopSelect acc =
     readBuffer buffer (deserialize revision)
     >>= \packet -> case packet of
-      DataResponse MkDataPacket{columns_count = 0, rows_count = 0} -> loop acc
+      DataResponse MkDataPacket{columns_count = 0, rows_count = 0} -> loopSelect acc
       DataResponse MkDataPacket{columns_count, rows_count} -> do
         let expected = columnsCount @columns @output
         when (columns_count /= expected) $
           (throw . UnmatchedResult . UnmatchedColumnsCount)
             ("Expected " <> show expected <> " columns but got " <> show columns_count)
         result <- f =<< readBuffer buffer (deserializeColumns @columns True revision rows_count)
-        loop (result : acc)
-      Progress    _       -> loop acc
-      ProfileInfo _       -> loop acc
+        loopSelect (result : acc)
+      Progress    _       -> loopSelect acc
+      ProfileInfo _       -> loopSelect acc
       EndOfStream         -> pure acc
       Exception exception -> throwIO (DatabaseException exception)
       otherPacket         -> throwIO (InternalError $ UnexpectedPacketType $ serverPacketToNum otherPacket)

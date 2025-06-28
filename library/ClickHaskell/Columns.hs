@@ -266,14 +266,14 @@ instance {-# OVERLAPPING #-}
         readOffsets :: ProtocolRevision -> Get (UInt64, [UInt64])
         readOffsets revivion = do
           size <- deserialize @UInt64 rev
-          (size, ) <$> go size
+          (size, ) <$> goArrayOffsets size
           where
-          go arraySize =
+          goArrayOffsets arraySize =
             do
             nextOffset <- deserialize @UInt64 revivion
             if arraySize >= nextOffset
               then pure [nextOffset]
-              else (nextOffset :) <$> go arraySize
+              else (nextOffset :) <$> goArrayOffsets arraySize
 
   {-# INLINE serializeColumn #-}
   serializeColumn _rev _column = undefined
