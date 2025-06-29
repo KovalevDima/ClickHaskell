@@ -40,6 +40,7 @@ Library
     ClickHaskell.Connection
     ClickHaskell.Packets
     ClickHaskell.Primitive
+    ClickHaskell.Statements
     Paths_ClickHaskell
   HS-Source-Dirs:
     ./
