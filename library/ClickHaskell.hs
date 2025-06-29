@@ -626,7 +626,7 @@ data Parameters parameters where
     -> Parameters (Parameter name chType ': parameters)
 
 {- |
->>> viewParameters (parameter @"a3" @ChString ("a3Val" :: String) . parameter @"a2" @ChString ("a2Val" :: String))
+>>> viewParameters (parameter @"a3" ("a3Val" :: ChString) . parameter @"a2" ("a2Val" :: ChString))
 "(a3='a3Val', a2='a2Val')"
 -}
 viewParameters :: (Parameters '[] -> Parameters passedParameters) -> Builder
@@ -639,10 +639,9 @@ renderParameters (AddParameter param moreParams)   = renderParameter param <> ",
 
 
 parameter
-  :: forall name chType parameters userType
-  . (ToChType chType userType, KnownParameter (Parameter name chType))
-  => userType -> Parameters parameters -> Parameters (Parameter name chType ': parameters)
-parameter val = AddParameter (MkParamater $ toChType val)
+  :: KnownParameter (Parameter name t)
+  => t -> Parameters params -> Parameters (Parameter name t ': params)
+parameter val = AddParameter (MkParamater val)
 
 renderParameter :: forall name chType . KnownParameter (Parameter name chType) => Parameter name chType -> Builder
 renderParameter (MkParamater chType) = (byteString . BS8.pack . symbolVal @name) Proxy <> "=" <> toQueryPart chType
