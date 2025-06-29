@@ -90,7 +90,7 @@ import Data.ByteString.Lazy as BSL (toStrict)
 import Data.Coerce (coerce)
 import Data.Int (Int16, Int32, Int64, Int8)
 import Data.Kind (Type)
-import Data.List (uncons)
+import Data.List (uncons, foldl')
 import Data.Maybe (listToMaybe, fromMaybe)
 import Data.Text (Text)
 import Data.Text.Encoding as Text (encodeUtf8)
@@ -101,7 +101,7 @@ import Data.Word (Word16, Word32, Word64)
 import GHC.Generics (C1, D1, Generic (..), K1 (K1, unK1), M1 (M1, unM1), Meta (MetaSel), Rec0, S1, type (:*:) (..))
 import GHC.Stack (HasCallStack, callStack, prettyCallStack)
 import GHC.TypeLits (ErrorMessage (..), KnownSymbol, Symbol, TypeError, symbolVal)
-import Prelude hiding (liftA2)
+import Prelude hiding (liftA2, foldl')
 import System.Environment (lookupEnv)
 import System.Timeout (timeout)
 
@@ -525,7 +525,7 @@ instance
   {-# INLINE gSerializeRecords #-}
   gSerializeRecords rev xs =
     (\(ls,rs) -> gSerializeRecords @columns rev ls <> gSerializeRecords @columns rev rs)
-      (foldr (\(l :*: r) (accL, accR) -> (l:accL, r:accR)) ([], []) xs)
+      (foldl' (\(accL, accR) (l :*: r)  -> (l:accL, r:accR)) ([], []) xs)
   gColumnsCount = gColumnsCount @columns @left + gColumnsCount @columns @right
 
 
