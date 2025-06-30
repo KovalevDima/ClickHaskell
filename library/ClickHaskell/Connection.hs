@@ -11,7 +11,6 @@ import Data.Binary.Get
 import Data.ByteString as BS (ByteString, length)
 import Data.ByteString.Lazy as BSL (ByteString)
 import Data.IORef (IORef, atomicModifyIORef, atomicWriteIORef, newIORef, readIORef)
-import Data.Text (Text)
 import GHC.Exception (Exception)
 import Prelude hiding (liftA2)
 
@@ -101,9 +100,9 @@ rawBufferRead buffer@MkBuffer{..} parser = runBufferReader (runGetIncremental pa
   See `defaultConnectionArgs` for documentation
 -}
 data ConnectionArgs = MkConnectionArgs
-  { user :: Text
-  , pass :: Text
-  , db   :: Text
+  { user :: String
+  , pass :: String
+  , db   :: String
   , host :: HostName
   , mPort :: Maybe ServiceName
   , isTLS :: Bool
@@ -144,13 +143,13 @@ defaultConnectionArgs = MkConnectionArgs
 {- |
   Overrides default user __"default"__
 -}
-setUser :: Text -> ConnectionArgs -> ConnectionArgs
+setUser :: String -> ConnectionArgs -> ConnectionArgs
 setUser new MkConnectionArgs{..} = MkConnectionArgs{user=new, ..}
 
 {- |
   Overrides default password __""__
 -}
-setPassword :: Text -> ConnectionArgs -> ConnectionArgs
+setPassword :: String -> ConnectionArgs -> ConnectionArgs
 setPassword new MkConnectionArgs{..} = MkConnectionArgs{pass=new, ..}
 
 {- |
@@ -168,7 +167,7 @@ setPort new MkConnectionArgs{..} = MkConnectionArgs{mPort=Just new, ..}
 {- |
   Overrides default database __"default"__
 -}
-setDatabase :: Text -> ConnectionArgs -> ConnectionArgs
+setDatabase :: String -> ConnectionArgs -> ConnectionArgs
 setDatabase new MkConnectionArgs{..} = MkConnectionArgs{db=new, ..}
 
 overrideNetwork

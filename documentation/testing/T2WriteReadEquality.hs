@@ -158,7 +158,7 @@ testData = MkTestData
   , uint8 = toChType (8 :: Word8)
   , uint8Nullable = toChType $ Just (8 :: Word8)
   , uuid = let pos = (^) @Word64 @Word64 16 in
-      toChType ((pos 3)*4 + (pos 2)*2  )
+      toChType (0 :: Word64, (pos 3)*4 + (pos 2)*2  )
     -- ^ 00000000-0000-0000-0000-000000004200
   , uuidNullable = Nothing
   }
