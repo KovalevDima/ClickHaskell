@@ -87,7 +87,6 @@ import Data.ByteString as BS (ByteString)
 import Data.ByteString.Builder
 import Data.ByteString.Char8 as BS8 (pack, unpack)
 import Data.ByteString.Lazy as BSL (toStrict)
-import Data.Coerce (coerce)
 import Data.Int (Int16, Int32, Int64, Int8)
 import Data.Kind (Type)
 import Data.List (foldl')
@@ -571,7 +570,7 @@ instance ToChType ChString Builder where
 
 instance ToChType ChString String where
   toChType = MkChString . BS8.pack
-  fromChType = BS8.unpack . coerce
+  fromChType (MkChString bs)= BS8.unpack bs
 
 
 instance
@@ -587,7 +586,7 @@ instance
   =>
   ToChType (LowCardinality inputType) chType where
   toChType = MkLowCardinality . toChType
-  fromChType = fromChType @inputType . coerce
+  fromChType (MkLowCardinality lc)= fromChType @inputType lc
 
 instance ToChType UUID (Word64, Word64) where
   toChType = MkUUID . uncurry (flip Word128)
@@ -595,7 +594,7 @@ instance ToChType UUID (Word64, Word64) where
 
 instance ToChType (DateTime tz) Word32     where
   toChType = MkDateTime
-  fromChType = coerce
+  fromChType (MkDateTime w32)= w32
 
 instance ToChType (DateTime tz) UTCTime    where
   toChType = MkDateTime . floor . utcTimeToPOSIXSeconds
@@ -603,10 +602,10 @@ instance ToChType (DateTime tz) UTCTime    where
 
 instance ToChType (DateTime64 precision tz) Word64 where
   toChType = MkDateTime64
-  fromChType = coerce
+  fromChType (MkDateTime64 w64) = w64
 instance ToChType Date Word16 where
   toChType = MkDate
-  fromChType = coerce
+  fromChType (MkDate w16) = w16
 
 instance ToChType chType inputType => ToChType (Array chType) [inputType]
   where
