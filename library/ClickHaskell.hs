@@ -26,10 +26,10 @@ module ClickHaskell
   {- * Client wrappers -}
   {- ** SELECT -}
   , select, selectFrom, selectFromView, generateRandom
-  , ClickHaskell(..), FromChType(fromChType)
+  , ClickHaskell(..)
   {- ** INSERT -}
   , insertInto
-  , ToChType(toChType)
+  , ToChType(toChType, fromChType)
   {- ** Arbitrary commands -}, command, ping
   {- ** Shared -}
   , Column, KnownColumn, SerializableColumn
@@ -85,16 +85,14 @@ import Control.Monad (when, (<$!>))
 import Data.Binary.Get
 import Data.ByteString as BS (ByteString)
 import Data.ByteString.Builder
-import Data.ByteString.Char8 as BS8 (pack)
+import Data.ByteString.Char8 as BS8 (pack, unpack)
 import Data.ByteString.Lazy as BSL (toStrict)
 import Data.Coerce (coerce)
 import Data.Int (Int16, Int32, Int64, Int8)
 import Data.Kind (Type)
 import Data.List (foldl')
 import Data.Maybe (listToMaybe, fromMaybe)
-import Data.Text (Text)
-import Data.Text.Encoding as Text (encodeUtf8)
-import Data.Time (UTCTime, ZonedTime, zonedTimeToUTC)
+import Data.Time (UTCTime)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
 import Data.Word (Word16, Word32, Word64)
 import GHC.Generics (C1, D1, Generic (..), K1 (K1, unK1), M1 (M1, unM1), Meta (MetaSel), Rec0, S1, type (:*:) (..))
@@ -369,7 +367,7 @@ mkQueryPacket MkConnectionState{..} query = Query
   , parameters         = MkSinceRevision MkQueryParameters
   }
 
-mkHelloPacket :: Text -> Text -> Text -> ClientPacket
+mkHelloPacket :: String -> String -> String -> ClientPacket
 mkHelloPacket db user pass = Hello
   MkHelloPacket
     { client_name          = clientName
@@ -510,7 +508,6 @@ instance
 instance
   ( KnownColumn (Column name chType)
   , SerializableColumn (Column name chType)
-  , FromChType chType inputType
   , ToChType chType inputType
   , Column name chType ~ TakeColumn name columns
   ) => GClickHaskell columns ((S1 (MetaSel (Just name) a b f)) (Rec0 inputType))
@@ -545,68 +542,73 @@ type family
 
 -- ** (From/To)ChType
 
-class FromChType chType outputType where fromChType  :: chType -> outputType
-
-instance FromChType UUID (Word64, Word64) where fromChType (MkUUID (Word128 w64hi w64lo)) = (w64hi, w64lo)
-instance {-# OVERLAPPABLE #-} (IsChType chType, chType ~ inputType) => FromChType chType inputType where fromChType = id
-instance FromChType (DateTime tz) Word32     where fromChType = coerce
-instance FromChType (DateTime tz) UTCTime    where fromChType (MkDateTime w32) = posixSecondsToUTCTime (fromIntegral w32)
-instance FromChType (DateTime64 precision tz) Word64 where fromChType = coerce
-instance
-  FromChType chType inputType
-  =>
-  FromChType (Nullable chType) (Nullable inputType)
-  where
-  fromChType = fmap (fromChType @chType)
-instance FromChType chType (LowCardinality chType) where
-  fromChType = MkLowCardinality
-instance FromChType Date Word16 where fromChType = coerce
-instance
-  FromChType chType outputType
-  =>
-  FromChType (LowCardinality chType) outputType
-  where
-  fromChType (MkLowCardinality value) = fromChType value
-instance FromChType ChString BS.ByteString where fromChType (MkChString string) = string
-instance FromChType ChString Builder where fromChType (MkChString string) = byteString string
-instance
-  ( TypeError
-    (     'Text "ChString to Text using FromChType convertion could cause exception"
-    ':$$: 'Text "Decode ByteString manually if you are sure it's always can be decoded or replace it with ByteString"
-    )
-  ) =>
-  FromChType ChString Text
-  where
-  fromChType = error "Unreachable"
-instance FromChType chType inputType => FromChType (Array chType) [inputType]
-  where
-  fromChType (MkChArray values) = map fromChType values
+--instance FromChType chType (LowCardinality chType) where
+--  fromChType = MkLowCardinality
+--instance
+--  FromChType chType outputType
+--  =>
+--  FromChType (LowCardinality chType) outputType
+--  where
+--  fromChType (MkLowCardinality value) = fromChType value
 
 
-class ToChType chType inputType    where toChType    :: inputType -> chType
+class ToChType chType userType    where
+  toChType   :: userType -> chType
+  fromChType :: chType -> userType
 
-instance {-# OVERLAPPABLE #-} (IsChType chType, chType ~ inputType) => ToChType chType inputType where toChType = id
-instance ToChType Int64 Int where toChType = fromIntegral
-instance ToChType UInt128 UInt64 where toChType = fromIntegral
-instance ToChType ChString BS.ByteString where toChType = MkChString
-instance ToChType ChString Builder       where toChType = MkChString . toStrict . toLazyByteString
-instance ToChType ChString String        where toChType = MkChString . BS8.pack
-instance ToChType ChString Text          where toChType = MkChString . Text.encodeUtf8
-instance ToChType ChString Int           where toChType = MkChString . BS8.pack . show
+instance {-# OVERLAPPABLE #-} (IsChType chType, chType ~ inputType) => ToChType chType inputType where
+  toChType = id
+  fromChType = id
+
+
+instance ToChType ChString BS.ByteString where
+  toChType = MkChString
+  fromChType (MkChString string) = string
+
+instance ToChType ChString Builder where
+  toChType = MkChString . toStrict . toLazyByteString
+  fromChType (MkChString string) = byteString string
+
+instance ToChType ChString String where
+  toChType = MkChString . BS8.pack
+  fromChType = BS8.unpack . coerce
+
+
 instance
   ToChType inputType chType
   =>
   ToChType (Nullable inputType) (Nullable chType)
   where
   toChType = fmap (toChType @inputType @chType)
-instance ToChType inputType chType => ToChType (LowCardinality inputType) chType where toChType = MkLowCardinality . toChType
-instance ToChType UUID Word64 where toChType = MkUUID . flip Word128 0
-instance ToChType UUID (Word64, Word64) where toChType = MkUUID . uncurry (flip Word128)
-instance ToChType (DateTime tz) Word32     where toChType = MkDateTime
-instance ToChType (DateTime tz) UTCTime    where toChType = MkDateTime . floor . utcTimeToPOSIXSeconds
-instance ToChType (DateTime tz) ZonedTime  where toChType = MkDateTime . floor . utcTimeToPOSIXSeconds . zonedTimeToUTC
-instance ToChType (DateTime64 precision tz) Word64 where toChType = MkDateTime64
-instance ToChType Date Word16 where toChType = MkDate
+  fromChType = fmap (fromChType @inputType)
+
+instance
+  ToChType inputType chType
+  =>
+  ToChType (LowCardinality inputType) chType where
+  toChType = MkLowCardinality . toChType
+  fromChType = fromChType @inputType . coerce
+
+instance ToChType UUID (Word64, Word64) where
+  toChType = MkUUID . uncurry (flip Word128)
+  fromChType (MkUUID (Word128 w64hi w64lo)) = (w64hi, w64lo)
+
+instance ToChType (DateTime tz) Word32     where
+  toChType = MkDateTime
+  fromChType = coerce
+
+instance ToChType (DateTime tz) UTCTime    where
+  toChType = MkDateTime . floor . utcTimeToPOSIXSeconds
+  fromChType (MkDateTime w32) = posixSecondsToUTCTime (fromIntegral w32)
+
+instance ToChType (DateTime64 precision tz) Word64 where
+  toChType = MkDateTime64
+  fromChType = coerce
+instance ToChType Date Word16 where
+  toChType = MkDate
+  fromChType = coerce
+
 instance ToChType chType inputType => ToChType (Array chType) [inputType]
   where
   toChType = MkChArray . map toChType
+  fromChType (MkChArray values) = map fromChType values

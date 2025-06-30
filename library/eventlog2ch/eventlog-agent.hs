@@ -22,7 +22,6 @@ import Control.Exception (SomeException, bracketOnError, catch, finally)
 import Control.Monad (forever, void)
 import Data.ByteString as BS (ByteString, length)
 import Data.IORef (IORef, atomicModifyIORef, atomicWriteIORef, newIORef, readIORef)
-import Data.Text as T (pack)
 import Data.Time (UTCTime, getCurrentTime)
 import GHC.Generics (Generic)
 import GHC.RTS.Events (Event (..), EventInfo (..), Header)
@@ -133,10 +132,10 @@ initChConnection = do
   pass <- lookupEnv "CLICKHOUSE_PASS"
   conn <-
     openConnection
-      . maybe id (setPort) host
-      . maybe id (setUser . T.pack) user
-      . maybe id (setPassword . T.pack) pass
-      . maybe id (setDatabase . T.pack) db
+      . maybe id setPort host
+      . maybe id setUser user
+      . maybe id setPassword pass
+      . maybe id setDatabase db
       $ defaultConnectionArgs
   createEventLogTable conn
   pure conn
