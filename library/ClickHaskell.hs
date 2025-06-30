@@ -441,6 +441,10 @@ class ClickHaskell columns record
   deserializeColumns :: Bool -> ProtocolRevision -> UVarInt -> Get [record]
   deserializeColumns isCheckRequired rev size = (to <$!>) <$> gFromColumns @columns isCheckRequired rev size
 
+  default serializeRecords :: GenericClickHaskell record columns => [record] -> ProtocolRevision -> Builder
+  serializeRecords :: [record] -> ProtocolRevision -> Builder
+  serializeRecords records rev = gSerializeRecords @columns rev (from <$!> records)
+
   default columns :: GenericClickHaskell record columns => Builder
   columns :: Builder
   columns = buildCols (gReadingColumns @columns @(Rep record))
@@ -456,10 +460,6 @@ class ClickHaskell columns record
     buildColsTypes [] = mempty
     buildColsTypes ((col, typ):[])   = col <> " " <> typ
     buildColsTypes ((col, typ):rest) = col <> " " <> typ <> ", " <> buildColsTypes rest
-
-  default serializeRecords :: GenericClickHaskell record columns => [record] -> ProtocolRevision -> Builder
-  serializeRecords :: [record] -> ProtocolRevision -> Builder
-  serializeRecords records rev = gSerializeRecords @columns rev (from <$!> records)
 
   default columnsCount :: GenericClickHaskell record columns => UVarInt
   columnsCount :: UVarInt
@@ -479,9 +479,11 @@ instance
   where
   {-# INLINE gFromColumns #-}
   gFromColumns isCheckRequired rev size = map (M1 . M1) <$> gFromColumns @columns isCheckRequired rev size
-  gReadingColumns = gReadingColumns @columns @f
+
   {-# INLINE gSerializeRecords #-}
   gSerializeRecords rev = gSerializeRecords @columns rev . map (unM1 . unM1)
+
+  gReadingColumns = gReadingColumns @columns @f
   gColumnsCount = gColumnsCount @columns @f
 
 instance
@@ -494,11 +496,13 @@ instance
     liftA2 (zipWith (:*:))
       (gFromColumns @columns @left isCheckRequired rev size)
       (gFromColumns @columns @right isCheckRequired rev size)
-  gReadingColumns = gReadingColumns @columns @left ++ gReadingColumns @columns @right
+
   {-# INLINE gSerializeRecords #-}
   gSerializeRecords rev xs =
     (\(ls,rs) -> gSerializeRecords @columns rev ls <> gSerializeRecords @columns rev rs)
       (foldl' (\(accL, accR) (l :*: r)  -> (l:accL, r:accR)) ([], []) xs)
+
+  gReadingColumns = gReadingColumns @columns @left ++ gReadingColumns @columns @right
   gColumnsCount = gColumnsCount @columns @left + gColumnsCount @columns @right
 
 
@@ -514,9 +518,11 @@ instance
   gFromColumns isCheckRequired rev size =
     either (throw . UnmatchedResult) (map (M1 . K1 . fromChType @chType) . columnValues)
       <$!> deserializeColumn @(Column name chType) rev isCheckRequired size
-  gReadingColumns = (renderColumnName @(Column name chType), renderColumnType @(Column name chType)) : []
+
   {-# INLINE gSerializeRecords #-}
   gSerializeRecords rev = serializeColumn rev . mkColumn @(Column name chType) . map (toChType . unK1 . unM1)
+
+  gReadingColumns = (renderColumnName @(Column name chType), renderColumnType @(Column name chType)) : []
   gColumnsCount = 1
 
 
