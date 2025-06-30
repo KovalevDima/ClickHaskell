@@ -539,17 +539,7 @@ type family
     )
 
 
--- ** (From/To)ChType
-
---instance FromChType chType (LowCardinality chType) where
---  fromChType = MkLowCardinality
---instance
---  FromChType chType outputType
---  =>
---  FromChType (LowCardinality chType) outputType
---  where
---  fromChType (MkLowCardinality value) = fromChType value
-
+-- ** ToChType
 
 class ToChType chType userType    where
   toChType   :: userType -> chType
