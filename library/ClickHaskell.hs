@@ -282,7 +282,7 @@ handleSelect MkConnectionState{..} f = loopSelect []
         when (columns_count /= expected) $
           (throw . UnmatchedResult . UnmatchedColumnsCount)
             ("Expected " <> show expected <> " columns but got " <> show columns_count)
-        result <- f =<< readBuffer buffer (deserializeColumns @columns True revision rows_count)
+        result <- f =<< readBuffer buffer (deserializeRecords @columns True revision rows_count)
         loopSelect (result : acc)
       Progress    _       -> loopSelect acc
       ProfileInfo _       -> loopSelect acc
@@ -316,7 +316,7 @@ handleInsertResult conn@MkConnectionState{..} records = do
   case firstPacket of
     TableColumns      _ -> handleInsertResult @columns conn records
     DataResponse MkDataPacket{} -> do
-      _emptyDataPacket <- readBuffer buffer (deserializeColumns @columns @record False revision 0)
+      _emptyDataPacket <- readBuffer buffer (deserializeRecords @columns @record False revision 0)
       writeToConnection conn (mkDataPacket "" (columnsCount @columns @record) (fromIntegral $ Prelude.length records))
       writeToConnectionEncode conn (serializeRecords @columns records)
       writeToConnection conn (mkDataPacket "" 0 0)
@@ -437,9 +437,9 @@ type GenericClickHaskell record hasColumns =
 
 class ClickHaskell columns record
   where
-  default deserializeColumns :: GenericClickHaskell record columns => Bool -> ProtocolRevision -> UVarInt -> Get [record]
-  deserializeColumns :: Bool -> ProtocolRevision -> UVarInt -> Get [record]
-  deserializeColumns isCheckRequired rev size = (to <$!>) <$> gFromColumns @columns isCheckRequired rev size
+  default deserializeRecords :: GenericClickHaskell record columns => Bool -> ProtocolRevision -> UVarInt -> Get [record]
+  deserializeRecords :: Bool -> ProtocolRevision -> UVarInt -> Get [record]
+  deserializeRecords isCheckRequired rev size = (to <$!>) <$> gDeserializeRecords @columns isCheckRequired rev size
 
   default serializeRecords :: GenericClickHaskell record columns => [record] -> ProtocolRevision -> Builder
   serializeRecords :: [record] -> ProtocolRevision -> Builder
@@ -467,9 +467,10 @@ class ClickHaskell columns record
 
 class GClickHaskell (columns :: [Type]) f
   where
-  gFromColumns :: Bool -> ProtocolRevision -> UVarInt -> Get [f p]
-  gReadingColumns :: [(Builder, Builder)]
+  gDeserializeRecords :: Bool -> ProtocolRevision -> UVarInt -> Get [f p]  
   gSerializeRecords :: ProtocolRevision -> [f p] -> Builder
+
+  gReadingColumns :: [(Builder, Builder)]
   gColumnsCount :: UVarInt
 
 instance
@@ -477,8 +478,8 @@ instance
   =>
   GClickHaskell columns (D1 c (C1 c2 f))
   where
-  {-# INLINE gFromColumns #-}
-  gFromColumns isCheckRequired rev size = map (M1 . M1) <$> gFromColumns @columns isCheckRequired rev size
+  {-# INLINE gDeserializeRecords #-}
+  gDeserializeRecords isCheckRequired rev size = map (M1 . M1) <$> gDeserializeRecords @columns isCheckRequired rev size
 
   {-# INLINE gSerializeRecords #-}
   gSerializeRecords rev = gSerializeRecords @columns rev . map (unM1 . unM1)
@@ -491,11 +492,11 @@ instance
   =>
   GClickHaskell columns (left :*: right)
   where
-  {-# INLINE gFromColumns #-}
-  gFromColumns isCheckRequired rev size = do
+  {-# INLINE gDeserializeRecords #-}
+  gDeserializeRecords isCheckRequired rev size = do
     liftA2 (zipWith (:*:))
-      (gFromColumns @columns @left isCheckRequired rev size)
-      (gFromColumns @columns @right isCheckRequired rev size)
+      (gDeserializeRecords @columns @left isCheckRequired rev size)
+      (gDeserializeRecords @columns @right isCheckRequired rev size)
 
   {-# INLINE gSerializeRecords #-}
   gSerializeRecords rev xs =
@@ -514,8 +515,8 @@ instance
   , Column name chType ~ TakeColumn name columns
   ) => GClickHaskell columns ((S1 (MetaSel (Just name) a b f)) (Rec0 inputType))
   where
-  {-# INLINE gFromColumns #-}
-  gFromColumns isCheckRequired rev size =
+  {-# INLINE gDeserializeRecords #-}
+  gDeserializeRecords isCheckRequired rev size =
     either (throw . UnmatchedResult) (map (M1 . K1 . fromChType @chType) . columnValues)
       <$!> deserializeColumn @(Column name chType) rev isCheckRequired size
 
