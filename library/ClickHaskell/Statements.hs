@@ -33,18 +33,18 @@ tableName :: forall table . KnownSymbol (GetTableName table) => Builder
 tableName = (byteString . BS8.pack) (symbolVal $ Proxy @(GetTableName table))
 
 
-class IsTable table
+class KnownSymbol (GetTableName table) => IsTable table
 
 -- | Type wrapper for statements generation
 data Table (name :: Symbol) (columns :: [Type])
-instance IsTable (Table name columns) where
+instance KnownSymbol name => IsTable (Table name columns) where
 
 
-class IsView view
+class KnownSymbol (GetTableName view) => IsView view
 
 -- | Type wrapper for statements generation
 data View (name :: Symbol) (columns :: [Type]) (parameters :: [Type])
-instance IsView (View name columns parameters)
+instance KnownSymbol name => IsView (View name columns parameters)
 
 
 

@@ -96,7 +96,7 @@ import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
 import Data.Word (Word16, Word32, Word64)
 import GHC.Generics (C1, D1, Generic (..), K1 (K1, unK1), M1 (M1, unM1), Meta (MetaSel), Rec0, S1, type (:*:) (..))
 import GHC.Stack (HasCallStack, callStack, prettyCallStack)
-import GHC.TypeLits (ErrorMessage (..), KnownSymbol, Symbol, TypeError)
+import GHC.TypeLits (ErrorMessage (..), TypeError)
 import Prelude hiding (liftA2, foldl')
 import System.Environment (lookupEnv)
 import System.Timeout (timeout)
@@ -324,13 +324,11 @@ handleInsertResult conn@MkConnectionState{..} records = do
 
 type ClickHaskellTable table record =
   ( IsTable table
-  , KnownSymbol (GetTableName table)
   , ClickHaskell (GetColumns table) record
   )
 
 type ClickHaskellView view record =
   ( IsView view
-  , KnownSymbol (GetTableName view)
   , ClickHaskell (GetColumns view) record
   )
 
@@ -524,7 +522,7 @@ instance
 
 
 type family
-  TakeColumn (name :: Symbol) (columns :: [Type]) :: Type
+  TakeColumn name columns :: Type
   where
   TakeColumn name columns = GoTakeColumn name columns '[]
 
