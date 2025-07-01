@@ -34,6 +34,7 @@
 - ### `DeserializableColumn` type class was renamed to `SerializableColumn`
 - ### `IsChType` instance changes
   `ToChType` type family was deleted
+- ### `FromChType` typeclass merged into `ToChType`
 - ### `parameter` function now doesn't apply toChType
 - ### Connection initialization API changes
   1. `ChCredential` renamed to `ConnectionArgs`
