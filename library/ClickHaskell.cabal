@@ -54,7 +54,6 @@ Library
     , bytestring < 1
     , binary < 9
     , deepseq < 2
-    , text < 3
     , time < 2
 
     -- External dependencies

@@ -8,8 +8,7 @@ executable server
   default-language: Haskell2010
   main-is: index.hs
   build-depends:
-      ClickHaskell
-    , ClickHaskell-protocol-docs
+      ClickHaskell-protocol-docs
     , ClickHaskell-visits
     , aeson
     , async

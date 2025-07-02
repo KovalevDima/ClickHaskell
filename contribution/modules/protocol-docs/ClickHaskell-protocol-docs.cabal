@@ -13,7 +13,6 @@ library
     , base >=4.7 && <5
     , bytestring
     , blaze-html
-    , blaze-markup
   ghc-options:
     -Wall
     -Wunused-packages
