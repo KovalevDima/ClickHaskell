@@ -6,15 +6,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
 
 module Main (main) where
 
-import ClickHaskell hiding (Buffer(..))
+import ClickHaskell hiding (Buffer (..))
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async (Concurrently (..))
 import Control.Concurrent.STM (TBQueue, atomically, flushTBQueue, newTBQueueIO, writeTBQueue)
@@ -121,7 +118,7 @@ runClickHouseWriter :: Connection -> TBQueue EventRep -> Concurrently ()
 runClickHouseWriter conn queue =
   Concurrently $
     void . forever $ do
-      write conn =<< atomically (flushTBQueue queue)
+      insertInto @EventLogTable @EventRep conn =<< atomically (flushTBQueue queue)
       threadDelay 1_000_000
 
 initChConnection :: IO Connection
@@ -141,143 +138,205 @@ initChConnection = do
   pure conn
 
 data EventRep = MkEventRep
-  { startTime :: UTCTime
-  , evTime :: UInt64
-  , evType :: ByteString
+  { startTime      :: UTCTime
+  , evTime         :: UInt64
+  , evType         :: ByteString
+  , cap            :: Int64
+  , gcGen          :: Int64
+  , gcCopied       :: UInt64
+  , heapCapset     :: UInt32
+  , heapAllocBytes :: UInt64
+  , heapSizeBytes  :: UInt64
+  , heapBlocksSize :: UInt64
   }
   deriving (Generic, ClickHaskell EventLogColumns)
 
-write :: Connection -> [EventRep] -> IO ()
-write = insertInto @EventLogTable @EventRep
-
 type EventLogTable = Table "haskell_eventlog" EventLogColumns
 type EventLogColumns =
- '[ Column "startTime" (DateTime "")
-  , Column "evTime"    (DateTime64 9 "")
-  , Column "evType"    (ChString)
+ '[ Column "startTime"      (DateTime "")
+  , Column "evTime"         (DateTime64 9 "")
+  , Column "evType"         (ChString)
+  , Column "cap"            (Int64)
+  , Column "gcGen"          (Int64)
+  , Column "gcCopied"       (UInt64)
+  , Column "heapCapset"     (UInt32)
+  , Column "heapAllocBytes" (UInt64)
+  , Column "heapSizeBytes"  (UInt64)
+  , Column "heapBlocksSize" (UInt64)
   ]
 
 createEventLogTable :: Connection -> IO ()
-createEventLogTable conn = command conn
+createEventLogTable conn =
+  command conn
     "CREATE TABLE IF NOT EXISTS haskell_eventlog \
     \( \
     \    `startTime` DateTime, \
     \    `evTime` DateTime64(9), \
-    \    `evType` LowCardinality(String) \
+    \    `evType` LowCardinality(String), \
+    \    `cap` Int64, \
+    \    `gcGen` Int64, \
+    \    `gcCopied` UInt64, \
+    \    `heapCapset` UInt32, \
+    \    `heapAllocBytes` UInt64, \
+    \    `heapSizeBytes` UInt64, \
+    \    `heapBlocksSize` UInt64 \
     \) \
     \ENGINE = MergeTree \
     \PARTITION BY evType \
     \ORDER BY evType \
     \SETTINGS index_granularity = 8192;"
 
-
 eventToRep :: UTCTime -> Event -> EventRep
-eventToRep startTime Event{evTime, evSpec} = case evSpec of
-  EventBlock{}                -> let evType = "EventBlock" in MkEventRep{..}
-  UnknownEvent{}              -> let evType = "UnknownEvent" in MkEventRep{..}
-  Startup{}                   -> let evType = "Startup" in MkEventRep{..}
-  Shutdown{}                  -> let evType = "Shutdown" in MkEventRep{..}
-  CreateThread{}              -> let evType = "CreateThread" in MkEventRep{..}
-  RunThread{}                 -> let evType = "RunThread" in MkEventRep{..}
-  StopThread{}                -> let evType = "StopThread" in MkEventRep{..}
-  ThreadRunnable{}            -> let evType = "ThreadRunnable" in MkEventRep{..}
-  MigrateThread{}             -> let evType = "MigrateThread" in MkEventRep{..}
-  WakeupThread{}              -> let evType = "WakeupThread" in MkEventRep{..}
-  ThreadLabel{}               -> let evType = "ThreadLabel" in MkEventRep{..}
-  CreateSparkThread{}         -> let evType = "CreateSparkThread" in MkEventRep{..}
-  SparkCounters{}             -> let evType = "SparkCounters" in MkEventRep{..}
-  SparkCreate{}               -> let evType = "SparkCreate" in MkEventRep{..}
-  SparkDud{}                  -> let evType = "SparkDud" in MkEventRep{..}
-  SparkOverflow{}             -> let evType = "SparkOverflow" in MkEventRep{..}
-  SparkRun{}                  -> let evType = "SparkRun" in MkEventRep{..}
-  SparkSteal{}                -> let evType = "SparkSteal" in MkEventRep{..}
-  SparkFizzle{}               -> let evType = "SparkFizzle" in MkEventRep{..}
-  SparkGC{}                   -> let evType = "SparkGC" in MkEventRep{..}
-  TaskCreate{}                -> let evType = "TaskCreate" in MkEventRep{..}
-  TaskMigrate{}               -> let evType = "TaskMigrate" in MkEventRep{..}
-  TaskDelete{}                -> let evType = "TaskDelete" in MkEventRep{..}
-  RequestSeqGC{}              -> let evType = "RequestSeqGC" in MkEventRep{..}
-  RequestParGC{}              -> let evType = "RequestParGC" in MkEventRep{..}
-  StartGC{}                   -> let evType = "StartGC" in MkEventRep{..}
-  GCWork{}                    -> let evType = "GCWork" in MkEventRep{..}
-  GCIdle{}                    -> let evType = "GCIdle" in MkEventRep{..}
-  GCDone{}                    -> let evType = "GCDone" in MkEventRep{..}
-  EndGC{}                     -> let evType = "EndGC" in MkEventRep{..}
-  GlobalSyncGC{}              -> let evType = "GlobalSyncGC" in MkEventRep{..}
-  GCStatsGHC{}                -> let evType = "GCStatsGHC" in MkEventRep{..}
-  MemReturn{}                 -> let evType = "MemReturn" in MkEventRep{..}
-  HeapAllocated{}             -> let evType = "HeapAllocated" in MkEventRep{..}
-  HeapSize{}                  -> let evType = "HeapSize" in MkEventRep{..}
-  BlocksSize{}                -> let evType = "BlocksSize" in MkEventRep{..}
-  HeapLive{}                  -> let evType = "HeapLive" in MkEventRep{..}
-  HeapInfoGHC{}               -> let evType = "HeapInfoGHC" in MkEventRep{..}
-  CapCreate{}                 -> let evType = "CapCreate" in MkEventRep{..}
-  CapDelete{}                 -> let evType = "CapDelete" in MkEventRep{..}
-  CapDisable{}                -> let evType = "CapDisable" in MkEventRep{..}
-  CapEnable{}                 -> let evType = "CapEnable" in MkEventRep{..}
-  CapsetCreate{}              -> let evType = "CapsetCreate" in MkEventRep{..}
-  CapsetDelete{}              -> let evType = "CapsetDelete" in MkEventRep{..}
-  CapsetAssignCap{}           -> let evType = "CapsetAssignCap" in MkEventRep{..}
-  CapsetRemoveCap{}           -> let evType = "CapsetRemoveCap" in MkEventRep{..}
-  RtsIdentifier{}             -> let evType = "RtsIdentifier" in MkEventRep{..}
-  ProgramArgs{}               -> let evType = "ProgramArgs" in MkEventRep{..}
-  ProgramEnv{}                -> let evType = "ProgramEnv" in MkEventRep{..}
-  OsProcessPid{}              -> let evType = "OsProcessPid" in MkEventRep{..}
-  OsProcessParentPid{}        -> let evType = "OsProcessParentPid" in MkEventRep{..}
-  WallClockTime{}             -> let evType = "WallClockTime" in MkEventRep{..}
-  Message{}                   -> let evType = "Message" in MkEventRep{..}
-  UserMessage{}               -> let evType = "UserMessage" in MkEventRep{..}
-  UserMarker{}                -> let evType = "UserMarker" in MkEventRep{..}
-  Version{}                   -> let evType = "Version" in MkEventRep{..}
-  ProgramInvocation{}         -> let evType = "ProgramInvocation" in MkEventRep{..}
-  CreateMachine{}             -> let evType = "CreateMachine" in MkEventRep{..}
-  KillMachine{}               -> let evType = "KillMachine" in MkEventRep{..}
-  CreateProcess{}             -> let evType = "CreateProcess" in MkEventRep{..}
-  KillProcess{}               -> let evType = "KillProcess" in MkEventRep{..}
-  AssignThreadToProcess{}     -> let evType = "AssignThreadToProcess" in MkEventRep{..}
-  EdenStartReceive{}          -> let evType = "EdenStartReceive" in MkEventRep{..}
-  EdenEndReceive{}            -> let evType = "EdenEndReceive" in MkEventRep{..}
-  SendMessage{}               -> let evType = "SendMessage" in MkEventRep{..}
-  ReceiveMessage{}            -> let evType = "ReceiveMessage" in MkEventRep{..}
-  SendReceiveLocalMessage{}   -> let evType = "SendReceiveLocalMessage" in MkEventRep{..}
-  InternString{}              -> let evType = "InternString" in MkEventRep{..}
-  MerStartParConjunction{}    -> let evType = "MerStartParConjunction" in MkEventRep{..}
-  MerEndParConjunction{}      -> let evType = "MerEndParConjunction" in MkEventRep{..}
-  MerEndParConjunct{}         -> let evType = "MerEndParConjunct" in MkEventRep{..}
-  MerCreateSpark{}            -> let evType = "MerCreateSpark" in MkEventRep{..}
-  MerFutureCreate{}           -> let evType = "MerFutureCreate" in MkEventRep{..}
-  MerFutureWaitNosuspend{}    -> let evType = "MerFutureWaitNosuspend" in MkEventRep{..}
-  MerFutureWaitSuspended{}    -> let evType = "MerFutureWaitSuspended" in MkEventRep{..}
-  MerFutureSignal{}           -> let evType = "MerFutureSignal" in MkEventRep{..}
-  MerLookingForGlobalThread{} -> let evType = "MerLookingForGlobalThread" in MkEventRep{..}
-  MerWorkStealing{}           -> let evType = "MerWorkStealing" in MkEventRep{..}
-  MerLookingForLocalSpark{}   -> let evType = "MerLookingForLocalSpark" in MkEventRep{..}
-  MerReleaseThread{}          -> let evType = "MerReleaseThread" in MkEventRep{..}
-  MerCapSleeping{}            -> let evType = "MerCapSleeping" in MkEventRep{..}
-  MerCallingMain{}            -> let evType = "MerCallingMain" in MkEventRep{..}
-  PerfName{}                  -> let evType = "PerfName" in MkEventRep{..}
-  PerfCounter{}               -> let evType = "PerfCounter" in MkEventRep{..}
-  PerfTracepoint{}            -> let evType = "PerfTracepoint" in MkEventRep{..}
-  HeapProfBegin{}             -> let evType = "HeapProfBegin" in MkEventRep{..}
-  HeapProfCostCentre{}        -> let evType = "HeapProfCostCentre" in MkEventRep{..}
-  InfoTableProv{}             -> let evType = "InfoTableProv" in MkEventRep{..}
-  HeapProfSampleBegin{}       -> let evType = "HeapProfSampleBegin" in MkEventRep{..}
-  HeapProfSampleEnd{}         -> let evType = "HeapProfSampleEnd" in MkEventRep{..}
-  HeapBioProfSampleBegin{}    -> let evType = "HeapBioProfSampleBegin" in MkEventRep{..}
-  HeapProfSampleCostCentre{}  -> let evType = "HeapProfSampleCostCentre" in MkEventRep{..}
-  HeapProfSampleString{}      -> let evType = "HeapProfSampleString" in MkEventRep{..}
-  ProfSampleCostCentre{}      -> let evType = "ProfSampleCostCentre" in MkEventRep{..}
-  ProfBegin{}                 -> let evType = "ProfBegin" in MkEventRep{..}
-  UserBinaryMessage{}         -> let evType = "UserBinaryMessage" in MkEventRep{..}
-  ConcMarkBegin{}             -> let evType = "ConcMarkBegin" in MkEventRep{..}
-  ConcMarkEnd{}               -> let evType = "ConcMarkEnd" in MkEventRep{..}
-  ConcSyncBegin{}             -> let evType = "ConcSyncBegin" in MkEventRep{..}
-  ConcSyncEnd{}               -> let evType = "ConcSyncEnd" in MkEventRep{..}
-  ConcSweepBegin{}            -> let evType = "ConcSweepBegin" in MkEventRep{..}
-  ConcSweepEnd{}              -> let evType = "ConcSweepEnd" in MkEventRep{..}
-  ConcUpdRemSetFlush{}        -> let evType = "ConcUpdRemSetFlush" in MkEventRep{..}
-  NonmovingHeapCensus{}       -> let evType = "NonmovingHeapCensus" in MkEventRep{..}
-  NonmovingPrunedSegments{}   -> let evType = "NonmovingPrunedSegments" in MkEventRep{..}
-  TickyCounterDef{}           -> let evType = "TickyCounterDef" in MkEventRep{..}
-  TickyCounterSample{}        -> let evType = "TickyCounterSample" in MkEventRep{..}
-  TickyBeginSample{}          -> let evType = "TickyBeginSample" in MkEventRep{..}
+eventToRep startTime Event{evTime, evSpec, evCap} =
+  let
+    evType = eventToName evSpec
+    cap    = maybe (-1) fromIntegral evCap
+    gcGen    = event2gcGen evSpec
+    gcCopied = event2gcCopied evSpec
+    heapCapset     = event2gcHeapCapset evSpec
+    heapAllocBytes = event2heapAllocBytes evSpec
+    heapSizeBytes  = event2heapSizeBytes evSpec
+    heapBlocksSize = event2blocksSize evSpec
+  in MkEventRep{..}
+
+
+
+
+-- * Events extractors
+
+event2gcHeapCapset :: EventInfo -> UInt32
+event2gcHeapCapset evSpec = case evSpec of
+  GCStatsGHC{heapCapset} -> heapCapset
+  MemReturn{heapCapset} -> heapCapset
+  HeapAllocated{heapCapset} -> heapCapset
+  HeapSize{heapCapset} -> heapCapset
+  BlocksSize{heapCapset} -> heapCapset
+  HeapLive{heapCapset} -> heapCapset
+  HeapInfoGHC{heapCapset} -> heapCapset
+  _ -> 0
+
+event2gcGen :: EventInfo -> Int64
+event2gcGen = \case GCStatsGHC{gen} -> fromIntegral gen; _ -> (-1)
+
+event2gcCopied :: EventInfo -> UInt64
+event2gcCopied = \case GCStatsGHC{copied} -> copied; _ -> 0
+
+event2heapAllocBytes :: EventInfo -> UInt64
+event2heapAllocBytes = \case HeapAllocated{allocBytes} -> allocBytes; _ -> 0
+
+event2blocksSize :: EventInfo -> UInt64
+event2blocksSize = \case BlocksSize{blocksSize} -> blocksSize; _ -> 0
+
+event2heapSizeBytes :: EventInfo -> UInt64
+event2heapSizeBytes = \case HeapSize{sizeBytes} -> sizeBytes; _ -> 0
+
+eventToName :: EventInfo -> ByteString 
+eventToName evSpec = case evSpec of
+  EventBlock{}                -> "EventBlock"
+  UnknownEvent{}              -> "UnknownEvent"
+  Startup{}                   -> "Startup"
+  Shutdown{}                  -> "Shutdown"
+  CreateThread{}              -> "CreateThread"
+  RunThread{}                 -> "RunThread"
+  StopThread{}                -> "StopThread"
+  ThreadRunnable{}            -> "ThreadRunnable"
+  MigrateThread{}             -> "MigrateThread"
+  WakeupThread{}              -> "WakeupThread"
+  ThreadLabel{}               -> "ThreadLabel"
+  CreateSparkThread{}         -> "CreateSparkThread"
+  SparkCounters{}             -> "SparkCounters"
+  SparkCreate{}               -> "SparkCreate"
+  SparkDud{}                  -> "SparkDud"
+  SparkOverflow{}             -> "SparkOverflow"
+  SparkRun{}                  -> "SparkRun"
+  SparkSteal{}                -> "SparkSteal"
+  SparkFizzle{}               -> "SparkFizzle"
+  SparkGC{}                   -> "SparkGC"
+  TaskCreate{}                -> "TaskCreate"
+  TaskMigrate{}               -> "TaskMigrate"
+  TaskDelete{}                -> "TaskDelete"
+  RequestSeqGC{}              -> "RequestSeqGC"
+  RequestParGC{}              -> "RequestParGC"
+  StartGC{}                   -> "StartGC"
+  GCWork{}                    -> "GCWork"
+  GCIdle{}                    -> "GCIdle"
+  GCDone{}                    -> "GCDone"
+  EndGC{}                     -> "EndGC"
+  GlobalSyncGC{}              -> "GlobalSyncGC"
+  GCStatsGHC{}                -> "GCStatsGHC"
+  MemReturn{}                 -> "MemReturn"
+  HeapAllocated{}             -> "HeapAllocated"
+  HeapSize{}                  -> "HeapSize"
+  BlocksSize{}                -> "BlocksSize"
+  HeapLive{}                  -> "HeapLive"
+  HeapInfoGHC{}               -> "HeapInfoGHC"
+  CapCreate{}                 -> "CapCreate"
+  CapDelete{}                 -> "CapDelete"
+  CapDisable{}                -> "CapDisable"
+  CapEnable{}                 -> "CapEnable"
+  CapsetCreate{}              -> "CapsetCreate"
+  CapsetDelete{}              -> "CapsetDelete"
+  CapsetAssignCap{}           -> "CapsetAssignCap"
+  CapsetRemoveCap{}           -> "CapsetRemoveCap"
+  RtsIdentifier{}             -> "RtsIdentifier"
+  ProgramArgs{}               -> "ProgramArgs"
+  ProgramEnv{}                -> "ProgramEnv"
+  OsProcessPid{}              -> "OsProcessPid"
+  OsProcessParentPid{}        -> "OsProcessParentPid"
+  WallClockTime{}             -> "WallClockTime"
+  Message{}                   -> "Message"
+  UserMessage{}               -> "UserMessage"
+  UserMarker{}                -> "UserMarker"
+  Version{}                   -> "Version"
+  ProgramInvocation{}         -> "ProgramInvocation"
+  CreateMachine{}             -> "CreateMachine"
+  KillMachine{}               -> "KillMachine"
+  CreateProcess{}             -> "CreateProcess"
+  KillProcess{}               -> "KillProcess"
+  AssignThreadToProcess{}     -> "AssignThreadToProcess"
+  EdenStartReceive{}          -> "EdenStartReceive"
+  EdenEndReceive{}            -> "EdenEndReceive"
+  SendMessage{}               -> "SendMessage"
+  ReceiveMessage{}            -> "ReceiveMessage"
+  SendReceiveLocalMessage{}   -> "SendReceiveLocalMessage"
+  InternString{}              -> "InternString"
+  MerStartParConjunction{}    -> "MerStartParConjunction"
+  MerEndParConjunction{}      -> "MerEndParConjunction"
+  MerEndParConjunct{}         -> "MerEndParConjunct"
+  MerCreateSpark{}            -> "MerCreateSpark"
+  MerFutureCreate{}           -> "MerFutureCreate"
+  MerFutureWaitNosuspend{}    -> "MerFutureWaitNosuspend"
+  MerFutureWaitSuspended{}    -> "MerFutureWaitSuspended"
+  MerFutureSignal{}           -> "MerFutureSignal"
+  MerLookingForGlobalThread{} -> "MerLookingForGlobalThread"
+  MerWorkStealing{}           -> "MerWorkStealing"
+  MerLookingForLocalSpark{}   -> "MerLookingForLocalSpark"
+  MerReleaseThread{}          -> "MerReleaseThread"
+  MerCapSleeping{}            -> "MerCapSleeping"
+  MerCallingMain{}            -> "MerCallingMain"
+  PerfName{}                  -> "PerfName"
+  PerfCounter{}               -> "PerfCounter"
+  PerfTracepoint{}            -> "PerfTracepoint"
+  HeapProfBegin{}             -> "HeapProfBegin"
+  HeapProfCostCentre{}        -> "HeapProfCostCentre"
+  InfoTableProv{}             -> "InfoTableProv"
+  HeapProfSampleBegin{}       -> "HeapProfSampleBegin"
+  HeapProfSampleEnd{}         -> "HeapProfSampleEnd"
+  HeapBioProfSampleBegin{}    -> "HeapBioProfSampleBegin"
+  HeapProfSampleCostCentre{}  -> "HeapProfSampleCostCentre"
+  HeapProfSampleString{}      -> "HeapProfSampleString"
+  ProfSampleCostCentre{}      -> "ProfSampleCostCentre"
+  ProfBegin{}                 -> "ProfBegin"
+  UserBinaryMessage{}         -> "UserBinaryMessage"
+  ConcMarkBegin{}             -> "ConcMarkBegin"
+  ConcMarkEnd{}               -> "ConcMarkEnd"
+  ConcSyncBegin{}             -> "ConcSyncBegin"
+  ConcSyncEnd{}               -> "ConcSyncEnd"
+  ConcSweepBegin{}            -> "ConcSweepBegin"
+  ConcSweepEnd{}              -> "ConcSweepEnd"
+  ConcUpdRemSetFlush{}        -> "ConcUpdRemSetFlush"
+  NonmovingHeapCensus{}       -> "NonmovingHeapCensus"
+  NonmovingPrunedSegments{}   -> "NonmovingPrunedSegments"
+  TickyCounterDef{}           -> "TickyCounterDef"
+  TickyCounterSample{}        -> "TickyCounterSample"
+  TickyBeginSample{}          -> "TickyBeginSample"
