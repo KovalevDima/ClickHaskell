@@ -87,7 +87,6 @@ import Data.ByteString as BS (ByteString)
 import Data.ByteString.Builder
 import Data.ByteString.Char8 as BS8 (pack, unpack)
 import Data.ByteString.Lazy as BSL (toStrict)
-import Data.Foldable (foldr')
 import Data.Int (Int16, Int32, Int64, Int8)
 import Data.Kind (Type)
 import Data.Maybe (fromMaybe, listToMaybe)
@@ -496,7 +495,7 @@ instance
   {-# INLINE gSerializeRecords #-}
   gSerializeRecords rev xs =
     (\(ls,rs) -> gSerializeRecords @columns rev ls <> gSerializeRecords @columns rev rs)
-      (foldr' (\(l :*: r) (accL, accR) -> (l:accL, r:accR)) ([], []) xs)
+      (foldr (\(l :*: r) (accL, accR) -> (l:accL, r:accR)) ([], []) xs)
 
   gReadingColumns = gReadingColumns @columns @left ++ gReadingColumns @columns @right
   gColumnsCount = gColumnsCount @columns @left + gColumnsCount @columns @right
