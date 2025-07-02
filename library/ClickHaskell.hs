@@ -87,19 +87,19 @@ import Data.ByteString as BS (ByteString)
 import Data.ByteString.Builder
 import Data.ByteString.Char8 as BS8 (pack, unpack)
 import Data.ByteString.Lazy as BSL (toStrict)
+import Data.Foldable (foldr')
 import Data.Int (Int16, Int32, Int64, Int8)
 import Data.Kind (Type)
-import Data.List (foldl')
-import Data.Maybe (listToMaybe, fromMaybe)
+import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Time (UTCTime)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
 import Data.Word (Word16, Word32, Word64)
 import GHC.Generics (C1, D1, Generic (..), K1 (K1, unK1), M1 (M1, unM1), Meta (MetaSel), Rec0, S1, type (:*:) (..))
 import GHC.Stack (HasCallStack, callStack, prettyCallStack)
 import GHC.TypeLits (ErrorMessage (..), TypeError)
-import Prelude hiding (liftA2, foldl')
 import System.Environment (lookupEnv)
 import System.Timeout (timeout)
+import Prelude hiding (liftA2)
 
 -- External
 import Data.WideWord (Int128 (..), Word128 (..))
@@ -496,7 +496,7 @@ instance
   {-# INLINE gSerializeRecords #-}
   gSerializeRecords rev xs =
     (\(ls,rs) -> gSerializeRecords @columns rev ls <> gSerializeRecords @columns rev rs)
-      (foldl' (\(accL, accR) (l :*: r)  -> (l:accL, r:accR)) ([], []) xs)
+      (foldr' (\(l :*: r) (accL, accR) -> (l:accL, r:accR)) ([], []) xs)
 
   gReadingColumns = gReadingColumns @columns @left ++ gReadingColumns @columns @right
   gColumnsCount = gColumnsCount @columns @left + gColumnsCount @columns @right
