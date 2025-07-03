@@ -3,7 +3,7 @@ packages:
     ./library/tls
     ./library/eventlog2ch
     ./contribution/html2hs
-    ./contribution/server
+    ./contribution
     ./contribution/modules/protocol-docs
     ./contribution/modules/visits
     ./documentation/testing
