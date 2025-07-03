@@ -46,7 +46,7 @@ in
   config = {
     services = {
       hydra = {
-        enable = true;
+        enable = false;
         hydraURL = "http://localhost:3000"; # externally visible URL
         notificationSender = "hydra@localhost"; # e-mail of hydra service
         buildMachinesFiles = [];
