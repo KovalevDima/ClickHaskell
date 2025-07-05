@@ -1,7 +1,7 @@
 packages:
     ./library
-    ./library/tls
-    ./library/eventlog2ch
+    ./ecosystem/tls
+    ./ecosystem/eventlog2ch
     ./contribution/html2hs
     ./contribution
     ./contribution/modules/protocol-docs

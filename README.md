@@ -34,6 +34,7 @@ Cons:
 <pre>
 ├contribution/     Development related code
 ├library/          ClickHaskell source code
+├ecosystem/        External libraries integrations
 └documentation/    <a href="https://clickhaskell.dev/">clickhaskell.dev/</a> source code
 </pre>
 
