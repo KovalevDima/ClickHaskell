@@ -55,10 +55,7 @@ writeToConnectionEncode MkConnectionState{revision, buffer} serializer =
 data Connection where MkConnection :: (MVar ConnectionState) -> Connection
 
 data ConnectionState = MkConnectionState
-  { user     :: ChString
-  , hostname :: ChString
-  , os_user  :: ChString
-  , buffer   :: Buffer
+  { buffer   :: Buffer
   , revision :: ProtocolRevision
   , creds    :: ConnectionArgs
   }
@@ -106,6 +103,8 @@ data ConnectionArgs = MkConnectionArgs
   , host :: HostName
   , mPort :: Maybe ServiceName
   , isTLS :: Bool
+  , mOsUser :: Maybe String
+  , mHostname :: Maybe String
   , initBuffer :: HostName -> SockAddr -> Socket -> IO Buffer
   }
 
@@ -125,6 +124,8 @@ defaultConnectionArgs = MkConnectionArgs
   , db   = "default"
   , isTLS = False
   , mPort = Nothing
+  , mOsUser = Nothing
+  , mHostname = Nothing
   , initBuffer  = \_hostname addrAddress sock -> do
       setSocketOption sock Sock.NoDelay 1
       setSocketOption sock Sock.KeepAlive 1
@@ -169,6 +170,22 @@ setPort new MkConnectionArgs{..} = MkConnectionArgs{mPort=Just new, ..}
 -}
 setDatabase :: String -> ConnectionArgs -> ConnectionArgs
 setDatabase new MkConnectionArgs{..} = MkConnectionArgs{db=new, ..}
+
+{- |
+  Overrides default hostname value which is:
+  1. __$HOSTNAME__ variable value (if set)
+  2. __""__ otherwise
+-}
+overrideHostname :: String -> ConnectionArgs -> ConnectionArgs
+overrideHostname new MkConnectionArgs{..} = MkConnectionArgs{mHostname=Just new, ..}
+
+{- |
+  Overrides default os_name value which is:
+  1. __$USER__ variable value (if set)
+  2. __""__ otherwise
+-}
+overrideOsUser :: String -> ConnectionArgs -> ConnectionArgs
+overrideOsUser new MkConnectionArgs{..} = MkConnectionArgs{mOsUser=Just new, ..}
 
 overrideNetwork
   :: Bool
