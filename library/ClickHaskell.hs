@@ -13,7 +13,7 @@ module ClickHaskell
   {- * Connection -}
     ConnectionArgs, defaultConnectionArgs
   , setHost, setPort, setUser, setDatabase, setPassword
-  , overrideNetwork
+  , overrideNetwork, overrideHostname, overrideOsUser
   , Connection(..), openConnection
   , Buffer(..)
 
@@ -121,7 +121,15 @@ withConnection (MkConnection connStateMVar) f =
     return b
 
 openConnection :: HasCallStack => ConnectionArgs -> IO Connection
-openConnection creds = fmap MkConnection . newMVar =<< createConnectionState creds
+openConnection creds@MkConnectionArgs{mHostname, mOsUser} = do
+  hostname <- maybe (lookupEnv "HOSTNAME") (pure . Just) mHostname
+  osUser   <- maybe (lookupEnv "USER")     (pure . Just) mOsUser
+  connectionState <-
+    createConnectionState
+      . (maybe id overrideHostname hostname)
+      . (maybe id overrideOsUser osUser)
+      $ creds
+  MkConnection <$> newMVar connectionState 
 
 reopenConnection :: ConnectionState -> IO ConnectionState
 reopenConnection MkConnectionState{creds, buffer} = do
@@ -132,8 +140,6 @@ reopenConnection MkConnectionState{creds, buffer} = do
 createConnectionState :: ConnectionArgs -> IO ConnectionState
 createConnectionState creds@MkConnectionArgs {user, pass, db, host, mPort, initBuffer, isTLS} = do
   let port = fromMaybe (if isTLS then "9440" else "9000") mPort
-  hostname <- maybe "" toChType <$> lookupEnv "HOSTNAME"
-  os_user <- maybe "" toChType <$> lookupEnv "USER"
   AddrInfo{addrFamily, addrSocketType, addrProtocol, addrAddress}
     <- maybe (throwIO NoAdressResolved) pure . listToMaybe
     =<< getAddrInfo
@@ -158,7 +164,7 @@ createConnectionState creds@MkConnectionArgs {user, pass, db, host, mPort, initB
   case serverPacketType of
     HelloResponse MkHelloResponse{server_revision} -> do
       let revision = min server_revision latestSupportedRevision
-          conn = MkConnectionState{user = toChType user, ..}
+          conn = MkConnectionState{..}
       writeToConnection conn MkAddendum{quota_key = MkSinceRevision ""}
       pure conn
     Exception exception -> throwIO (DatabaseException exception)
@@ -332,17 +338,18 @@ type ClickHaskellView view record =
   )
 
 mkQueryPacket :: ConnectionState -> ChString -> ClientPacket
-mkQueryPacket MkConnectionState{..} query = Query
+mkQueryPacket MkConnectionState{creds=MkConnectionArgs{..}, ..} query = Query
   MkQueryPacket
   { query_id = ""
   , client_info                    = MkSinceRevision MkClientInfo
     { query_kind                   = InitialQuery
-    , initial_user                 = user
+    , initial_user                 = toChType user
     , initial_query_id             = ""
     , initial_adress               = "0.0.0.0:0"
     , initial_time                 = MkSinceRevision 0
     , interface_type               = 1 -- [tcp - 1, http - 2]
-    , os_user, hostname
+    , os_user                      = maybe "" toChType mOsUser
+    , hostname                     = maybe "" toChType mHostname
     , client_name                  = clientName
     , client_version_major         = major
     , client_version_minor         = minor
