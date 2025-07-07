@@ -182,6 +182,7 @@ instance {-# OVERLAPPABLE #-}
 
 class Serializable chType
   where
+  {-# INLINE serialize #-}
   default serialize :: (Generic chType, GSerial (Rep chType)) => ProtocolRevision -> chType -> Builder
   serialize :: ProtocolRevision -> chType -> Builder
   serialize rev = gSerialize rev . from

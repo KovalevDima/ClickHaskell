@@ -44,12 +44,8 @@ data InternalError
   | DeserializationError String
   deriving (Show, Exception)
 
-writeToConnection :: Serializable packet => ConnectionState -> packet -> IO ()
-writeToConnection MkConnectionState{revision, buffer} packet =
-  (writeSock buffer . toLazyByteString . serialize revision) packet
-
-writeToConnectionEncode :: ConnectionState -> (ProtocolRevision -> Builder) -> IO ()
-writeToConnectionEncode MkConnectionState{revision, buffer} serializer =
+writeToConnection :: ConnectionState -> (ProtocolRevision -> Builder) -> IO ()
+writeToConnection MkConnectionState{revision, buffer} serializer =
   (writeSock buffer . toLazyByteString) (serializer revision)
 
 data Connection where MkConnection :: (MVar ConnectionState) -> Connection
