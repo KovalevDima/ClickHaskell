@@ -9,7 +9,6 @@ import Control.Exception (throwIO)
 import Data.Binary.Builder (Builder, toLazyByteString)
 import Data.Binary.Get
 import Data.ByteString as BS (ByteString, length)
-import Data.ByteString.Lazy as BSL (ByteString)
 import Data.IORef (IORef, atomicModifyIORef, atomicWriteIORef, newIORef, readIORef)
 import GHC.Exception (Exception)
 import Prelude hiding (liftA2)
@@ -44,13 +43,9 @@ data InternalError
   | DeserializationError String
   deriving (Show, Exception)
 
-writeToConnection :: Serializable packet => ConnectionState -> packet -> IO ()
-writeToConnection MkConnectionState{revision, buffer} packet =
-  (writeSock buffer . toLazyByteString . serialize revision) packet
-
-writeToConnectionEncode :: ConnectionState -> (ProtocolRevision -> Builder) -> IO ()
-writeToConnectionEncode MkConnectionState{revision, buffer} serializer =
-  (writeSock buffer . toLazyByteString) (serializer revision)
+writeToConnection :: ConnectionState -> (ProtocolRevision -> Builder) -> IO ()
+writeToConnection MkConnectionState{revision, buffer} serializer =
+  (writeSock buffer) (serializer revision)
 
 data Connection where MkConnection :: (MVar ConnectionState) -> Connection
 
@@ -62,7 +57,7 @@ data ConnectionState = MkConnectionState
 
 data Buffer = MkBuffer
   { readSock :: IO BS.ByteString
-  , writeSock :: BSL.ByteString -> IO ()
+  , writeSock :: Builder -> IO ()
   , closeSock :: IO ()
   , buff :: IORef BS.ByteString
   }
@@ -133,7 +128,7 @@ defaultConnectionArgs = MkConnectionArgs
       buff <- newIORef ""
       pure
         MkBuffer
-          { writeSock = \bs -> sendAll sock bs
+          { writeSock = \bs -> (sendAll sock . toLazyByteString) bs
           , readSock  = recv sock 4096
           , closeSock = close sock
           , buff

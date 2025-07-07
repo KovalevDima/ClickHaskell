@@ -158,14 +158,13 @@ createConnectionState creds@MkConnectionArgs {user, pass, db, host, mPort, initB
         (\sock -> initBuffer host addrAddress sock)
       )
 
-  (writeSock buffer . toLazyByteString . serialize latestSupportedRevision)
-    (mkHelloPacket db user pass)
+  (writeSock buffer . seriliazeHelloPacket db user pass) latestSupportedRevision
   serverPacketType <- readBuffer buffer (deserialize latestSupportedRevision)
   case serverPacketType of
     HelloResponse MkHelloResponse{server_revision} -> do
       let revision = min server_revision latestSupportedRevision
           conn = MkConnectionState{..}
-      writeToConnection conn MkAddendum{quota_key = MkSinceRevision ""}
+      writeToConnection conn (\rev -> serialize rev MkAddendum{quota_key = MkSinceRevision ""})
       pure conn
     Exception exception -> throwIO (DatabaseException exception)
     otherPacket         -> throwIO (InternalError $ UnexpectedPacketType $ serverPacketToNum otherPacket)
@@ -181,8 +180,8 @@ createConnectionState creds@MkConnectionArgs {user, pass, db, host, mPort, initB
 command :: HasCallStack => Connection -> ChString -> IO ()
 command conn query = do
   withConnection conn $ \connState -> do
-    writeToConnection connState (mkQueryPacket connState query)
-    writeToConnection connState (mkDataPacket "" 0 0)
+    writeToConnection connState (serializeQueryPacket connState query)
+    writeToConnection connState (serializeDataPacket "" 0 0)
     handleCreate connState
   where
   handleCreate :: ConnectionState -> IO ()
@@ -199,7 +198,7 @@ command conn query = do
 ping :: HasCallStack => Connection -> IO ()
 ping conn = do
   withConnection conn $ \connState@MkConnectionState{revision, buffer} -> do
-    writeToConnection connState Ping
+    writeToConnection connState (\rev -> serialize rev Ping)
     responsePacket <- readBuffer buffer (deserialize revision)
     case responsePacket of
       Pong                -> pure ()
@@ -221,8 +220,8 @@ select ::
   Connection -> ChString -> ([output] -> IO result) -> IO [result]
 select conn query f = do
   withConnection conn $ \connState -> do
-    writeToConnection connState (mkQueryPacket connState query)
-    writeToConnection connState (mkDataPacket "" 0 0)
+    writeToConnection connState (serializeQueryPacket connState query)
+    writeToConnection connState (serializeDataPacket "" 0 0)
     handleSelect @columns connState (\x -> id <$!> f x)
 
 selectFrom ::
@@ -303,8 +302,8 @@ insertInto ::
   Connection -> [record] -> IO ()
 insertInto conn columnsData = do
   withConnection conn $ \connState -> do
-    writeToConnection connState (mkQueryPacket connState query)
-    writeToConnection connState (mkDataPacket "" 0 0)
+    writeToConnection connState (serializeQueryPacket connState query)
+    writeToConnection connState (serializeDataPacket "" 0 0)
     handleInsertResult @(GetColumns table) connState columnsData
   where
   query = toChType $
@@ -319,9 +318,11 @@ handleInsertResult conn@MkConnectionState{..} records = do
     TableColumns      _ -> handleInsertResult @columns conn records
     DataResponse MkDataPacket{} -> do
       _emptyDataPacket <- readBuffer buffer (deserializeRecords @columns @record False revision 0)
-      writeToConnection conn (mkDataPacket "" (columnsCount @columns @record) (fromIntegral $ Prelude.length records))
-      writeToConnectionEncode conn (serializeRecords @columns records)
-      writeToConnection conn (mkDataPacket "" 0 0)
+      let rows = fromIntegral (Prelude.length records)
+          cols = columnsCount @columns @record
+      writeToConnection conn (serializeDataPacket "" cols rows)
+      writeToConnection conn (serializeRecords @columns records)
+      writeToConnection conn (serializeDataPacket "" 0 0)
       handleInsertResult @columns @record conn []
     EndOfStream         -> pure ()
     Exception exception -> throwIO (DatabaseException exception)
@@ -337,63 +338,66 @@ type ClickHaskellView view record =
   , ClickHaskell (GetColumns view) record
   )
 
-mkQueryPacket :: ConnectionState -> ChString -> ClientPacket
-mkQueryPacket MkConnectionState{creds=MkConnectionArgs{..}, ..} query = Query
-  MkQueryPacket
-  { query_id = ""
-  , client_info                    = MkSinceRevision MkClientInfo
-    { query_kind                   = InitialQuery
-    , initial_user                 = toChType user
-    , initial_query_id             = ""
-    , initial_adress               = "0.0.0.0:0"
-    , initial_time                 = MkSinceRevision 0
-    , interface_type               = 1 -- [tcp - 1, http - 2]
-    , os_user                      = maybe "" toChType mOsUser
-    , hostname                     = maybe "" toChType mHostname
-    , client_name                  = clientName
-    , client_version_major         = major
-    , client_version_minor         = minor
-    , client_revision              = revision
-    , quota_key                    = MkSinceRevision ""
-    , distrubuted_depth            = MkSinceRevision 0
-    , client_version_patch         = MkSinceRevision patch
-    , open_telemetry               = MkSinceRevision 0
-    , collaborate_with_initiator   = MkSinceRevision 0
-    , count_participating_replicas = MkSinceRevision 0
-    , number_of_current_replica    = MkSinceRevision 0
-    }
-  , settings           = MkDbSettings
-  , interserver_secret = MkSinceRevision ""
-  , query_stage        = Complete
-  , compression        = 0
-  , query
-  , parameters         = MkSinceRevision MkQueryParameters
-  }
-
-mkHelloPacket :: String -> String -> String -> ClientPacket
-mkHelloPacket db user pass = Hello
-  MkHelloPacket
-    { client_name          = clientName
-    , client_version_major = major
-    , client_version_minor = minor
-    , tcp_protocol_version = latestSupportedRevision
-    , default_database     = toChType db
-    , user                 = toChType user
-    , pass                 = toChType pass
-    }
-
-mkDataPacket :: ChString -> UVarInt -> UVarInt -> ClientPacket
-mkDataPacket table_name columns_count rows_count = Data
-  MkDataPacket
-    { table_name
-    , block_info    = MkBlockInfo
-      { field_num1   = 1, is_overflows = 0
-      , field_num2   = 2, bucket_num   = -1
-      , eof          = 0
+serializeQueryPacket :: ConnectionState -> ChString -> (ProtocolRevision -> Builder)
+serializeQueryPacket MkConnectionState{creds=MkConnectionArgs{..}, ..} query =
+  flip serialize $ Query
+    MkQueryPacket
+      { query_id = ""
+      , client_info                    = MkSinceRevision MkClientInfo
+        { query_kind                   = InitialQuery
+        , initial_user                 = toChType user
+        , initial_query_id             = ""
+        , initial_adress               = "0.0.0.0:0"
+        , initial_time                 = MkSinceRevision 0
+        , interface_type               = 1 -- [tcp - 1, http - 2]
+        , os_user                      = maybe "" toChType mOsUser
+        , hostname                     = maybe "" toChType mHostname
+        , client_name                  = clientName
+        , client_version_major         = major
+        , client_version_minor         = minor
+        , client_revision              = revision
+        , quota_key                    = MkSinceRevision ""
+        , distrubuted_depth            = MkSinceRevision 0
+        , client_version_patch         = MkSinceRevision patch
+        , open_telemetry               = MkSinceRevision 0
+        , collaborate_with_initiator   = MkSinceRevision 0
+        , count_participating_replicas = MkSinceRevision 0
+        , number_of_current_replica    = MkSinceRevision 0
+        }
+      , settings           = MkDbSettings
+      , interserver_secret = MkSinceRevision ""
+      , query_stage        = Complete
+      , compression        = 0
+      , query
+      , parameters         = MkSinceRevision MkQueryParameters
       }
-    , columns_count
-    , rows_count
-    }
+
+seriliazeHelloPacket :: String -> String -> String -> (ProtocolRevision -> Builder)
+seriliazeHelloPacket db user pass =
+  flip serialize $ Hello
+    MkHelloPacket
+      { client_name          = clientName
+      , client_version_major = major
+      , client_version_minor = minor
+      , tcp_protocol_version = latestSupportedRevision
+      , default_database     = toChType db
+      , user                 = toChType user
+      , pass                 = toChType pass
+      }
+
+serializeDataPacket :: ChString -> UVarInt -> UVarInt -> (ProtocolRevision -> Builder)
+serializeDataPacket table_name columns_count rows_count =
+  flip serialize $ Data
+    MkDataPacket
+      { table_name
+      , block_info    = MkBlockInfo
+        { field_num1   = 1, is_overflows = 0
+        , field_num2   = 2, bucket_num   = -1
+        , eof          = 0
+        }
+      , columns_count
+      , rows_count
+      }
 
 
 
