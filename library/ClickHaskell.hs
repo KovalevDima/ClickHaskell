@@ -158,7 +158,7 @@ createConnectionState creds@MkConnectionArgs {user, pass, db, host, mPort, initB
         (\sock -> initBuffer host addrAddress sock)
       )
 
-  (writeSock buffer . toLazyByteString . seriliazeHelloPacket db user pass) latestSupportedRevision
+  (writeSock buffer . seriliazeHelloPacket db user pass) latestSupportedRevision
   serverPacketType <- readBuffer buffer (deserialize latestSupportedRevision)
   case serverPacketType of
     HelloResponse MkHelloResponse{server_revision} -> do
