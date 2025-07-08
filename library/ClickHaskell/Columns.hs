@@ -179,7 +179,7 @@ instance
       Just err -> pure (Left err)
       Nothing -> do
         Right . mkColumn @(Column name chType)
-          <$> replicateGet (fromIntegral rows) (deserialize @chType rev)
+          <$> replicateGet rev (fromIntegral rows)
 
   {-# INLINE serializeColumn #-}
   serializeColumn rev column
@@ -201,7 +201,7 @@ instance {-# OVERLAPPING #-}
     case mErr of
       Just err -> pure (Left err)
       Nothing -> do 
-        nulls <- replicateGet (fromIntegral rows) (deserialize @UInt8 rev)
+        nulls <- replicateGet @UInt8 rev (fromIntegral rows)
         Right . mkColumn @(Column name (Nullable chType)) <$>
           forM
             nulls
@@ -237,8 +237,8 @@ instance {-# OVERLAPPING #-}
         _serializationType <- (.&. 0xf) <$> deserialize @UInt64 rev
         _index_size <- deserialize @Int64 rev
         -- error $ "Trace | " <> show _serializationType <> " : " <> show _index_size
-        Right . mkColumn @(Column name (LowCardinality chType))
-          <$> replicateGet (fromIntegral rows) (coerce <$> deserialize @chType rev)
+        Right . mkColumn @(Column name (LowCardinality chType)) . coerce
+          <$> replicateGet @chType rev (fromIntegral rows)
 
   {-# INLINE serializeColumn #-}
   serializeColumn rev (LowCardinalityColumn column)
@@ -261,7 +261,7 @@ instance {-# OVERLAPPING #-}
       Just err -> pure (Left err)
       Nothing -> do
         (arraySize, _offsets) <- readOffsets rev
-        _types <- replicateGet (fromIntegral arraySize) (deserialize @chType rev)
+        _types <- replicateGet @chType rev (fromIntegral arraySize)
         pure . Right $ mkColumn @(Column name (Array chType)) []
         where
         readOffsets :: ProtocolRevision -> Get (UInt64, [UInt64])

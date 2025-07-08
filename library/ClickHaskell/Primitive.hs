@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 module ClickHaskell.Primitive where
 
 -- Internal
@@ -40,12 +41,12 @@ class Serializable chType
   deserialize rev = to <$> gDeserialize rev
 
 {-# INLINE replicateGet #-}
-replicateGet :: UVarInt -> Get chType -> Get [chType]
-replicateGet cnt0 f = loopGet cnt0 []
+replicateGet :: Serializable chType => ProtocolRevision -> UVarInt -> Get [chType]
+replicateGet rev cnt0 = loopGet cnt0 []
   where
   loopGet 0 acc = pure acc
   loopGet n acc = do
-    x <- f
+    !x <- deserialize rev
     loopGet (n - 1) (x : acc)
 
 instance Serializable prim => Serializable [prim] where
@@ -54,7 +55,7 @@ instance Serializable prim => Serializable [prim] where
     <> foldMap (serialize @prim rev) list
   deserialize rev = do
     len <- deserialize @UVarInt rev
-    replicateGet len (deserialize @prim rev)
+    replicateGet @prim rev len
   {-# INLINE deserialize #-}
 
 
