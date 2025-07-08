@@ -42,6 +42,7 @@ data Column (name :: Symbol) (chType :: Type) where
   Int64Column  :: [Int64]  -> Column name Int64
   UInt128Column :: [UInt128] -> Column name UInt128
   Int128Column :: [Int128] -> Column name Int128
+  UInt256Column :: [UInt256] -> Column name UInt256
   DateTimeColumn :: [DateTime tz] -> Column name (DateTime tz)
   DateTime64Column :: [DateTime64 precision tz] -> Column name (DateTime64 precision tz)
   DateColumn :: [Date] -> Column name Date
@@ -67,6 +68,7 @@ columnValues column = case column of
   (Int32Column values) -> values
   (Int64Column values) -> values
   (Int128Column values) -> values
+  (UInt256Column values) -> values
   (DateColumn values) -> values
   (DateTimeColumn values) -> values
   (DateTime64Column values) -> values;
@@ -94,6 +96,7 @@ instance KnownSymbol name => KnownColumn (Column name UInt16) where mkColumn = U
 instance KnownSymbol name => KnownColumn (Column name UInt32) where mkColumn = UInt32Column
 instance KnownSymbol name => KnownColumn (Column name UInt64) where mkColumn = UInt64Column
 instance KnownSymbol name => KnownColumn (Column name UInt128) where mkColumn = UInt128Column
+instance KnownSymbol name => KnownColumn (Column name UInt256) where mkColumn = UInt256Column
 instance KnownSymbol name => KnownColumn (Column name Int8)  where mkColumn = Int8Column
 instance KnownSymbol name => KnownColumn (Column name Int16) where mkColumn = Int16Column
 instance KnownSymbol name => KnownColumn (Column name Int32) where mkColumn = Int32Column

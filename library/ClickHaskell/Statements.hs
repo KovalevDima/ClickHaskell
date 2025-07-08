@@ -98,6 +98,7 @@ instance ToQueryPart UInt16 where toQueryPart = byteString . BS8.pack . show
 instance ToQueryPart UInt32 where toQueryPart = byteString . BS8.pack . show
 instance ToQueryPart UInt64 where toQueryPart = byteString . BS8.pack . show
 instance ToQueryPart UInt128 where toQueryPart w128 = "'" <> (byteString . BS8.pack . show) w128 <> "'"
+instance ToQueryPart UInt256 where toQueryPart w256 = "'" <> (byteString . BS8.pack . show) w256 <> "'"
 instance ToQueryPart chType => ToQueryPart (Nullable chType)
   where
   toQueryPart = maybe "null" toQueryPart

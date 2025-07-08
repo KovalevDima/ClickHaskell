@@ -22,7 +22,7 @@ import GHC.TypeLits (ErrorMessage (..), KnownNat, KnownSymbol, Nat, Symbol, Type
 import Prelude hiding (liftA2)
 
 -- External
-import Data.WideWord (Int128 (..), Word128(..))
+import Data.WideWord (Int128 (..), Word256(..), Word128(..))
 
 -- * User types
 
@@ -203,6 +203,25 @@ instance Serializable UInt128 where
     low <- getWord64le
     high <- getWord64le
     pure $ Word128 high low
+  {-# INLINE deserialize #-}
+
+
+-- ** Int256
+
+{- | ClickHouse UInt128 column type -}
+type UInt256 = Word256
+instance IsChType UInt256 where
+  chTypeName = "UInt256"
+  defaultValueOfTypeName = 0
+
+instance Serializable UInt256 where
+  serialize _ = (\(Word256 high mid1 mid0 low) -> word64LE low <> word64LE mid0 <> word64LE mid1 <> word64LE high)
+  deserialize _ = do
+    low <- getWord64le
+    mid0 <- getWord64le
+    mid1 <- getWord64le
+    high <- getWord64le
+    pure $ Word256 high mid1 mid0 low
   {-# INLINE deserialize #-}
 
 
