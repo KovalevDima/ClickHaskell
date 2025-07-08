@@ -343,7 +343,7 @@ serializeQueryPacket MkConnectionState{creds=MkConnectionArgs{..}, ..} query =
   flip serialize $ Query
     MkQueryPacket
       { query_id = ""
-      , client_info                    = MkSinceRevision MkClientInfo
+      , client_info  = MkSinceRevision MkClientInfo
         { query_kind                   = InitialQuery
         , initial_user                 = toChType user
         , initial_query_id             = ""
@@ -364,7 +364,7 @@ serializeQueryPacket MkConnectionState{creds=MkConnectionArgs{..}, ..} query =
         , count_participating_replicas = MkSinceRevision 0
         , number_of_current_replica    = MkSinceRevision 0
         }
-      , settings           = MkDbSettings
+      , settings           = MkDbSettings []
       , interserver_secret = MkSinceRevision ""
       , query_stage        = Complete
       , compression        = 0
