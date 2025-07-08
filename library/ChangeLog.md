@@ -9,6 +9,7 @@
 ## Fixes:
 - Fixed unexpected behavior when the number of result columns was different from expected.
   A `UserError` exception `UnmatchedColumnsCount` is now raised in such cases
+- Query serialization for UInt128 bigger than 999999999999999934463
 
 ## Breaking changes:
 - ### Generic API changes
