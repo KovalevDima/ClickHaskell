@@ -5,6 +5,7 @@ import ClickHaskell (ConnectionArgs, Buffer(..), overrideNetwork)
 
 -- GHC included
 import Data.IORef (newIORef)
+import Data.ByteString.Builder (toLazyByteString)
 
 -- External
 import Network.TLS (ClientParams (..), contextNew, contextClose, sendData, recvData, defaultParamsClient, handshake)
@@ -28,7 +29,7 @@ setSecure modifyParams conn = overrideNetwork True initTLS conn
     buff <- newIORef ""
     pure
       MkBuffer
-        { writeSock = \bs -> sendData context bs
+        { writeSock = \bs -> sendData context (toLazyByteString bs)
         , readSock  = recvData context
         , closeSock = contextClose context
         , buff

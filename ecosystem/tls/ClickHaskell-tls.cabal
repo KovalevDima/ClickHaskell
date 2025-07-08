@@ -45,6 +45,7 @@ Library
   Build-depends:
     -- GHC included libraries
       base >= 4.7 && <5
+    , bytestring < 1
 
     -- Internal
     , ClickHaskell ^>= 1.0.0
