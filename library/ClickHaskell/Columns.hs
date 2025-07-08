@@ -63,12 +63,12 @@ columnValues column = case column of
   (UInt32Column values) -> values
   (UInt64Column values) -> values
   (UInt128Column values) -> values
+  (UInt256Column values) -> values
   (Int8Column values) -> values
   (Int16Column values) -> values
   (Int32Column values) -> values
   (Int64Column values) -> values
   (Int128Column values) -> values
-  (UInt256Column values) -> values
   (DateColumn values) -> values
   (DateTimeColumn values) -> values
   (DateTime64Column values) -> values;
