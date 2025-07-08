@@ -41,7 +41,7 @@ module ClickHaskell
   , IsChType(chTypeName, defaultValueOfTypeName)
   , DateTime(..), DateTime64
   , Int8, Int16, Int32, Int64, Int128(..)
-  , UInt8, UInt16, UInt32, UInt64, UInt128, Word128(..)
+  , UInt8, UInt16, UInt32, UInt64, UInt128, UInt256, Word128(..)
   , Nullable
   , LowCardinality, IsLowCardinalitySupported
   , UUID(..)

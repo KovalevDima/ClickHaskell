@@ -25,7 +25,7 @@ import ClickHaskell
   , ToQueryPart(..)
   , UInt8, UInt16, UInt32, UInt64
   , Int8, Int16, Int32, Int64
-  , ChString, UUID, DateTime, UInt128 -- , DateTime64
+  , ChString, UUID, DateTime, UInt128, UInt256 -- , DateTime64
   )
 
 -- GHC included
@@ -47,6 +47,7 @@ t1 conn = do
   runTestForType @UInt32 conn [minBound, toEnum 0, maxBound]
   runTestForType @UInt64 conn [minBound, toEnum 0, maxBound]
   runTestForType @UInt128 conn [minBound, toEnum 0, maxBound]
+  runTestForType @UInt256 conn [minBound, toEnum 0, maxBound]
   runTestForType @UUID conn [minBound, toEnum 0, maxBound]
   runTestForType @(DateTime "") conn [minBound, toEnum 0, maxBound]
   -- runTestForType @(DateTime64 0 "") conn [minBound, toEnum 0, maxBound]
