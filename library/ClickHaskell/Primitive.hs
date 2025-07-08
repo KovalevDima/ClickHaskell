@@ -41,11 +41,12 @@ class Serializable chType
 
 {-# INLINE replicateGet #-}
 replicateGet :: UVarInt -> Get chType -> Get [chType]
-replicateGet cnt0 f = loopGet cnt0
+replicateGet cnt0 f = loopGet cnt0 []
   where
-  loopGet cnt
-    | cnt <= 0  = pure []
-    | otherwise = liftA2 (:) f (loopGet (cnt - 1))
+  loopGet 0 acc = pure acc
+  loopGet n acc = do
+    x <- f
+    loopGet (n - 1) (x : acc)
 
 instance Serializable prim => Serializable [prim] where
   serialize rev list
