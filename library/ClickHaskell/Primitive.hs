@@ -10,13 +10,14 @@ import Data.Binary.Get
 import Data.Bits (Bits (setBit, unsafeShiftL, unsafeShiftR, (.&.), (.|.)))
 import Data.ByteString as BS (ByteString, length)
 import Data.ByteString.Builder
-import Data.Coerce (coerce)
 import Data.Int (Int16, Int32, Int64, Int8)
 import Data.String (IsString (..))
+import Data.Type.Bool (Not)
+import Data.Type.Equality (type (==))
 import Data.Typeable (Proxy (..))
 import Data.Version (Version (..))
 import Data.Word (Word16, Word32, Word64, Word8)
-import GHC.Generics (C1, D1, Generic (..), K1 (K1), M1 (M1), Rec0, S1, type (:*:) (..))
+import GHC.Generics (C1, D1, Generic (..), K1 (K1), M1 (M1), Meta (MetaSel), Rec0, S1, type (:*:) (..))
 import GHC.TypeLits (ErrorMessage (..), KnownNat, KnownSymbol, Nat, Symbol, TypeError, natVal, symbolVal)
 import Prelude hiding (liftA2)
 
@@ -186,11 +187,8 @@ class Serializable chType
   serialize :: ProtocolRevision -> chType -> Builder
   serialize rev = gSerialize rev . from
 
-class
-  Deserializable chType
-  where
   {-# INLINE deserialize #-}
-  default deserialize :: (Generic chType, GDeserial (Rep chType)) => ProtocolRevision -> Get chType
+  default deserialize :: (Generic chType, GSerial (Rep chType)) => ProtocolRevision -> Get chType
   deserialize :: ProtocolRevision -> Get chType
   deserialize rev = to <$> gDeserialize rev
 
@@ -209,59 +207,6 @@ instance Serializable UVarInt where
     goUVarIntSer i
       | i < 0x80 = word8 (fromIntegral i)
       | otherwise = word8 (setBit (fromIntegral i) 7) <> goUVarIntSer (i `unsafeShiftR` 7)
-instance Serializable ChString where
-  serialize rev (MkChString str) = (serialize @UVarInt rev . fromIntegral . BS.length) str <> byteString str
-instance Serializable UUID where serialize _ = (\(MkUUID (Word128 hi lo)) -> word64LE lo <> word64LE hi)
-instance Serializable Int8 where serialize _ = int8 
-instance Serializable Int16 where serialize _ = int16LE
-instance Serializable Int32 where serialize _ = int32LE
-instance Serializable Int64 where serialize _ = int64LE
-instance Serializable Int128 where serialize _ = (\(Int128 hi lo) -> word64LE lo <> word64LE hi)
-instance Serializable UInt8 where serialize _ = word8
-instance Serializable UInt16 where serialize _ = word16LE
-instance Serializable UInt32 where serialize _ = word32LE
-instance Serializable UInt64 where serialize _ = word64LE
-instance Serializable UInt128 where serialize _ = (\(Word128 hi lo) -> word64LE lo <> word64LE hi)
-instance Serializable (DateTime tz) where serialize _ (MkDateTime w32) = word32LE w32
-instance Serializable (DateTime64 precision tz) where serialize _ (MkDateTime64 w64) = word64LE w64
-instance Serializable Date where serialize _ (MkDate w16) = word16LE w16
-
-
-instance Deserializable Int8 where deserialize _ = getInt8; {-# INLINE deserialize #-}
-instance Deserializable Int16 where deserialize _ = getInt16le; {-# INLINE deserialize #-}
-instance Deserializable Int32 where deserialize _ = getInt32le; {-# INLINE deserialize #-}
-instance Deserializable Int64 where deserialize _ = getInt64le; {-# INLINE deserialize #-}
-instance Deserializable Int128 where
-  deserialize _ = do
-    low <- getWord64le
-    high <- getWord64le
-    pure $ Int128 high low
-  {-# INLINE deserialize #-}
-instance Deserializable UInt8 where deserialize _ = getWord8; {-# INLINE deserialize #-}
-instance Deserializable UInt16 where deserialize _ = getWord16le; {-# INLINE deserialize #-}
-instance Deserializable UInt32 where deserialize _ = getWord32le; {-# INLINE deserialize #-}
-instance Deserializable UInt64 where deserialize _ = getWord64le; {-# INLINE deserialize #-}
-instance Deserializable UInt128 where
-  deserialize _ = do
-    low <- getWord64le
-    high <- getWord64le
-    pure $ Word128 high low
-  {-# INLINE deserialize #-}
-instance Deserializable UUID where
-  deserialize _ = do
-    low <- getWord64le
-    high <- getWord64le
-    pure $ MkUUID (Word128 high low)
-  {-# INLINE deserialize #-}
-instance Deserializable Date where deserialize _ = MkDate <$> getWord16le; {-# INLINE deserialize #-}
-instance Deserializable (DateTime tz) where deserialize _ = MkDateTime <$> getWord32le; {-# INLINE deserialize #-}
-instance Deserializable (DateTime64 precision tz) where deserialize _ = MkDateTime64 <$> getWord64le; {-# INLINE deserialize #-}
-instance Deserializable ChString where
-  {-# INLINE deserialize #-}
-  deserialize rev = do
-    len <- deserialize @UVarInt rev
-    MkChString <$> (getByteString . fromIntegral) len
-instance Deserializable UVarInt where
   {-# INLINE deserialize #-}
   deserialize _ = goUVarIntDeser 0 (0 :: UVarInt)
     where
@@ -270,7 +215,86 @@ instance Deserializable UVarInt where
       let o' = o .|. ((fromIntegral byte .&. 0x7f) `unsafeShiftL` (7 * i))
       if byte .&. 0x80 == 0 then pure $! o' else goUVarIntDeser (i + 1) $! o'
     goUVarIntDeser _ _ = fail "input exceeds varuint size"
-instance Deserializable prim => Deserializable [prim] where
+
+instance Serializable ChString where
+  serialize rev (MkChString str) = (serialize @UVarInt rev . fromIntegral . BS.length) str <> byteString str
+  {-# INLINE deserialize #-}
+  deserialize rev = do
+    len <- deserialize @UVarInt rev
+    MkChString <$> (getByteString . fromIntegral) len
+
+instance Serializable UUID where
+  serialize _ = (\(MkUUID (Word128 hi lo)) -> word64LE lo <> word64LE hi)
+  deserialize _ = do
+    low <- getWord64le
+    high <- getWord64le
+    pure $ MkUUID (Word128 high low)
+  {-# INLINE deserialize #-}
+
+instance Serializable Int8 where
+  serialize _ = int8
+  deserialize _ = getInt8; {-# INLINE deserialize #-}
+
+instance Serializable Int16 where
+  serialize _ = int16LE
+  deserialize _ = getInt16le; {-# INLINE deserialize #-}
+
+instance Serializable Int32 where
+  serialize _ = int32LE
+  deserialize _ = getInt32le; {-# INLINE deserialize #-}
+
+instance Serializable Int64 where
+  serialize _ = int64LE
+  deserialize _ = getInt64le; {-# INLINE deserialize #-}
+
+instance Serializable Int128 where
+  serialize _ = (\(Int128 hi lo) -> word64LE lo <> word64LE hi)
+  deserialize _ = do
+    low <- getWord64le
+    high <- getWord64le
+    pure $ Int128 high low
+  {-# INLINE deserialize #-}
+
+instance Serializable UInt8 where
+  serialize _ = word8
+  deserialize _ = getWord8; {-# INLINE deserialize #-}
+
+instance Serializable UInt16 where
+  serialize _ = word16LE
+  deserialize _ = getWord16le; {-# INLINE deserialize #-}
+
+instance Serializable UInt32 where
+  serialize _ = word32LE
+  deserialize _ = getWord32le; {-# INLINE deserialize #-}
+
+instance Serializable UInt64 where
+  serialize _ = word64LE
+  deserialize _ = getWord64le; {-# INLINE deserialize #-}
+
+instance Serializable UInt128 where
+  serialize _ = (\(Word128 hi lo) -> word64LE lo <> word64LE hi)
+  deserialize _ = do
+    low <- getWord64le
+    high <- getWord64le
+    pure $ Word128 high low
+  {-# INLINE deserialize #-}
+
+instance Serializable (DateTime tz) where
+  serialize _ (MkDateTime w32) = word32LE w32
+  deserialize _ = MkDateTime <$> getWord32le; {-# INLINE deserialize #-}
+
+instance Serializable (DateTime64 precision tz) where
+  serialize _ (MkDateTime64 w64) = word64LE w64
+  deserialize _ = MkDateTime64 <$> getWord64le; {-# INLINE deserialize #-}
+
+instance Serializable Date where
+  serialize _ (MkDate w16) = word16LE w16
+  deserialize _ = MkDate <$> getWord16le; {-# INLINE deserialize #-}
+
+instance Serializable prim => Serializable [prim] where
+  serialize rev list
+    =  serialize @UVarInt rev (fromIntegral $ Prelude.length list)
+    <> foldMap (serialize @prim rev) list
   deserialize rev = do
     len <- deserialize @UVarInt rev
     replicateGet len (deserialize @prim rev)
@@ -279,51 +303,47 @@ instance Deserializable prim => Deserializable [prim] where
 
 class GSerial f where
   gSerialize :: ProtocolRevision -> f p -> Builder
+  gDeserialize :: ProtocolRevision -> Get (f p)
 
 instance GSerial f => GSerial (D1 c (C1 c2 f)) where
   gSerialize rev (M1 (M1 re)) = gSerialize rev re
   {-# INLINE gSerialize #-}
+  gDeserialize rev = M1 . M1 <$> gDeserialize rev
+  {-# INLINE gDeserialize #-}
 
 instance (GSerial left1,  GSerial right) => GSerial (left1 :*: right) where
   gSerialize rev (l :*: r) = gSerialize rev l <> gSerialize rev r
   {-# INLINE gSerialize #-}
-
-instance Serializable chType => GSerial (S1 metaSel (Rec0 chType)) where
-  gSerialize rev (M1 (K1 re)) = serialize rev re
-  {-# INLINE gSerialize #-}
-
-class GDeserial f
-  where
-  gDeserialize :: ProtocolRevision -> Get (f p)
-
-instance GDeserial f => GDeserial (D1 c (C1 c2 f))
-  where
-  gDeserialize rev = M1 . M1 <$> gDeserialize rev
-  {-# INLINE gDeserialize #-}
-
-instance (GDeserial left, GDeserial right) => GDeserial (left :*: right) where
   gDeserialize rev = do
     liftA2 (:*:)
       (gDeserialize rev)
       (gDeserialize rev)
-  {-# INLINE gDeserialize #-}
-
-instance {-# OVERLAPPING #-}
-  GDeserial right => GDeserial (S1 metaSel (Rec0 ProtocolRevision) :*: right) where
-  gDeserialize rev = do
-    chosenRev <- min rev . coerce <$> deserialize @UVarInt rev
-    liftA2 (:*:)
-      (pure . M1 . K1 $ chosenRev)
-      (gDeserialize @right chosenRev)
   {-# INLINE gDeserialize #-}
 
 instance
-  Deserializable chType
+  (Serializable chType, Not (sel == "server_revision") ~ True)
   =>
-  GDeserial (S1 metaSel (Rec0 chType))
-  where
+  GSerial (S1 ('MetaSel ('Just sel) a b c) (Rec0 chType)) where
+  gSerialize rev (M1 (K1 re)) = serialize rev re
+  {-# INLINE gSerialize #-}
+  gDeserialize rev = M1 . K1 <$> deserialize @chType rev
   {-# INLINE gDeserialize #-}
-  gDeserialize rev = M1 . K1 <$> deserialize @chType rev 
+
+
+instance {-# OVERLAPPING #-}
+  GSerial right
+  =>
+  GSerial (S1 ('MetaSel ('Just "server_revision") a b c) (Rec0 ProtocolRevision) :*: right)
+  where
+  gDeserialize rev = do
+    chosenRev <- min rev . MkProtocolRevision <$> deserialize @UVarInt rev
+    liftA2 (:*:)
+      (pure . M1 . K1 $ chosenRev)
+      (gDeserialize @right chosenRev)
+  gSerialize rev (M1 (K1 (MkProtocolRevision server_rev)) :*: right)= do
+    serialize rev server_rev <> gSerialize rev right
+  {-# INLINE gDeserialize #-}
+
 
 
 
@@ -370,22 +390,17 @@ latestSupportedRevision = (fromIntegral . natVal) (Proxy @DBMS_TCP_PROTOCOL_VERS
 data SinceRevision a (revisionNumber :: Nat) = MkSinceRevision a | NotPresented
 
 instance
-  (KnownNat revision, Deserializable chType)
-  =>
-  Deserializable (SinceRevision chType revision)
-  where
-  deserialize rev =
-    if rev >= (fromIntegral . natVal) (Proxy @revision)
-    then MkSinceRevision <$> deserialize @chType rev
-    else pure NotPresented
-
-instance
   (KnownNat revision, Serializable chType)
   =>
   Serializable (SinceRevision chType revision)
   where
   serialize rev (MkSinceRevision val) = afterRevision @revision rev (serialize rev val)
   serialize rev NotPresented          = afterRevision @revision rev (error "Unexpected error")
+
+  deserialize rev =
+    if rev >= (fromIntegral . natVal) (Proxy @revision)
+    then MkSinceRevision <$> deserialize @chType rev
+    else pure NotPresented
 
 
 {-

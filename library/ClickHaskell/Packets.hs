@@ -15,14 +15,14 @@ data DataPacket = MkDataPacket
   , columns_count :: UVarInt
   , rows_count    :: UVarInt
   }
-  deriving (Generic, Serializable, Deserializable)
+  deriving (Generic, Serializable)
 
 data BlockInfo = MkBlockInfo
   { field_num1   :: UVarInt, is_overflows :: UInt8
   , field_num2   :: UVarInt, bucket_num   :: Int32
   , eof          :: UVarInt
   }
-  deriving (Generic, Serializable, Deserializable)
+  deriving (Generic, Serializable)
 
 
 
@@ -51,7 +51,24 @@ data ServerPacket where
   ProfileEvents        :: ServerPacket
   UnknownPacket        :: UVarInt -> ServerPacket
 
-instance Deserializable ServerPacket where
+instance Serializable ServerPacket where
+  serialize rev = \case
+    HelloResponse hello  -> serialize @UVarInt rev 0 <> serialize rev hello
+    DataResponse hello   -> serialize @UVarInt rev 1 <> serialize rev hello
+    Exception hello      -> serialize @UVarInt rev 2 <> serialize rev hello
+    Progress hello       -> serialize @UVarInt rev 3 <> serialize rev hello
+    Pong                 -> serialize @UVarInt rev 4
+    EndOfStream          -> serialize @UVarInt rev 5
+    ProfileInfo hello    -> serialize @UVarInt rev 6 <> serialize rev hello
+    Totals               -> serialize @UVarInt rev 7
+    Extremes             -> serialize @UVarInt rev 8
+    TablesStatusResponse -> serialize @UVarInt rev 9
+    Log                  -> serialize @UVarInt rev 10
+    TableColumns hello   -> serialize @UVarInt rev 11 <> serialize rev hello
+    UUIDs                -> serialize @UVarInt rev 12
+    ReadTaskRequest      -> serialize @UVarInt rev 13
+    ProfileEvents        -> serialize @UVarInt rev 14
+    UnknownPacket num    -> serialize @UVarInt rev num
   deserialize rev = do
     packetNum <- deserialize @UVarInt rev
     case packetNum of
@@ -101,13 +118,13 @@ data HelloResponse = MkHelloResponse
   , password_complexity_rules      :: [PasswordComplexityRules] `SinceRevision` DBMS_MIN_PROTOCOL_VERSION_WITH_PASSWORD_COMPLEXITY_RULES
   , read_nonce                     :: UInt64 `SinceRevision` DBMS_MIN_REVISION_WITH_INTERSERVER_SECRET_V2
   }
-  deriving (Generic, Deserializable)
+  deriving (Generic, Serializable)
 
 data PasswordComplexityRules = MkPasswordComplexityRules
   { original_pattern  :: ChString
   , exception_message :: ChString
   }
-  deriving (Generic, Deserializable)
+  deriving (Generic, Serializable)
 
 
 data ExceptionPacket = MkExceptionPacket
@@ -117,7 +134,7 @@ data ExceptionPacket = MkExceptionPacket
   , stack_trace :: ChString
   , nested      :: UInt8
   }
-  deriving (Generic, Show, Deserializable)
+  deriving (Generic, Show, Serializable)
 
 data ProgressPacket = MkProgressPacket
   { rows        :: UVarInt
@@ -128,7 +145,7 @@ data ProgressPacket = MkProgressPacket
   , wrote_bytes :: UVarInt `SinceRevision` DBMS_MIN_REVISION_WITH_CLIENT_WRITE_INFO
   , elapsed_ns  :: UVarInt `SinceRevision` DBMS_MIN_REVISION_WITH_CLIENT_WRITE_INFO
   }
-  deriving (Generic, Deserializable)
+  deriving (Generic, Serializable)
 
 data ProfileInfo = MkProfileInfo
   { rows                         :: UVarInt
@@ -140,13 +157,13 @@ data ProfileInfo = MkProfileInfo
   , applied_aggregation          :: UInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_ROWS_BEFORE_AGGREGATION
   , rows_before_aggregation      :: UVarInt `SinceRevision` DBMS_MIN_REVISION_WITH_ROWS_BEFORE_AGGREGATION
   }
-  deriving (Generic, Deserializable)
+  deriving (Generic, Serializable)
 
 data TableColumns = MkTableColumns
   { table_name :: ChString
   , table_columns :: ChString
   }
-  deriving (Generic, Deserializable)
+  deriving (Generic, Serializable)
 
 
 
@@ -188,6 +205,21 @@ instance Serializable ClientPacket where
     (MergeTreeReadTaskResponse) -> serialize @UVarInt rev 10
     (SSHChallengeRequest)       -> serialize @UVarInt rev 11
     (SSHChallengeResponse)      -> serialize @UVarInt rev 12
+  deserialize rev = deserialize @UVarInt rev >>= \case
+    0 -> Hello <$> deserialize rev
+    1 -> Query <$> deserialize rev
+    2 -> Data <$> deserialize rev
+    3 -> pure Cancel
+    4 -> pure Ping
+    5 -> pure TablesStatusRequest
+    6 -> pure KeepAlive
+    7 -> pure Scalar
+    8 -> pure IgnoredPartUUIDs
+    9 -> pure ReadTaskResponse
+    10 -> pure MergeTreeReadTaskResponse
+    11 -> pure SSHChallengeRequest
+    12 -> pure SSHChallengeResponse
+    num -> fail ("Unknown client packet " <> show num)
 
 -- ** Hello
 
@@ -220,11 +252,24 @@ data QueryPacket = MkQueryPacket
   }
   deriving (Generic, Serializable)
 
-data DbSettings = MkDbSettings
-instance Serializable DbSettings where serialize rev _ = serialize @ChString rev ""
+data DbSettings = MkDbSettings [DbSetting]
+data DbSetting = MkDbSetting
+  { setting :: ChString
+  , flags   :: Flags `SinceRevision` DBMS_MIN_REVISION_WITH_SETTINGS_SERIALIZED_AS_STRINGS
+  , value   :: ChString
+  }
+instance Serializable DbSettings where
+  serialize rev (MkDbSettings _setts) =
+    serialize @ChString rev ""
+  deserialize _rev =
+    fail "DbSettings reading unimplemented"
 
 data QueryParameters = MkQueryParameters
-instance Serializable QueryParameters where serialize rev _ = serialize @ChString rev ""
+instance Serializable QueryParameters where
+  serialize rev _ =
+    serialize @ChString rev ""
+  deserialize _rev =
+    fail "QueryParameters reading unimplemented"
 
 data QueryStage
   = FetchColumns | WithMergeableState | Complete
@@ -234,13 +279,21 @@ data QueryStage
 
 instance Serializable QueryStage where
   serialize rev = serialize @UVarInt rev . fromIntegral . fromEnum
+  deserialize rev = do
+    deserialize @UVarInt rev >>= \case
+      0 -> pure FetchColumns
+      1 -> pure WithMergeableState
+      2 -> pure Complete
+      3 -> pure WithMergeableStateAfterAggregation
+      4 -> pure WithMergeableStateAfterAggregationAndLimit
+      num -> fail ("Unknown QueryStage " <> show num)
 
 
-data Flags = IMPORTANT | CUSTOM | OBSOLETE
+data Flags = IMPORTANT | CUSTOM | TIER
 _flagCode :: Flags -> UInt64
 _flagCode IMPORTANT = 0x01
 _flagCode CUSTOM    = 0x02
-_flagCode OBSOLETE  = 0x04
+_flagCode TIER      = 0x0c
 
 data ClientInfo = MkClientInfo
   { query_kind                   :: QueryKind
@@ -268,3 +321,8 @@ data ClientInfo = MkClientInfo
 data QueryKind = NoQuery | InitialQuery | SecondaryQuery
 instance Serializable QueryKind where
   serialize rev = serialize @UInt8 rev . (\case NoQuery -> 1; InitialQuery -> 2; SecondaryQuery -> 3)
+  deserialize rev = deserialize @UInt8 rev >>= \case
+      1 -> pure NoQuery
+      2 -> pure InitialQuery
+      3 -> pure SecondaryQuery
+      num -> fail ("Unknown QueryKind " <> show num)

@@ -165,7 +165,6 @@ handleColumnHeader rev isCheckRequired = do
 
 instance
   ( KnownColumn (Column name chType)
-  , Deserializable chType
   , Serializable chType
   , IsChType chType
   ) =>
@@ -189,7 +188,6 @@ instance
 
 instance {-# OVERLAPPING #-}
   ( KnownColumn (Column name (Nullable chType))
-  , Deserializable chType
   , Serializable chType
   , IsChType chType
   ) =>
@@ -222,7 +220,7 @@ instance {-# OVERLAPPING #-}
 
 instance {-# OVERLAPPING #-}
   ( KnownColumn (Column name (LowCardinality chType))
-  , Deserializable chType
+  , Serializable chType
   , IsLowCardinalitySupported chType
   , TypeError ('Text "LowCardinality deserialization still unsupported")
   ) =>
@@ -249,7 +247,7 @@ instance {-# OVERLAPPING #-}
 
 instance {-# OVERLAPPING #-}
   ( KnownColumn (Column name (Array chType))
-  , Deserializable chType
+  , Serializable chType
   , TypeError ('Text "Arrays deserialization still unsupported")
   )
   => SerializableColumn (Column name (Array chType)) where
