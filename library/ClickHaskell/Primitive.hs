@@ -207,7 +207,6 @@ instance Serializable UVarInt where
     goUVarIntSer i
       | i < 0x80 = word8 (fromIntegral i)
       | otherwise = word8 (setBit (fromIntegral i) 7) <> goUVarIntSer (i `unsafeShiftR` 7)
-  {-# INLINE deserialize #-}
   deserialize _ = goUVarIntDeser 0 (0 :: UVarInt)
     where
     goUVarIntDeser i o | i < 10 = do
@@ -215,13 +214,14 @@ instance Serializable UVarInt where
       let o' = o .|. ((fromIntegral byte .&. 0x7f) `unsafeShiftL` (7 * i))
       if byte .&. 0x80 == 0 then pure $! o' else goUVarIntDeser (i + 1) $! o'
     goUVarIntDeser _ _ = fail "input exceeds varuint size"
+  {-# INLINE deserialize #-}
 
 instance Serializable ChString where
   serialize rev (MkChString str) = (serialize @UVarInt rev . fromIntegral . BS.length) str <> byteString str
-  {-# INLINE deserialize #-}
   deserialize rev = do
     len <- deserialize @UVarInt rev
     MkChString <$> (getByteString . fromIntegral) len
+  {-# INLINE deserialize #-}
 
 instance Serializable UUID where
   serialize _ = (\(MkUUID (Word128 hi lo)) -> word64LE lo <> word64LE hi)
@@ -233,19 +233,23 @@ instance Serializable UUID where
 
 instance Serializable Int8 where
   serialize _ = int8
-  deserialize _ = getInt8; {-# INLINE deserialize #-}
+  deserialize _ = getInt8
+  {-# INLINE deserialize #-}
 
 instance Serializable Int16 where
   serialize _ = int16LE
-  deserialize _ = getInt16le; {-# INLINE deserialize #-}
+  deserialize _ = getInt16le
+  {-# INLINE deserialize #-}
 
 instance Serializable Int32 where
   serialize _ = int32LE
-  deserialize _ = getInt32le; {-# INLINE deserialize #-}
+  deserialize _ = getInt32le
+  {-# INLINE deserialize #-}
 
 instance Serializable Int64 where
   serialize _ = int64LE
-  deserialize _ = getInt64le; {-# INLINE deserialize #-}
+  deserialize _ = getInt64le
+  {-# INLINE deserialize #-}
 
 instance Serializable Int128 where
   serialize _ = (\(Int128 hi lo) -> word64LE lo <> word64LE hi)
@@ -257,19 +261,23 @@ instance Serializable Int128 where
 
 instance Serializable UInt8 where
   serialize _ = word8
-  deserialize _ = getWord8; {-# INLINE deserialize #-}
+  deserialize _ = getWord8
+  {-# INLINE deserialize #-}
 
 instance Serializable UInt16 where
   serialize _ = word16LE
-  deserialize _ = getWord16le; {-# INLINE deserialize #-}
+  deserialize _ = getWord16le
+  {-# INLINE deserialize #-}
 
 instance Serializable UInt32 where
   serialize _ = word32LE
-  deserialize _ = getWord32le; {-# INLINE deserialize #-}
+  deserialize _ = getWord32le
+  {-# INLINE deserialize #-}
 
 instance Serializable UInt64 where
   serialize _ = word64LE
-  deserialize _ = getWord64le; {-# INLINE deserialize #-}
+  deserialize _ = getWord64le
+  {-# INLINE deserialize #-}
 
 instance Serializable UInt128 where
   serialize _ = (\(Word128 hi lo) -> word64LE lo <> word64LE hi)
@@ -281,15 +289,18 @@ instance Serializable UInt128 where
 
 instance Serializable (DateTime tz) where
   serialize _ (MkDateTime w32) = word32LE w32
-  deserialize _ = MkDateTime <$> getWord32le; {-# INLINE deserialize #-}
+  deserialize _ = MkDateTime <$> getWord32le
+  {-# INLINE deserialize #-}
 
 instance Serializable (DateTime64 precision tz) where
   serialize _ (MkDateTime64 w64) = word64LE w64
-  deserialize _ = MkDateTime64 <$> getWord64le; {-# INLINE deserialize #-}
+  deserialize _ = MkDateTime64 <$> getWord64le
+  {-# INLINE deserialize #-}
 
 instance Serializable Date where
   serialize _ (MkDate w16) = word16LE w16
-  deserialize _ = MkDate <$> getWord16le; {-# INLINE deserialize #-}
+  deserialize _ = MkDate <$> getWord16le
+  {-# INLINE deserialize #-}
 
 instance Serializable prim => Serializable [prim] where
   serialize rev list
@@ -298,6 +309,7 @@ instance Serializable prim => Serializable [prim] where
   deserialize rev = do
     len <- deserialize @UVarInt rev
     replicateGet len (deserialize @prim rev)
+  {-# INLINE deserialize #-}
 
 -- ** Generics
 
@@ -335,13 +347,14 @@ instance {-# OVERLAPPING #-}
   =>
   GSerial (S1 ('MetaSel ('Just "server_revision") a b c) (Rec0 ProtocolRevision) :*: right)
   where
+  gSerialize rev (M1 (K1 (MkProtocolRevision server_rev)) :*: right)= do
+    serialize rev server_rev <> gSerialize rev right
+  {-# INLINE gSerialize #-}
   gDeserialize rev = do
     chosenRev <- min rev . MkProtocolRevision <$> deserialize @UVarInt rev
     liftA2 (:*:)
       (pure . M1 . K1 $ chosenRev)
       (gDeserialize @right chosenRev)
-  gSerialize rev (M1 (K1 (MkProtocolRevision server_rev)) :*: right)= do
-    serialize rev server_rev <> gSerialize rev right
   {-# INLINE gDeserialize #-}
 
 
