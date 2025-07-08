@@ -24,7 +24,38 @@ import Prelude hiding (liftA2)
 -- External
 import Data.WideWord (Int128 (..), Word128(..))
 
--- * 
+-- * User types
+
+-- ** Abstractions
+
+class Serializable chType
+  where
+  default serialize :: (Generic chType, GSerial (Rep chType)) => ProtocolRevision -> chType -> Builder
+  serialize :: ProtocolRevision -> chType -> Builder
+  serialize rev = gSerialize rev . from
+
+  {-# INLINE deserialize #-}
+  default deserialize :: (Generic chType, GSerial (Rep chType)) => ProtocolRevision -> Get chType
+  deserialize :: ProtocolRevision -> Get chType
+  deserialize rev = to <$> gDeserialize rev
+
+{-# INLINE replicateGet #-}
+replicateGet :: UVarInt -> Get chType -> Get [chType]
+replicateGet cnt0 f = loopGet cnt0
+  where
+  loopGet cnt
+    | cnt <= 0  = pure []
+    | otherwise = liftA2 (:) f (loopGet (cnt - 1))
+
+instance Serializable prim => Serializable [prim] where
+  serialize rev list
+    =  serialize @UVarInt rev (fromIntegral $ Prelude.length list)
+    <> foldMap (serialize @prim rev) list
+  deserialize rev = do
+    len <- deserialize @UVarInt rev
+    replicateGet len (deserialize @prim rev)
+  {-# INLINE deserialize #-}
+
 
 class IsChType chType
   where
@@ -38,46 +69,196 @@ class IsChType chType
 
   defaultValueOfTypeName :: chType
 
-instance IsChType Int8 where; chTypeName = "Int8"; defaultValueOfTypeName = 0
-instance IsChType Int16 where; chTypeName = "Int16"; defaultValueOfTypeName = 0
-instance IsChType Int32 where; chTypeName = "Int32"; defaultValueOfTypeName = 0
-instance IsChType Int64 where; chTypeName = "Int64"; defaultValueOfTypeName = 0
-instance IsChType Int128 where; chTypeName = "Int128"; defaultValueOfTypeName = 0
+
+-- ** Int8
+
+instance IsChType Int8 where
+  chTypeName = "Int8"
+  defaultValueOfTypeName = 0
+
+instance Serializable Int8 where
+  serialize _ = int8
+  deserialize _ = getInt8
+  {-# INLINE deserialize #-}
+
+
+-- ** Int16
+
+instance IsChType Int16 where
+  chTypeName = "Int16"
+  defaultValueOfTypeName = 0
+
+instance Serializable Int16 where
+  serialize _ = int16LE
+  deserialize _ = getInt16le
+  {-# INLINE deserialize #-}
+
+
+-- ** Int32
+
+instance IsChType Int32 where
+  chTypeName = "Int32"
+  defaultValueOfTypeName = 0
+
+instance Serializable Int32 where
+  serialize _ = int32LE
+  deserialize _ = getInt32le
+  {-# INLINE deserialize #-}
+
+
+-- ** Int64
+
+instance IsChType Int64 where
+  chTypeName = "Int64"
+  defaultValueOfTypeName = 0
+
+instance Serializable Int64 where
+  serialize _ = int64LE
+  deserialize _ = getInt64le
+  {-# INLINE deserialize #-}
+
+
+-- ** Int128
+
+instance IsChType Int128 where
+  chTypeName = "Int128"
+  defaultValueOfTypeName = 0
+
+instance Serializable Int128 where
+  serialize _ = (\(Int128 hi lo) -> word64LE lo <> word64LE hi)
+  deserialize _ = do
+    low <- getWord64le
+    high <- getWord64le
+    pure $ Int128 high low
+  {-# INLINE deserialize #-}
+
+
+-- ** UInt8
 
 {- | ClickHouse UInt8 column type -}
 type UInt8 = Word8
-instance IsChType UInt8 where; chTypeName = "UInt8"; defaultValueOfTypeName = 0
+instance IsChType UInt8 where
+  chTypeName = "UInt8"
+  defaultValueOfTypeName = 0
+
+instance Serializable UInt8 where
+  serialize _ = word8
+  deserialize _ = getWord8
+  {-# INLINE deserialize #-}
+
+
+-- ** UInt16
 
 {- | ClickHouse UInt16 column type -}
 type UInt16 = Word16
-instance IsChType UInt16 where; chTypeName = "UInt16"; defaultValueOfTypeName = 0
+instance IsChType UInt16 where
+  chTypeName = "UInt16"
+  defaultValueOfTypeName = 0
+
+instance Serializable UInt16 where
+  serialize _ = word16LE
+  deserialize _ = getWord16le
+  {-# INLINE deserialize #-}
+
+
+-- ** UInt32
 
 {- | ClickHouse UInt32 column type -}
 type UInt32 = Word32
-instance IsChType UInt32 where; chTypeName = "UInt32"; defaultValueOfTypeName = 0
+instance IsChType UInt32 where
+  chTypeName = "UInt32"
+  defaultValueOfTypeName = 0
+
+instance Serializable UInt32 where
+  serialize _ = word32LE
+  deserialize _ = getWord32le
+  {-# INLINE deserialize #-}
+
+
+-- ** UInt64
 
 {- | ClickHouse UInt64 column type -}
 type UInt64 = Word64
-instance IsChType UInt64 where; chTypeName = "UInt64"; defaultValueOfTypeName = 0
+instance IsChType UInt64 where
+  chTypeName = "UInt64"
+  defaultValueOfTypeName = 0
+
+instance Serializable UInt64 where
+  serialize _ = word64LE
+  deserialize _ = getWord64le
+  {-# INLINE deserialize #-}
+
+
+-- ** UInt128
 
 {- | ClickHouse UInt128 column type -}
 type UInt128 = Word128
-instance IsChType UInt128 where; chTypeName = "UInt128"; defaultValueOfTypeName = 0
+instance IsChType UInt128 where
+  chTypeName = "UInt128"
+  defaultValueOfTypeName = 0
+
+instance Serializable UInt128 where
+  serialize _ = (\(Word128 hi lo) -> word64LE lo <> word64LE hi)
+  deserialize _ = do
+    low <- getWord64le
+    high <- getWord64le
+    pure $ Word128 high low
+  {-# INLINE deserialize #-}
+
+
+-- ** Date
 
 {- | ClickHouse Date column type -}
 newtype Date = MkDate Word16
   deriving newtype (Show, Eq, Bits, Bounded, Enum, NFData, Num)
-instance IsChType Date where; chTypeName = "Date"; defaultValueOfTypeName = 0
+
+instance IsChType Date where
+  chTypeName = "Date"
+  defaultValueOfTypeName = 0
+
+instance Serializable Date where
+  serialize _ (MkDate w16) = word16LE w16
+  deserialize _ = MkDate <$> getWord16le
+  {-# INLINE deserialize #-}
+
+
+-- ** ChString
 
 {- | ClickHouse String column type -}
 newtype ChString = MkChString BS.ByteString
   deriving newtype (Show, Eq, IsString, NFData)
-instance IsChType ChString where; chTypeName = "String"; defaultValueOfTypeName = ""
+
+instance IsChType ChString where
+  chTypeName = "String"
+  defaultValueOfTypeName = ""
+
+instance Serializable ChString where
+  serialize rev (MkChString str) = (serialize @UVarInt rev . fromIntegral . BS.length) str <> byteString str
+  deserialize rev = do
+    len <- deserialize @UVarInt rev
+    MkChString <$> (getByteString . fromIntegral) len
+  {-# INLINE deserialize #-}
+
+
+-- ** UUID
 
 {- | ClickHouse UUID column type -}
 newtype UUID = MkUUID Word128
   deriving newtype (Generic, Show, Eq, NFData, Bounded, Enum, Num)
-instance IsChType UUID where; chTypeName = "UUID"; defaultValueOfTypeName = 0
+instance IsChType UUID where
+  chTypeName = "UUID"
+  defaultValueOfTypeName = 0
+
+instance Serializable UUID where
+  serialize _ = (\(MkUUID (Word128 hi lo)) -> word64LE lo <> word64LE hi)
+  deserialize _ = do
+    low <- getWord64le
+    high <- getWord64le
+    pure $ MkUUID (Word128 high low)
+  {-# INLINE deserialize #-}
+
+
+-- ** Nullable
 
 {- | ClickHouse Nullable(T) column type
  (type synonym for Maybe)
@@ -87,6 +268,9 @@ instance IsChType chType => IsChType (Nullable chType)
   where
   chTypeName = "Nullable(" <> chTypeName @chType <> ")"
   defaultValueOfTypeName = Nothing
+
+
+-- ** DateTime
 
 {- |
 ClickHouse DateTime column type (paramtrized with timezone)
@@ -105,6 +289,14 @@ instance KnownSymbol tz => IsChType (DateTime tz)
     "" -> "DateTime"
     tz -> "DateTime('" <> tz <> "')" 
   defaultValueOfTypeName = MkDateTime 0
+
+instance Serializable (DateTime tz) where
+  serialize _ (MkDateTime w32) = word32LE w32
+  deserialize _ = MkDateTime <$> getWord32le
+  {-# INLINE deserialize #-}
+
+
+-- ** DateTime64
 
 {- |
 ClickHouse DateTime64 column type (paramtrized with timezone)
@@ -131,6 +323,13 @@ instance
       tz -> "DateTime64(" <> prec <> ", '" <> tz <> "')"
   defaultValueOfTypeName = MkDateTime64 0
 
+instance Serializable (DateTime64 precision tz) where
+  serialize _ (MkDateTime64 w64) = word64LE w64
+  deserialize _ = MkDateTime64 <$> getWord64le
+  {-# INLINE deserialize #-}
+
+
+-- ** Array
 
 -- | ClickHouse Array column type
 newtype Array a = MkChArray [a]
@@ -139,6 +338,9 @@ instance IsChType chType => IsChType (Array chType)
   where
   chTypeName = "Array(" <> chTypeName @chType <> ")"
   defaultValueOfTypeName = MkChArray []
+
+
+-- ** LowCardinality
 
 -- | ClickHouse LowCardinality(T) column type
 newtype LowCardinality chType = MkLowCardinality chType
@@ -170,146 +372,6 @@ instance {-# OVERLAPPABLE #-}
     )
   ) => IsLowCardinalitySupported chType
 
-
-
-
-
-
-
-
--- * Serialization
-
--- *** Generic API
-
-class Serializable chType
-  where
-  default serialize :: (Generic chType, GSerial (Rep chType)) => ProtocolRevision -> chType -> Builder
-  serialize :: ProtocolRevision -> chType -> Builder
-  serialize rev = gSerialize rev . from
-
-  {-# INLINE deserialize #-}
-  default deserialize :: (Generic chType, GSerial (Rep chType)) => ProtocolRevision -> Get chType
-  deserialize :: ProtocolRevision -> Get chType
-  deserialize rev = to <$> gDeserialize rev
-
-
-{-# INLINE replicateGet #-}
-replicateGet :: UVarInt -> Get chType -> Get [chType]
-replicateGet cnt0 f = loopGet cnt0
-  where
-  loopGet cnt
-    | cnt <= 0  = pure []
-    | otherwise = liftA2 (:) f (loopGet (cnt - 1))
-
-instance Serializable UVarInt where
-  serialize _ = goUVarIntSer
-    where
-    goUVarIntSer i
-      | i < 0x80 = word8 (fromIntegral i)
-      | otherwise = word8 (setBit (fromIntegral i) 7) <> goUVarIntSer (i `unsafeShiftR` 7)
-  deserialize _ = goUVarIntDeser 0 (0 :: UVarInt)
-    where
-    goUVarIntDeser i o | i < 10 = do
-      byte <- getWord8
-      let o' = o .|. ((fromIntegral byte .&. 0x7f) `unsafeShiftL` (7 * i))
-      if byte .&. 0x80 == 0 then pure $! o' else goUVarIntDeser (i + 1) $! o'
-    goUVarIntDeser _ _ = fail "input exceeds varuint size"
-  {-# INLINE deserialize #-}
-
-instance Serializable ChString where
-  serialize rev (MkChString str) = (serialize @UVarInt rev . fromIntegral . BS.length) str <> byteString str
-  deserialize rev = do
-    len <- deserialize @UVarInt rev
-    MkChString <$> (getByteString . fromIntegral) len
-  {-# INLINE deserialize #-}
-
-instance Serializable UUID where
-  serialize _ = (\(MkUUID (Word128 hi lo)) -> word64LE lo <> word64LE hi)
-  deserialize _ = do
-    low <- getWord64le
-    high <- getWord64le
-    pure $ MkUUID (Word128 high low)
-  {-# INLINE deserialize #-}
-
-instance Serializable Int8 where
-  serialize _ = int8
-  deserialize _ = getInt8
-  {-# INLINE deserialize #-}
-
-instance Serializable Int16 where
-  serialize _ = int16LE
-  deserialize _ = getInt16le
-  {-# INLINE deserialize #-}
-
-instance Serializable Int32 where
-  serialize _ = int32LE
-  deserialize _ = getInt32le
-  {-# INLINE deserialize #-}
-
-instance Serializable Int64 where
-  serialize _ = int64LE
-  deserialize _ = getInt64le
-  {-# INLINE deserialize #-}
-
-instance Serializable Int128 where
-  serialize _ = (\(Int128 hi lo) -> word64LE lo <> word64LE hi)
-  deserialize _ = do
-    low <- getWord64le
-    high <- getWord64le
-    pure $ Int128 high low
-  {-# INLINE deserialize #-}
-
-instance Serializable UInt8 where
-  serialize _ = word8
-  deserialize _ = getWord8
-  {-# INLINE deserialize #-}
-
-instance Serializable UInt16 where
-  serialize _ = word16LE
-  deserialize _ = getWord16le
-  {-# INLINE deserialize #-}
-
-instance Serializable UInt32 where
-  serialize _ = word32LE
-  deserialize _ = getWord32le
-  {-# INLINE deserialize #-}
-
-instance Serializable UInt64 where
-  serialize _ = word64LE
-  deserialize _ = getWord64le
-  {-# INLINE deserialize #-}
-
-instance Serializable UInt128 where
-  serialize _ = (\(Word128 hi lo) -> word64LE lo <> word64LE hi)
-  deserialize _ = do
-    low <- getWord64le
-    high <- getWord64le
-    pure $ Word128 high low
-  {-# INLINE deserialize #-}
-
-instance Serializable (DateTime tz) where
-  serialize _ (MkDateTime w32) = word32LE w32
-  deserialize _ = MkDateTime <$> getWord32le
-  {-# INLINE deserialize #-}
-
-instance Serializable (DateTime64 precision tz) where
-  serialize _ (MkDateTime64 w64) = word64LE w64
-  deserialize _ = MkDateTime64 <$> getWord64le
-  {-# INLINE deserialize #-}
-
-instance Serializable Date where
-  serialize _ (MkDate w16) = word16LE w16
-  deserialize _ = MkDate <$> getWord16le
-  {-# INLINE deserialize #-}
-
-instance Serializable prim => Serializable [prim] where
-  serialize rev list
-    =  serialize @UVarInt rev (fromIntegral $ Prelude.length list)
-    <> foldMap (serialize @prim rev) list
-  deserialize rev = do
-    len <- deserialize @UVarInt rev
-    replicateGet len (deserialize @prim rev)
-  {-# INLINE deserialize #-}
 
 -- ** Generics
 
@@ -360,11 +422,9 @@ instance {-# OVERLAPPING #-}
 
 
 
-
-
-
-
 -- * Protocol parts
+
+-- ** UVarInt
 
 {- |
   Unsigned variable-length quantity encoding
@@ -374,6 +434,23 @@ instance {-# OVERLAPPING #-}
 newtype UVarInt = MkUVarInt Word64
   deriving newtype (Show, Eq, Num, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
 
+instance Serializable UVarInt where
+  serialize _ = goUVarIntSer
+    where
+    goUVarIntSer i
+      | i < 0x80 = word8 (fromIntegral i)
+      | otherwise = word8 (setBit (fromIntegral i) 7) <> goUVarIntSer (i `unsafeShiftR` 7)
+  deserialize _ = goUVarIntDeser 0 (0 :: UVarInt)
+    where
+    goUVarIntDeser i o | i < 10 = do
+      byte <- getWord8
+      let o' = o .|. ((fromIntegral byte .&. 0x7f) `unsafeShiftL` (7 * i))
+      if byte .&. 0x80 == 0 then pure $! o' else goUVarIntDeser (i + 1) $! o'
+    goUVarIntDeser _ _ = fail "input exceeds varuint size"
+  {-# INLINE deserialize #-}
+
+
+-- ** Versioning
 
 major, minor, patch :: UVarInt
 major = case versionBranch version of (x:_) -> fromIntegral x; _ -> 0
