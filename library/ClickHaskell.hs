@@ -7,7 +7,6 @@
 
   For full documentation, visit: https://clickhaskell.dev/
 -}
-{-# LANGUAGE InstanceSigs #-}
 
 module ClickHaskell
   (
