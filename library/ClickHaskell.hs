@@ -78,6 +78,7 @@ import ClickHaskell.Primitive
 import ClickHaskell.Statements
 
 -- GHC included
+import Control.Applicative (liftA2)
 import Control.Concurrent (newMVar, putMVar, takeMVar)
 import Control.Exception (Exception, SomeException, bracketOnError, catch, finally, mask, onException, throw, throwIO)
 import Control.Monad (when, (<$!>))
@@ -102,7 +103,6 @@ import Prelude hiding (liftA2)
 -- External
 import Data.WideWord (Int128 (..), Word128 (..))
 import Network.Socket hiding (SocketOption (..))
-import Control.Applicative (liftA2)
 
 readBuffer :: Buffer -> Get a -> IO a
 readBuffer buffer deseralize =
