@@ -504,6 +504,7 @@ instance
     liftA2 (\l r -> f <$!> zipWith (:*:) l r)
       (gDeserializeRecords @columns @left isCheckRequired rev size id)
       (gDeserializeRecords @columns @right isCheckRequired rev size id)
+
   {-# INLINE gSerializeRecords #-}
   gSerializeRecords rev f xs  =
     (\(ls,rs) -> gSerializeRecords @columns rev id ls  <> gSerializeRecords @columns rev id rs)
