@@ -444,11 +444,12 @@ class ClickHaskell columns record
   where
   default deserializeRecords :: GenericClickHaskell record columns => Bool -> ProtocolRevision -> UVarInt -> Get [record]
   deserializeRecords :: Bool -> ProtocolRevision -> UVarInt -> Get [record]
-  deserializeRecords isCheckRequired rev size = (to <$!>) <$> gDeserializeRecords @columns isCheckRequired rev size
+  deserializeRecords isCheckRequired rev size =
+    gDeserializeRecords @columns isCheckRequired rev size to
 
   default serializeRecords :: GenericClickHaskell record columns => [record] -> ProtocolRevision -> Builder
   serializeRecords :: [record] -> ProtocolRevision -> Builder
-  serializeRecords records rev = gSerializeRecords @columns rev (from <$!> records)
+  serializeRecords records rev = gSerializeRecords @columns rev from records
 
   default columns :: GenericClickHaskell record columns => Builder
   columns :: Builder
@@ -472,8 +473,8 @@ class ClickHaskell columns record
 
 class GClickHaskell (columns :: [Type]) f
   where
-  gDeserializeRecords :: Bool -> ProtocolRevision -> UVarInt -> Get [f p]  
-  gSerializeRecords :: ProtocolRevision -> [f p] -> Builder
+  gDeserializeRecords :: Bool -> ProtocolRevision -> UVarInt -> (f p -> res) -> Get [res]
+  gSerializeRecords :: ProtocolRevision -> (res -> f p) -> [res] -> Builder
 
   gReadingColumns :: [(Builder, Builder)]
   gColumnsCount :: UVarInt
@@ -484,10 +485,11 @@ instance
   GClickHaskell columns (D1 c (C1 c2 f))
   where
   {-# INLINE gDeserializeRecords #-}
-  gDeserializeRecords isCheckRequired rev size = map (M1 . M1) <$> gDeserializeRecords @columns isCheckRequired rev size
+  gDeserializeRecords isCheckRequired rev size f =
+    gDeserializeRecords @columns isCheckRequired rev size (f . M1 . M1)
 
   {-# INLINE gSerializeRecords #-}
-  gSerializeRecords rev = gSerializeRecords @columns rev . map (unM1 . unM1)
+  gSerializeRecords rev f = gSerializeRecords @columns rev (unM1 . unM1 . f)
 
   gReadingColumns = gReadingColumns @columns @f
   gColumnsCount = gColumnsCount @columns @f
@@ -498,15 +500,15 @@ instance
   GClickHaskell columns (left :*: right)
   where
   {-# INLINE gDeserializeRecords #-}
-  gDeserializeRecords isCheckRequired rev size = do
-    liftA2 (zipWith (:*:))
-      (gDeserializeRecords @columns @left isCheckRequired rev size)
-      (gDeserializeRecords @columns @right isCheckRequired rev size)
+  gDeserializeRecords isCheckRequired rev size f = do
+    liftA2 (\l r -> f <$!> zipWith (:*:) l r)
+      (gDeserializeRecords @columns @left isCheckRequired rev size id)
+      (gDeserializeRecords @columns @right isCheckRequired rev size id)
 
   {-# INLINE gSerializeRecords #-}
-  gSerializeRecords rev xs =
-    (\(ls,rs) -> gSerializeRecords @columns rev ls <> gSerializeRecords @columns rev rs)
-      (foldr (\(l :*: r) (accL, accR) -> (l:accL, r:accR)) ([], []) xs)
+  gSerializeRecords rev f xs  =
+    (\(ls,rs) -> gSerializeRecords @columns rev id ls  <> gSerializeRecords @columns rev id rs)
+      (foldr (\(l :*: r) (accL, accR) -> (l:accL, r:accR)) ([], []) (map f xs))
 
   gReadingColumns = gReadingColumns @columns @left ++ gReadingColumns @columns @right
   gColumnsCount = gColumnsCount @columns @left + gColumnsCount @columns @right
@@ -520,12 +522,12 @@ instance
   ) => GClickHaskell columns ((S1 (MetaSel (Just name) a b f)) (Rec0 inputType))
   where
   {-# INLINE gDeserializeRecords #-}
-  gDeserializeRecords isCheckRequired rev size =
-    either (throw . UnmatchedResult) (map (M1 . K1 . fromChType @chType) . columnValues)
+  gDeserializeRecords isCheckRequired rev size f =
+    either (throw . UnmatchedResult) (map (f . M1 . K1 . fromChType @chType) . columnValues)
       <$!> deserializeColumn @(Column name chType) rev isCheckRequired size
 
   {-# INLINE gSerializeRecords #-}
-  gSerializeRecords rev = serializeColumn rev . mkColumn @(Column name chType) . map (toChType . unK1 . unM1)
+  gSerializeRecords rev f = serializeColumn rev . mkColumn @(Column name chType) . map (toChType . unK1 . unM1 . f)
 
   gReadingColumns = (renderColumnName @(Column name chType), renderColumnType @(Column name chType)) : []
   gColumnsCount = 1
