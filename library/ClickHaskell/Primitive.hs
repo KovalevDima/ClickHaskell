@@ -11,8 +11,12 @@ import Data.Binary.Get
 import Data.Bits (Bits (setBit, unsafeShiftL, unsafeShiftR, (.&.), (.|.)))
 import Data.ByteString as BS (ByteString, length)
 import Data.ByteString.Builder
+import Data.ByteString.Char8 as BS8 (pack, unpack)
+import Data.ByteString.Lazy (toStrict)
 import Data.Int (Int16, Int32, Int64, Int8)
 import Data.String (IsString (..))
+import Data.Time (UTCTime)
+import Data.Time.Clock.POSIX
 import Data.Type.Bool (Not)
 import Data.Type.Equality (type (==))
 import Data.Typeable (Proxy (..))
@@ -70,6 +74,14 @@ class IsChType chType
   chTypeName :: String
 
   defaultValueOfTypeName :: chType
+
+class ToChType chType userType    where
+  toChType   :: userType -> chType
+  fromChType :: chType -> userType
+
+instance {-# OVERLAPPABLE #-} (IsChType chType, chType ~ inputType) => ToChType chType inputType where
+  toChType = id
+  fromChType = id
 
 
 -- ** Int8
@@ -242,6 +254,10 @@ instance Serializable Date where
   deserialize _ = MkDate <$> getWord16le
   {-# INLINE deserialize #-}
 
+instance ToChType Date Word16 where
+  toChType = MkDate
+  fromChType (MkDate w16) = w16
+
 
 -- ** ChString
 
@@ -259,6 +275,18 @@ instance Serializable ChString where
     len <- deserialize @UVarInt rev
     MkChString <$> (getByteString . fromIntegral) len
   {-# INLINE deserialize #-}
+
+instance ToChType ChString BS.ByteString where
+  toChType = MkChString
+  fromChType (MkChString string) = string
+
+instance ToChType ChString Builder where
+  toChType = MkChString . toStrict . toLazyByteString
+  fromChType (MkChString string) = byteString string
+
+instance ToChType ChString String where
+  toChType = MkChString . BS8.pack
+  fromChType (MkChString bs)= BS8.unpack bs
 
 
 -- ** UUID
@@ -278,6 +306,10 @@ instance Serializable UUID where
     pure $ MkUUID (Word128 high low)
   {-# INLINE deserialize #-}
 
+instance ToChType UUID (Word64, Word64) where
+  toChType = MkUUID . uncurry (flip Word128)
+  fromChType (MkUUID (Word128 w64hi w64lo)) = (w64hi, w64lo)
+
 
 -- ** Nullable
 
@@ -289,6 +321,14 @@ instance IsChType chType => IsChType (Nullable chType)
   where
   chTypeName = "Nullable(" <> chTypeName @chType <> ")"
   defaultValueOfTypeName = Nothing
+
+instance
+  ToChType inputType chType
+  =>
+  ToChType (Nullable inputType) (Nullable chType)
+  where
+  toChType = fmap (toChType @inputType @chType)
+  fromChType = fmap (fromChType @inputType)
 
 
 -- ** DateTime
@@ -315,6 +355,14 @@ instance Serializable (DateTime tz) where
   serialize _ (MkDateTime w32) = word32LE w32
   deserialize _ = MkDateTime <$> getWord32le
   {-# INLINE deserialize #-}
+
+instance ToChType (DateTime tz) Word32     where
+  toChType = MkDateTime
+  fromChType (MkDateTime w32)= w32
+
+instance ToChType (DateTime tz) UTCTime    where
+  toChType = MkDateTime . floor . utcTimeToPOSIXSeconds
+  fromChType (MkDateTime w32) = posixSecondsToUTCTime (fromIntegral w32)
 
 
 -- ** DateTime64
@@ -349,6 +397,10 @@ instance Serializable (DateTime64 precision tz) where
   deserialize _ = MkDateTime64 <$> getWord64le
   {-# INLINE deserialize #-}
 
+instance ToChType (DateTime64 precision tz) Word64 where
+  toChType = MkDateTime64
+  fromChType (MkDateTime64 w64) = w64
+
 
 -- ** Array
 
@@ -359,6 +411,11 @@ instance IsChType chType => IsChType (Array chType)
   where
   chTypeName = "Array(" <> chTypeName @chType <> ")"
   defaultValueOfTypeName = MkChArray []
+
+instance ToChType chType inputType => ToChType (Array chType) [inputType]
+  where
+  toChType = MkChArray . map toChType
+  fromChType (MkChArray values) = map fromChType values
 
 
 -- ** LowCardinality
@@ -392,6 +449,13 @@ instance {-# OVERLAPPABLE #-}
     ':$$: 'Text "  Nullable(T)"
     )
   ) => IsLowCardinalitySupported chType
+
+instance
+  ToChType inputType chType
+  =>
+  ToChType (LowCardinality inputType) chType where
+  toChType = MkLowCardinality . toChType
+  fromChType (MkLowCardinality lc)= fromChType @inputType lc
 
 
 -- ** Generics
