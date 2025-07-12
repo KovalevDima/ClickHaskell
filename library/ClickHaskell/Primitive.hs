@@ -11,7 +11,8 @@ import Data.Binary.Get
 import Data.Bits (Bits (setBit, unsafeShiftL, unsafeShiftR, (.&.), (.|.)))
 import Data.ByteString as BS (ByteString, length)
 import Data.ByteString.Builder
-import Data.ByteString.Char8 as BS8 (pack, toStrict, unpack)
+import Data.ByteString.Char8 as BS8 (pack, unpack)
+import Data.ByteString.Lazy (toStrict)
 import Data.Int (Int16, Int32, Int64, Int8)
 import Data.String (IsString (..))
 import Data.Time (UTCTime)
