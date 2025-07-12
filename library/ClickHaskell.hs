@@ -83,16 +83,10 @@ import Control.Concurrent (newMVar, putMVar, takeMVar)
 import Control.Exception (Exception, SomeException, bracketOnError, catch, finally, mask, onException, throw, throwIO)
 import Control.Monad (when, (<$!>))
 import Data.Binary.Get
-import Data.ByteString as BS (ByteString)
 import Data.ByteString.Builder
-import Data.ByteString.Char8 as BS8 (pack, unpack)
-import Data.ByteString.Lazy as BSL (toStrict)
 import Data.Int (Int16, Int32, Int64, Int8)
 import Data.Kind (Type)
 import Data.Maybe (fromMaybe, listToMaybe)
-import Data.Time (UTCTime)
-import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
-import Data.Word (Word16, Word32, Word64)
 import GHC.Generics (C1, D1, Generic (..), K1 (K1, unK1), M1 (M1, unM1), Meta (MetaSel), Rec0, S1, type (:*:) (..))
 import GHC.Stack (HasCallStack, callStack, prettyCallStack)
 import GHC.TypeLits (ErrorMessage (..), TypeError)
@@ -545,67 +539,3 @@ type family
     (    'Text "There is no column \"" :<>: 'Text name :<>: 'Text "\" in table"
     :$$: 'Text "You can't use this field"
     )
-
-
--- ** ToChType
-
-class ToChType chType userType    where
-  toChType   :: userType -> chType
-  fromChType :: chType -> userType
-
-instance {-# OVERLAPPABLE #-} (IsChType chType, chType ~ inputType) => ToChType chType inputType where
-  toChType = id
-  fromChType = id
-
-
-instance ToChType ChString BS.ByteString where
-  toChType = MkChString
-  fromChType (MkChString string) = string
-
-instance ToChType ChString Builder where
-  toChType = MkChString . toStrict . toLazyByteString
-  fromChType (MkChString string) = byteString string
-
-instance ToChType ChString String where
-  toChType = MkChString . BS8.pack
-  fromChType (MkChString bs)= BS8.unpack bs
-
-
-instance
-  ToChType inputType chType
-  =>
-  ToChType (Nullable inputType) (Nullable chType)
-  where
-  toChType = fmap (toChType @inputType @chType)
-  fromChType = fmap (fromChType @inputType)
-
-instance
-  ToChType inputType chType
-  =>
-  ToChType (LowCardinality inputType) chType where
-  toChType = MkLowCardinality . toChType
-  fromChType (MkLowCardinality lc)= fromChType @inputType lc
-
-instance ToChType UUID (Word64, Word64) where
-  toChType = MkUUID . uncurry (flip Word128)
-  fromChType (MkUUID (Word128 w64hi w64lo)) = (w64hi, w64lo)
-
-instance ToChType (DateTime tz) Word32     where
-  toChType = MkDateTime
-  fromChType (MkDateTime w32)= w32
-
-instance ToChType (DateTime tz) UTCTime    where
-  toChType = MkDateTime . floor . utcTimeToPOSIXSeconds
-  fromChType (MkDateTime w32) = posixSecondsToUTCTime (fromIntegral w32)
-
-instance ToChType (DateTime64 precision tz) Word64 where
-  toChType = MkDateTime64
-  fromChType (MkDateTime64 w64) = w64
-instance ToChType Date Word16 where
-  toChType = MkDate
-  fromChType (MkDate w16) = w16
-
-instance ToChType chType inputType => ToChType (Array chType) [inputType]
-  where
-  toChType = MkChArray . map toChType
-  fromChType (MkChArray values) = map fromChType values
