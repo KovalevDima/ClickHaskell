@@ -4,7 +4,6 @@ module ClickHaskell.Columns where
 import ClickHaskell.Primitive
 
 -- GHC included
-import Control.Exception (Exception)
 import Data.Binary.Get
 import Data.ByteString.Builder
 import Data.ByteString.Char8 as BS8 (pack)
@@ -169,20 +168,6 @@ instance
 instance KnownSymbol name => KnownColumn (Column name (Array ChString)) where
   mkColumn = ArrayColumn
 
-
--- * Serialization
-
-{- |
-  Errors intended to be handled by developers
--} 
-data UserError
-  = UnmatchedType String
-  -- ^ Column type mismatch in data packet
-  | UnmatchedColumn String
-  -- ^ Column name mismatch in data packet
-  | UnmatchedColumnsCount String
-  -- ^ Occurs when actual columns count less or more than expected
-  deriving (Show, Exception)
 
 class SerializableColumn column where
   deserializeColumn :: ProtocolRevision -> UVarInt -> Get column

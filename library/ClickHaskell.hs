@@ -145,6 +145,18 @@ instance Show ClientError where
   show (DatabaseException err) = "DatabaseException " <> show err <> "\n" <> prettyCallStack callStack
   show (InternalError err) = "InternalError " <> show err <> "\n" <> prettyCallStack callStack
 
+{- |
+  Errors intended to be handled by developers
+-}
+data UserError
+  = UnmatchedType String
+  -- ^ Column type mismatch in data packet
+  | UnmatchedColumn String
+  -- ^ Column name mismatch in data packet
+  | UnmatchedColumnsCount String
+  -- ^ Occurs when actual columns count less or more than expected
+  deriving (Show, Exception)
+
 
 -- ** Low level
 
