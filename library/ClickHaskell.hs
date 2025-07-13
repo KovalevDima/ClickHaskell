@@ -216,7 +216,24 @@ select conn query f = do
   withConnection conn $ \connState -> do
     writeToConnection connState (serializeQueryPacket connState query)
     writeToConnection connState (serializeDataPacket "" 0 0)
-    handleSelect @columns connState (\x -> id <$!> f x)
+    loopSelect connState []
+  where
+  loopSelect connState@MkConnectionState{..} acc =
+    readBuffer buffer (deserialize revision)
+    >>= \packet -> case packet of
+      DataResponse MkDataPacket{columns_count = 0, rows_count = 0} -> loopSelect connState acc
+      DataResponse MkDataPacket{columns_count, rows_count} -> do
+        let expected = columnsCount @columns @output
+        when (columns_count /= expected) $
+          (throw . UnmatchedResult . UnmatchedColumnsCount)
+            ("Expected " <> show expected <> " columns but got " <> show columns_count)
+        !result <- f =<< readBuffer buffer (deserializeRecords @columns True revision rows_count)
+        loopSelect connState (result : acc)
+      Progress    _       -> loopSelect connState acc
+      ProfileInfo _       -> loopSelect connState acc
+      EndOfStream         -> pure acc
+      Exception exception -> throwIO (DatabaseException exception)
+      otherPacket         -> throwIO (InternalError $ UnexpectedPacketType $ serverPacketToNum otherPacket)
 
 selectFrom ::
   forall table output result
@@ -258,32 +275,6 @@ generateRandom conn (randomSeed, maxStrLen, maxArrayLen) limit f = select @colum
           toQueryPart maxArrayLen <>
       ")" <>
     " LIMIT " <> toQueryPart limit <> ";"
-
--- | Internal
-handleSelect ::
-  forall columns output result
-  .
-  ClickHaskell columns output
-  =>
-  ConnectionState -> ([output] -> IO result) -> IO [result]
-handleSelect MkConnectionState{..} f = loopSelect []
-  where
-  loopSelect acc =
-    readBuffer buffer (deserialize revision)
-    >>= \packet -> case packet of
-      DataResponse MkDataPacket{columns_count = 0, rows_count = 0} -> loopSelect acc
-      DataResponse MkDataPacket{columns_count, rows_count} -> do
-        let expected = columnsCount @columns @output
-        when (columns_count /= expected) $
-          (throw . UnmatchedResult . UnmatchedColumnsCount)
-            ("Expected " <> show expected <> " columns but got " <> show columns_count)
-        result <- f =<< readBuffer buffer (deserializeRecords @columns True revision rows_count)
-        loopSelect (result : acc)
-      Progress    _       -> loopSelect acc
-      ProfileInfo _       -> loopSelect acc
-      EndOfStream         -> pure acc
-      Exception exception -> throwIO (DatabaseException exception)
-      otherPacket         -> throwIO (InternalError $ UnexpectedPacketType $ serverPacketToNum otherPacket)
 
 
 -- ** INSERT
