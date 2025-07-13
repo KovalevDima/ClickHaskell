@@ -158,7 +158,7 @@ select ::
   Connection -> ChString -> ([output] -> IO result) -> IO [result]
 select conn query f = do
   withConnection conn $ \connState -> do
-    writeToConnection connState (serializeQueryPacket connState query)
+    writeToConnection connState (serializeQueryPacket $ mkQueryArgs connState query)
     writeToConnection connState (serializeDataPacket "" 0 0)
     loopSelect connState []
   where
@@ -189,7 +189,7 @@ insert ::
   Connection -> ChString -> [record] -> IO ()
 insert conn query columnsData = do
   withConnection conn $ \connState -> do
-    writeToConnection connState (serializeQueryPacket connState query)
+    writeToConnection connState (serializeQueryPacket $ mkQueryArgs connState query)
     writeToConnection connState (serializeDataPacket "" 0 0)
     loopInsert connState
   where
@@ -236,7 +236,7 @@ ping conn = do
 command :: HasCallStack => Connection -> ChString -> IO ()
 command conn query = do
   withConnection conn $ \connState -> do
-    writeToConnection connState (serializeQueryPacket connState query)
+    writeToConnection connState (serializeQueryPacket (mkQueryArgs connState query))
     writeToConnection connState (serializeDataPacket "" 0 0)
     handleCreate connState
   where
@@ -351,69 +351,11 @@ insertInto conn columnsData = insert @(GetColumns table) conn query columnsData
 
 
 
--- ** Internal
+-- * Internal
 
-serializeQueryPacket :: ConnectionState -> ChString -> (ProtocolRevision -> Builder)
-serializeQueryPacket MkConnectionState{creds=MkConnectionArgs{..}, ..} query =
-  flip serialize $ Query
-    MkQueryPacket
-      { query_id = ""
-      , client_info  = MkSinceRevision MkClientInfo
-        { query_kind                   = InitialQuery
-        , initial_user                 = toChType user
-        , initial_query_id             = ""
-        , initial_adress               = "0.0.0.0:0"
-        , initial_time                 = MkSinceRevision 0
-        , interface_type               = 1 -- [tcp - 1, http - 2]
-        , os_user                      = maybe "" toChType mOsUser
-        , hostname                     = maybe "" toChType mHostname
-        , client_name                  = clientName
-        , client_version_major         = major
-        , client_version_minor         = minor
-        , client_revision              = revision
-        , quota_key                    = MkSinceRevision ""
-        , distrubuted_depth            = MkSinceRevision 0
-        , client_version_patch         = MkSinceRevision patch
-        , open_telemetry               = MkSinceRevision 0
-        , collaborate_with_initiator   = MkSinceRevision 0
-        , count_participating_replicas = MkSinceRevision 0
-        , number_of_current_replica    = MkSinceRevision 0
-        }
-      , settings           = MkDbSettings []
-      , interserver_secret = MkSinceRevision ""
-      , query_stage        = Complete
-      , compression        = 0
-      , query
-      , parameters         = MkSinceRevision MkQueryParameters
-      }
-
-seriliazeHelloPacket :: String -> String -> String -> (ProtocolRevision -> Builder)
-seriliazeHelloPacket db user pass =
-  flip serialize $ Hello
-    MkHelloPacket
-      { client_name          = clientName
-      , client_version_major = major
-      , client_version_minor = minor
-      , tcp_protocol_version = latestSupportedRevision
-      , default_database     = toChType db
-      , user                 = toChType user
-      , pass                 = toChType pass
-      }
-
-serializeDataPacket :: ChString -> UVarInt -> UVarInt -> (ProtocolRevision -> Builder)
-serializeDataPacket table_name columns_count rows_count =
-  flip serialize $ Data
-    MkDataPacket
-      { table_name
-      , block_info    = MkBlockInfo
-        { field_num1   = 1, is_overflows = 0
-        , field_num2   = 2, bucket_num   = -1
-        , eof          = 0
-        }
-      , columns_count
-      , rows_count
-      }
-
+mkQueryArgs :: ConnectionState -> ChString -> QueryPacketArgs
+mkQueryArgs MkConnectionState{creds=MkConnectionArgs{..}} query
+  = MkQueryPacketArgs{..}
 
 -- ** Connection
 
