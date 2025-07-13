@@ -4,8 +4,9 @@ module ClickHaskell.Packets where
 import ClickHaskell.Primitive
 
 -- GHC
-import GHC.Generics
+import Data.ByteString.Builder (Builder)
 import Data.Int
+import GHC.Generics
 
 -- * Common Data packet
 
@@ -16,6 +17,20 @@ data DataPacket = MkDataPacket
   , rows_count    :: UVarInt
   }
   deriving (Generic, Serializable)
+
+serializeDataPacket :: ChString -> UVarInt -> UVarInt -> (ProtocolRevision -> Builder)
+serializeDataPacket table_name columns_count rows_count =
+  flip serialize $ Data
+    MkDataPacket
+      { table_name
+      , block_info    = MkBlockInfo
+        { field_num1   = 1, is_overflows = 0
+        , field_num2   = 2, bucket_num   = -1
+        , eof          = 0
+        }
+      , columns_count
+      , rows_count
+      }
 
 data BlockInfo = MkBlockInfo
   { field_num1   :: UVarInt, is_overflows :: UInt8
@@ -234,6 +249,19 @@ data HelloPacket = MkHelloPacket
   }
   deriving (Generic, Serializable)
 
+seriliazeHelloPacket :: String -> String -> String -> (ProtocolRevision -> Builder)
+seriliazeHelloPacket db user pass =
+  flip serialize $ Hello
+    MkHelloPacket
+      { client_name          = clientName
+      , client_version_major = major
+      , client_version_minor = minor
+      , tcp_protocol_version = latestSupportedRevision
+      , default_database     = toChType db
+      , user                 = toChType user
+      , pass                 = toChType pass
+      }
+
 
 data Addendum = MkAddendum{quota_key :: ChString `SinceRevision` DBMS_MIN_PROTOCOL_VERSION_WITH_QUOTA_KEY}
   deriving (Generic, Serializable)
@@ -251,6 +279,47 @@ data QueryPacket = MkQueryPacket
   , parameters         :: QueryParameters `SinceRevision` DBMS_MIN_PROTOCOL_VERSION_WITH_PARAMETERS
   }
   deriving (Generic, Serializable)
+
+data QueryPacketArgs = MkQueryPacketArgs
+  { user :: String
+  , mOsUser :: Maybe String
+  , mHostname :: Maybe String
+  , query :: ChString
+  }
+
+serializeQueryPacket :: QueryPacketArgs -> (ProtocolRevision -> Builder)
+serializeQueryPacket MkQueryPacketArgs{user, mOsUser, mHostname, query} rev =
+  serialize rev $ Query
+    MkQueryPacket
+      { query_id = ""
+      , client_info  = MkSinceRevision MkClientInfo
+        { query_kind                   = InitialQuery
+        , initial_user                 = toChType user
+        , initial_query_id             = ""
+        , initial_adress               = "0.0.0.0:0"
+        , initial_time                 = MkSinceRevision 0
+        , interface_type               = 1 -- [tcp - 1, http - 2]
+        , os_user                      = maybe "" toChType mOsUser
+        , hostname                     = maybe "" toChType mHostname
+        , client_name                  = clientName
+        , client_version_major         = major
+        , client_version_minor         = minor
+        , client_revision              = rev
+        , quota_key                    = MkSinceRevision ""
+        , distrubuted_depth            = MkSinceRevision 0
+        , client_version_patch         = MkSinceRevision patch
+        , open_telemetry               = MkSinceRevision 0
+        , collaborate_with_initiator   = MkSinceRevision 0
+        , count_participating_replicas = MkSinceRevision 0
+        , number_of_current_replica    = MkSinceRevision 0
+        }
+      , settings           = MkDbSettings []
+      , interserver_secret = MkSinceRevision ""
+      , query_stage        = Complete
+      , compression        = 0
+      , query
+      , parameters         = MkSinceRevision MkQueryParameters
+      }
 
 data DbSettings = MkDbSettings [DbSetting]
 data DbSetting = MkDbSetting

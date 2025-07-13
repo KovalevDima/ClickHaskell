@@ -17,25 +17,34 @@ module ClickHaskell
   , Connection(..), openConnection
   , Buffer(..)
 
-  {- * Errors -}
+  {- * Statements and commands -}
+
+  {- ** Exceptions -}
   , ClientError(..)
   , ConnectionError(..)
   , UserError(..)
   , InternalError(..)
 
-  {- * Client wrappers -}
-  {- ** SELECT -}
-  , select, selectFrom, selectFromView, generateRandom
-  , ClickHaskell(..)
-  {- ** INSERT -}
-  , insertInto
-  , ToChType(toChType, fromChType)
-  {- ** Arbitrary commands -}, command, ping
-  {- ** Shared -}
-  , Column, KnownColumn, SerializableColumn
+  {- ** Low level -}
+  {- *** SELECT -}, select
+  {- *** INSERT -}, insert
+  {- *** Commands -}, command
+  {- *** Ping -}, ping
+
+  {- ** Wrappers -}
   , Table, View
-  {- *** Query -}
+  , selectFrom, selectFromView, generateRandom
+  , insertInto
+
+  {- ** Deriving -}
+  , ClickHaskell(..)
+  , ToChType(toChType, fromChType)
+  , SerializableColumn
+  , Column, KnownColumn
+
+  {- ** Query -}
   , ToQueryPart(toQueryPart), parameter, Parameter, Parameters, viewParameters
+
 
   {- * ClickHouse types -}
   , IsChType(chTypeName, defaultValueOfTypeName)
@@ -98,21 +107,7 @@ import Prelude hiding (liftA2)
 import Data.WideWord (Int128 (..), Word128 (..))
 import Network.Socket hiding (SocketOption (..))
 
-readBuffer :: Buffer -> Get a -> IO a
-readBuffer buffer deseralize =
-  catch @InternalError
-    (rawBufferRead buffer deseralize)
-    (throwIO . InternalError)
-
-withConnection :: HasCallStack => Connection -> (ConnectionState -> IO a) -> IO a
-withConnection (MkConnection connStateMVar) f =
-  mask $ \restore -> do
-    connState <- takeMVar connStateMVar
-    b <- onException
-      (restore (f connState))
-      (putMVar connStateMVar =<< reopenConnection connState)
-    putMVar connStateMVar connState
-    return b
+-- * Connection
 
 openConnection :: HasCallStack => ConnectionArgs -> IO Connection
 openConnection creds@MkConnectionArgs{mHostname, mOsUser} = do
@@ -123,88 +118,37 @@ openConnection creds@MkConnectionArgs{mHostname, mOsUser} = do
       . (maybe id overrideHostname hostname)
       . (maybe id overrideOsUser osUser)
       $ creds
-  MkConnection <$> newMVar connectionState 
+  MkConnection <$> newMVar connectionState
 
-reopenConnection :: ConnectionState -> IO ConnectionState
-reopenConnection MkConnectionState{creds, buffer} = do
-  flushBuffer buffer
-  closeSock buffer
-  createConnectionState creds
+-- * Statements and commands
 
-createConnectionState :: ConnectionArgs -> IO ConnectionState
-createConnectionState creds@MkConnectionArgs {user, pass, db, host, mPort, initBuffer, isTLS} = do
-  let port = fromMaybe (if isTLS then "9440" else "9000") mPort
-  AddrInfo{addrFamily, addrSocketType, addrProtocol, addrAddress}
-    <- maybe (throwIO NoAdressResolved) pure . listToMaybe
-    =<< getAddrInfo
-      (Just defaultHints{addrFlags = [AI_ADDRCONFIG], addrSocketType = Stream})
-      (Just host)
-      (Just port)
-  buffer <- maybe (throwIO EstablishTimeout) pure
-    =<< timeout 3_000_000 (
-      bracketOnError
-        (socket addrFamily addrSocketType addrProtocol)
-        (\sock ->
-          catch @SomeException
-            (finally (shutdown sock ShutdownBoth) (close sock))
-            (const $ pure ())
-        )
-        (\sock -> initBuffer host addrAddress sock)
-      )
-
-  (writeSock buffer . seriliazeHelloPacket db user pass) latestSupportedRevision
-  serverPacketType <- readBuffer buffer (deserialize latestSupportedRevision)
-  case serverPacketType of
-    HelloResponse MkHelloResponse{server_revision} -> do
-      let revision = min server_revision latestSupportedRevision
-          conn = MkConnectionState{..}
-      writeToConnection conn (\rev -> serialize rev MkAddendum{quota_key = MkSinceRevision ""})
-      pure conn
-    Exception exception -> throwIO (DatabaseException exception)
-    otherPacket         -> throwIO (InternalError $ UnexpectedPacketType $ serverPacketToNum otherPacket)
-
+-- ** Exceptions 
 
 {- |
-  Might be used for any command without data responses
+  A wrapper for all client-related errors
 
-  For example: CREATE, TRUNCATE, KILL, SET, GRANT
+  You should this exception when you work with any ClickHaskell IO function.
 
-  __Throws exception if any data was returned__
+  e.g. `command`, `select`, `insert` etc
+  
 -}
-command :: HasCallStack => Connection -> ChString -> IO ()
-command conn query = do
-  withConnection conn $ \connState -> do
-    writeToConnection connState (serializeQueryPacket connState query)
-    writeToConnection connState (serializeDataPacket "" 0 0)
-    handleCreate connState
-  where
-  handleCreate :: ConnectionState -> IO ()
-  handleCreate MkConnectionState{..} =
-    readBuffer buffer (deserialize revision)
-    >>= \packet -> case packet of
-      EndOfStream         -> pure ()
-      Exception exception -> throwIO (DatabaseException exception)
-      otherPacket         -> throwIO (InternalError $ UnexpectedPacketType $ serverPacketToNum otherPacket)
+data ClientError where
+  UnmatchedResult :: HasCallStack => UserError -> ClientError
+    -- ^ Query result unmatched with declared specialization
+  DatabaseException :: HasCallStack => ExceptionPacket -> ClientError
+    -- ^ Database responded with an exception packet
+  InternalError :: HasCallStack => InternalError -> ClientError
+  deriving anyclass (Exception)
+
+instance Show ClientError where
+  show (UnmatchedResult err) = "UserError " <> show err <> "\n" <> prettyCallStack callStack
+  show (DatabaseException err) = "DatabaseException " <> show err <> "\n" <> prettyCallStack callStack
+  show (InternalError err) = "InternalError " <> show err <> "\n" <> prettyCallStack callStack
 
 
--- * Ping
+-- ** Low level
 
-ping :: HasCallStack => Connection -> IO ()
-ping conn = do
-  withConnection conn $ \connState@MkConnectionState{revision, buffer} -> do
-    writeToConnection connState (\rev -> serialize rev Ping)
-    responsePacket <- readBuffer buffer (deserialize revision)
-    case responsePacket of
-      Pong                -> pure ()
-      Exception exception -> throwIO (DatabaseException exception)
-      otherPacket         -> throwIO (InternalError $ UnexpectedPacketType $ serverPacketToNum otherPacket)
-
-
-
-
--- * Client wrappers
-
--- ** SELECT
+-- *** SELECT
 
 select ::
   forall columns output result
@@ -214,7 +158,7 @@ select ::
   Connection -> ChString -> ([output] -> IO result) -> IO [result]
 select conn query f = do
   withConnection conn $ \connState -> do
-    writeToConnection connState (serializeQueryPacket connState query)
+    writeToConnection connState (serializeQueryPacket $ mkQueryArgs connState query)
     writeToConnection connState (serializeDataPacket "" 0 0)
     loopSelect connState []
   where
@@ -234,6 +178,122 @@ select conn query f = do
       EndOfStream         -> pure acc
       Exception exception -> throwIO (DatabaseException exception)
       otherPacket         -> throwIO (InternalError $ UnexpectedPacketType $ serverPacketToNum otherPacket)
+
+-- *** INSERT
+
+insert ::
+  forall columns record
+  .
+  ClickHaskell columns record
+  =>
+  Connection -> ChString -> [record] -> IO ()
+insert conn query columnsData = do
+  withConnection conn $ \connState -> do
+    writeToConnection connState (serializeQueryPacket $ mkQueryArgs connState query)
+    writeToConnection connState (serializeDataPacket "" 0 0)
+    loopInsert connState
+  where
+  loopInsert connState@MkConnectionState{..}  = do
+    firstPacket <- readBuffer buffer (deserialize revision)
+    case firstPacket of
+      TableColumns      _ -> loopInsert connState 
+      DataResponse MkDataPacket{} -> do
+        _emptyDataPacket <- readBuffer buffer (deserializeRecords @columns @record False revision 0)
+        let rows = fromIntegral (Prelude.length columnsData)
+            cols = columnsCount @columns @record
+        writeToConnection connState (serializeDataPacket "" cols rows)
+        writeToConnection connState (serializeRecords @columns columnsData)
+        writeToConnection connState (serializeDataPacket "" 0 0)
+        loopInsert connState
+      EndOfStream         -> pure ()
+      Exception exception -> throwIO (DatabaseException exception)
+      otherPacket         -> throwIO (InternalError $ UnexpectedPacketType $ serverPacketToNum otherPacket)
+
+-- *** Ping
+
+{- |
+  Sends `Ping` packet and handles `Pong` packet
+-}
+ping :: HasCallStack => Connection -> IO ()
+ping conn = do
+  withConnection conn $ \connState@MkConnectionState{revision, buffer} -> do
+    writeToConnection connState (\rev -> serialize rev Ping)
+    responsePacket <- readBuffer buffer (deserialize revision)
+    case responsePacket of
+      Pong                -> pure ()
+      Exception exception -> throwIO (DatabaseException exception)
+      otherPacket         -> throwIO (InternalError $ UnexpectedPacketType $ serverPacketToNum otherPacket)
+
+-- *** Commands
+
+{- |
+  Might be used for any command without data responses
+
+  For example: CREATE, TRUNCATE, KILL, SET, GRANT
+
+  __Throws exception if any data was returned__
+-}
+command :: HasCallStack => Connection -> ChString -> IO ()
+command conn query = do
+  withConnection conn $ \connState -> do
+    writeToConnection connState (serializeQueryPacket (mkQueryArgs connState query))
+    writeToConnection connState (serializeDataPacket "" 0 0)
+    handleCreate connState
+  where
+  handleCreate :: ConnectionState -> IO ()
+  handleCreate MkConnectionState{..} =
+    readBuffer buffer (deserialize revision)
+    >>= \packet -> case packet of
+      EndOfStream         -> pure ()
+      Exception exception -> throwIO (DatabaseException exception)
+      otherPacket         -> throwIO (InternalError $ UnexpectedPacketType $ serverPacketToNum otherPacket)
+
+
+-- ** Deriving
+
+class ClickHaskell columns record
+  where
+  default deserializeRecords :: GenericClickHaskell record columns => Bool -> ProtocolRevision -> UVarInt -> Get [record]
+  deserializeRecords :: Bool -> ProtocolRevision -> UVarInt -> Get [record]
+  deserializeRecords isCheckRequired rev size =
+    gDeserializeRecords @columns isCheckRequired rev size to
+
+  default serializeRecords :: GenericClickHaskell record columns => [record] -> ProtocolRevision -> Builder
+  serializeRecords :: [record] -> ProtocolRevision -> Builder
+  serializeRecords records rev = gSerializeRecords @columns rev from records
+
+  default columns :: GenericClickHaskell record columns => Builder
+  columns :: Builder
+  columns = buildCols (gReadingColumns @columns @(Rep record))
+    where
+    buildCols [] = mempty
+    buildCols ((col, _):[])   = col
+    buildCols ((col, _):rest) = col <> ", " <> buildCols rest
+
+  default readingColumnsAndTypes :: GenericClickHaskell record columns => Builder
+  readingColumnsAndTypes ::  Builder
+  readingColumnsAndTypes = buildColsTypes (gReadingColumns @columns @(Rep record))
+    where
+    buildColsTypes [] = mempty
+    buildColsTypes ((col, typ):[])   = col <> " " <> typ
+    buildColsTypes ((col, typ):rest) = col <> " " <> typ <> ", " <> buildColsTypes rest
+
+  default columnsCount :: GenericClickHaskell record columns => UVarInt
+  columnsCount :: UVarInt
+  columnsCount = gColumnsCount @columns @(Rep record)
+
+
+-- ** Wrappers
+
+type ClickHaskellTable table record =
+  ( IsTable table
+  , ClickHaskell (GetColumns table) record
+  )
+
+type ClickHaskellView view record =
+  ( IsView view
+  , ClickHaskell (GetColumns view) record
+  )
 
 selectFrom ::
   forall table output result
@@ -276,37 +336,6 @@ generateRandom conn (randomSeed, maxStrLen, maxArrayLen) limit f = select @colum
       ")" <>
     " LIMIT " <> toQueryPart limit <> ";"
 
-
--- ** INSERT
-
-insert ::
-  forall columns record
-  .
-  ClickHaskell columns record
-  =>
-  Connection -> ChString -> [record] -> IO ()
-insert conn query columnsData = do
-  withConnection conn $ \connState -> do
-    writeToConnection connState (serializeQueryPacket connState query)
-    writeToConnection connState (serializeDataPacket "" 0 0)
-    loopInsert connState
-  where
-  loopInsert connState@MkConnectionState{..}  = do
-    firstPacket <- readBuffer buffer (deserialize revision)
-    case firstPacket of
-      TableColumns      _ -> loopInsert connState 
-      DataResponse MkDataPacket{} -> do
-        _emptyDataPacket <- readBuffer buffer (deserializeRecords @columns @record False revision 0)
-        let rows = fromIntegral (Prelude.length columnsData)
-            cols = columnsCount @columns @record
-        writeToConnection connState (serializeDataPacket "" cols rows)
-        writeToConnection connState (serializeRecords @columns columnsData)
-        writeToConnection connState (serializeDataPacket "" 0 0)
-        loopInsert connState
-      EndOfStream         -> pure ()
-      Exception exception -> throwIO (DatabaseException exception)
-      otherPacket         -> throwIO (InternalError $ UnexpectedPacketType $ serverPacketToNum otherPacket)
-
 insertInto ::
   forall table record
   .
@@ -320,148 +349,77 @@ insertInto conn columnsData = insert @(GetColumns table) conn query columnsData
     <> " (" <> columns @(GetColumns table) @record <> ") VALUES"
 
 
-type ClickHaskellTable table record =
-  ( IsTable table
-  , ClickHaskell (GetColumns table) record
-  )
-
-type ClickHaskellView view record =
-  ( IsView view
-  , ClickHaskell (GetColumns view) record
-  )
-
-serializeQueryPacket :: ConnectionState -> ChString -> (ProtocolRevision -> Builder)
-serializeQueryPacket MkConnectionState{creds=MkConnectionArgs{..}, ..} query =
-  flip serialize $ Query
-    MkQueryPacket
-      { query_id = ""
-      , client_info  = MkSinceRevision MkClientInfo
-        { query_kind                   = InitialQuery
-        , initial_user                 = toChType user
-        , initial_query_id             = ""
-        , initial_adress               = "0.0.0.0:0"
-        , initial_time                 = MkSinceRevision 0
-        , interface_type               = 1 -- [tcp - 1, http - 2]
-        , os_user                      = maybe "" toChType mOsUser
-        , hostname                     = maybe "" toChType mHostname
-        , client_name                  = clientName
-        , client_version_major         = major
-        , client_version_minor         = minor
-        , client_revision              = revision
-        , quota_key                    = MkSinceRevision ""
-        , distrubuted_depth            = MkSinceRevision 0
-        , client_version_patch         = MkSinceRevision patch
-        , open_telemetry               = MkSinceRevision 0
-        , collaborate_with_initiator   = MkSinceRevision 0
-        , count_participating_replicas = MkSinceRevision 0
-        , number_of_current_replica    = MkSinceRevision 0
-        }
-      , settings           = MkDbSettings []
-      , interserver_secret = MkSinceRevision ""
-      , query_stage        = Complete
-      , compression        = 0
-      , query
-      , parameters         = MkSinceRevision MkQueryParameters
-      }
-
-seriliazeHelloPacket :: String -> String -> String -> (ProtocolRevision -> Builder)
-seriliazeHelloPacket db user pass =
-  flip serialize $ Hello
-    MkHelloPacket
-      { client_name          = clientName
-      , client_version_major = major
-      , client_version_minor = minor
-      , tcp_protocol_version = latestSupportedRevision
-      , default_database     = toChType db
-      , user                 = toChType user
-      , pass                 = toChType pass
-      }
-
-serializeDataPacket :: ChString -> UVarInt -> UVarInt -> (ProtocolRevision -> Builder)
-serializeDataPacket table_name columns_count rows_count =
-  flip serialize $ Data
-    MkDataPacket
-      { table_name
-      , block_info    = MkBlockInfo
-        { field_num1   = 1, is_overflows = 0
-        , field_num2   = 2, bucket_num   = -1
-        , eof          = 0
-        }
-      , columns_count
-      , rows_count
-      }
 
 
+-- * Internal
+
+mkQueryArgs :: ConnectionState -> ChString -> QueryPacketArgs
+mkQueryArgs MkConnectionState{creds=MkConnectionArgs{..}} query
+  = MkQueryPacketArgs{..}
+
+-- ** Connection
+
+readBuffer :: Buffer -> Get a -> IO a
+readBuffer buffer deseralize =
+  catch @InternalError
+    (rawBufferRead buffer deseralize)
+    (throwIO . InternalError)
+
+withConnection :: HasCallStack => Connection -> (ConnectionState -> IO a) -> IO a
+withConnection (MkConnection connStateMVar) f =
+  mask $ \restore -> do
+    connState <- takeMVar connStateMVar
+    b <- onException
+      (restore (f connState))
+      (putMVar connStateMVar =<< reopenConnection connState)
+    putMVar connStateMVar connState
+    return b
+
+reopenConnection :: ConnectionState -> IO ConnectionState
+reopenConnection MkConnectionState{creds, buffer} = do
+  flushBuffer buffer
+  closeSock buffer
+  createConnectionState creds
+
+createConnectionState :: ConnectionArgs -> IO ConnectionState
+createConnectionState creds@MkConnectionArgs {user, pass, db, host, mPort, initBuffer, isTLS} = do
+  let port = fromMaybe (if isTLS then "9440" else "9000") mPort
+  AddrInfo{addrFamily, addrSocketType, addrProtocol, addrAddress}
+    <- maybe (throwIO NoAdressResolved) pure . listToMaybe
+    =<< getAddrInfo
+      (Just defaultHints{addrFlags = [AI_ADDRCONFIG], addrSocketType = Stream})
+      (Just host)
+      (Just port)
+  buffer <- maybe (throwIO EstablishTimeout) pure
+    =<< timeout 3_000_000 (
+      bracketOnError
+        (socket addrFamily addrSocketType addrProtocol)
+        (\sock ->
+          catch @SomeException
+            (finally (shutdown sock ShutdownBoth) (close sock))
+            (const $ pure ())
+        )
+        (\sock -> initBuffer host addrAddress sock)
+      )
+
+  (writeSock buffer . seriliazeHelloPacket db user pass) latestSupportedRevision
+  serverPacketType <- readBuffer buffer (deserialize latestSupportedRevision)
+  case serverPacketType of
+    HelloResponse MkHelloResponse{server_revision} -> do
+      let revision = min server_revision latestSupportedRevision
+          conn = MkConnectionState{..}
+      writeToConnection conn (\rev -> serialize rev MkAddendum{quota_key = MkSinceRevision ""})
+      pure conn
+    Exception exception -> throwIO (DatabaseException exception)
+    otherPacket         -> throwIO (InternalError $ UnexpectedPacketType $ serverPacketToNum otherPacket)
 
 
-
-
-
-
--- * Errors handling
-
-{- |
-  A wrapper for all client-related errors
--}
-data ClientError where
-  UnmatchedResult :: HasCallStack => UserError -> ClientError
-  DatabaseException :: HasCallStack => ExceptionPacket -> ClientError
-    -- ^ Database responded with an exception packet
-  InternalError :: HasCallStack => InternalError -> ClientError
-  deriving anyclass (Exception)
-
-instance Show ClientError where
-  show (UnmatchedResult err) = "UserError " <> show err <> "\n" <> prettyCallStack callStack
-  show (DatabaseException err) = "DatabaseException " <> show err <> "\n" <> prettyCallStack callStack
-  show (InternalError err) = "InternalError " <> show err <> "\n" <> prettyCallStack callStack
-
-
-
-
-
-
-
-
-
--- * Deserialization
-
--- ** Generic API
+-- ** Serialization Generic API
 
 type GenericClickHaskell record hasColumns =
   ( Generic record
   , GClickHaskell hasColumns (Rep record)
   )
-
-class ClickHaskell columns record
-  where
-  default deserializeRecords :: GenericClickHaskell record columns => Bool -> ProtocolRevision -> UVarInt -> Get [record]
-  deserializeRecords :: Bool -> ProtocolRevision -> UVarInt -> Get [record]
-  deserializeRecords isCheckRequired rev size =
-    gDeserializeRecords @columns isCheckRequired rev size to
-
-  default serializeRecords :: GenericClickHaskell record columns => [record] -> ProtocolRevision -> Builder
-  serializeRecords :: [record] -> ProtocolRevision -> Builder
-  serializeRecords records rev = gSerializeRecords @columns rev from records
-
-  default columns :: GenericClickHaskell record columns => Builder
-  columns :: Builder
-  columns = buildCols (gReadingColumns @columns @(Rep record))
-    where
-    buildCols [] = mempty
-    buildCols ((col, _):[])   = col
-    buildCols ((col, _):rest) = col <> ", " <> buildCols rest
-
-  default readingColumnsAndTypes :: GenericClickHaskell record columns => Builder
-  readingColumnsAndTypes ::  Builder
-  readingColumnsAndTypes = buildColsTypes (gReadingColumns @columns @(Rep record))
-    where
-    buildColsTypes [] = mempty
-    buildColsTypes ((col, typ):[])   = col <> " " <> typ
-    buildColsTypes ((col, typ):rest) = col <> " " <> typ <> ", " <> buildColsTypes rest
-
-  default columnsCount :: GenericClickHaskell record columns => UVarInt
-  columnsCount :: UVarInt
-  columnsCount = gColumnsCount @columns @(Rep record)
 
 class GClickHaskell (columns :: [Type]) f
   where
