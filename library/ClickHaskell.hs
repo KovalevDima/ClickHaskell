@@ -279,39 +279,46 @@ generateRandom conn (randomSeed, maxStrLen, maxArrayLen) limit f = select @colum
 
 -- ** INSERT
 
+insert ::
+  forall columns record
+  .
+  ClickHaskell columns record
+  =>
+  Connection -> ChString -> [record] -> IO ()
+insert conn query columnsData = do
+  withConnection conn $ \connState -> do
+    writeToConnection connState (serializeQueryPacket connState query)
+    writeToConnection connState (serializeDataPacket "" 0 0)
+    handleInsertResult connState columnsData
+  where
+  handleInsertResult connState@MkConnectionState{..} records = do
+    firstPacket <- readBuffer buffer (deserialize revision)
+    case firstPacket of
+      TableColumns      _ -> handleInsertResult connState records
+      DataResponse MkDataPacket{} -> do
+        _emptyDataPacket <- readBuffer buffer (deserializeRecords @columns @record False revision 0)
+        let rows = fromIntegral (Prelude.length records)
+            cols = columnsCount @columns @record
+        writeToConnection connState (serializeDataPacket "" cols rows)
+        writeToConnection connState (serializeRecords @columns records)
+        writeToConnection connState (serializeDataPacket "" 0 0)
+        handleInsertResult connState []
+      EndOfStream         -> pure ()
+      Exception exception -> throwIO (DatabaseException exception)
+      otherPacket         -> throwIO (InternalError $ UnexpectedPacketType $ serverPacketToNum otherPacket)
+
 insertInto ::
   forall table record
   .
   ClickHaskellTable table record
   =>
   Connection -> [record] -> IO ()
-insertInto conn columnsData = do
-  withConnection conn $ \connState -> do
-    writeToConnection connState (serializeQueryPacket connState query)
-    writeToConnection connState (serializeDataPacket "" 0 0)
-    handleInsertResult @(GetColumns table) connState columnsData
+insertInto conn columnsData = insert @(GetColumns table) conn query columnsData
   where
   query = toChType $
     "INSERT INTO " <> tableName @table
     <> " (" <> columns @(GetColumns table) @record <> ") VALUES"
 
--- | Internal
-handleInsertResult :: forall columns record . ClickHaskell columns record => ConnectionState -> [record] -> IO ()
-handleInsertResult conn@MkConnectionState{..} records = do
-  firstPacket <- readBuffer buffer (deserialize revision)
-  case firstPacket of
-    TableColumns      _ -> handleInsertResult @columns conn records
-    DataResponse MkDataPacket{} -> do
-      _emptyDataPacket <- readBuffer buffer (deserializeRecords @columns @record False revision 0)
-      let rows = fromIntegral (Prelude.length records)
-          cols = columnsCount @columns @record
-      writeToConnection conn (serializeDataPacket "" cols rows)
-      writeToConnection conn (serializeRecords @columns records)
-      writeToConnection conn (serializeDataPacket "" 0 0)
-      handleInsertResult @columns @record conn []
-    EndOfStream         -> pure ()
-    Exception exception -> throwIO (DatabaseException exception)
-    otherPacket         -> throwIO (InternalError $ UnexpectedPacketType $ serverPacketToNum otherPacket)
 
 type ClickHaskellTable table record =
   ( IsTable table
