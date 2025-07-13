@@ -289,20 +289,20 @@ insert conn query columnsData = do
   withConnection conn $ \connState -> do
     writeToConnection connState (serializeQueryPacket connState query)
     writeToConnection connState (serializeDataPacket "" 0 0)
-    loopInsert connState columnsData
+    loopInsert connState
   where
-  loopInsert connState@MkConnectionState{..} records = do
+  loopInsert connState@MkConnectionState{..}  = do
     firstPacket <- readBuffer buffer (deserialize revision)
     case firstPacket of
-      TableColumns      _ -> loopInsert connState records
+      TableColumns      _ -> loopInsert connState 
       DataResponse MkDataPacket{} -> do
         _emptyDataPacket <- readBuffer buffer (deserializeRecords @columns @record False revision 0)
-        let rows = fromIntegral (Prelude.length records)
+        let rows = fromIntegral (Prelude.length columnsData)
             cols = columnsCount @columns @record
         writeToConnection connState (serializeDataPacket "" cols rows)
-        writeToConnection connState (serializeRecords @columns records)
+        writeToConnection connState (serializeRecords @columns columnsData)
         writeToConnection connState (serializeDataPacket "" 0 0)
-        loopInsert connState []
+        loopInsert connState
       EndOfStream         -> pure ()
       Exception exception -> throwIO (DatabaseException exception)
       otherPacket         -> throwIO (InternalError $ UnexpectedPacketType $ serverPacketToNum otherPacket)
