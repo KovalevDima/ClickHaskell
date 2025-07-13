@@ -19,10 +19,11 @@ import Data.Aeson (encode)
 import Data.ByteString (StrictByteString)
 import Data.ByteString.Char8 as BS8 (pack, unpack)
 import Data.ByteString.Lazy as B (LazyByteString, readFile)
-import Data.HashMap.Strict as HM (HashMap, empty, fromList, lookup, unions, insert)
+import Data.HashMap.Strict as HM (HashMap, empty, fromList, insert, lookup, unions)
 import Data.Maybe (isJust)
 import Data.Text as T (pack)
 import Data.Time (getCurrentTime)
+import Debug.Trace (traceEventIO)
 import GHC.Eventlog.Socket (start)
 import Net.IPv4 (decodeUtf8, getIPv4)
 import Network.HTTP.Types (status200, status404)
@@ -118,6 +119,7 @@ httpApp MkServerArgs{docsStatQueue} staticFiles req f = do
   time <- getCurrentTime
   let path       = (dropIndexHtml . BS8.unpack . rawPathInfo) req
       remoteAddr = maybe 0 getIPv4 (decodeUtf8 =<< Prelude.lookup "X-Real-IP" (requestHeaders req))
+  traceEventIO "http"
   case HM.lookup path staticFiles of
     Nothing -> f (responseLBS status404 [("Content-Type", "text/plain")] "404 - Not Found")
     Just (mimeType, content) -> do
@@ -129,6 +131,7 @@ wsServer MkServerArgs{mkBroadcastChan, currentHistory} pending = do
   conn <- acceptRequest pending
   sendTextData conn =<< (encode <$> readTVarIO currentHistory)
   clientChan <- mkBroadcastChan
+  traceEventIO "wsInit"
   forever $ do
     sendTextData conn =<< (fmap encode . atomically . readTChan) clientChan
 
