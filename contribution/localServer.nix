@@ -22,7 +22,7 @@
       CLICKHASKELL_STATIC_FILES_DIR=./documentation/ \
         EVENTLOG_SOCKET_PATH="./data/.eventlog.sock" \
         DEV= \
-        ${app.program} +RTS -l-agpfsT --eventlog-flush-interval=1 -RTS
+        ${app.program} +RTS -l-agpfsuT --eventlog-flush-interval=1 -RTS
       '';
       depends_on."database".condition = "process_healthy";
     };

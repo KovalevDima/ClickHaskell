@@ -19,6 +19,7 @@ import Control.Exception (SomeException, bracketOnError, catch, finally)
 import Control.Monad (forever, void)
 import Data.ByteString as BS (ByteString, length)
 import Data.IORef (IORef, atomicModifyIORef, atomicWriteIORef, newIORef, readIORef)
+import Data.Text.Encoding (encodeUtf8)
 import Data.Time (UTCTime, getCurrentTime)
 import GHC.Generics (Generic)
 import GHC.RTS.Events (Event (..), EventInfo (..), Header)
@@ -148,6 +149,7 @@ data EventRep = MkEventRep
   , heapAllocBytes :: UInt64
   , heapSizeBytes  :: UInt64
   , heapBlocksSize :: UInt64
+  , message        :: ByteString
   }
   deriving (Generic, ClickHaskell EventLogColumns)
 
@@ -163,6 +165,7 @@ type EventLogColumns =
   , Column "heapAllocBytes" (UInt64)
   , Column "heapSizeBytes"  (UInt64)
   , Column "heapBlocksSize" (UInt64)
+  , Column "message"        (ChString)
   ]
 
 createEventLogTable :: Connection -> IO ()
@@ -179,7 +182,8 @@ createEventLogTable conn =
     \    `heapCapset` UInt32, \
     \    `heapAllocBytes` UInt64, \
     \    `heapSizeBytes` UInt64, \
-    \    `heapBlocksSize` UInt64 \
+    \    `heapBlocksSize` UInt64, \
+    \    `message` String \
     \) \
     \ENGINE = MergeTree \
     \PARTITION BY evType \
@@ -197,6 +201,7 @@ eventToRep startTime Event{evTime, evSpec, evCap} =
     heapAllocBytes = event2heapAllocBytes evSpec
     heapSizeBytes  = event2heapSizeBytes evSpec
     heapBlocksSize = event2blocksSize evSpec
+    message        = event2message evSpec
   in MkEventRep{..}
 
 
@@ -214,6 +219,13 @@ event2gcHeapCapset evSpec = case evSpec of
   HeapLive{heapCapset} -> heapCapset
   HeapInfoGHC{heapCapset} -> heapCapset
   _ -> 0
+
+event2message :: EventInfo -> ByteString
+event2message = \case
+  UserBinaryMessage{payload} -> payload
+  UserMessage{msg} -> encodeUtf8 msg
+  Message{msg} -> encodeUtf8 msg
+  _ -> ""
 
 event2gcGen :: EventInfo -> Int64
 event2gcGen = \case GCStatsGHC{gen} -> fromIntegral gen; _ -> (-1)
