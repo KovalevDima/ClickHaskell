@@ -216,7 +216,24 @@ select conn query f = do
   withConnection conn $ \connState -> do
     writeToConnection connState (serializeQueryPacket connState query)
     writeToConnection connState (serializeDataPacket "" 0 0)
-    handleSelect @columns connState (\x -> id <$!> f x)
+    loopSelect connState []
+  where
+  loopSelect connState@MkConnectionState{..} acc =
+    readBuffer buffer (deserialize revision)
+    >>= \packet -> case packet of
+      DataResponse MkDataPacket{columns_count = 0, rows_count = 0} -> loopSelect connState acc
+      DataResponse MkDataPacket{columns_count, rows_count} -> do
+        let expected = columnsCount @columns @output
+        when (columns_count /= expected) $
+          (throw . UnmatchedResult . UnmatchedColumnsCount)
+            ("Expected " <> show expected <> " columns but got " <> show columns_count)
+        !result <- f =<< readBuffer buffer (deserializeRecords @columns True revision rows_count)
+        loopSelect connState (result : acc)
+      Progress    _       -> loopSelect connState acc
+      ProfileInfo _       -> loopSelect connState acc
+      EndOfStream         -> pure acc
+      Exception exception -> throwIO (DatabaseException exception)
+      otherPacket         -> throwIO (InternalError $ UnexpectedPacketType $ serverPacketToNum otherPacket)
 
 selectFrom ::
   forall table output result
@@ -259,34 +276,36 @@ generateRandom conn (randomSeed, maxStrLen, maxArrayLen) limit f = select @colum
       ")" <>
     " LIMIT " <> toQueryPart limit <> ";"
 
--- | Internal
-handleSelect ::
-  forall columns output result
-  .
-  ClickHaskell columns output
-  =>
-  ConnectionState -> ([output] -> IO result) -> IO [result]
-handleSelect MkConnectionState{..} f = loopSelect []
-  where
-  loopSelect acc =
-    readBuffer buffer (deserialize revision)
-    >>= \packet -> case packet of
-      DataResponse MkDataPacket{columns_count = 0, rows_count = 0} -> loopSelect acc
-      DataResponse MkDataPacket{columns_count, rows_count} -> do
-        let expected = columnsCount @columns @output
-        when (columns_count /= expected) $
-          (throw . UnmatchedResult . UnmatchedColumnsCount)
-            ("Expected " <> show expected <> " columns but got " <> show columns_count)
-        result <- f =<< readBuffer buffer (deserializeRecords @columns True revision rows_count)
-        loopSelect (result : acc)
-      Progress    _       -> loopSelect acc
-      ProfileInfo _       -> loopSelect acc
-      EndOfStream         -> pure acc
-      Exception exception -> throwIO (DatabaseException exception)
-      otherPacket         -> throwIO (InternalError $ UnexpectedPacketType $ serverPacketToNum otherPacket)
-
 
 -- ** INSERT
+
+insert ::
+  forall columns record
+  .
+  ClickHaskell columns record
+  =>
+  Connection -> ChString -> [record] -> IO ()
+insert conn query columnsData = do
+  withConnection conn $ \connState -> do
+    writeToConnection connState (serializeQueryPacket connState query)
+    writeToConnection connState (serializeDataPacket "" 0 0)
+    loopInsert connState
+  where
+  loopInsert connState@MkConnectionState{..}  = do
+    firstPacket <- readBuffer buffer (deserialize revision)
+    case firstPacket of
+      TableColumns      _ -> loopInsert connState 
+      DataResponse MkDataPacket{} -> do
+        _emptyDataPacket <- readBuffer buffer (deserializeRecords @columns @record False revision 0)
+        let rows = fromIntegral (Prelude.length columnsData)
+            cols = columnsCount @columns @record
+        writeToConnection connState (serializeDataPacket "" cols rows)
+        writeToConnection connState (serializeRecords @columns columnsData)
+        writeToConnection connState (serializeDataPacket "" 0 0)
+        loopInsert connState
+      EndOfStream         -> pure ()
+      Exception exception -> throwIO (DatabaseException exception)
+      otherPacket         -> throwIO (InternalError $ UnexpectedPacketType $ serverPacketToNum otherPacket)
 
 insertInto ::
   forall table record
@@ -294,33 +313,12 @@ insertInto ::
   ClickHaskellTable table record
   =>
   Connection -> [record] -> IO ()
-insertInto conn columnsData = do
-  withConnection conn $ \connState -> do
-    writeToConnection connState (serializeQueryPacket connState query)
-    writeToConnection connState (serializeDataPacket "" 0 0)
-    handleInsertResult @(GetColumns table) connState columnsData
+insertInto conn columnsData = insert @(GetColumns table) conn query columnsData
   where
   query = toChType $
     "INSERT INTO " <> tableName @table
     <> " (" <> columns @(GetColumns table) @record <> ") VALUES"
 
--- | Internal
-handleInsertResult :: forall columns record . ClickHaskell columns record => ConnectionState -> [record] -> IO ()
-handleInsertResult conn@MkConnectionState{..} records = do
-  firstPacket <- readBuffer buffer (deserialize revision)
-  case firstPacket of
-    TableColumns      _ -> handleInsertResult @columns conn records
-    DataResponse MkDataPacket{} -> do
-      _emptyDataPacket <- readBuffer buffer (deserializeRecords @columns @record False revision 0)
-      let rows = fromIntegral (Prelude.length records)
-          cols = columnsCount @columns @record
-      writeToConnection conn (serializeDataPacket "" cols rows)
-      writeToConnection conn (serializeRecords @columns records)
-      writeToConnection conn (serializeDataPacket "" 0 0)
-      handleInsertResult @columns @record conn []
-    EndOfStream         -> pure ()
-    Exception exception -> throwIO (DatabaseException exception)
-    otherPacket         -> throwIO (InternalError $ UnexpectedPacketType $ serverPacketToNum otherPacket)
 
 type ClickHaskellTable table record =
   ( IsTable table
