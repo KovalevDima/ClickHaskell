@@ -145,6 +145,18 @@ instance Show ClientError where
   show (DatabaseException err) = "DatabaseException " <> show err <> "\n" <> prettyCallStack callStack
   show (InternalError err) = "InternalError " <> show err <> "\n" <> prettyCallStack callStack
 
+{- |
+  Errors intended to be handled by developers
+-}
+data UserError
+  = UnmatchedType String
+  -- ^ Column type mismatch in data packet
+  | UnmatchedColumn String
+  -- ^ Column name mismatch in data packet
+  | UnmatchedColumnsCount String
+  -- ^ Occurs when actual columns count less or more than expected
+  deriving (Show, Exception)
+
 
 -- ** Low level
 
@@ -472,16 +484,37 @@ instance
   ) => GClickHaskell columns ((S1 (MetaSel (Just name) a b f)) (Rec0 inputType))
   where
   {-# INLINE gDeserializeRecords #-}
-  gDeserializeRecords isCheckRequired rev size f =
-    either (throw . UnmatchedResult) (map (f . M1 . K1 . fromChType @chType) . columnValues)
-      <$!> deserializeColumn @(Column name chType) rev isCheckRequired size
+  gDeserializeRecords isCheckRequired rev size f = do
+    handleColumnHeader @(Column name chType) isCheckRequired rev
+    map (f . M1 . K1 . fromChType) . columnValues
+      <$!> deserializeColumn @(Column name chType) rev size
 
   {-# INLINE gSerializeRecords #-}
-  gSerializeRecords rev f = serializeColumn rev . mkColumn @(Column name chType) . map (toChType . unK1 . unM1 . f)
+  gSerializeRecords rev f values
+    =  serialize @ChString rev (toChType (renderColumnName @(Column name chType)))
+    <> serialize @ChString rev (toChType (renderColumnType @(Column name chType)))
+    <> afterRevision @DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION rev (serialize @UInt8 rev 0)
+    <> (serializeColumn rev . mkColumn @(Column name chType) . map (toChType . unK1 . unM1 . f)) values
 
   gReadingColumns = (renderColumnName @(Column name chType), renderColumnType @(Column name chType)) : []
   gColumnsCount = 1
 
+handleColumnHeader :: forall column . KnownColumn column => Bool -> ProtocolRevision -> Get ()
+handleColumnHeader isCheckRequired rev = do
+  let expectedColumnName = toChType (renderColumnName @column)
+  resultColumnName <- deserialize @ChString rev
+  when (isCheckRequired && resultColumnName /= expectedColumnName) $
+    throw . UnmatchedResult . UnmatchedColumn
+      $ "Got column \"" <> show resultColumnName <> "\" but expected \"" <> show expectedColumnName <> "\""
+
+  let expectedType = toChType (renderColumnType @column)
+  resultType <- deserialize @ChString rev
+  when (isCheckRequired && resultType /= expectedType) $
+    throw . UnmatchedResult . UnmatchedType
+      $ "Column " <> show resultColumnName <> " has type " <> show resultType <> ". But expected type is " <> show expectedType
+
+  _isCustom <- deserialize @(UInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION) rev
+  pure ()
 
 type family
   TakeColumn name columns :: Type
