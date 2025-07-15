@@ -1,0 +1,12 @@
+{
+  "name": "monorepo",
+  "version": "1.0.0",
+  "workspaces": [
+    "./documentation/"
+  ],
+  "private": true,
+  "scripts": {
+    "dev": "react-router dev ./documentation",
+    "build": "react-router build ./documentation"
+  }
+}

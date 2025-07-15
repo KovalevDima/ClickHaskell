@@ -11,17 +11,9 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module ChProtocolDocs (serverDoc) where
+module ChProtocolDocs (serverDoc, clientDoc) where
 
 import ClickHaskell
-  ( ExceptionPacket(..),
-    HelloResponse(..),
-    PasswordComplexityRules(..),
-    ProfileInfo(..),
-    ProgressPacket(..),
-    TableColumns(..),
-    IsChType(..), SinceRevision, UVarInt, ProtocolRevision
-  )
 import Data.Kind
 import Data.Proxy
 import GHC.Generics
@@ -42,16 +34,29 @@ serverDoc = (BS8.pack . renderHtml . mconcat)
   , toDocPart @TableColumns
   ]
 
-class ToDocPart docPart where
-  default toDocPart :: (Generic docPart, GToDocPart (Rep docPart)) => Html
-  toDocPart :: Html
-  toDocPart = gToDocPart @(Rep docPart)
-
 deriving instance ToDocPart ExceptionPacket
 deriving instance ToDocPart HelloResponse
 deriving instance ToDocPart ProfileInfo
 deriving instance ToDocPart ProgressPacket
 deriving instance ToDocPart TableColumns
+
+clientDoc :: ByteString
+clientDoc = (BS8.pack . renderHtml . mconcat)
+  [ h1 (string "Client packets")
+  , toDocPart @HelloPacket
+  , toDocPart @QueryPacket
+  , toDocPart @DataPacket
+  ]
+
+deriving instance ToDocPart HelloPacket
+deriving instance ToDocPart QueryPacket
+deriving instance ToDocPart DataPacket
+deriving instance ToDocPart ClientInfo
+
+class ToDocPart docPart where
+  default toDocPart :: (Generic docPart, GToDocPart (Rep docPart)) => Html
+  toDocPart :: Html
+  toDocPart = gToDocPart @(Rep docPart)
 
 
 class GToDocPart (f :: Type -> Type) where
@@ -104,6 +109,12 @@ class HasName hasName where fieldName :: String
 instance HasName UVarInt where fieldName = "UVarInt"
 instance HasName ProtocolRevision where fieldName = "UVarInt"
 instance HasName [PasswordComplexityRules] where fieldName = "[PasswordComplexityRules]"
+instance HasName ClientInfo where fieldName = "[ClientInfo]"
+instance HasName QueryKind where fieldName = "QueryKind"
+instance HasName DbSettings where fieldName = "DbSettings"
+instance HasName QueryStage where fieldName = "QueryStage"
+instance HasName QueryParameters where fieldName = "QueryParameters"
+instance HasName BlockInfo where fieldName = "BlockInfo"
 
 instance {-# OVERLAPPABLE #-} IsChType chType => HasName chType where 
   fieldName = chTypeName @chType

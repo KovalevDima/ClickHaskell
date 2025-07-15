@@ -56,7 +56,7 @@
             (ghc: {"dev-${ghc}" = pkgs.mkShell {
               inputsFrom = [];
               packages = with pkgs; with haskellPackages; with (self'.packages);
-                [ clickhouse nil eventlog2html graphmod
+                [ clickhouse nil eventlog2html graphmod nodejs
                   self'.packages."${ghc}-html2hs" haskell.compiler."${ghc}" cabal-install
                 ];
               };
@@ -67,12 +67,12 @@
             default = pkgs.mkShell {
               inputsFrom = [config.haskellProjects.ghc984.outputs.devShell];
               packages = with pkgs; with haskellPackages; with (self'.packages);
-                [clickhouse nil eventlog2html graphmod ghc984-html2hs];
+                [clickhouse nodejs nil eventlog2html graphmod ghc984-html2hs];
             };
           };
         # Build documnetation
         packages = {
-          "documentation" = import ./contribution/documentation.nix {inherit pkgs;};
+          "documentation" = import ./documentation/documentation.nix {inherit pkgs;};
           "ClickHaskell-dist" = import ./contribution/hackage.nix {
             inherit pkgs;
             distPackage = self'.packages.ghc984-ClickHaskell;

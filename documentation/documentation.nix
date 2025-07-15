@@ -3,8 +3,8 @@
 pkgs.stdenv.mkDerivation {
   name = "documentation";
   src = pkgs.lib.fileset.toSource {
-    root = ../documentation/.;
-    fileset = ../documentation/.;
+    root = ./.;
+    fileset = ./.;
   };
 
   dontBuild = true;
