@@ -16,5 +16,9 @@
     "typescript": "^5.8.3",
     "vite": "^7.0.0",
     "vite-tsconfig-paths": "^5.1.4"
+  },
+  "scripts": {
+    "dev": "react-router dev",
+    "build": "react-router build"
   }
 }

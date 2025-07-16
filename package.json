@@ -6,7 +6,7 @@
   ],
   "private": true,
   "scripts": {
-    "dev": "react-router dev ./documentation",
-    "build": "react-router build ./documentation"
+    "dev": "npm run dev -w documentation",
+    "build": "npm run build -w documentation"
   }
 }
