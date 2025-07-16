@@ -2,12 +2,11 @@ import { Outlet, Scripts } from "react-router";
 
 import "./index.css";
 
-export default function App() {
-  return (
-    <html lang="en">
+export function Layout() {
+  return <html lang="en">
       <head>
-        <meta charset="utf-8" />
-        <meta http-equiv="x-ua-compatible" content="ie=edge" />
+        <meta charSet="utf-8" />
+        <meta httpEquiv="x-ua-compatible" content="ie=edge" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="description" content="A high-performance Haskell implementation of the ClickHouse Native protocol" />
         <meta property="og:title" content="ClickHaskell - ClickHouse client in Haskell" />
@@ -22,6 +21,9 @@ export default function App() {
         <Outlet />
         <Scripts />
       </body>
-    </html>
-  );
+    </html>;
+}
+
+export default function App() {
+  return <Outlet />;
 }
