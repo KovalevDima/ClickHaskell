@@ -1,5 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+import { Link } from 'react-router'
 
 export default function HomePage() {
   return (
@@ -13,7 +14,7 @@ export default function HomePage() {
             backgroundColor: "rgb(30, 30, 30)",
             gap: "8px"
           }}
-            href="/#/"
+            href="/"
           >
             <img alt="logo" width="28" height="28" src="/assets/logo.svg" />
             ClickHaskell
@@ -29,10 +30,11 @@ export default function HomePage() {
         </div>
       </header>
       <nav>
-        <ul type="square">
-          <li><a href="/#/contribution.html">/contribution</a></li>
-          <li><a href="/#/testing">/testing</a></li>
-          <li><a href="/#/usage/">/usage</a></li>
+        <ul>
+          <li><Link to="/contribution.html">/contribution</Link></li>
+          <li><Link to="/testing">/testing</Link></li>
+          <li><Link to="/usage/">/usage</Link></li>
+          <li><Link to="/performance">/performance</Link></li>
           <li><a href="/#/protocol/server/">/protocol/server</a></li>
           <li><a href="/#/protocol/client/">/protocol/client</a></li>
         </ul>
@@ -43,7 +45,7 @@ export default function HomePage() {
           Powerful Haskell runtime system with the fastest analytical database.<br />
           ClickHaskell is designed to:
         </p>
-        <ul type="square">
+        <ul>
           <li>Handle millions of rows of data in constant memory</li>
           <li>Efficiently utilize Haskell concurrent runtime</li>
         </ul>
