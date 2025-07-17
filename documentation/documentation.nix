@@ -7,7 +7,7 @@ pkgs.buildNpmPackage {
 
   src = ./..;
 
-  npmDepsHash = "sha256-NSsWXQ1f9FUfoWjGtnKSfJvN2ted9ofw5KuNRs4BdWo=";
+  npmDepsHash = "sha256-/daW6oHsF2SvnbfedP5PahvNRYzOmvbIKDEgePjsxqo=";
   # npmDepsHash = "${pkgs.lib.fakeHash}";
 
   # src = pkgs.nix-gitignore.gitignoreSourcePure [ "page.nix" ] ./.;
