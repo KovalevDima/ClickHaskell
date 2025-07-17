@@ -1,4 +1,4 @@
-import { Outlet, Scripts } from "react-router";
+import {Links, Meta, Outlet, Scripts } from "react-router";
 
 import "./index.css";
 
@@ -15,7 +15,8 @@ export function Layout() {
         <link rel="canonical" href="https://clickhaskell.dev/" />
         <link href="/assets/logo.svg" rel="icon" type="image/x-icon" />
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/vs2015.min.css" />
-
+        <Links/>
+        <Meta/>
       </head>
       <body>
         <Outlet />
