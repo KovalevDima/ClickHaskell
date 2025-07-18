@@ -22,7 +22,7 @@
       CLICKHASKELL_STATIC_FILES_DIR=./documentation/ \
         EVENTLOG_SOCKET_PATH="./data/.eventlog.sock" \
         DEV= \
-        ${app.program} +RTS -l-agpfsuT --eventlog-flush-interval=1 -RTS
+        cabal run server -- +RTS -l-agpfsuT --eventlog-flush-interval=1 -RTS
       '';
       depends_on."database".condition = "process_healthy";
     };
@@ -30,7 +30,13 @@
       command = ''
       sleep 3
       EVENTLOG_SOCKET_PATH="./data/.eventlog.sock" \
-        ${agent.program}
+        cabal run eventlog-agent
+      '';
+      depends_on."executable".condition = "process_started";
+    };
+    "ui" = {
+      command = ''
+        npm run dev
       '';
       depends_on."executable".condition = "process_started";
     };

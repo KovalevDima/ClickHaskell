@@ -10,7 +10,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE BlockArguments #-}
 
-import ChProtocolDocs (serverDoc)
+import ChProtocolDocs (serverDoc, clientDoc)
 import ChVisits (DocsStatistics (..), DocsStatisticsArgs (..), HistoryData, initVisitsTracker)
 import Control.Concurrent.Async (Concurrently (..))
 import Control.Concurrent.STM (TBQueue, TChan, TVar, atomically, dupTChan, newBroadcastTChanIO, newTBQueueIO, readTChan, readTVarIO, writeTBQueue)
@@ -93,6 +93,7 @@ initServer args@MkServerArgs{mStaticFiles, mSocketPath, isDev} = do
     staticFilesWithDoc
       = id
       . insert "/protocol/server" ("text/html", pure serverDoc)
+      . insert "/protocol/client" ("text/html", pure clientDoc)
       $ staticFiles
     app = websocketsOr
       defaultConnectionOptions
