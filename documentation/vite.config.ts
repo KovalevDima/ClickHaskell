@@ -7,4 +7,11 @@ export default defineConfig({
     reactRouter(),
     tsconfigPaths(),
   ],
+  assetsInclude: ['./../**/*.lhs'],
+  server: {
+    proxy: {
+      '/performance': 'http://localhost:3000',
+      '/protocol': 'http://localhost:3000',
+    }
+}
 });

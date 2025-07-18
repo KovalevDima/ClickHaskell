@@ -1,9 +1,12 @@
-import {Links, Meta, Outlet, Scripts } from "react-router";
+import { Links, Meta, Outlet, Scripts } from "react-router";
 
 import "./index.css";
+import { Link } from "react-router";
 
-export function Layout() {
-  return <html lang="en">
+
+export function Layout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
       <head>
         <meta charSet="utf-8" />
         <meta httpEquiv="x-ua-compatible" content="ie=edge" />
@@ -15,14 +18,41 @@ export function Layout() {
         <link rel="canonical" href="https://clickhaskell.dev/" />
         <link href="/assets/logo.svg" rel="icon" type="image/x-icon" />
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/vs2015.min.css" />
-        <Links/>
-        <Meta/>
+        <Links />
+        <Meta />
       </head>
       <body>
-        <Outlet />
+      <header>
+        <div>
+          <Link style={{
+            fontSize: "24px",
+            color: "rgb(240, 246, 252)",
+            textDecoration: "none",
+            backgroundColor: "rgb(30, 30, 30)",
+            gap: "8px"
+          }}
+            to="/"
+          >
+            <img alt="logo" width="28" height="28" src="/assets/logo.svg" />
+            ClickHaskell
+          </Link>
+        </div>
+        <div>
+          <a href="https://hackage.haskell.org/package/ClickHaskell">
+            <img alt="hckg" width="36" height="36" src="/assets/hackage.svg" />
+          </a>
+          <a id="stars" href="https://git.clickhaskell.dev">
+            <img alt="git" width="36" height="36" src="/assets/git.svg" />
+          </a>
+        </div>
+      </header>
+      <main role="main">
+        {children}
         <Scripts />
+      </main>
       </body>
-    </html>;
+    </html>
+  )
 }
 
 export default function App() {
