@@ -9,9 +9,8 @@ export default defineConfig({
   ],
   assetsInclude: ['./../**/*.lhs'],
   server: {
-    proxy: {
-      '/performance': 'http://localhost:3000',
-      '/protocol': 'http://localhost:3000',
-    }
-}
+    watch: {
+      usePolling: true,
+    },
+  }
 });

@@ -1,6 +1,8 @@
+import HighlightedHTML from "app/components/Highlight";
+
 export default function Component() {
   return (
-    <>
+    <HighlightedHTML html={`
       
       <h1> Setup Nix </h1>
       <p>
@@ -10,7 +12,7 @@ export default function Component() {
       {"After you have Nix installed you can:"}
       </p>
       <pre><code data-lang="bash" className="bash"
-      >{"nix develop"}
+      >nix develop
       </code></pre>
       {"to manually enter shell with provided:"}
       <><b>cabal</b>, <b>ghc</b>, <b>haskell-laguage-server</b>, <b>clickhouse-client</b></>
@@ -43,6 +45,7 @@ export default function Component() {
       >{"rm -rf ./data"}
       </code></pre>
       {"(and then restart process-compose)"}
-    </>
+      `}
+    />
   );
 }

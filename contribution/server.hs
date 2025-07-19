@@ -10,7 +10,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE BlockArguments #-}
 
-import ChProtocolDocs (serverDoc, clientDoc)
 import ChVisits (DocsStatistics (..), DocsStatisticsArgs (..), HistoryData, initVisitsTracker)
 import Control.Concurrent.Async (Concurrently (..))
 import Control.Concurrent.STM (TBQueue, TChan, TVar, atomically, dupTChan, newBroadcastTChanIO, newTBQueueIO, readTChan, readTVarIO, writeTBQueue)
@@ -19,7 +18,7 @@ import Data.Aeson (encode)
 import Data.ByteString (StrictByteString)
 import Data.ByteString.Char8 as BS8 (pack, unpack)
 import Data.ByteString.Lazy as B (LazyByteString, readFile)
-import Data.HashMap.Strict as HM (HashMap, empty, fromList, insert, lookup, unions)
+import Data.HashMap.Strict as HM (HashMap, empty, fromList, lookup, unions)
 import Data.Maybe (isJust)
 import Data.Text as T (pack)
 import Data.Time (getCurrentTime)
@@ -90,11 +89,7 @@ initServer args@MkServerArgs{mStaticFiles, mSocketPath, isDev} = do
       mStaticFiles
 
   let
-    staticFilesWithDoc
-      = id
-      . insert "/protocol/server" ("text/html", pure serverDoc)
-      . insert "/protocol/client" ("text/html", pure clientDoc)
-      $ staticFiles
+    staticFilesWithDoc = staticFiles
     app = websocketsOr
       defaultConnectionOptions
       (wsServer args)

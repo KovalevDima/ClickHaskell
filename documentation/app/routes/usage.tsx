@@ -1,8 +1,9 @@
-import { Outlet, useLoaderData } from "react-router";
-import testing from '../../testing/index.lhs?raw';
+import testing from '../../usage/index.lhs?raw';
+
+import HighlightedHTML from "app/components/Highlight";
 
 export default function Usage() {
   return (
-    <div dangerouslySetInnerHTML={{__html: testing}} />
+    <HighlightedHTML html={testing} />
   );
 }

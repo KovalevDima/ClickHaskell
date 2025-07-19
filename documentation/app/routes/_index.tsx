@@ -11,8 +11,8 @@ export default function HomePage() {
           <li><Link to="/testing">/testing</Link></li>
           <li><Link to="/usage/">/usage</Link></li>
           {/* <li><Link to="/performance">/performance</Link></li> */}
-          <li><a href="/protocol/server/">/protocol/server</a></li>
-          <li><a href="/protocol/client/">/protocol/client</a></li>
+          {/* <li><a href="/protocol/server/">/protocol/server</a></li> */}
+          {/* <li><a href="/protocol/client/">/protocol/client</a></li> */}
         </ul>
       </nav>
       <h1>Efficiency</h1>

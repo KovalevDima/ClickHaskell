@@ -11,7 +11,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module ChProtocolDocs (serverDoc, clientDoc) where
+module Main (main) where
 
 import ClickHaskell
 import Data.Kind
@@ -22,7 +22,23 @@ import Text.Blaze.Html
 import Text.Blaze.Html.Renderer.Pretty (renderHtml)
 import Text.Blaze.Html5 (table, td, tr, h1, h3, thead, tbody, th)
 import Data.ByteString.Lazy.Char8 as BS8
+import System.Directory
 
+main :: IO ()
+main = do
+  let dir = "./documentation/app/routes/protocol/"
+  createDirectoryIfMissing True dir
+  BS8.writeFile (dir <> "common.html") commonDoc
+  BS8.writeFile (dir <> "server.html") serverDoc
+  BS8.writeFile (dir <> "client.html") clientDoc
+
+
+commonDoc :: ByteString
+commonDoc = (BS8.pack . renderHtml . mconcat)
+  [ h1 (string "Common packets")
+  , toDocPart @DataPacket
+  ]
+deriving instance ToDocPart DataPacket
 
 serverDoc :: ByteString
 serverDoc = (BS8.pack . renderHtml . mconcat)
@@ -45,12 +61,10 @@ clientDoc = (BS8.pack . renderHtml . mconcat)
   [ h1 (string "Client packets")
   , toDocPart @HelloPacket
   , toDocPart @QueryPacket
-  , toDocPart @DataPacket
   ]
 
 deriving instance ToDocPart HelloPacket
 deriving instance ToDocPart QueryPacket
-deriving instance ToDocPart DataPacket
 deriving instance ToDocPart ClientInfo
 
 class ToDocPart docPart where
