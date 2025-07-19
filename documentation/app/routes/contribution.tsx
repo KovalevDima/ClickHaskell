@@ -1,51 +1,9 @@
 import HighlightedHTML from "app/components/Highlight";
+import contribution from '../../contribution.html?raw';
 
 export default function Component() {
   return (
-    <HighlightedHTML html={`
-      
-      <h1> Setup Nix </h1>
-      <p>
-      ClickHaskell contributors using <b>Nix</b> package manager to setup everything.
-        You can install it via <a href="https://nixos.org/download/">official installer</a> and <a href="https://nixos.wiki/wiki/Flakes">enable flakes</a>
-
-      {"After you have Nix installed you can:"}
-      </p>
-      <pre><code data-lang="bash" className="bash"
-      >nix develop
-      </code></pre>
-      {"to manually enter shell with provided:"}
-      <><b>cabal</b>, <b>ghc</b>, <b>haskell-laguage-server</b>, <b>clickhouse-client</b></>
-
-      <p>You can also setup <a href="https://github.com/nix-community/nix-direnv">direnv</a> to automatically enter the shell</p>
-
-      <h1>Run routine actions</h1>
-
-      <h4> Start database and documentation server </h4>
-
-      <pre><code data-lang="bash" className="bash"
-      >{"nix run"}
-      </code></pre>
-
-      <h4>{"Initialize database and run tests"}</h4>
-
-      <pre><code data-lang="bash" className="bash"
-      >{"nix run .#test-ghc966-tests"}
-      </code></pre>
-
-      <h4>Initilization database and run profiling</h4>
-
-      <pre><code data-lang="bash" className="bash"
-      >{"nix run .#test-ghc966-prof-simple"}
-      </code></pre>
-
-      <h4>Reinitialize database</h4>
-
-      <pre><code data-lang="bash" className="bash"
-      >{"rm -rf ./data"}
-      </code></pre>
-      {"(and then restart process-compose)"}
-      `}
+    <HighlightedHTML html={contribution}
     />
   );
 }
