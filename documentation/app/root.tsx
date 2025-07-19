@@ -3,6 +3,7 @@ import { Links, Meta, Outlet, Scripts } from "react-router";
 import "./index.css";
 import { Link } from "react-router";
 import { LinksFunction } from "react-router";
+import GitHubStars from "./components/GitHubStart";
 
 export const links: LinksFunction = () => {
 	return [
@@ -47,6 +48,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </a>
           <a id="stars" href="https://git.clickhaskell.dev">
             <img alt="git" width="36" height="36" src="/assets/git.svg" />
+            <GitHubStars/>
           </a>
         </div>
       </header>
