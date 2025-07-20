@@ -7,6 +7,7 @@ export default defineConfig({
     reactRouter(),
     tsconfigPaths(),
   ],
+  publicDir: './app/public/',
   assetsInclude: ['./../**/*.lhs'],
   server: {
     watch: {
