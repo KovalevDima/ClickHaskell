@@ -1,13 +1,10 @@
-import { Links, Meta, Outlet, Scripts } from "react-router";
-
+import { Link, LinksFunction, Links, Meta, Outlet, Scripts } from "react-router";
 import "./index.css";
-import { Link } from "react-router";
-import { LinksFunction } from "react-router";
+import logo from "/assets/logo.svg";
 import GitHubStars from "./components/GitHubStart";
 
 export const links: LinksFunction = () => {
-	return [
-	]
+	return []
 }
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -22,7 +19,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <meta property="og:description" content="A high-performance Haskell implementation of the ClickHouse Native protocol" />
         <title>ClickHaskell</title>
         <link rel="canonical" href="https://clickhaskell.dev/" />
-        <link href="/assets/logo.svg" rel="icon" type="image/x-icon" />
+        <link href={logo} rel="icon" type="image/x-icon" />
         <Links />
         <Meta />
       </head>
@@ -38,7 +35,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           }}
             to="/"
           >
-            <img alt="logo" width="28" height="28" src="/assets/logo.svg" />
+            <img alt="logo" width="28" height="28" src={logo} />
             ClickHaskell
           </Link>
         </div>
