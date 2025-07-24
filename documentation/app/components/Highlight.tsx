@@ -3,6 +3,7 @@ import React, { useEffect, useRef } from "react";
 import hljs from "highlight.js";
 import haskell from "highlight.js/lib/languages/haskell";
 import "highlight.js/styles/vs2015.css";
+import { Card } from "./ui/card";
 
 hljs.registerLanguage("haskell", haskell);
 
@@ -20,7 +21,12 @@ const HighlightedHTML: React.FC<Props> = ({ html }) => {
     }
   }, [html]);
 
-  return <div ref={containerRef} dangerouslySetInnerHTML={{ __html: html }} />;
+  return (
+  
+    <Card className="p-5">
+      <div ref={containerRef} dangerouslySetInnerHTML={{ __html: html }} />;
+    </Card>
+  )
 };
 
 export default HighlightedHTML;

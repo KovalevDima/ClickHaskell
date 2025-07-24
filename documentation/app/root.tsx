@@ -1,10 +1,15 @@
 import { Link, LinksFunction, Links, Meta, Outlet, Scripts } from "react-router";
 import "./index.css";
 import logo from "/assets/logo.svg";
-import GitHubStars from "./components/GitHubStart";
+import GitHubStars from "@/components/GitHubStart";
+import { ThemeProvider } from "@/components/theme-provider";
+import { ModeToggle } from "@/components/ui/mode-toggle";
+import { Button } from "@/components/ui/button";
+import { NavigationMenu, NavigationMenuContent, NavigationMenuItem, NavigationMenuLink, NavigationMenuList, NavigationMenuTrigger } from "./components/ui/navigation-menu";
+import hackage from "/assets/hackage.svg";
 
 export const links: LinksFunction = () => {
-	return []
+  return []
 }
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -24,40 +29,54 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Meta />
       </head>
       <body>
-      <header>
-        <div>
-          <Link style={{
-            fontSize: "24px",
-            color: "rgb(240, 246, 252)",
-            textDecoration: "none",
-            backgroundColor: "rgb(30, 30, 30)",
-            gap: "8px"
-          }}
-            to="/"
-          >
-            <img alt="logo" width="28" height="28" src={logo} />
-            ClickHaskell
-          </Link>
-        </div>
-        <div>
-          <a href="https://hackage.haskell.org/package/ClickHaskell">
-            <img alt="hckg" width="36" height="36" src="/assets/hackage.svg" />
-          </a>
-          <a id="stars" href="https://git.clickhaskell.dev">
-            <img alt="git" width="36" height="36" src="/assets/git.svg" />
-            <GitHubStars/>
-          </a>
-        </div>
-      </header>
-      <main role="main">
-        {children}
-        <Scripts />
-      </main>
+        <header className="flex">
+          <NavigationMenu viewport={false} className="flex justify-between" >
+            <NavigationMenuList className="flex justify-between">
+              <NavigationMenuItem>
+                <NavigationMenuLink asChild>
+                  <Link to="/"><img alt="logo" width="32" height="32" src={logo} /></Link>
+                </NavigationMenuLink>
+              </NavigationMenuItem>
+            </NavigationMenuList>
+            <Link to="/contribution">/contribution</Link>
+            <Link to="/testing">/testing</Link>
+            <Link to="/usage/">/usage</Link>
+            {/* <li><Link to="/performance">/performance</Link></li> */}
+            {/* <li><a href="/protocol/server/">/protocol/server</a></li> */}
+            {/* <li><a href="/protocol/client/">/protocol/client</a></li> */}
+            <NavigationMenuList>
+              <NavigationMenuItem>
+                <NavigationMenuLink asChild>
+                  <Link to="https://hackage.haskell.org/package/ClickHaskell">
+                    <img alt="hckg" width="32" height="32" src={hackage} />
+                  </Link>
+                </NavigationMenuLink>
+              </NavigationMenuItem>
+              <NavigationMenuItem >
+                <NavigationMenuLink asChild >
+                  <Link to="https://git.clickhaskell.dev" className="flex-row items-center">
+                    <img alt="git" width="32" height="32" src="/assets/git.svg" />
+                    <GitHubStars />
+                  </Link>
+                </NavigationMenuLink>
+              </NavigationMenuItem>
+            </NavigationMenuList>
+          </NavigationMenu>
+
+        </header>
+        <main role="main">
+          {children}
+          <Scripts />
+        </main>
       </body>
     </html>
   )
 }
 
 export default function App() {
-  return <Outlet />;
+  return (
+    <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+      <Outlet />
+    </ThemeProvider>
+  )
 }

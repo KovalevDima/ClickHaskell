@@ -1,9 +1,10 @@
-import testing from '../../usage/index.lhs?raw';
+import { Card } from '~/components/ui/card';
+import usage from '../../usage/index.lhs?raw';
 
-import HighlightedHTML from "app/components/Highlight";
+import HighlightedHTML from "@/components/Highlight";
 
 export default function Usage() {
   return (
-    <HighlightedHTML html={testing} />
+    <HighlightedHTML html={usage}/>
   );
 }
