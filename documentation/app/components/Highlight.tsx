@@ -24,7 +24,7 @@ const HighlightedHTML: React.FC<Props> = ({ html }) => {
   return (
   
     <Card className="p-5">
-      <div ref={containerRef} dangerouslySetInnerHTML={{ __html: html }} />;
+      <div ref={containerRef} dangerouslySetInnerHTML={{ __html: html }} />
     </Card>
   )
 };

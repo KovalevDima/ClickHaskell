@@ -29,11 +29,6 @@ code {
   font-family: 'Hasklig', monospace
 }
 
-body {
-  margin-top: 0px;
-  max-width: 720px;
-  width: 100%;
-}
 
 table {
   border: 1px solid;
@@ -66,6 +61,12 @@ a:hover {
 a:visited {
   color: var(--color-foreground);
 } */
+
+/*
+  #8f4e8b
+  #5e5086
+  #453a62
+*/
 
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
@@ -125,7 +126,7 @@ a:visited {
   --border: oklch(0.92 0.004 286.32);
   --input: oklch(0.92 0.004 286.32);
   --ring: oklch(0.705 0.213 47.604);
-  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-1: #453a62 /*oklch(0.646 0.222 41.116)*/;
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
@@ -159,7 +160,7 @@ a:visited {
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.646 0.222 41.116);
-  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-1: #453a62 /* oklch(0.488 0.243 264.376)*/;
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
