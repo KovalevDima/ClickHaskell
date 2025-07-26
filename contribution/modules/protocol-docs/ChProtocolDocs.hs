@@ -11,17 +11,9 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module ChProtocolDocs (serverDoc) where
+module Main (main) where
 
 import ClickHaskell
-  ( ExceptionPacket(..),
-    HelloResponse(..),
-    PasswordComplexityRules(..),
-    ProfileInfo(..),
-    ProgressPacket(..),
-    TableColumns(..),
-    IsChType(..), SinceRevision, UVarInt, ProtocolRevision
-  )
 import Data.Kind
 import Data.Proxy
 import GHC.Generics
@@ -30,7 +22,23 @@ import Text.Blaze.Html
 import Text.Blaze.Html.Renderer.Pretty (renderHtml)
 import Text.Blaze.Html5 (table, td, tr, h1, h3, thead, tbody, th)
 import Data.ByteString.Lazy.Char8 as BS8
+import System.Directory
 
+main :: IO ()
+main = do
+  let dir = "./documentation/app/routes/protocol/"
+  createDirectoryIfMissing True dir
+  BS8.writeFile (dir <> "common.html") commonDoc
+  BS8.writeFile (dir <> "server.html") serverDoc
+  BS8.writeFile (dir <> "client.html") clientDoc
+
+
+commonDoc :: ByteString
+commonDoc = (BS8.pack . renderHtml . mconcat)
+  [ h1 (string "Common packets")
+  , toDocPart @DataPacket
+  ]
+deriving instance ToDocPart DataPacket
 
 serverDoc :: ByteString
 serverDoc = (BS8.pack . renderHtml . mconcat)
@@ -42,16 +50,27 @@ serverDoc = (BS8.pack . renderHtml . mconcat)
   , toDocPart @TableColumns
   ]
 
-class ToDocPart docPart where
-  default toDocPart :: (Generic docPart, GToDocPart (Rep docPart)) => Html
-  toDocPart :: Html
-  toDocPart = gToDocPart @(Rep docPart)
-
 deriving instance ToDocPart ExceptionPacket
 deriving instance ToDocPart HelloResponse
 deriving instance ToDocPart ProfileInfo
 deriving instance ToDocPart ProgressPacket
 deriving instance ToDocPart TableColumns
+
+clientDoc :: ByteString
+clientDoc = (BS8.pack . renderHtml . mconcat)
+  [ h1 (string "Client packets")
+  , toDocPart @HelloPacket
+  , toDocPart @QueryPacket
+  ]
+
+deriving instance ToDocPart HelloPacket
+deriving instance ToDocPart QueryPacket
+deriving instance ToDocPart ClientInfo
+
+class ToDocPart docPart where
+  default toDocPart :: (Generic docPart, GToDocPart (Rep docPart)) => Html
+  toDocPart :: Html
+  toDocPart = gToDocPart @(Rep docPart)
 
 
 class GToDocPart (f :: Type -> Type) where
@@ -104,6 +123,12 @@ class HasName hasName where fieldName :: String
 instance HasName UVarInt where fieldName = "UVarInt"
 instance HasName ProtocolRevision where fieldName = "UVarInt"
 instance HasName [PasswordComplexityRules] where fieldName = "[PasswordComplexityRules]"
+instance HasName ClientInfo where fieldName = "[ClientInfo]"
+instance HasName QueryKind where fieldName = "QueryKind"
+instance HasName DbSettings where fieldName = "DbSettings"
+instance HasName QueryStage where fieldName = "QueryStage"
+instance HasName QueryParameters where fieldName = "QueryParameters"
+instance HasName BlockInfo where fieldName = "BlockInfo"
 
 instance {-# OVERLAPPABLE #-} IsChType chType => HasName chType where 
   fieldName = chTypeName @chType

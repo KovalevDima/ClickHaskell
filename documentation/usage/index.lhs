@@ -1,5 +1,3 @@
-<h1>usage</h1>
-
 Lets write simple executable with basic usage example
 <br>
 <br>
@@ -21,10 +19,7 @@ module Main where
 import ClickHaskell
 import GHC.Generics (Generic)
 </code></pre>
-
-
-
-<h3>General preparation</h3>
+<br>
 
 ClickHaskell provides unique API in area of DBMS clients<br>
 <br>
@@ -44,6 +39,7 @@ type ExampleCols =
   , Column "a3" (DateTime "")
   ]
 </code></pre>
+<br>
 
 and generate client side code
 
@@ -53,10 +49,12 @@ and generate client side code
 -}
 deriving instance ClickHaskell ExampleCols ExampleData
 </code></pre>
+<br>
 
-<h3>Command</h3>
+<p>
+  Also we should create the table
+</p>
 
-Also we should create the table
 
 <pre><code data-lang="haskell" class="haskell"
 >createTable :: Connection -> IO ()
@@ -72,6 +70,7 @@ createTable connection =
     \PARTITION BY () \
     \ORDER BY ();"
 </code></pre>
+<br>
 
 <h3>Create table, read and then write</h3>
 

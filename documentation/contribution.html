@@ -1,42 +1,47 @@
-<h1> Setup Nix </h1>
+<article class="flex flex-col gap-y-3">
+  <section>
+    <h1> Setup Nix </h1>
+    <p>
+      ClickHaskell contributors using <b>Nix</b> package manager to setup everything.<br>
+      You can install it via <a href="https://nixos.org/download/">official installer</a>
+      and <a href="https://nixos.wiki/wiki/Flakes">enable flakes</a>
+    </p>
+  </section>
 
-ClickHaskell contributors using <b>Nix</b> package manager to setup everything.<br>
-You can install it via <a href="https://nixos.org/download/">official installer</a> and <a href="https://nixos.wiki/wiki/Flakes">enable flakes</a>
-<br>
-<br>
+  <section>
+    After you have Nix installed you can:
+    <pre><code data-lang="bash" class="bash">nix develop</code></pre>
+    to manually enter shell with provided:<br>
+    <b>cabal</b>, <b>ghc</b>, <b>haskell-laguage-server</b>, <b>clickhouse-client</b><br>
 
-After you have Nix installed you can:
-<pre><code data-lang="bash" class="bash"
->nix develop
-</code></pre>
-to manually enter shell with provided:<br>
-<b>cabal</b>, <b>ghc</b>, <b>haskell-laguage-server</b>, <b>clickhouse-client</b><br>
+    <p>
+      You can also setup <a href="https://github.com/nix-community/nix-direnv">direnv</a> to automatically enter the
+      shell
+    </p>
+  </section>
 
-You can also setup <a href="https://github.com/nix-community/nix-direnv">direnv</a> to automatically enter the shell
+  <section class="flex flex-col gap-y-3">
+    <h1>Run routine actions</h1>
 
-<h1>Run routine actions</h1>
+    <section>
+      <h4>Start database and documentation server</h4>
+      <pre><code data-lang="bash" class="bash">nix run</code></pre>
+    </section>
 
-<h4> Start database and documentation server </h4>
+    <section>
+      <h4>Initialize database and run tests</h4>
+      <pre><code data-lang="bash" class="bash">nix run .#test-ghc966-tests</code></pre>
+    </section>
 
-<pre><code data-lang="bash" class="bash"
->nix run
-</code></pre>
+    <section>
+      <h4>Initilization database and run profiling</h4>
+      <pre><code data-lang="bash" class="bash">nix run .#test-ghc966-prof-simple</code></pre>
+    </section>
 
-<h4>Initialize database and run tests</h4>
-
-<pre><code data-lang="bash" class="bash"
->nix run .#test-ghc966-tests
-</code></pre>
-
-<h4>Initilization database and run profiling</h4>
-
-<pre><code data-lang="bash" class="bash"
->nix run .#test-ghc966-prof-simple
-</code></pre>
-
-<h4>Reinitialize database</h4>
-
-<pre><code data-lang="bash" class="bash"
->rm -rf ./data
-</code></pre>
-(and then restart process-compose)
+    <section>
+      <h4>Reinitialize database</h4>
+      <pre><code data-lang="bash" class="bash">rm -rf ./data</code></pre>
+      (and then restart process-compose)
+    </section>
+  </section>
+</article>

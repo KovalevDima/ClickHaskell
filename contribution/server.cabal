@@ -8,8 +8,7 @@ executable server
   default-language: Haskell2010
   main-is: server.hs
   build-depends:
-      ClickHaskell-protocol-docs
-    , ClickHaskell-visits
+      ClickHaskell-visits
     , aeson
     , async
     , base >=4.7 && <5
