@@ -35,14 +35,13 @@ export default function HomePage() {
       </Card>
 
       <div className="flex flex-row gap-3">
-        <Card className="p-6 w-75">
-
+        <Card className="p-6 max-w-75">
           <h2>Real-time visits</h2>
           <p>You are receiving data via WebSockets and generating<br />
             it by loading any page from a unique IP address
           </p>
         </Card>
-        <Card className="w-100">
+        <Card className="min-w-100">
           <CardContent>
             <ChartContainer config={chartConfig}>
               <BarChart accessibilityLayer data={chartData}>
