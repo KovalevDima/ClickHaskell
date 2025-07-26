@@ -12,6 +12,14 @@ export default defineConfig({
   publicDir: './app/public/',
   assetsInclude: ['./../**/*.lhs'],
   server: {
+    proxy: {
+      // Проксируем все WebSocket-запросы
+      '/visits': {
+        target: 'ws://localhost:3000',  // Указываем адрес WebSocket-сервера
+        ws: true,                       // Включаем поддержку WebSocket
+        changeOrigin: true,             // Меняет origin запроса (при необходимости)
+      },
+    },
     watch: {
       usePolling: true,
     },

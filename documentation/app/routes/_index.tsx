@@ -4,22 +4,19 @@ import VisitsChart from '~/components/Visits'
 export default function HomePage() {
   return (
     <div className="flex flex-col gap-y-3">
-      <Card className="p-6 ">
-        <h1>Efficiency</h1>
+      <Card className="p-6">
         <p>
-          ClickHaskell is designed to:
+          ClickHaskell is a pure Haskell implementation<br/>
+          of ClickHouse Native protocol
         </p>
-        <ul>
-          <li>Handle millions of rows of data in constant memory</li>
-          <li>Efficiently utilize Haskell concurrent runtime</li>
-        </ul>
       </Card>
 
       <div className="flex flex-row gap-3">
         <Card className="p-6 max-w-75">
           <h2>Real-time visits</h2>
-          <p>You are receiving data via WebSockets and generating<br />
-            it by loading any page from a unique IP address
+          <p>
+            You are receiving data via WebSockets, generated
+            by loading the root page from a unique IP address.
           </p>
         </Card>
         <Card className="min-w-100">

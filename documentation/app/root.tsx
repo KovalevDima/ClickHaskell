@@ -4,8 +4,9 @@ import logo from "/assets/logo.svg";
 import GitHubStars from "~/components/GitHubStars";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ModeToggle } from "@/components/ui/mode-toggle";
-import { Button } from "@/components/ui/button";
-import { NavigationMenu, NavigationMenuContent, NavigationMenuItem, NavigationMenuLink, NavigationMenuList, NavigationMenuTrigger } from "./components/ui/navigation-menu";
+import {
+  NavigationMenu, NavigationMenuItem, NavigationMenuLink, NavigationMenuList
+} from "./components/ui/navigation-menu";
 import hackage from "/assets/hackage.svg";
 
 export const links: LinksFunction = () => {
@@ -52,9 +53,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   <Link to="/usage/">/usage</Link>
                 </NavigationMenuLink>
               </NavigationMenuItem>
-            {/* <li><Link to="/performance">/performance</Link></li> */}
-            {/* <li><a href="/protocol/server/">/protocol/server</a></li> */}
-            {/* <li><a href="/protocol/client/">/protocol/client</a></li> */}
+              {/* <li><Link to="/performance">/performance</Link></li> */}
+              {/* <li><a href="/protocol/server/">/protocol/server</a></li> */}
+              {/* <li><a href="/protocol/client/">/protocol/client</a></li> */}
             </NavigationMenuList>
             <NavigationMenuList>
               <NavigationMenuItem>
@@ -73,7 +74,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 </NavigationMenuLink>
               </NavigationMenuItem>
               <NavigationMenuItem>
-                <ModeToggle/>
+                <ModeToggle />
               </NavigationMenuItem>
             </NavigationMenuList>
           </NavigationMenu>
