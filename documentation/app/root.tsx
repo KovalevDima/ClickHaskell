@@ -15,7 +15,7 @@ export const links: LinksFunction = () => {
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html className="dark" lang="en">
       <head>
         <meta charSet="utf-8" />
         <meta httpEquiv="x-ua-compatible" content="ie=edge" />
@@ -73,7 +73,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   </Link>
                 </NavigationMenuLink>
               </NavigationMenuItem>
-              {/* <NavigationMenuItem>
+              {/* NavigationMenuItem>
                 <ModeToggle />
               </NavigationMenuItem> */}
             </NavigationMenuList>
