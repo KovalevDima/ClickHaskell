@@ -10,8 +10,8 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE BlockArguments #-}
 
-import ChProtocolDocs (serverDoc)
 import ChVisits (DocsStatistics (..), DocsStatisticsArgs (..), HistoryData, initVisitsTracker)
+import Control.Applicative ((<|>))
 import Control.Concurrent.Async (Concurrently (..))
 import Control.Concurrent.STM (TBQueue, TChan, TVar, atomically, dupTChan, newBroadcastTChanIO, newTBQueueIO, readTChan, readTVarIO, writeTBQueue)
 import Control.Monad (filterM, forM, forever)
@@ -19,7 +19,7 @@ import Data.Aeson (encode)
 import Data.ByteString (StrictByteString)
 import Data.ByteString.Char8 as BS8 (pack, unpack)
 import Data.ByteString.Lazy as B (LazyByteString, readFile)
-import Data.HashMap.Strict as HM (HashMap, empty, fromList, insert, lookup, unions)
+import Data.HashMap.Strict as HM (HashMap, empty, fromList, lookup, unions)
 import Data.Maybe (isJust)
 import Data.Text as T (pack)
 import Data.Time (getCurrentTime)
@@ -32,7 +32,7 @@ import Network.Mime (MimeType, defaultMimeLookup)
 import Network.Socket (Family (..), SockAddr (..), SocketType (..), bind, listen, maxListenQueue, socket)
 import Network.Wai (Application, Request (..), responseLBS)
 import Network.Wai.Handler.Warp (Port, defaultSettings, runSettings, runSettingsSocket, setPort)
-import Network.Wai.Handler.WebSockets (websocketsOr)
+import Network.Wai.Handler.WebSockets (websocketsApp)
 import Network.WebSockets as WebSocket (ServerApp, acceptRequest, sendTextData)
 import Network.WebSockets.Connection (defaultConnectionOptions)
 import System.Directory (doesDirectoryExist, listDirectory)
@@ -82,7 +82,7 @@ data ServerArgs = MkServerArgs
   }
 
 initServer :: ServerArgs -> IO (Concurrently())
-initServer args@MkServerArgs{mStaticFiles, mSocketPath, isDev} = do
+initServer args@MkServerArgs{mStaticFiles, mSocketPath, isDev, docsStatQueue} = do
   staticFiles <-
     maybe
       (pure HM.empty)
@@ -90,14 +90,15 @@ initServer args@MkServerArgs{mStaticFiles, mSocketPath, isDev} = do
       mStaticFiles
 
   let
-    staticFilesWithDoc
-      = id
-      . insert "/protocol/server" ("text/html", pure serverDoc)
-      $ staticFiles
-    app = websocketsOr
-      defaultConnectionOptions
-      (wsServer args)
-      (httpApp args staticFilesWithDoc)
+    app = \req respond ->
+      case websocketsApp defaultConnectionOptions (wsServer args) req of
+        Nothing  -> httpApp args staticFiles req respond
+        Just res -> do
+          time <- getCurrentTime
+          let remoteAddr = maybe 0 getIPv4 (decodeUtf8 =<< Prelude.lookup "X-Real-IP" (requestHeaders req))
+              path       = rawPathInfo req
+          (atomically . writeTBQueue docsStatQueue) MkDocsStatistics{..}
+          respond res
 
   pure $
     Concurrently $ do
@@ -115,15 +116,11 @@ initServer args@MkServerArgs{mStaticFiles, mSocketPath, isDev} = do
 
 
 httpApp :: ServerArgs -> StaticFiles -> Application
-httpApp MkServerArgs{docsStatQueue} staticFiles req f = do
-  time <- getCurrentTime
-  let path       = (dropIndexHtml . BS8.unpack . rawPathInfo) req
-      remoteAddr = maybe 0 getIPv4 (decodeUtf8 =<< Prelude.lookup "X-Real-IP" (requestHeaders req))
+httpApp _ staticFiles req f = do
   traceEventIO "http"
-  case HM.lookup path staticFiles of
+  case routeSPA staticFiles (rawPathInfo req) of
     Nothing -> f (responseLBS status404 [("Content-Type", "text/plain")] "404 - Not Found")
     Just (mimeType, content) -> do
-      (atomically . writeTBQueue docsStatQueue) MkDocsStatistics{..}
       f . responseLBS status200 [(hContentType, mimeType)] =<< content
 
 wsServer :: ServerArgs -> ServerApp
@@ -166,6 +163,11 @@ listFilesWithContents isDev dir = go "."
   filePathToUrlPath fp
     | takeExtension fp == ".lhs" = replaceExtension fp "html"
     | otherwise = fp
+
+routeSPA :: StaticFiles -> StrictByteString -> Maybe (MimeType, IO LazyByteString)
+routeSPA staticFiles rawPath =
+  let path = (dropIndexHtml . BS8.unpack) rawPath
+  in HM.lookup path staticFiles <|> HM.lookup "/" staticFiles
 
 dropIndexHtml :: FilePath -> StrictByteString
 dropIndexHtml fp = BS8.pack .  dropTrailingPathSeparator $
