@@ -11,6 +11,7 @@
 {-# LANGUAGE BlockArguments #-}
 
 import ChVisits (DocsStatistics (..), DocsStatisticsArgs (..), HistoryData, initVisitsTracker)
+import Control.Applicative ((<|>))
 import Control.Concurrent.Async (Concurrently (..))
 import Control.Concurrent.STM (TBQueue, TChan, TVar, atomically, dupTChan, newBroadcastTChanIO, newTBQueueIO, readTChan, readTVarIO, writeTBQueue)
 import Control.Monad (filterM, forM, forever)
@@ -93,9 +94,9 @@ initServer args@MkServerArgs{mStaticFiles, mSocketPath, isDev, docsStatQueue} = 
       case websocketsApp defaultConnectionOptions (wsServer args) req of
         Nothing  -> httpApp args staticFiles req respond
         Just res -> do
-          let path = (dropIndexHtml . BS8.unpack . rawPathInfo) req
           time <- getCurrentTime
           let remoteAddr = maybe 0 getIPv4 (decodeUtf8 =<< Prelude.lookup "X-Real-IP" (requestHeaders req))
+              path       = rawPathInfo req
           (atomically . writeTBQueue docsStatQueue) MkDocsStatistics{..}
           respond res
 
@@ -116,9 +117,8 @@ initServer args@MkServerArgs{mStaticFiles, mSocketPath, isDev, docsStatQueue} = 
 
 httpApp :: ServerArgs -> StaticFiles -> Application
 httpApp _ staticFiles req f = do
-  let path = (dropIndexHtml . BS8.unpack . rawPathInfo) req
   traceEventIO "http"
-  case HM.lookup path staticFiles of
+  case routeSPA staticFiles (rawPathInfo req) of
     Nothing -> f (responseLBS status404 [("Content-Type", "text/plain")] "404 - Not Found")
     Just (mimeType, content) -> do
       f . responseLBS status200 [(hContentType, mimeType)] =<< content
@@ -163,6 +163,11 @@ listFilesWithContents isDev dir = go "."
   filePathToUrlPath fp
     | takeExtension fp == ".lhs" = replaceExtension fp "html"
     | otherwise = fp
+
+routeSPA :: StaticFiles -> StrictByteString -> Maybe (MimeType, IO LazyByteString)
+routeSPA staticFiles rawPath =
+  let path = (dropIndexHtml . BS8.unpack) rawPath
+  in HM.lookup path staticFiles <|> HM.lookup "/" staticFiles
 
 dropIndexHtml :: FilePath -> StrictByteString
 dropIndexHtml fp = BS8.pack .  dropTrailingPathSeparator $
