@@ -53,28 +53,6 @@ data Column (name :: Symbol) (chType :: Type) where
 type family GetColumnName column :: Symbol where GetColumnName (Column name columnType) = name
 type family GetColumnType column :: Type   where GetColumnType (Column name columnType) = columnType
 
-{-# INLINE [0] columnValues #-}
-columnValues :: Column name chType -> [chType]
-columnValues column = case column of
-  (UInt8Column values) -> values
-  (UInt16Column values) -> values
-  (UInt32Column values) -> values
-  (UInt64Column values) -> values
-  (UInt128Column values) -> values
-  (UInt256Column values) -> values
-  (Int8Column values) -> values
-  (Int16Column values) -> values
-  (Int32Column values) -> values
-  (Int64Column values) -> values
-  (Int128Column values) -> values
-  (DateColumn values) -> values
-  (DateTimeColumn values) -> values
-  (DateTime64Column values) -> values;
-  (UUIDColumn values) -> values
-  (StringColumn values) -> values
-  (ArrayColumn values) -> values
-  (NullableColumn values) ->  values
-  (LowCardinalityColumn values) -> map coerce values
 
 class
   ( IsChType (GetColumnType column)
@@ -88,42 +66,55 @@ class
   renderColumnType = byteString . BS8.pack $ chTypeName @(GetColumnType column)
 
   mkColumn :: [GetColumnType column] -> Column (GetColumnName column) (GetColumnType column)
+  columnValues :: Column (GetColumnName column) (GetColumnType column) -> [GetColumnType column]
 
 instance KnownSymbol name => KnownColumn (Column name UInt8) where
   mkColumn = UInt8Column
+  columnValues (UInt8Column values) = values
 
 instance KnownSymbol name => KnownColumn (Column name UInt16) where
   mkColumn = UInt16Column
+  columnValues (UInt16Column values) = values
 
 instance KnownSymbol name => KnownColumn (Column name UInt32) where
   mkColumn = UInt32Column
+  columnValues (UInt32Column values) = values
 
 instance KnownSymbol name => KnownColumn (Column name UInt64) where
   mkColumn = UInt64Column
+  columnValues (UInt64Column values) = values
 
 instance KnownSymbol name => KnownColumn (Column name UInt128) where
   mkColumn = UInt128Column
+  columnValues (UInt128Column values) = values
 
 instance KnownSymbol name => KnownColumn (Column name UInt256) where
   mkColumn = UInt256Column
+  columnValues (UInt256Column values) = values
 
 instance KnownSymbol name => KnownColumn (Column name Int8)  where
   mkColumn = Int8Column
+  columnValues (Int8Column values) = values
 
 instance KnownSymbol name => KnownColumn (Column name Int16) where
   mkColumn = Int16Column
+  columnValues (Int16Column values) = values
 
 instance KnownSymbol name => KnownColumn (Column name Int32) where
   mkColumn = Int32Column
+  columnValues (Int32Column values) = values
 
 instance KnownSymbol name => KnownColumn (Column name Int64) where
   mkColumn = Int64Column
+  columnValues (Int64Column values) = values
 
 instance KnownSymbol name => KnownColumn (Column name Int128) where
   mkColumn = Int128Column
+  columnValues (Int128Column values) = values
 
 instance KnownSymbol name => KnownColumn (Column name Date) where
   mkColumn = DateColumn
+  columnValues (DateColumn values) = values
 
 instance
   ( KnownSymbol name
@@ -132,6 +123,7 @@ instance
   KnownColumn (Column name (DateTime tz))
   where
   mkColumn = DateTimeColumn
+  columnValues (DateTimeColumn values) = values
 
 instance
   ( KnownSymbol name
@@ -140,9 +132,11 @@ instance
   KnownColumn (Column name (DateTime64 precision tz))
   where
   mkColumn = DateTime64Column
+  columnValues (DateTime64Column values) = values
 
 instance KnownSymbol name => KnownColumn (Column name UUID) where
   mkColumn = UUIDColumn
+  columnValues (UUIDColumn values) = values
 
 instance
   ( KnownSymbol name
@@ -152,9 +146,11 @@ instance
   KnownColumn (Column name (Nullable chType))
   where
   mkColumn = NullableColumn
+  columnValues (NullableColumn values)  = values
 
 instance KnownSymbol name => KnownColumn (Column name ChString) where
   mkColumn = StringColumn
+  columnValues (StringColumn values) = values
 
 instance
   ( KnownSymbol name
@@ -164,14 +160,16 @@ instance
   KnownColumn (Column name (LowCardinality chType))
   where
   mkColumn = LowCardinalityColumn . map coerce
+  columnValues (LowCardinalityColumn values) = map coerce values
 
 instance KnownSymbol name => KnownColumn (Column name (Array ChString)) where
   mkColumn = ArrayColumn
+  columnValues (ArrayColumn values) = values
 
 
-class SerializableColumn column where
-  deserializeColumn :: ProtocolRevision -> UVarInt -> Get column
-  serializeColumn :: ProtocolRevision -> column -> Builder
+class KnownColumn column => SerializableColumn column where
+  deserializeColumn :: ProtocolRevision -> UVarInt -> (GetColumnType column -> a) -> Get [a]
+  serializeColumn :: ProtocolRevision -> (a -> GetColumnType column) -> [a] -> Builder
 
 instance
   ( KnownColumn (Column name chType)
@@ -180,10 +178,10 @@ instance
   ) =>
   SerializableColumn (Column name chType) where
   {-# INLINE deserializeColumn #-}
-  deserializeColumn rev rows = mkColumn @(Column name chType) <$> replicateGet rev rows
+  deserializeColumn rev rows f = map f <$> replicateGet rev rows
 
   {-# INLINE serializeColumn #-}
-  serializeColumn rev column = mconcat (Prelude.map (serialize @chType rev) (columnValues column))
+  serializeColumn rev f column  = mconcat (Prelude.map (serialize @chType rev . f) column)
 
 instance {-# OVERLAPPING #-}
   ( KnownColumn (Column name (Nullable chType))
@@ -192,20 +190,20 @@ instance {-# OVERLAPPING #-}
   ) =>
   SerializableColumn (Column name (Nullable chType)) where
   {-# INLINE deserializeColumn #-}
-  deserializeColumn rev rows = do
+
+  deserializeColumn rev rows f = do
     nulls <- replicateGet @UInt8 rev rows
-    mkColumn @(Column name (Nullable chType)) <$>
-      forM
+    forM
         nulls
         (\case
-          0 -> Just <$> deserialize @chType rev
-          _ -> (Nothing <$ deserialize @chType rev)
+          0 -> f . Just <$> deserialize @chType rev
+          _ -> (f Nothing <$ deserialize @chType rev)
         )
 
   {-# INLINE serializeColumn #-}
-  serializeColumn rev column
-    =  mconcat (Prelude.map (serialize @UInt8 rev . maybe 1 (const 0)) (columnValues column))
-    <> mconcat (Prelude.map (serialize @chType rev . maybe defaultValueOfTypeName id) (columnValues column))
+  serializeColumn rev f column
+    =  mconcat (Prelude.map (serialize @UInt8 rev . maybe 1 (const 0) . f) column)
+    <> mconcat (Prelude.map (serialize @chType rev . maybe defaultValueOfTypeName id . f) column)
 
 instance {-# OVERLAPPING #-}
   ( KnownColumn (Column name (LowCardinality chType))
@@ -215,15 +213,15 @@ instance {-# OVERLAPPING #-}
   ) =>
   SerializableColumn (Column name (LowCardinality chType)) where
   {-# INLINE deserializeColumn #-}
-  deserializeColumn rev rows = do
+  deserializeColumn rev rows f = do
     _serializationType <- (.&. 0xf) <$> deserialize @UInt64 rev
     _index_size <- deserialize @Int64 rev
     -- error $ "Trace | " <> show _serializationType <> " : " <> show _index_size
-    mkColumn @(Column name (LowCardinality chType)) . coerce
+    map f . coerce
       <$> replicateGet @chType rev rows
 
   {-# INLINE serializeColumn #-}
-  serializeColumn _rev (LowCardinalityColumn column) = undefined column
+  serializeColumn _rev column = undefined column
 
 instance {-# OVERLAPPING #-}
   ( KnownColumn (Column name (Array chType))
@@ -232,10 +230,10 @@ instance {-# OVERLAPPING #-}
   )
   => SerializableColumn (Column name (Array chType)) where
   {-# INLINE deserializeColumn #-}
-  deserializeColumn rev _rows = do
+  deserializeColumn rev _rows _f = do
     (arraySize, _offsets) <- readOffsets rev
     _types <- replicateGet @chType rev (fromIntegral arraySize)
-    pure $ mkColumn @(Column name (Array chType)) []
+    pure $ []
     where
     readOffsets :: ProtocolRevision -> Get (UInt64, [UInt64])
     readOffsets revivion = do
