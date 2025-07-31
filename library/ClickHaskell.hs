@@ -486,15 +486,14 @@ instance
   {-# INLINE gDeserializeRecords #-}
   gDeserializeRecords isCheckRequired rev size f = do
     handleColumnHeader @(Column name chType) isCheckRequired rev
-    map (f . M1 . K1 . fromChType) . columnValues
-      <$!> deserializeColumn @(Column name chType) rev size
+    deserializeColumn @(Column name chType) rev size (f . M1 . K1 . fromChType)
 
   {-# INLINE gSerializeRecords #-}
   gSerializeRecords rev f values
     =  serialize @ChString rev (toChType (renderColumnName @(Column name chType)))
     <> serialize @ChString rev (toChType (renderColumnType @(Column name chType)))
     <> afterRevision @DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION rev (serialize @UInt8 rev 0)
-    <> (serializeColumn rev . mkColumn @(Column name chType) . map (toChType . unK1 . unM1 . f)) values
+    <> serializeColumn @(Column name chType) rev (toChType . unK1 . unM1 . f) values
 
   gReadingColumns = (renderColumnName @(Column name chType), renderColumnType @(Column name chType)) : []
   gColumnsCount = 1
