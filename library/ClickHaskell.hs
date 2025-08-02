@@ -468,9 +468,9 @@ instance
       (gDeserializeRecords @columns @right isCheckRequired rev size id)
 
   {-# INLINE gSerializeRecords #-}
-  gSerializeRecords rev f xs  =
-    (\(ls,rs) -> gSerializeRecords @columns rev id ls  <> gSerializeRecords @columns rev id rs)
-      (foldr (\(l :*: r) (accL, accR) -> (l:accL, r:accR)) ([], []) (map f xs))
+  gSerializeRecords rev f xs
+    =  gSerializeRecords @columns rev ((\(l:*:_) -> l) . f) xs
+    <> gSerializeRecords @columns rev ((\(_:*:r) -> r) . f) xs
 
   gReadingColumns = gReadingColumns @columns @left ++ gReadingColumns @columns @right
   gColumnsCount = gColumnsCount @columns @left + gColumnsCount @columns @right
