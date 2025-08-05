@@ -463,8 +463,8 @@ instance
   gDeserializeRecords isCheckRequired rev size f = do
     lefts  <- gDeserializeRecords @columns @left  isCheckRequired rev size id
     rights <- gDeserializeRecords @columns @right isCheckRequired rev size id
-    let goDeserialize !acc [] [] = pure $! reverse acc
-        goDeserialize !acc (l:ls) (r:rs) = goDeserialize ((:acc) $! f (l :*: r)) ls rs
+    let goDeserialize !acc (l:ls) (r:rs) = goDeserialize ((:acc) $! f (l :*: r)) ls rs
+        goDeserialize !acc [] [] = pure acc
         goDeserialize _ _ _ = fail "Mismatched lengths in gDeserializeRecords"
     goDeserialize [] lefts rights
 
