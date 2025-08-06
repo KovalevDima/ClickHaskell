@@ -87,10 +87,9 @@ import ClickHaskell.Primitive
 import ClickHaskell.Statements
 
 -- GHC included
-import Control.Applicative (liftA2)
 import Control.Concurrent (newMVar, putMVar, takeMVar)
 import Control.Exception (Exception, SomeException, bracketOnError, catch, finally, mask, onException, throw, throwIO)
-import Control.Monad (when, (<$!>))
+import Control.Monad (when)
 import Data.Binary.Get
 import Data.ByteString.Builder
 import Data.Int (Int16, Int32, Int64, Int8)
@@ -101,7 +100,6 @@ import GHC.Stack (HasCallStack, callStack, prettyCallStack)
 import GHC.TypeLits (ErrorMessage (..), TypeError)
 import System.Environment (lookupEnv)
 import System.Timeout (timeout)
-import Prelude hiding (liftA2)
 
 -- External
 import Data.WideWord (Int128 (..), Word128 (..))
@@ -463,9 +461,12 @@ instance
   where
   {-# INLINE gDeserializeRecords #-}
   gDeserializeRecords isCheckRequired rev size f = do
-    liftA2 (\l r -> f <$!> zipWith (:*:) l r)
-      (gDeserializeRecords @columns @left isCheckRequired rev size id)
-      (gDeserializeRecords @columns @right isCheckRequired rev size id)
+    lefts  <- gDeserializeRecords @columns @left  isCheckRequired rev size id
+    rights <- gDeserializeRecords @columns @right isCheckRequired rev size id
+    let goDeserialize !acc (l:ls) (r:rs) = goDeserialize ((:acc) $! f (l :*: r)) ls rs
+        goDeserialize !acc [] [] = pure acc
+        goDeserialize _ _ _ = fail "Mismatched lengths in gDeserializeRecords"
+    goDeserialize [] lefts rights
 
   {-# INLINE gSerializeRecords #-}
   gSerializeRecords rev f xs
