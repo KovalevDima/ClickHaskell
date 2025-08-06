@@ -30,7 +30,6 @@
       , WritableInto (Table "profiler" ExampleColumns)
       )
   ```
-- ### `Columns` type was deleted
 - ### `Serializable` type class was unexported
 - ### `DeserializableColumn` type class was renamed to `SerializableColumn`
 - ### `IsChType` instance changes

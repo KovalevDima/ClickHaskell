@@ -20,6 +20,15 @@ import Data.WideWord (Int128 (..))
 
 -- * Column
 
+data Columns (columns :: [Type]) where
+  Empty :: Columns '[]
+  AddColumn
+    :: KnownColumn (Column name chType)
+    => Column name chType
+    -> Columns columns
+    -> Columns (Column name chType ': columns)
+
+
 {- |
 Column declaration
 
@@ -65,56 +74,56 @@ class
   renderColumnType :: Builder
   renderColumnType = byteString . BS8.pack $ chTypeName @(GetColumnType column)
 
-  mkColumn :: [GetColumnType column] -> Column (GetColumnName column) (GetColumnType column)
-  columnValues :: Column (GetColumnName column) (GetColumnType column) -> [GetColumnType column]
+  toColumn :: [GetColumnType column] -> Column (GetColumnName column) (GetColumnType column)
+  fromColumn :: Column (GetColumnName column) (GetColumnType column) -> [GetColumnType column]
 
 instance KnownSymbol name => KnownColumn (Column name UInt8) where
-  mkColumn = UInt8Column
-  columnValues (UInt8Column values) = values
+  toColumn = UInt8Column
+  fromColumn (UInt8Column values) = values
 
 instance KnownSymbol name => KnownColumn (Column name UInt16) where
-  mkColumn = UInt16Column
-  columnValues (UInt16Column values) = values
+  toColumn = UInt16Column
+  fromColumn (UInt16Column values) = values
 
 instance KnownSymbol name => KnownColumn (Column name UInt32) where
-  mkColumn = UInt32Column
-  columnValues (UInt32Column values) = values
+  toColumn = UInt32Column
+  fromColumn (UInt32Column values) = values
 
 instance KnownSymbol name => KnownColumn (Column name UInt64) where
-  mkColumn = UInt64Column
-  columnValues (UInt64Column values) = values
+  toColumn = UInt64Column
+  fromColumn (UInt64Column values) = values
 
 instance KnownSymbol name => KnownColumn (Column name UInt128) where
-  mkColumn = UInt128Column
-  columnValues (UInt128Column values) = values
+  toColumn = UInt128Column
+  fromColumn (UInt128Column values) = values
 
 instance KnownSymbol name => KnownColumn (Column name UInt256) where
-  mkColumn = UInt256Column
-  columnValues (UInt256Column values) = values
+  toColumn = UInt256Column
+  fromColumn (UInt256Column values) = values
 
 instance KnownSymbol name => KnownColumn (Column name Int8)  where
-  mkColumn = Int8Column
-  columnValues (Int8Column values) = values
+  toColumn = Int8Column
+  fromColumn (Int8Column values) = values
 
 instance KnownSymbol name => KnownColumn (Column name Int16) where
-  mkColumn = Int16Column
-  columnValues (Int16Column values) = values
+  toColumn = Int16Column
+  fromColumn (Int16Column values) = values
 
 instance KnownSymbol name => KnownColumn (Column name Int32) where
-  mkColumn = Int32Column
-  columnValues (Int32Column values) = values
+  toColumn = Int32Column
+  fromColumn (Int32Column values) = values
 
 instance KnownSymbol name => KnownColumn (Column name Int64) where
-  mkColumn = Int64Column
-  columnValues (Int64Column values) = values
+  toColumn = Int64Column
+  fromColumn (Int64Column values) = values
 
 instance KnownSymbol name => KnownColumn (Column name Int128) where
-  mkColumn = Int128Column
-  columnValues (Int128Column values) = values
+  toColumn = Int128Column
+  fromColumn (Int128Column values) = values
 
 instance KnownSymbol name => KnownColumn (Column name Date) where
-  mkColumn = DateColumn
-  columnValues (DateColumn values) = values
+  toColumn = DateColumn
+  fromColumn (DateColumn values) = values
 
 instance
   ( KnownSymbol name
@@ -122,8 +131,8 @@ instance
   ) =>
   KnownColumn (Column name (DateTime tz))
   where
-  mkColumn = DateTimeColumn
-  columnValues (DateTimeColumn values) = values
+  toColumn = DateTimeColumn
+  fromColumn (DateTimeColumn values) = values
 
 instance
   ( KnownSymbol name
@@ -131,12 +140,12 @@ instance
   ) =>
   KnownColumn (Column name (DateTime64 precision tz))
   where
-  mkColumn = DateTime64Column
-  columnValues (DateTime64Column values) = values
+  toColumn = DateTime64Column
+  fromColumn (DateTime64Column values) = values
 
 instance KnownSymbol name => KnownColumn (Column name UUID) where
-  mkColumn = UUIDColumn
-  columnValues (UUIDColumn values) = values
+  toColumn = UUIDColumn
+  fromColumn (UUIDColumn values) = values
 
 instance
   ( KnownSymbol name
@@ -145,12 +154,12 @@ instance
   ) =>
   KnownColumn (Column name (Nullable chType))
   where
-  mkColumn = NullableColumn
-  columnValues (NullableColumn values)  = values
+  toColumn = NullableColumn
+  fromColumn (NullableColumn values)  = values
 
 instance KnownSymbol name => KnownColumn (Column name ChString) where
-  mkColumn = StringColumn
-  columnValues (StringColumn values) = values
+  toColumn = StringColumn
+  fromColumn (StringColumn values) = values
 
 instance
   ( KnownSymbol name
@@ -159,12 +168,12 @@ instance
   ) =>
   KnownColumn (Column name (LowCardinality chType))
   where
-  mkColumn = LowCardinalityColumn . map coerce
-  columnValues (LowCardinalityColumn values) = map coerce values
+  toColumn = LowCardinalityColumn . map coerce
+  fromColumn (LowCardinalityColumn values) = map coerce values
 
 instance KnownSymbol name => KnownColumn (Column name (Array ChString)) where
-  mkColumn = ArrayColumn
-  columnValues (ArrayColumn values) = values
+  toColumn = ArrayColumn
+  fromColumn (ArrayColumn values) = values
 
 
 class KnownColumn column => SerializableColumn column where
