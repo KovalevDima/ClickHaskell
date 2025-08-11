@@ -292,6 +292,11 @@ class ClickHaskell columns record
   columnsCount :: UVarInt
   columnsCount = gColumnsCount @columns @(Rep record)
 
+type GenericClickHaskell record hasColumns =
+  ( Generic record
+  , GClickHaskell hasColumns (Rep record)
+  )
+
 
 -- ** Wrappers
 
@@ -426,19 +431,29 @@ createConnectionState creds@MkConnectionArgs {user, pass, db, host, mPort, initB
 
 -- ** Serialization Generic API
 
-type GenericClickHaskell record hasColumns =
-  ( Generic record
-  , GClickHaskell hasColumns (Rep record)
-  )
 
 class GClickHaskell (columns :: [Type]) f
   where
+
+  {-
+    Generic deriving can be a bit tricky
+
+    You can think of it as
+    1) Columns serialization logic generator
+    2) Columns-to-rows(list of records) transposer
+  -}
   gDeserializeRecords :: Bool -> ProtocolRevision -> UVarInt -> (f p -> res) -> Get [res]
   gSerializeRecords :: ProtocolRevision -> (res -> f p) -> [res] -> Builder
-
+  {-
+    and affected columns extractor
+  -}
   gReadingColumns :: [(Builder, Builder)]
   gColumnsCount :: UVarInt
 
+{-
+  Unwrapping data type constructor
+    data Record = MkRecord ..
+-}
 instance
   GClickHaskell columns f
   =>
@@ -454,14 +469,63 @@ instance
   gReadingColumns = gReadingColumns @columns @f
   gColumnsCount = gColumnsCount @columns @f
 
+{-
+  Flattening of generic products
+
+  For example
+    (
+      field_1::T1 :*: field_2::T2)
+    ) :*: (
+        field_3::T3 :*: field_4::T4
+      )
+
+  turns into
+    field_1::T1 :*: (
+      field_2::T2 :*: (field_3::T3 :*: field_4::T4)
+    )
+-}
 instance
-  (GClickHaskell columns left, GClickHaskell columns right)
+  ( GClickHaskell columns left
+  , GClickHaskell columns (right1 :*: right2)
+  )
   =>
-  GClickHaskell columns (left :*: right)
+  GClickHaskell columns ((left :*: right1) :*: right2)
   where
   {-# INLINE gDeserializeRecords #-}
   gDeserializeRecords isCheckRequired rev size f = do
     lefts  <- gDeserializeRecords @columns @left  isCheckRequired rev size id
+    rights <- gDeserializeRecords @columns @(right1 :*: right2) isCheckRequired rev size id
+    let goDeserialize !acc (l:ls) ((r1 :*: r2):rs) = goDeserialize ((:acc) $! f ((l :*: r1):*:r2)) ls rs
+        goDeserialize !acc [] [] = pure acc
+        goDeserialize _ _ _ = fail "Mismatched lengths in gDeserializeRecords"
+    goDeserialize [] lefts rights
+
+  {-# INLINE gSerializeRecords #-}
+  gSerializeRecords rev f xs
+    =  gSerializeRecords @columns @left                rev ((\((l:*:_) :*: _) -> l) . f) xs
+    <> gSerializeRecords @columns @(right1 :*: right2) rev ((\((_ :*: r1) :*:r2) -> r1 :*: r2) . f) xs
+
+  gReadingColumns = gReadingColumns @columns @left ++ gReadingColumns @columns @(right1 :*: right2)
+  gColumnsCount = gColumnsCount @columns @left + gColumnsCount @columns @(right1 :*: right2)
+
+{-
+  Unwrapping a product starting with a field
+
+  field_n::Tn :*: (..)
+-}
+instance
+  ( GClickHaskell columns right
+  , KnownColumn (Column name chType)
+  , SerializableColumn (Column name chType)
+  , ToChType chType inputType
+  , Column name chType ~ TakeColumn name columns
+  )
+  =>
+  GClickHaskell columns ((S1 (MetaSel (Just name) a b f)) (Rec0 inputType) :*: right)
+  where
+  {-# INLINE gDeserializeRecords #-}
+  gDeserializeRecords isCheckRequired rev size f = do
+    lefts  <- gDeserializeRecords @columns @(S1 (MetaSel (Just name) a b f) (Rec0 inputType)) isCheckRequired rev size id
     rights <- gDeserializeRecords @columns @right isCheckRequired rev size id
     let goDeserialize !acc (l:ls) (r:rs) = goDeserialize ((:acc) $! f (l :*: r)) ls rs
         goDeserialize !acc [] [] = pure acc
@@ -473,10 +537,14 @@ instance
     =  gSerializeRecords @columns rev ((\(l:*:_) -> l) . f) xs
     <> gSerializeRecords @columns rev ((\(_:*:r) -> r) . f) xs
 
-  gReadingColumns = gReadingColumns @columns @left ++ gReadingColumns @columns @right
-  gColumnsCount = gColumnsCount @columns @left + gColumnsCount @columns @right
+  gReadingColumns = gReadingColumns @columns @(S1 (MetaSel (Just name) a b f) (Rec0 inputType)) ++ gReadingColumns @columns @right
+  gColumnsCount = gColumnsCount @columns @(S1 (MetaSel (Just name) a b f) (Rec0 inputType)) + gColumnsCount @columns @right
 
+{-
+  Unwrapping a single generic field (recursion breaker)
 
+  field::Tn
+-}
 instance
   ( KnownColumn (Column name chType)
   , SerializableColumn (Column name chType)
