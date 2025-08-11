@@ -436,9 +436,9 @@ class GClickHaskell (columns :: [Type]) f
   where
 
   {-
-    Generic deriving is a little bit tricky
+    Generic deriving can be a bit tricky
 
-    But you can think about it as
+    You can think of it as
     1) Columns serialization logic generator
     2) Columns-to-rows(list of records) transposer
   -}
@@ -451,7 +451,7 @@ class GClickHaskell (columns :: [Type]) f
   gColumnsCount :: UVarInt
 
 {-
-  Uwrapping data type constructor
+  Unwrapping data type constructor
     data Record = MkRecord ..
 -}
 instance
@@ -470,7 +470,7 @@ instance
   gColumnsCount = gColumnsCount @columns @f
 
 {-
-  Generic product sequentialization
+  Flattening of generic products
 
   For example
     (
@@ -509,7 +509,7 @@ instance
   gColumnsCount = gColumnsCount @columns @left + gColumnsCount @columns @(right1 :*: right2)
 
 {-
-  Unwrapping field with tail product
+  Unwrapping a product starting with a field
 
   field_n::Tn :*: (..)
 -}
@@ -541,8 +541,8 @@ instance
   gColumnsCount = gColumnsCount @columns @(S1 (MetaSel (Just name) a b f) (Rec0 inputType)) + gColumnsCount @columns @right
 
 {-
-  Individual Generic field (recursion breaker)
-  
+  Unwrapping a single generic field (recursion breaker)
+
   field::Tn
 -}
 instance
