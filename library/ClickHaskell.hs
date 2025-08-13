@@ -125,10 +125,7 @@ openConnection creds@MkConnectionArgs{mHostname, mOsUser} = do
 {- |
   A wrapper for all client-related errors
 
-  You should this exception when you work with any ClickHaskell IO function.
-
   e.g. `command`, `select`, `insert` etc
-  
 -}
 data ClientError where
   UnmatchedResult :: HasCallStack => UserError -> ClientError
