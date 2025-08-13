@@ -497,10 +497,7 @@ instance
   gDeserializeRecords isCheckRequired rev size f = do
     lefts  <- gDeserializeRecords @columns @left  isCheckRequired rev size id
     rights <- gDeserializeRecords @columns @(right1 :*: right2) isCheckRequired rev size id
-    let goDeserialize !acc (l:ls) ((r1 :*: r2):rs) = goDeserialize ((:acc) $! f ((l :*: r1):*:r2)) ls rs
-        goDeserialize !acc [] [] = pure acc
-        goDeserialize _ _ _ = fail "Mismatched lengths in gDeserializeRecords"
-    goDeserialize [] lefts rights
+    deserializeProduct (\l (r1:*:r2) -> f ((l :*: r1):*:r2)) lefts rights
 
   {-# INLINE gSerializeRecords #-}
   gSerializeRecords rev f xs
@@ -529,10 +526,7 @@ instance
   gDeserializeRecords isCheckRequired rev size f = do
     lefts  <- gDeserializeRecords @columns @(S1 (MetaSel (Just name) a b f) (Rec0 inputType)) isCheckRequired rev size id
     rights <- gDeserializeRecords @columns @right isCheckRequired rev size id
-    let goDeserialize !acc (l:ls) (r:rs) = goDeserialize ((:acc) $! f (l :*: r)) ls rs
-        goDeserialize !acc [] [] = pure acc
-        goDeserialize _ _ _ = fail "Mismatched lengths in gDeserializeRecords"
-    goDeserialize [] lefts rights
+    deserializeProduct (\l r -> f $ l :*: r) lefts rights
 
   {-# INLINE gSerializeRecords #-}
   gSerializeRecords rev f xs
@@ -585,6 +579,13 @@ handleColumnHeader isCheckRequired rev = do
 
   _isCustom <- deserialize @(UInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION) rev
   pure ()
+
+deserializeProduct ::  (l -> r -> a) -> [l] -> [r] -> Get [a]
+deserializeProduct f lefts rights = goDeserialize [] lefts rights
+  where
+  goDeserialize !acc (l:ls) (r:rs) = goDeserialize ((:acc) $! f l r) ls rs
+  goDeserialize !acc [] [] = pure acc
+  goDeserialize _ _ _ = fail "Mismatched lengths in gDeserializeRecords"
 
 type family
   TakeColumn name columns :: Type
