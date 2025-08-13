@@ -157,6 +157,11 @@ data UserError
 
 -- *** SELECT
 
+{- |
+  Takes `Connection`, __statement__ and __block processing__ function
+
+  Returns __block processing__ result
+-}
 select ::
   forall columns output result
   .
