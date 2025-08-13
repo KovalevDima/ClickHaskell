@@ -487,25 +487,22 @@ instance
     )
 -}
 instance
-  ( GClickHaskell columns left
-  , GClickHaskell columns (right1 :*: right2)
-  )
+  GClickHaskell columns (left :*: (right1 :*: right2))
   =>
   GClickHaskell columns ((left :*: right1) :*: right2)
   where
   {-# INLINE gDeserializeRecords #-}
-  gDeserializeRecords isCheckRequired rev size f = do
-    lefts  <- gDeserializeRecords @columns @left  isCheckRequired rev size id
-    rights <- gDeserializeRecords @columns @(right1 :*: right2) isCheckRequired rev size id
-    deserializeProduct (\l (r1:*:r2) -> f ((l :*: r1):*:r2)) lefts rights
+  gDeserializeRecords isCheckRequired rev size f =
+    gDeserializeRecords @columns @(left :*: (right1 :*: right2)) isCheckRequired rev size
+      (\(l :*: (r1:*:r2)) -> f ((l :*: r1):*:r2))
 
   {-# INLINE gSerializeRecords #-}
-  gSerializeRecords rev f xs
-    =  gSerializeRecords @columns @left                rev ((\((l:*:_) :*: _) -> l) . f) xs
-    <> gSerializeRecords @columns @(right1 :*: right2) rev ((\((_ :*: r1) :*:r2) -> r1 :*: r2) . f) xs
+  gSerializeRecords rev f xs =
+    gSerializeRecords @columns @(left :*: (right1 :*: right2)) rev
+      ((\((l:*:r1) :*: r2) -> l :*: (r1 :*: r2)) . f) xs
 
-  gReadingColumns = gReadingColumns @columns @left ++ gReadingColumns @columns @(right1 :*: right2)
-  gColumnsCount = gColumnsCount @columns @left + gColumnsCount @columns @(right1 :*: right2)
+  gReadingColumns = gReadingColumns @columns @(left :*: (right1 :*: right2))
+  gColumnsCount = gColumnsCount @columns @(left :*: (right1 :*: right2))
 
 {-
   Unwrapping a product starting with a field
