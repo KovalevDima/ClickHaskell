@@ -533,6 +533,13 @@ instance
   gReadingColumns = gReadingColumns @columns @(S1 (MetaSel (Just name) a b f) (Rec0 inputType)) ++ gReadingColumns @columns @right
   gColumnsCount = gColumnsCount @columns @(S1 (MetaSel (Just name) a b f) (Rec0 inputType)) + gColumnsCount @columns @right
 
+deserializeProduct ::  (l -> r -> a) -> [l] -> [r] -> Get [a]
+deserializeProduct f lefts rights = goDeserialize [] lefts rights
+  where
+  goDeserialize !acc (l:ls) (r:rs) = goDeserialize ((:acc) $! f l r) ls rs
+  goDeserialize !acc [] [] = pure acc
+  goDeserialize _ _ _ = fail "Mismatched lengths in gDeserializeRecords"
+
 {-
   Unwrapping a single generic field (recursion breaker)
 
@@ -576,13 +583,6 @@ handleColumnHeader isCheckRequired rev = do
 
   _isCustom <- deserialize @(UInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION) rev
   pure ()
-
-deserializeProduct ::  (l -> r -> a) -> [l] -> [r] -> Get [a]
-deserializeProduct f lefts rights = goDeserialize [] lefts rights
-  where
-  goDeserialize !acc (l:ls) (r:rs) = goDeserialize ((:acc) $! f l r) ls rs
-  goDeserialize !acc [] [] = pure acc
-  goDeserialize _ _ _ = fail "Mismatched lengths in gDeserializeRecords"
 
 type family
   TakeColumn name columns :: Type
