@@ -272,7 +272,7 @@ class ClickHaskell columns record
 
   default serializeRecords :: GenericClickHaskell record columns => [record] -> ProtocolRevision -> Builder
   serializeRecords :: [record] -> ProtocolRevision -> Builder
-  serializeRecords records rev = gSerializeRecords @columns rev from records
+  serializeRecords records rev = gSerializeRecords @columns rev records from
 
   default columns :: GenericClickHaskell record columns => Builder
   columns :: Builder
@@ -445,7 +445,7 @@ class GClickHaskell (columns :: [Type]) f
     2) Columns-to-rows(list of records) transposer
   -}
   gDeserializeRecords :: Bool -> ProtocolRevision -> UVarInt -> (f p -> res) -> Get [res]
-  gSerializeRecords :: ProtocolRevision -> (res -> f p) -> [res] -> Builder
+  gSerializeRecords :: ProtocolRevision -> [res] -> (res -> f p) -> Builder
   {-
     and affected columns extractor
   -}
@@ -466,7 +466,7 @@ instance
     gDeserializeRecords @columns isCheckRequired rev size (f . M1 . M1)
 
   {-# INLINE gSerializeRecords #-}
-  gSerializeRecords rev f = gSerializeRecords @columns rev (unM1 . unM1 . f)
+  gSerializeRecords rev xs f = gSerializeRecords @columns rev xs (unM1 . unM1 . f)
 
   gReadingColumns = gReadingColumns @columns @f
   gColumnsCount = gColumnsCount @columns @f
@@ -487,28 +487,22 @@ instance
     )
 -}
 instance
-  ( GClickHaskell columns left
-  , GClickHaskell columns (right1 :*: right2)
-  )
+  GClickHaskell columns (left :*: (right1 :*: right2))
   =>
   GClickHaskell columns ((left :*: right1) :*: right2)
   where
   {-# INLINE gDeserializeRecords #-}
-  gDeserializeRecords isCheckRequired rev size f = do
-    lefts  <- gDeserializeRecords @columns @left  isCheckRequired rev size id
-    rights <- gDeserializeRecords @columns @(right1 :*: right2) isCheckRequired rev size id
-    let goDeserialize !acc (l:ls) ((r1 :*: r2):rs) = goDeserialize ((:acc) $! f ((l :*: r1):*:r2)) ls rs
-        goDeserialize !acc [] [] = pure acc
-        goDeserialize _ _ _ = fail "Mismatched lengths in gDeserializeRecords"
-    goDeserialize [] lefts rights
+  gDeserializeRecords isCheckRequired rev size f =
+    gDeserializeRecords @columns @(left :*: (right1 :*: right2)) isCheckRequired rev size
+      (\(l :*: (r1:*:r2)) -> f ((l :*: r1):*:r2))
 
   {-# INLINE gSerializeRecords #-}
-  gSerializeRecords rev f xs
-    =  gSerializeRecords @columns @left                rev ((\((l:*:_) :*: _) -> l) . f) xs
-    <> gSerializeRecords @columns @(right1 :*: right2) rev ((\((_ :*: r1) :*:r2) -> r1 :*: r2) . f) xs
+  gSerializeRecords rev xs f =
+    gSerializeRecords @columns @(left :*: (right1 :*: right2)) rev xs
+      ((\((l:*:r1) :*: r2) -> l :*: (r1 :*: r2)) . f)
 
-  gReadingColumns = gReadingColumns @columns @left ++ gReadingColumns @columns @(right1 :*: right2)
-  gColumnsCount = gColumnsCount @columns @left + gColumnsCount @columns @(right1 :*: right2)
+  gReadingColumns = gReadingColumns @columns @(left :*: (right1 :*: right2))
+  gColumnsCount = gColumnsCount @columns @(left :*: (right1 :*: right2))
 
 {-
   Unwrapping a product starting with a field
@@ -529,18 +523,22 @@ instance
   gDeserializeRecords isCheckRequired rev size f = do
     lefts  <- gDeserializeRecords @columns @(S1 (MetaSel (Just name) a b f) (Rec0 inputType)) isCheckRequired rev size id
     rights <- gDeserializeRecords @columns @right isCheckRequired rev size id
-    let goDeserialize !acc (l:ls) (r:rs) = goDeserialize ((:acc) $! f (l :*: r)) ls rs
-        goDeserialize !acc [] [] = pure acc
-        goDeserialize _ _ _ = fail "Mismatched lengths in gDeserializeRecords"
-    goDeserialize [] lefts rights
+    deserializeProduct (\l r -> f $ l :*: r) lefts rights
 
   {-# INLINE gSerializeRecords #-}
-  gSerializeRecords rev f xs
-    =  gSerializeRecords @columns rev ((\(l:*:_) -> l) . f) xs
-    <> gSerializeRecords @columns rev ((\(_:*:r) -> r) . f) xs
+  gSerializeRecords rev xs f
+    =  gSerializeRecords @columns rev xs ((\(l:*:_) -> l) . f)
+    <> gSerializeRecords @columns rev xs ((\(_:*:r) -> r) . f)
 
   gReadingColumns = gReadingColumns @columns @(S1 (MetaSel (Just name) a b f) (Rec0 inputType)) ++ gReadingColumns @columns @right
   gColumnsCount = gColumnsCount @columns @(S1 (MetaSel (Just name) a b f) (Rec0 inputType)) + gColumnsCount @columns @right
+
+deserializeProduct ::  (l -> r -> a) -> [l] -> [r] -> Get [a]
+deserializeProduct f lefts rights = goDeserialize [] lefts rights
+  where
+  goDeserialize !acc (l:ls) (r:rs) = goDeserialize ((:acc) $! f l r) ls rs
+  goDeserialize !acc [] [] = pure acc
+  goDeserialize _ _ _ = fail "Mismatched lengths in gDeserializeRecords"
 
 {-
   Unwrapping a single generic field (recursion breaker)
@@ -560,7 +558,7 @@ instance
     deserializeColumn @(Column name chType) rev size (f . M1 . K1 . fromChType)
 
   {-# INLINE gSerializeRecords #-}
-  gSerializeRecords rev f values
+  gSerializeRecords rev values f
     =  serialize @ChString rev (toChType (renderColumnName @(Column name chType)))
     <> serialize @ChString rev (toChType (renderColumnType @(Column name chType)))
     <> afterRevision @DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION rev (serialize @UInt8 rev 0)
