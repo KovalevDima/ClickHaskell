@@ -25,7 +25,7 @@ import ClickHaskell
   , ToQueryPart(..)
   , UInt8, UInt16, UInt32, UInt64
   , Int8, Int16, Int32, Int64
-  , ChString, UUID, DateTime, UInt128, UInt256 -- , DateTime64
+  , ChString, UUID, DateTime, UInt128, UInt256, unsafeMkSelect -- , DateTime64
   )
 
 -- GHC included
@@ -75,10 +75,12 @@ runTestForType connection testValues = do
       [selectChType] <-
         concat <$>
           select
-            @'[Column "testSample" chType]
-            @(TestSample chType)
+            (unsafeMkSelect
+              @'[Column "testSample" chType]
+              @(TestSample chType)
+              ("SELECT CAST(" <> toQueryPart chType <> ", '" <> typeName <> "') as testSample;")
+            )
             connection
-            (toChType ("SELECT CAST(" <> toQueryPart chType <> ", '" <> typeName <> "') as testSample;"))
             pure
 
       (when (chType /= testSample selectChType) . error)

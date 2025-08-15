@@ -17,7 +17,7 @@ module T2WriteReadEquality
 
 -- Internal
 import ClickHaskell
-  ( ClickHaskell, selectFrom, insertInto
+  ( ClickHaskell, select, insertInto, fromTable
   , command
   , Connection
   , Table
@@ -47,9 +47,11 @@ t2 connection = do
 
   [result] <-
     concat <$>
-      selectFrom
-        @TestTable
-        @TestData
+      select
+        (fromTable
+          @"writeReadEqualityTable"
+          @TestColumns
+        )
         connection
         pure
 

@@ -5,6 +5,7 @@
   , DerivingStrategies
   , TypeApplications
   , ScopedTypeVariables
+  , OverloadedStrings
 #-}
 
 module T4MissmatchErrors where
@@ -23,10 +24,12 @@ t4 connection = do
   res1 <-
     try (
       select
-        @ExpectedColumns
-        @ExpectedName
+        (unsafeMkSelect
+          @ExpectedColumns
+          @ExpectedName
+          "SELECT * FROM generateRandom('unexpectedName Int64', 1, 10, 2) LIMIT 1"
+        )
         connection
-        (toChType "SELECT * FROM generateRandom('unexpectedName Int64', 1, 10, 2) LIMIT 1")
         pure
     )
   case res1 of
@@ -37,10 +40,12 @@ t4 connection = do
   res2 <-
     try (
       select
-        @ExpectedColumns
-        @ExpectedName
+        (unsafeMkSelect
+          @ExpectedColumns
+          @ExpectedName
+          "SELECT * FROM generateRandom('expectedName UInt64', 1, 10, 2) LIMIT 1"
+        )
         connection
-        (toChType "SELECT * FROM generateRandom('expectedName UInt64', 1, 10, 2) LIMIT 1")
         pure
     )
   case res2 of
@@ -51,10 +56,12 @@ t4 connection = do
   res3 <-
     try (
       select
-        @ExpectedColumns
-        @ExpectedName
+        (unsafeMkSelect
+          @ExpectedColumns
+          @ExpectedName
+          "SELECT * FROM generateRandom('expectedName Int64, unexpectedColumn Int64', 1, 10, 2) LIMIT 1"
+        )
         connection
-        (toChType "SELECT * FROM generateRandom('expectedName Int64, unexpectedColumn Int64', 1, 10, 2) LIMIT 1")
         pure
     )
   case res3 of
@@ -62,7 +69,7 @@ t4 connection = do
     Right _ -> error "Expected an error, but got success"
     Left  e -> error ("MissmatchErrors: " <> show e)
 
-  print "MissmatchErrors: Ok"
+  putStrLn "MissmatchErrors: Ok"
 
 
 data ExpectedName = MkExpectedName
