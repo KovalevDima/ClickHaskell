@@ -17,7 +17,7 @@ import ClickHaskell
   , ClickHaskell, insertInto, command
   , Connection, openConnection, defaultConnectionArgs
   , Column, Table
-  , View, selectFromView, Parameter, parameter
+  , View, fromView, Parameter, parameter, select
   )
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async (Concurrently (..))
@@ -92,10 +92,13 @@ initVisitsTracker MkDocsStatisticsArgs{..} = do
 readCurrentHistoryLast :: Connection -> UInt16 -> IO [HourData]
 readCurrentHistoryLast clickHouse hours =
   concat <$>
-    selectFromView
-      @HistoryByHours
+    select
+      (fromView
+        @"historyByHours"
+        @HistoryColumns
+        (parameter @"hoursLength" @UInt16 hours
+      ))
       clickHouse
-      (parameter @"hoursLength" @UInt16 hours)
       pure
 
 data HistoryData = History{history :: [HourData]} | HistoryUpdate{realtime :: HourData}

@@ -29,8 +29,8 @@ type family GetColumns table :: [Type]
 type instance (GetColumns (Table name columns)) = columns
 type instance GetColumns (View name columns params) = columns
 
-tableName :: forall table . KnownSymbol (GetTableName table) => Builder
-tableName = (byteString . BS8.pack) (symbolVal $ Proxy @(GetTableName table))
+tableName :: forall name . KnownSymbol name => Builder
+tableName = (byteString . BS8.pack) (symbolVal $ Proxy @name)
 
 
 class KnownSymbol (GetTableName table) => IsTable table
