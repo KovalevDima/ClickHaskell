@@ -223,7 +223,7 @@ fromTable = unsafeMkSelect $
   " FROM " <> tableName @name
   where
   selectedColumns =
-    (mconcat . intersperse ", " . map (\(colName, _) -> colName))
+    (mconcat . intersperse ", " . map (\(name, _) -> name))
       (expectedColumns @columns @output)
 
 fromView ::
@@ -237,7 +237,7 @@ fromView interpreter = unsafeMkSelect $
   " FROM " <> tableName @name <> viewParameters interpreter
   where
   selectedColumns =
-    (mconcat . intersperse ", " . map (\(colName, _) -> colName))
+    (mconcat . intersperse ", " . map (\(name, _) -> name))
       (expectedColumns @columns @output)
 
 fromGenerateRandom ::
@@ -250,15 +250,15 @@ fromGenerateRandom (randomSeed, maxStrLen, maxArrayLen) limit = query
   where
   query = unsafeMkSelect $
     "SELECT * FROM generateRandom(" <>
-        "'" <> columnsAndTypes <> "' ," <>
-          toQueryPart randomSeed <> "," <>
-          toQueryPart maxStrLen <> "," <>
-          toQueryPart maxArrayLen <>
+        "'" <> columnsAndTypes <> "'" <> "," <>
+        toQueryPart randomSeed <> "," <>
+        toQueryPart maxStrLen <> "," <>
+        toQueryPart maxArrayLen <>
       ")" <>
     " LIMIT " <> toQueryPart limit <> ";"
 
   columnsAndTypes =
-    (mconcat . intersperse ", " . map (\(colName, colType) -> colName <> " " <> colType))
+    (mconcat . intersperse ", " . map (\(name, tyype) -> name <> " " <> tyype))
       (expectedColumns @columns @output)
 
 -- *** INSERT
@@ -377,7 +377,7 @@ insertInto conn columnsData = insert @(GetColumns table) conn query columnsData
     "INSERT INTO " <> tableName @(GetTableName table) <>
     " (" <> insertColumns <> ") VALUES"
   insertColumns =
-    (mconcat . intersperse ", " . map (\(colName, _) -> colName))
+    (mconcat . intersperse ", " . map (\(name, _) -> name))
       (expectedColumns @(GetColumns table) @record)
 
 
