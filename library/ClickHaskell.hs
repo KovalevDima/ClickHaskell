@@ -99,10 +99,11 @@ import Data.Binary.Get
 import Data.ByteString.Builder
 import Data.Int (Int16, Int32, Int64, Int8)
 import Data.Kind (Type)
+import Data.List (intersperse)
 import Data.Maybe (fromMaybe, listToMaybe)
 import GHC.Generics (C1, D1, Generic (..), K1 (K1, unK1), M1 (M1, unM1), Meta (MetaSel), Rec0, S1, type (:*:) (..))
 import GHC.Stack (HasCallStack, callStack, prettyCallStack)
-import GHC.TypeLits (ErrorMessage (..), TypeError, KnownSymbol)
+import GHC.TypeLits (ErrorMessage (..), KnownSymbol, TypeError)
 import System.Environment (lookupEnv)
 import System.Timeout (timeout)
 
@@ -218,8 +219,12 @@ fromTable ::
   =>
   Select columns output
 fromTable = unsafeMkSelect $
-  "SELECT " <> columns @columns @output <>
+  "SELECT " <> selectedColumns <>
   " FROM " <> tableName @name
+  where
+  selectedColumns =
+    (mconcat . intersperse ", " . map (\(colName, _) -> colName))
+      (expectedColumns @columns @output)
 
 fromView ::
   forall name columns output params
@@ -228,8 +233,12 @@ fromView ::
   =>
   (Parameters '[] -> Parameters params) -> Select columns output
 fromView interpreter = unsafeMkSelect $
-  "SELECT " <> columns @columns @output <>
+  "SELECT " <> selectedColumns <>
   " FROM " <> tableName @name <> viewParameters interpreter
+  where
+  selectedColumns =
+    (mconcat . intersperse ", " . map (\(colName, _) -> colName))
+      (expectedColumns @columns @output)
 
 fromGenerateRandom ::
   forall columns output
@@ -241,13 +250,16 @@ fromGenerateRandom (randomSeed, maxStrLen, maxArrayLen) limit = query
   where
   query = unsafeMkSelect $
     "SELECT * FROM generateRandom(" <>
-        "'" <> readingColumnsAndTypes @columns @output <> "' ," <>
+        "'" <> columnsAndTypes <> "' ," <>
           toQueryPart randomSeed <> "," <>
           toQueryPart maxStrLen <> "," <>
           toQueryPart maxArrayLen <>
       ")" <>
     " LIMIT " <> toQueryPart limit <> ";"
 
+  columnsAndTypes =
+    (mconcat . intersperse ", " . map (\(colName, colType) -> colName <> " " <> colType))
+      (expectedColumns @columns @output)
 
 -- *** INSERT
 
@@ -332,21 +344,9 @@ class ClickHaskell columns record
   serializeRecords :: [record] -> ProtocolRevision -> Builder
   serializeRecords records rev = gSerializeRecords @columns rev records from
 
-  default columns :: GenericClickHaskell record columns => Builder
-  columns :: Builder
-  columns = buildCols (gReadingColumns @columns @(Rep record))
-    where
-    buildCols [] = mempty
-    buildCols ((col, _):[])   = col
-    buildCols ((col, _):rest) = col <> ", " <> buildCols rest
-
-  default readingColumnsAndTypes :: GenericClickHaskell record columns => Builder
-  readingColumnsAndTypes ::  Builder
-  readingColumnsAndTypes = buildColsTypes (gReadingColumns @columns @(Rep record))
-    where
-    buildColsTypes [] = mempty
-    buildColsTypes ((col, typ):[])   = col <> " " <> typ
-    buildColsTypes ((col, typ):rest) = col <> " " <> typ <> ", " <> buildColsTypes rest
+  default expectedColumns :: GenericClickHaskell record columns => [(Builder, Builder)]
+  expectedColumns :: [(Builder, Builder)]
+  expectedColumns = gReadingColumns @columns @(Rep record)
 
   default columnsCount :: GenericClickHaskell record columns => UVarInt
   columnsCount :: UVarInt
@@ -375,8 +375,10 @@ insertInto conn columnsData = insert @(GetColumns table) conn query columnsData
   where
   query = toChType $
     "INSERT INTO " <> tableName @(GetTableName table) <>
-    " (" <> columns @(GetColumns table) @record <> ") VALUES"
-
+    " (" <> insertColumns <> ") VALUES"
+  insertColumns =
+    (mconcat . intersperse ", " . map (\(colName, _) -> colName))
+      (expectedColumns @(GetColumns table) @record)
 
 
 
