@@ -14,9 +14,9 @@ module ChVisits where
 import ClickHaskell
   ( ChString, DateTime
   , UInt16, UInt32
-  , ClickHaskell, insertInto, command
+  , ClickHaskell, insert, intoTable, command
   , Connection, openConnection, defaultConnectionArgs
-  , Column, Table
+  , Column
   , View, fromView, Parameter, parameter, select
   )
 import Control.Concurrent (threadDelay)
@@ -68,7 +68,7 @@ initVisitsTracker MkDocsStatisticsArgs{..} = do
     ( Concurrently (forever $ do
         catch (do
             dataToWrite <- (atomically . flushTBQueue) docsStatQueue
-            insertInto @DocsStatTable clickHouse dataToWrite
+            insert (intoTable @"ClickHaskellStats" @DocStatColumns) clickHouse dataToWrite
           )
           (print @SomeException)
         threadDelay 5_000_000
@@ -115,7 +115,6 @@ data DocsStatistics = MkDocsStatistics
   deriving stock (Generic)
   deriving anyclass (ClickHaskell DocStatColumns)
 
-type DocsStatTable = Table "ClickHaskellStats" DocStatColumns
 type DocStatColumns =
  '[ Column "time" (DateTime "")
   , Column "path" ChString

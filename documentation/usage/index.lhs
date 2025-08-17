@@ -95,9 +95,12 @@ main = do
       connection
       pure
 
-  insertInto
-    @(Table "exampleTable" ExampleCols)
-    @ExampleData
+  insert
+    (intoTable
+      @"exampleTable"
+      @ExampleCols
+      @ExampleData
+    )
     connection
     (mconcat results)
 </code></pre>

@@ -119,7 +119,7 @@ runClickHouseWriter :: Connection -> TBQueue EventRep -> Concurrently ()
 runClickHouseWriter conn queue =
   Concurrently $
     void . forever $ do
-      insertInto @EventLogTable @EventRep conn =<< atomically (flushTBQueue queue)
+      insert (intoTable @"haskell_eventlog" @EventLogColumns @EventRep) conn =<< atomically (flushTBQueue queue)
       threadDelay 1_000_000
 
 initChConnection :: IO Connection
@@ -153,7 +153,6 @@ data EventRep = MkEventRep
   }
   deriving (Generic, ClickHaskell EventLogColumns)
 
-type EventLogTable = Table "haskell_eventlog" EventLogColumns
 type EventLogColumns =
  '[ Column "startTime"      (DateTime "")
   , Column "evTime"         (DateTime64 9 "")

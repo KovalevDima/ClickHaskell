@@ -51,7 +51,7 @@ main = do
         totalRows
       )
       readingConnection
-      (insertInto @(Table "profiler" ExampleColumns) writingConnection)
+      (insert (intoTable @"profiler" @ExampleColumns) writingConnection)
 
   print $ "Writing done. " <> show totalRows <> " rows was written"
 

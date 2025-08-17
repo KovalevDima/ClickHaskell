@@ -19,32 +19,8 @@ import Data.Proxy (Proxy(..))
 -- External
 import Data.WideWord (Int128 (..), Word128(..))
 
--- * Type wrappers
-
-type family GetTableName table :: Symbol
-type instance (GetTableName (Table name columns)) = name
-type instance (GetTableName (View name columns params)) = name
-
-type family GetColumns table :: [Type]
-type instance (GetColumns (Table name columns)) = columns
-type instance GetColumns (View name columns params) = columns
-
 tableName :: forall name . KnownSymbol name => Builder
 tableName = (byteString . BS8.pack) (symbolVal $ Proxy @name)
-
-
-class KnownSymbol (GetTableName table) => IsTable table
-
--- | Type wrapper for statements generation
-data Table (name :: Symbol) (columns :: [Type])
-instance KnownSymbol name => IsTable (Table name columns) where
-
-
-class KnownSymbol (GetTableName view) => IsView view
-
--- | Type wrapper for statements generation
-data View (name :: Symbol) (columns :: [Type]) (parameters :: [Type])
-instance KnownSymbol name => IsView (View name columns parameters)
 
 
 

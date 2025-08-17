@@ -36,9 +36,8 @@ module ClickHaskell
   , parameter, Parameter, Parameters, viewParameters
   {- ** INSERT -}
   , insert
+  , intoTable
   {- *** Modifiers -}
-  , Table, View
-  , insertInto
   , ToQueryPart(toQueryPart)
   
   {- ** Ping -}, ping
@@ -268,8 +267,8 @@ insert ::
   .
   ClickHaskell columns record
   =>
-  Connection -> ChString -> [record] -> IO ()
-insert conn query columnsData = do
+  Insert columns record -> Connection -> [record] -> IO ()
+insert (MkInsert query) conn  columnsData = do
   withConnection conn $ \connState -> do
     writeToConnection connState (serializeQueryPacket $ mkQueryArgs connState query)
     writeToConnection connState (serializeDataPacket "" 0 0)
@@ -290,6 +289,31 @@ insert conn query columnsData = do
       EndOfStream         -> pure ()
       Exception exception -> throwIO (DatabaseException exception)
       otherPacket         -> throwIO (InternalError $ UnexpectedPacketType $ serverPacketToNum otherPacket)
+
+{-|
+  SELECT statement abstraction
+
+  provides `ClickHaskell` instance
+-}
+data Insert columns output
+  where
+  MkInsert :: ClickHaskell columns output => ChString -> Insert columns output
+
+intoTable :: forall name columns output
+  .
+  (KnownSymbol name, ClickHaskell columns output)
+  =>
+  Insert columns output
+intoTable = MkInsert query
+  where
+  query = toChType $
+    "INSERT INTO " <> tableName @name <>
+    " (" <> insertColumns <> ") VALUES"
+  insertColumns =
+    (mconcat . intersperse ", " . map (\(name, _) -> name))
+      (expectedColumns @columns @output)
+
+  
 
 -- *** Ping
 
@@ -357,28 +381,6 @@ type GenericClickHaskell record hasColumns =
   , GClickHaskell hasColumns (Rep record)
   )
 
-
--- ** Wrappers
-
-type ClickHaskellTable table record =
-  ( IsTable table
-  , ClickHaskell (GetColumns table) record
-  )
-
-insertInto ::
-  forall table record
-  .
-  ClickHaskellTable table record
-  =>
-  Connection -> [record] -> IO ()
-insertInto conn columnsData = insert @(GetColumns table) conn query columnsData
-  where
-  query = toChType $
-    "INSERT INTO " <> tableName @(GetTableName table) <>
-    " (" <> insertColumns <> ") VALUES"
-  insertColumns =
-    (mconcat . intersperse ", " . map (\(name, _) -> name))
-      (expectedColumns @(GetColumns table) @record)
 
 
 
