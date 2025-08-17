@@ -17,14 +17,16 @@ module T2WriteReadEquality
 
 -- Internal
 import ClickHaskell
-  ( ClickHaskell, select, intoTable, fromTable
+  ( ClickHaskell
+  , select, fromTable
+  , insert, intoTable
   , command
   , Connection
   , Column
   , toChType
   , UInt8, UInt16, UInt32, UInt64, UInt128
   , UUID, DateTime, ChString, Int128, Word128
-  , Nullable, DateTime64, insert
+  , Nullable, DateTime64
   )
 
 -- GHC included

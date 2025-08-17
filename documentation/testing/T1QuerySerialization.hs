@@ -19,13 +19,13 @@ module T1QuerySerialization
 -- Internal
 import ClickHaskell
   ( Connection(..)
-  , ClickHaskell, select
+  , ClickHaskell, select, unsafeMkSelect
   , Column, KnownColumn, SerializableColumn
   , IsChType(..), ToChType(..)
   , ToQueryPart(..)
   , UInt8, UInt16, UInt32, UInt64
   , Int8, Int16, Int32, Int64
-  , ChString, UUID, DateTime, UInt128, UInt256, unsafeMkSelect -- , DateTime64
+  , ChString, UUID, DateTime, UInt128, UInt256 -- , DateTime64
   )
 
 -- GHC included

@@ -14,10 +14,12 @@ module ChVisits where
 import ClickHaskell
   ( ChString, DateTime
   , UInt16, UInt32
-  , ClickHaskell, insert, intoTable, command
+  , ClickHaskell
+  , insert, intoTable
+  , select, fromView, parameter
+  , command
   , Connection, openConnection, defaultConnectionArgs
   , Column
-  , fromView, parameter, select
   )
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async (Concurrently (..))
@@ -96,8 +98,8 @@ readCurrentHistoryLast clickHouse hours =
       (fromView
         @"historyByHours"
         @HistoryColumns
-        (parameter @"hoursLength" @UInt16 hours
-      ))
+        (parameter @"hoursLength" @UInt16 hours)
+      )
       clickHouse
       pure
 
