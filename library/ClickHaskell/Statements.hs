@@ -4,23 +4,112 @@ module ClickHaskell.Statements where
 import ClickHaskell.Primitive
 
 -- GHC included
-import GHC.TypeLits
-import Data.Kind (Type)
-import Data.ByteString.Builder (Builder, byteString, word16HexFixed)
-import Data.Int
+import Data.Bits (Bits (..))
 import Data.ByteString as BS (ByteString)
-import Data.Word
-import Data.ByteString.Char8 as BS8 (concatMap, singleton, length, pack, replicate)
-import Data.Bits (Bits(..))
+import Data.ByteString.Builder (Builder, byteString, word16HexFixed)
+import Data.ByteString.Char8 as BS8 (concatMap, length, pack, replicate, singleton)
 import Data.Coerce (coerce)
+import Data.Int
+import Data.Kind (Type)
+import Data.List (intersperse)
+import Data.Proxy (Proxy (..))
+import Data.Word
 import GHC.List (uncons)
-import Data.Proxy (Proxy(..))
+import GHC.TypeLits
 
 -- External
 import Data.WideWord (Int128 (..), Word128(..))
 
+-- * Statements
+
 tableName :: forall name . KnownSymbol name => Builder
 tableName = (byteString . BS8.pack) (symbolVal $ Proxy @name)
+
+
+-- ** SELECT
+
+{-|
+  SELECT statement abstraction
+-}
+data Select (columns :: [Type]) output
+  where
+  MkSelect :: ([(Builder, Builder)] -> ChString) -> Select columns output
+
+unsafeMkSelect :: ([(Builder, Builder)] -> Builder) -> Select columns output
+unsafeMkSelect s = MkSelect (toChType . s)
+
+{-|
+  Type-safe wrapper for statements like
+
+  @SELECT ${columns} FROM ${table}@
+-}
+fromTable ::
+  forall name columns output
+  .
+  KnownSymbol name
+  =>
+  Select columns output
+fromTable = unsafeMkSelect $ \cols ->
+  "SELECT " <> selectedColumns cols <>
+  " FROM " <> tableName @name
+  where
+  selectedColumns =
+    mconcat . intersperse ", " . map (\(name, _) -> name)
+
+fromView ::
+  forall name columns output params
+  .
+  KnownSymbol name
+  =>
+  (Parameters '[] -> Parameters params) -> Select columns output
+fromView interpreter = unsafeMkSelect $ \cols ->
+  "SELECT " <> selectedColumns cols <>
+  " FROM " <> tableName @name <> viewParameters interpreter
+  where
+  selectedColumns =
+    mconcat . intersperse ", " . map (\(name, _) -> name)
+
+fromGenerateRandom ::
+  forall columns output
+  .
+  (UInt64, UInt64, UInt64) -> UInt64 -> Select columns output
+fromGenerateRandom (randomSeed, maxStrLen, maxArrayLen) limit = query
+  where
+  query = unsafeMkSelect $ \cols ->
+    "SELECT * FROM generateRandom(" <>
+        "'" <> columnsAndTypes cols <> "'" <> "," <>
+        toQueryPart randomSeed <> "," <>
+        toQueryPart maxStrLen <> "," <>
+        toQueryPart maxArrayLen <>
+      ")" <>
+    " LIMIT " <> toQueryPart limit <> ";"
+
+  columnsAndTypes =
+    mconcat . intersperse ", " . map (\(name, tyype) -> name <> " " <> tyype)
+
+
+-- ** INSERT
+
+{-|
+  INSERT statement generation abstraction
+-}
+data Insert (columns :: [Type]) output
+  where
+  MkInsert :: ([(Builder, Builder)] -> ChString) -> Insert columns output
+
+intoTable ::
+  forall name columns output
+  .
+  KnownSymbol name
+  =>
+  Insert columns output
+intoTable = MkInsert mkQuery
+  where
+  mkQuery cols = toChType $
+    "INSERT INTO " <> tableName @name <>
+    " (" <> mkInsertColumns cols <> ") VALUES"
+  mkInsertColumns cols =
+    (mconcat . intersperse ", " . map (\(name, _) -> name)) cols
 
 
 

@@ -86,11 +86,12 @@ main = do
       (unsafeMkSelect
         @ExampleCols
         @ExampleData
-        " SELECT \
-        \   defaultValueOfTypeName('Int32') as a1,   \
-        \   defaultValueOfTypeName('String') as a2,  \
-        \   defaultValueOfTypeName('DateTime') as a3 \
-        \ LIMIT 5;"
+        (\_cols -> " SELECT \
+          \   defaultValueOfTypeName('Int32') as a1,   \
+          \   defaultValueOfTypeName('String') as a2,  \
+          \   defaultValueOfTypeName('DateTime') as a3 \
+          \ LIMIT 5;"
+        )
       )
       connection
       pure

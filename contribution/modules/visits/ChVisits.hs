@@ -17,7 +17,7 @@ import ClickHaskell
   , ClickHaskell, insert, intoTable, command
   , Connection, openConnection, defaultConnectionArgs
   , Column
-  , View, fromView, Parameter, parameter, select
+  , fromView, parameter, select
   )
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async (Concurrently (..))
@@ -130,12 +130,6 @@ data HourData = MkHourData
   deriving stock (Generic)
   deriving anyclass (ToJSON, ClickHaskell HistoryColumns)
 
-type HistoryByHours =
-  View
-    "historyByHours"
-    HistoryColumns
-   '[ Parameter "hoursLength" UInt16
-    ]
 type HistoryColumns =
  '[ Column "hour" UInt32
   , Column "visits" UInt32

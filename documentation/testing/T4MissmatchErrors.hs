@@ -27,7 +27,7 @@ t4 connection = do
         (unsafeMkSelect
           @ExpectedColumns
           @ExpectedName
-          "SELECT * FROM generateRandom('unexpectedName Int64', 1, 10, 2) LIMIT 1"
+          (\_cols -> "SELECT * FROM generateRandom('unexpectedName Int64', 1, 10, 2) LIMIT 1")
         )
         connection
         pure
@@ -43,7 +43,7 @@ t4 connection = do
         (unsafeMkSelect
           @ExpectedColumns
           @ExpectedName
-          "SELECT * FROM generateRandom('expectedName UInt64', 1, 10, 2) LIMIT 1"
+          (\_cols -> "SELECT * FROM generateRandom('expectedName UInt64', 1, 10, 2) LIMIT 1")
         )
         connection
         pure
@@ -59,7 +59,7 @@ t4 connection = do
         (unsafeMkSelect
           @ExpectedColumns
           @ExpectedName
-          "SELECT * FROM generateRandom('expectedName Int64, unexpectedColumn Int64', 1, 10, 2) LIMIT 1"
+          (\_cols -> "SELECT * FROM generateRandom('expectedName Int64, unexpectedColumn Int64', 1, 10, 2) LIMIT 1")
         )
         connection
         pure

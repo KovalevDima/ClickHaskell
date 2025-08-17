@@ -98,11 +98,10 @@ import Data.Binary.Get
 import Data.ByteString.Builder
 import Data.Int (Int16, Int32, Int64, Int8)
 import Data.Kind (Type)
-import Data.List (intersperse)
 import Data.Maybe (fromMaybe, listToMaybe)
 import GHC.Generics (C1, D1, Generic (..), K1 (K1, unK1), M1 (M1, unM1), Meta (MetaSel), Rec0, S1, type (:*:) (..))
 import GHC.Stack (HasCallStack, callStack, prettyCallStack)
-import GHC.TypeLits (ErrorMessage (..), KnownSymbol, TypeError)
+import GHC.TypeLits (ErrorMessage (..), TypeError)
 import System.Environment (lookupEnv)
 import System.Timeout (timeout)
 
@@ -170,10 +169,13 @@ data UserError
 select ::
   forall columns output result
   .
+  ClickHaskell columns output
+  =>
   Select columns output -> Connection -> ([output] -> IO result) -> IO [result]
-select (MkSelect query) conn f = do
+select (MkSelect mkQuery) conn f = do
   withConnection conn $ \connState -> do
-    writeToConnection connState (serializeQueryPacket $ mkQueryArgs connState query)
+    writeToConnection connState
+      (serializeQueryPacket . mkQueryArgs connState . mkQuery $ expectedColumns @columns @output)
     writeToConnection connState (serializeDataPacket "" 0 0)
     loopSelect connState []
   where
@@ -194,71 +196,6 @@ select (MkSelect query) conn f = do
       Exception exception -> throwIO (DatabaseException exception)
       otherPacket         -> throwIO (InternalError $ UnexpectedPacketType $ serverPacketToNum otherPacket)
 
-{-|
-  SELECT statement abstraction
-
-  provides `ClickHaskell` instance
--}
-data Select columns output
-  where
-  MkSelect :: ClickHaskell columns output => ChString -> Select columns output
-
-unsafeMkSelect :: ClickHaskell columns output => Builder -> Select columns output
-unsafeMkSelect s = MkSelect (toChType s)
-
-{-|
-  Type-safe wrapper for statements like
-
-  @SELECT ${columns} FROM ${table}@
--}
-fromTable ::
-  forall name columns output
-  .
-  (KnownSymbol name, ClickHaskell columns output)
-  =>
-  Select columns output
-fromTable = unsafeMkSelect $
-  "SELECT " <> selectedColumns <>
-  " FROM " <> tableName @name
-  where
-  selectedColumns =
-    (mconcat . intersperse ", " . map (\(name, _) -> name))
-      (expectedColumns @columns @output)
-
-fromView ::
-  forall name columns output params
-  .
-  (KnownSymbol name, ClickHaskell columns output)
-  =>
-  (Parameters '[] -> Parameters params) -> Select columns output
-fromView interpreter = unsafeMkSelect $
-  "SELECT " <> selectedColumns <>
-  " FROM " <> tableName @name <> viewParameters interpreter
-  where
-  selectedColumns =
-    (mconcat . intersperse ", " . map (\(name, _) -> name))
-      (expectedColumns @columns @output)
-
-fromGenerateRandom ::
-  forall columns output
-  .
-  ClickHaskell columns output
-  =>
-  (UInt64, UInt64, UInt64) -> UInt64 -> Select columns output
-fromGenerateRandom (randomSeed, maxStrLen, maxArrayLen) limit = query 
-  where
-  query = unsafeMkSelect $
-    "SELECT * FROM generateRandom(" <>
-        "'" <> columnsAndTypes <> "'" <> "," <>
-        toQueryPart randomSeed <> "," <>
-        toQueryPart maxStrLen <> "," <>
-        toQueryPart maxArrayLen <>
-      ")" <>
-    " LIMIT " <> toQueryPart limit <> ";"
-
-  columnsAndTypes =
-    (mconcat . intersperse ", " . map (\(name, tyype) -> name <> " " <> tyype))
-      (expectedColumns @columns @output)
 
 -- *** INSERT
 
@@ -268,9 +205,13 @@ insert ::
   ClickHaskell columns record
   =>
   Insert columns record -> Connection -> [record] -> IO ()
-insert (MkInsert query) conn  columnsData = do
+insert (MkInsert mkQuery) conn columnsData = do
   withConnection conn $ \connState -> do
-    writeToConnection connState (serializeQueryPacket $ mkQueryArgs connState query)
+    writeToConnection connState
+      . serializeQueryPacket
+      . mkQueryArgs connState
+      . mkQuery
+      $ expectedColumns @columns @record
     writeToConnection connState (serializeDataPacket "" 0 0)
     loopInsert connState
   where
@@ -290,30 +231,6 @@ insert (MkInsert query) conn  columnsData = do
       Exception exception -> throwIO (DatabaseException exception)
       otherPacket         -> throwIO (InternalError $ UnexpectedPacketType $ serverPacketToNum otherPacket)
 
-{-|
-  SELECT statement abstraction
-
-  provides `ClickHaskell` instance
--}
-data Insert columns output
-  where
-  MkInsert :: ClickHaskell columns output => ChString -> Insert columns output
-
-intoTable :: forall name columns output
-  .
-  (KnownSymbol name, ClickHaskell columns output)
-  =>
-  Insert columns output
-intoTable = MkInsert query
-  where
-  query = toChType $
-    "INSERT INTO " <> tableName @name <>
-    " (" <> insertColumns <> ") VALUES"
-  insertColumns =
-    (mconcat . intersperse ", " . map (\(name, _) -> name))
-      (expectedColumns @columns @output)
-
-  
 
 -- *** Ping
 
@@ -329,6 +246,7 @@ ping conn = do
       Pong                -> pure ()
       Exception exception -> throwIO (DatabaseException exception)
       otherPacket         -> throwIO (InternalError $ UnexpectedPacketType $ serverPacketToNum otherPacket)
+
 
 -- *** Commands
 

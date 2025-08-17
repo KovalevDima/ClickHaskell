@@ -78,7 +78,7 @@ runTestForType connection testValues = do
             (unsafeMkSelect
               @'[Column "testSample" chType]
               @(TestSample chType)
-              ("SELECT CAST(" <> toQueryPart chType <> ", '" <> typeName <> "') as testSample;")
+              (\_cols -> "SELECT CAST(" <> toQueryPart chType <> ", '" <> typeName <> "') as testSample;")
             )
             connection
             pure
