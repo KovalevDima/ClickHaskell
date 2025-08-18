@@ -28,12 +28,14 @@ main = do
 
   result <-
     sum <$>
-      generateRandom
-        @ExampleColumns
-        @ExampleData
+      select
+        (fromGenerateRandom
+          @ExampleColumns
+          @ExampleData
+          (1, 10, 2)
+          totalRows
+        )
         connection
-        (1, 10, 2)
-        totalRows
         (pure . length)
 
   print $ "Processing done. " <> show result <> " rows was processed"

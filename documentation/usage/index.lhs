@@ -83,19 +83,25 @@ main = do
 
   results <-
     select
-      @ExampleCols
-      @ExampleData
+      (unsafeMkSelect
+        @ExampleCols
+        @ExampleData
+        (\_cols -> " SELECT \
+          \   defaultValueOfTypeName('Int32') as a1,   \
+          \   defaultValueOfTypeName('String') as a2,  \
+          \   defaultValueOfTypeName('DateTime') as a3 \
+          \ LIMIT 5;"
+        )
+      )
       connection
-      " SELECT \
-      \   defaultValueOfTypeName('Int32') as a1,   \
-      \   defaultValueOfTypeName('String') as a2,  \
-      \   defaultValueOfTypeName('DateTime') as a3 \
-      \ LIMIT 5;"
       pure
 
-  insertInto
-    @(Table "exampleTable" ExampleCols)
-    @ExampleData
+  insert
+    (intoTable
+      @"exampleTable"
+      @ExampleCols
+      @ExampleData
+    )
     connection
     (mconcat results)
 </code></pre>

@@ -14,10 +14,12 @@ module ChVisits where
 import ClickHaskell
   ( ChString, DateTime
   , UInt16, UInt32
-  , ClickHaskell, insertInto, command
+  , ClickHaskell
+  , insert, intoTable
+  , select, fromView, parameter
+  , command
   , Connection, openConnection, defaultConnectionArgs
-  , Column, Table
-  , View, selectFromView, Parameter, parameter
+  , Column
   )
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async (Concurrently (..))
@@ -68,7 +70,7 @@ initVisitsTracker MkDocsStatisticsArgs{..} = do
     ( Concurrently (forever $ do
         catch (do
             dataToWrite <- (atomically . flushTBQueue) docsStatQueue
-            insertInto @DocsStatTable clickHouse dataToWrite
+            insert (intoTable @"ClickHaskellStats" @DocStatColumns) clickHouse dataToWrite
           )
           (print @SomeException)
         threadDelay 5_000_000
@@ -92,10 +94,13 @@ initVisitsTracker MkDocsStatisticsArgs{..} = do
 readCurrentHistoryLast :: Connection -> UInt16 -> IO [HourData]
 readCurrentHistoryLast clickHouse hours =
   concat <$>
-    selectFromView
-      @HistoryByHours
+    select
+      (fromView
+        @"historyByHours"
+        @HistoryColumns
+        (parameter @"hoursLength" @UInt16 hours)
+      )
       clickHouse
-      (parameter @"hoursLength" @UInt16 hours)
       pure
 
 data HistoryData = History{history :: [HourData]} | HistoryUpdate{realtime :: HourData}
@@ -112,7 +117,6 @@ data DocsStatistics = MkDocsStatistics
   deriving stock (Generic)
   deriving anyclass (ClickHaskell DocStatColumns)
 
-type DocsStatTable = Table "ClickHaskellStats" DocStatColumns
 type DocStatColumns =
  '[ Column "time" (DateTime "")
   , Column "path" ChString
@@ -128,12 +132,6 @@ data HourData = MkHourData
   deriving stock (Generic)
   deriving anyclass (ToJSON, ClickHaskell HistoryColumns)
 
-type HistoryByHours =
-  View
-    "historyByHours"
-    HistoryColumns
-   '[ Parameter "hoursLength" UInt16
-    ]
 type HistoryColumns =
  '[ Column "hour" UInt32
   , Column "visits" UInt32

@@ -12,6 +12,13 @@
 - Query serialization for UInt128 bigger than 999999999999999934463
 
 ## Breaking changes:
+- ### select/insert API changes
+  - `insert` and `select` no longer accept raw queries
+  - The following functions were removed:
+    `selectFrom`, `selectFromView`, `generateRandom`, `insertInto`.
+  - Now you should use statement generators instead:
+    - `select` with `fromTable`, `fromView`, `fromGenerateRandom`, `unsafeMkSelect`
+    - `insert` with `intoTable`, `unsafeMkInsert`
 - ### Generic API changes
   `ReadableFrom` and `WritableInto` was replaced with `ClickHaskell`\
   Now you should declare single instance for every API parts

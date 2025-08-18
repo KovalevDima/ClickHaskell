@@ -19,7 +19,7 @@ module T1QuerySerialization
 -- Internal
 import ClickHaskell
   ( Connection(..)
-  , ClickHaskell, select
+  , ClickHaskell, select, unsafeMkSelect
   , Column, KnownColumn, SerializableColumn
   , IsChType(..), ToChType(..)
   , ToQueryPart(..)
@@ -75,10 +75,12 @@ runTestForType connection testValues = do
       [selectChType] <-
         concat <$>
           select
-            @'[Column "testSample" chType]
-            @(TestSample chType)
+            (unsafeMkSelect
+              @'[Column "testSample" chType]
+              @(TestSample chType)
+              (\_cols -> "SELECT CAST(" <> toQueryPart chType <> ", '" <> typeName <> "') as testSample;")
+            )
             connection
-            (toChType ("SELECT CAST(" <> toQueryPart chType <> ", '" <> typeName <> "') as testSample;"))
             pure
 
       (when (chType /= testSample selectChType) . error)

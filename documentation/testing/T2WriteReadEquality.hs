@@ -17,10 +17,11 @@ module T2WriteReadEquality
 
 -- Internal
 import ClickHaskell
-  ( ClickHaskell, selectFrom, insertInto
+  ( ClickHaskell
+  , select, fromTable
+  , insert, intoTable
   , command
   , Connection
-  , Table
   , Column
   , toChType
   , UInt8, UInt16, UInt32, UInt64, UInt128
@@ -39,17 +40,22 @@ t2 connection = do
   command connection createTableQuery
   command connection "TRUNCATE writeReadEqualityTable;"
 
-  insertInto
-    @TestTable
-    @TestData
+  insert
+    (intoTable
+      @"writeReadEqualityTable"
+      @TestColumns
+      @TestData
+    )
     connection
     [testData]
 
   [result] <-
     concat <$>
-      selectFrom
-        @TestTable
-        @TestData
+      select
+        (fromTable
+          @"writeReadEqualityTable"
+          @TestColumns
+        )
         connection
         pure
 
@@ -63,7 +69,6 @@ t2 connection = do
   print $ testLabel <> "Ok"
 
 
-type TestTable = Table "writeReadEqualityTable" TestColumns
 type TestColumns =
   '[ Column "dateTime" (DateTime "UTC")
    , Column "dateTimeNullable" (Nullable (DateTime "UTC"))

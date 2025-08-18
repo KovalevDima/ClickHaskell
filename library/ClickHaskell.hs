@@ -25,25 +25,30 @@ module ClickHaskell
   , UserError(..)
   , InternalError(..)
 
-  {- ** Low level -}
-  {- *** SELECT -}, select
-  {- *** INSERT -}, insert
-  {- *** Commands -}, command
-  {- *** Ping -}, ping
-
-  {- ** Wrappers -}
-  , Table, View
-  , selectFrom, selectFromView, generateRandom
-  , insertInto
+  {- ** SELECT -}
+  {- *** Runner -}, select
+  {- *** Statements -}
+  , Select, unsafeMkSelect
+  , fromGenerateRandom
+  , fromTable
+  {- *** View -}
+  , fromView
+  , parameter, Parameter, Parameters, viewParameters
+  {- ** INSERT -}
+  , Insert, unsafeMkInsert
+  , insert
+  , intoTable
+  {- *** Modifiers -}
+  , ToQueryPart(toQueryPart)
+  
+  {- ** Ping -}, ping
+  {- ** Commands -}, command
 
   {- ** Deriving -}
   , ClickHaskell(..)
   , ToChType(toChType, fromChType)
   , SerializableColumn
   , Column, KnownColumn
-
-  {- ** Query -}
-  , ToQueryPart(toQueryPart), parameter, Parameter, Parameters, viewParameters
 
 
   {- * ClickHouse types -}
@@ -158,7 +163,7 @@ data UserError
 -- *** SELECT
 
 {- |
-  Takes `Connection`, __statement__ and __block processing__ function
+  Takes `Select`, `Connection` and __block processing__ function
 
   Returns __block processing__ result
 -}
@@ -167,10 +172,11 @@ select ::
   .
   ClickHaskell columns output
   =>
-  Connection -> ChString -> ([output] -> IO result) -> IO [result]
-select conn query f = do
+  Select columns output -> Connection -> ([output] -> IO result) -> IO [result]
+select (MkSelect mkQuery) conn f = do
   withConnection conn $ \connState -> do
-    writeToConnection connState (serializeQueryPacket $ mkQueryArgs connState query)
+    writeToConnection connState
+      (serializeQueryPacket . mkQueryArgs connState . mkQuery $ expectedColumns @columns @output)
     writeToConnection connState (serializeDataPacket "" 0 0)
     loopSelect connState []
   where
@@ -191,6 +197,7 @@ select conn query f = do
       Exception exception -> throwIO (DatabaseException exception)
       otherPacket         -> throwIO (InternalError $ UnexpectedPacketType $ serverPacketToNum otherPacket)
 
+
 -- *** INSERT
 
 insert ::
@@ -198,10 +205,14 @@ insert ::
   .
   ClickHaskell columns record
   =>
-  Connection -> ChString -> [record] -> IO ()
-insert conn query columnsData = do
+  Insert columns record -> Connection -> [record] -> IO ()
+insert (MkInsert mkQuery) conn columnsData = do
   withConnection conn $ \connState -> do
-    writeToConnection connState (serializeQueryPacket $ mkQueryArgs connState query)
+    writeToConnection connState
+      . serializeQueryPacket
+      . mkQueryArgs connState
+      . mkQuery
+      $ expectedColumns @columns @record
     writeToConnection connState (serializeDataPacket "" 0 0)
     loopInsert connState
   where
@@ -221,6 +232,7 @@ insert conn query columnsData = do
       Exception exception -> throwIO (DatabaseException exception)
       otherPacket         -> throwIO (InternalError $ UnexpectedPacketType $ serverPacketToNum otherPacket)
 
+
 -- *** Ping
 
 {- |
@@ -235,6 +247,7 @@ ping conn = do
       Pong                -> pure ()
       Exception exception -> throwIO (DatabaseException exception)
       otherPacket         -> throwIO (InternalError $ UnexpectedPacketType $ serverPacketToNum otherPacket)
+
 
 -- *** Commands
 
@@ -274,21 +287,9 @@ class ClickHaskell columns record
   serializeRecords :: [record] -> ProtocolRevision -> Builder
   serializeRecords records rev = gSerializeRecords @columns rev records from
 
-  default columns :: GenericClickHaskell record columns => Builder
-  columns :: Builder
-  columns = buildCols (gReadingColumns @columns @(Rep record))
-    where
-    buildCols [] = mempty
-    buildCols ((col, _):[])   = col
-    buildCols ((col, _):rest) = col <> ", " <> buildCols rest
-
-  default readingColumnsAndTypes :: GenericClickHaskell record columns => Builder
-  readingColumnsAndTypes ::  Builder
-  readingColumnsAndTypes = buildColsTypes (gReadingColumns @columns @(Rep record))
-    where
-    buildColsTypes [] = mempty
-    buildColsTypes ((col, typ):[])   = col <> " " <> typ
-    buildColsTypes ((col, typ):rest) = col <> " " <> typ <> ", " <> buildColsTypes rest
+  default expectedColumns :: GenericClickHaskell record columns => [(Builder, Builder)]
+  expectedColumns :: [(Builder, Builder)]
+  expectedColumns = gReadingColumns @columns @(Rep record)
 
   default columnsCount :: GenericClickHaskell record columns => UVarInt
   columnsCount :: UVarInt
@@ -298,72 +299,6 @@ type GenericClickHaskell record hasColumns =
   ( Generic record
   , GClickHaskell hasColumns (Rep record)
   )
-
-
--- ** Wrappers
-
-type ClickHaskellTable table record =
-  ( IsTable table
-  , ClickHaskell (GetColumns table) record
-  )
-
-type ClickHaskellView view record =
-  ( IsView view
-  , ClickHaskell (GetColumns view) record
-  )
-
-selectFrom ::
-  forall table output result
-  .
-  ClickHaskellTable table output
-  =>
-  Connection -> ([output] -> IO result) -> IO [result]
-selectFrom conn f = select @(GetColumns table) conn query f
-  where
-  query = toChType $
-    "SELECT " <> columns @(GetColumns table) @output <>
-    " FROM " <> tableName @table
-
-selectFromView ::
-  forall view output result parameters
-  .
-  ClickHaskellView view output
-  =>
-  Connection -> (Parameters '[] -> Parameters parameters) -> ([output] -> IO result) -> IO [result]
-selectFromView conn interpreter f = select @(GetColumns view) conn query f
-  where
-  query = toChType $
-    "SELECT " <> columns @(GetColumns view) @output <>
-    " FROM " <> tableName @view <> viewParameters interpreter
-
-generateRandom ::
-  forall columns output result
-  .
-  ClickHaskell columns output
-  =>
-  Connection -> (UInt64, UInt64, UInt64) -> UInt64 -> ([output] -> IO result) -> IO [result]
-generateRandom conn (randomSeed, maxStrLen, maxArrayLen) limit f = select @columns conn query f
-  where
-  query = toChType $
-    "SELECT * FROM generateRandom(" <>
-        "'" <> readingColumnsAndTypes @columns @output <> "' ," <>
-          toQueryPart randomSeed <> "," <>
-          toQueryPart maxStrLen <> "," <>
-          toQueryPart maxArrayLen <>
-      ")" <>
-    " LIMIT " <> toQueryPart limit <> ";"
-
-insertInto ::
-  forall table record
-  .
-  ClickHaskellTable table record
-  =>
-  Connection -> [record] -> IO ()
-insertInto conn columnsData = insert @(GetColumns table) conn query columnsData
-  where
-  query = toChType $
-    "INSERT INTO " <> tableName @table
-    <> " (" <> columns @(GetColumns table) @record <> ") VALUES"
 
 
 
