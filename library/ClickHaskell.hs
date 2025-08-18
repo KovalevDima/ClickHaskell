@@ -35,6 +35,7 @@ module ClickHaskell
   , fromView
   , parameter, Parameter, Parameters, viewParameters
   {- ** INSERT -}
+  , Insert, unsafeMkInsert
   , insert
   , intoTable
   {- *** Modifiers -}

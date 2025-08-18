@@ -97,15 +97,18 @@ data Insert (columns :: [Type]) output
   where
   MkInsert :: ([(Builder, Builder)] -> ChString) -> Insert columns output
 
+unsafeMkInsert :: ([(Builder, Builder)] -> Builder) -> Insert columns output
+unsafeMkInsert s = MkInsert (toChType . s)
+
 intoTable ::
   forall name columns output
   .
   KnownSymbol name
   =>
   Insert columns output
-intoTable = MkInsert mkQuery
+intoTable = unsafeMkInsert mkQuery
   where
-  mkQuery cols = toChType $
+  mkQuery cols =
     "INSERT INTO " <> tableName @name <>
     " (" <> mkInsertColumns cols <> ") VALUES"
   mkInsertColumns cols =
