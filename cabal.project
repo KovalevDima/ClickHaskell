@@ -9,4 +9,5 @@ packages:
     ./documentation/testing
     ./documentation/performance/p1-million-rw
     ./documentation/performance/p2-100-million-r
+    ./documentation/performance/pings
     ./documentation/usage/
