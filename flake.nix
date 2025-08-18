@@ -45,7 +45,7 @@
           )
           (lib.cartesianProduct {
             ghc = supportedGHCs; 
-            app = ["prof-1bil-stream" "prof-simple" "tests"];
+            app = ["prof-1bil-stream" "prof-simple" "tests" "prof-pings"];
           });
         haskellProjects =
           mapMergeAttrsList
