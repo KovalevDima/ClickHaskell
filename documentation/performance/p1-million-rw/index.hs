@@ -43,7 +43,7 @@ main = do
     \ORDER BY ();"
 
   _ <-
-    select
+    selectCols
       (fromGenerateRandom
         @ExampleColumns
         @ExampleData
@@ -51,7 +51,7 @@ main = do
         totalRows
       )
       readingConnection
-      (insert (intoTable @"profiler" @ExampleColumns) writingConnection)
+      (insertCols (intoTable @"profiler" @ExampleColumns @ExampleData) writingConnection)
 
   print $ "Writing done. " <> show totalRows <> " rows was written"
 
