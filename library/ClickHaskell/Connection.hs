@@ -97,7 +97,7 @@ data ConnectionArgs = MkConnectionArgs
   , db   :: String
   , host :: HostName
   , mPort :: Maybe ServiceName
-  , isTLS :: Bool
+  , defPort :: ServiceName
   , mOsUser :: Maybe String
   , mHostname :: Maybe String
   , initBuffer :: HostName -> SockAddr -> Socket -> IO Buffer
@@ -108,8 +108,6 @@ data ConnectionArgs = MkConnectionArgs
 
   Use `setUser`, `setPassword`, `setHost`, `setPort`, `setDatabase`
   to modify connection defaults.
-
-  Or 'setSecure', 'overrideTLS' to configure TLS connection
 -}
 defaultConnectionArgs :: ConnectionArgs
 defaultConnectionArgs = MkConnectionArgs
@@ -117,7 +115,7 @@ defaultConnectionArgs = MkConnectionArgs
   , pass = ""
   , host = "localhost"
   , db   = "default"
-  , isTLS = False
+  , defPort = "9000"
   , mPort = Nothing
   , mOsUser = Nothing
   , mHostname = Nothing
@@ -155,7 +153,9 @@ setHost :: HostName -> ConnectionArgs -> ConnectionArgs
 setHost new MkConnectionArgs{..} = MkConnectionArgs{host=new, ..}
 
 {- |
-  Overrides default port __9000__ (or __9443__ for TLS)
+  Set a custom port instead of the default __9000__ (or __9443__ if TLS is used).
+
+  The default port can only be overridden by 'overrideNetwork'.
 -}
 setPort :: ServiceName -> ConnectionArgs -> ConnectionArgs
 setPort new MkConnectionArgs{..} = MkConnectionArgs{mPort=Just new, ..} 
@@ -183,8 +183,16 @@ overrideOsUser :: String -> ConnectionArgs -> ConnectionArgs
 overrideOsUser new MkConnectionArgs{..} = MkConnectionArgs{mOsUser=Just new, ..}
 
 overrideNetwork
-  :: Bool
+  :: ServiceName
   -> (HostName -> SockAddr -> Socket -> IO Buffer)
   -> (ConnectionArgs -> ConnectionArgs)
-overrideNetwork new new2 = \MkConnectionArgs{..} ->
-  MkConnectionArgs{isTLS=new, initBuffer=new2, ..}
+overrideNetwork
+  newDefPort
+  newInitBuffer
+  MkConnectionArgs {user, pass, db, host, mPort, mOsUser, mHostname}
+  =
+  MkConnectionArgs
+    { defPort = newDefPort
+    , initBuffer = newInitBuffer
+    , ..
+    }

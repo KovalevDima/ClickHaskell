@@ -17,7 +17,7 @@ import Network.Socket as Sock (connect, setSocketOption, SocketOption (..))
   Uses 9443 port by default. Watch 'setPort' to override it
 -}
 setSecure :: (ClientParams -> ClientParams) -> ConnectionArgs -> ConnectionArgs
-setSecure modifyParams conn = overrideNetwork True initTLS conn
+setSecure modifyParams = overrideNetwork "9443" initTLS
   where
   initTLS = \hostname addrAddress sock -> do
     setSocketOption sock Sock.NoDelay 1

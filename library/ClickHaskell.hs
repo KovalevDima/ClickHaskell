@@ -334,8 +334,8 @@ reopenConnection MkConnectionState{creds, buffer} = do
   createConnectionState creds
 
 createConnectionState :: ConnectionArgs -> IO ConnectionState
-createConnectionState creds@MkConnectionArgs {user, pass, db, host, mPort, initBuffer, isTLS} = do
-  let port = fromMaybe (if isTLS then "9440" else "9000") mPort
+createConnectionState creds@MkConnectionArgs {user, pass, db, host, mPort, initBuffer, defPort} = do
+  let port = fromMaybe defPort mPort
   AddrInfo{addrFamily, addrSocketType, addrProtocol, addrAddress}
     <- maybe (throwIO NoAdressResolved) pure . listToMaybe
     =<< getAddrInfo
