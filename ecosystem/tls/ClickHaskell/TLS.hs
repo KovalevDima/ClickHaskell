@@ -1,15 +1,19 @@
+{-# LANGUAGE NumericUnderscores #-}
+{-# LANGUAGE TypeApplications #-}
 module ClickHaskell.TLS where
 
 -- Internal
-import ClickHaskell (ConnectionArgs, Buffer(..), overrideNetwork)
+import ClickHaskell (ConnectionArgs, Buffer(..), overrideNetwork, ConnectionError(..))
 
 -- GHC included
-import Data.IORef (newIORef)
+import Control.Exception (SomeException, bracketOnError, catch, finally, throwIO)
 import Data.ByteString.Builder (toLazyByteString)
+import Data.IORef (newIORef)
+import System.Timeout (timeout)
 
 -- External
-import Network.TLS (ClientParams (..), contextNew, contextClose, sendData, recvData, defaultParamsClient, handshake)
-import Network.Socket as Sock (connect, setSocketOption, SocketOption (..))
+import Network.Socket (AddrInfo (..), ShutdownCmd (..), SocketOption (..), close, connect, setSocketOption, shutdown, socket)
+import Network.TLS (ClientParams (..), contextClose, contextNew, defaultParamsClient, handshake, recvData, sendData)
 
 {-|
   Sets TLS connection
@@ -19,10 +23,23 @@ import Network.Socket as Sock (connect, setSocketOption, SocketOption (..))
 setSecure :: (ClientParams -> ClientParams) -> ConnectionArgs -> ConnectionArgs
 setSecure modifyParams = overrideNetwork "9443" initTLS
   where
-  initTLS = \hostname addrAddress sock -> do
-    setSocketOption sock Sock.NoDelay 1
-    setSocketOption sock Sock.KeepAlive 1
-    connect sock addrAddress
+  initTLS = \hostname AddrInfo{..} -> do
+    sock <- maybe (throwIO EstablishTimeout) pure
+      =<< timeout 3_000_000 (
+        bracketOnError
+          (socket addrFamily addrSocketType addrProtocol)
+          (\sock ->
+            catch @SomeException
+              (finally (shutdown sock ShutdownBoth) (close sock))
+              (const $ pure ())
+          )
+          (\sock -> do
+            setSocketOption sock NoDelay 1
+            setSocketOption sock KeepAlive 1
+            connect sock addrAddress
+            pure sock
+          )
+        )
     let defClientParams = modifyParams (defaultParamsClient hostname "")
     context <- contextNew sock defClientParams
     handshake context
