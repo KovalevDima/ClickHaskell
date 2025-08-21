@@ -94,9 +94,9 @@ rawBufferRead buffer@MkBuffer{..} parser =
   where
   runBufferReader :: Result packet -> IO packet
   runBufferReader = \case
-    Partial k -> readBuffer >>= runBufferReader . k
-    Done packet leftover -> packet <$ atomicModifyIORef buff (\_ -> (leftover, ()))
-    Fail msg _  -> throwIO (DeserializationError msg)
+    (Partial k) -> readBuffer >>= runBufferReader . k
+    (Done packet leftover) -> packet <$ atomicModifyIORef buff (leftover,)
+    (Fail msg _)  -> throwIO (DeserializationError msg)
 
   readBuffer :: IO BS.ByteString
   readBuffer =
