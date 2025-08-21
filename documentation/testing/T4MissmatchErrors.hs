@@ -25,7 +25,7 @@ t4 connection = do
     try (
       select
         (unsafeMkSelect
-          @ExpectedColumns
+          @TestExpectedColumns
           @ExpectedName
           (\_cols -> "SELECT * FROM generateRandom('unexpectedName Int64', 1, 10, 2) LIMIT 1")
         )
@@ -41,7 +41,7 @@ t4 connection = do
     try (
       select
         (unsafeMkSelect
-          @ExpectedColumns
+          @TestExpectedColumns
           @ExpectedName
           (\_cols -> "SELECT * FROM generateRandom('expectedName UInt64', 1, 10, 2) LIMIT 1")
         )
@@ -57,7 +57,7 @@ t4 connection = do
     try (
       select
         (unsafeMkSelect
-          @ExpectedColumns
+          @TestExpectedColumns
           @ExpectedName
           (\_cols -> "SELECT * FROM generateRandom('expectedName Int64, unexpectedColumn Int64', 1, 10, 2) LIMIT 1")
         )
@@ -76,9 +76,9 @@ data ExpectedName = MkExpectedName
   { expectedName :: Int64
   }
   deriving (Generic)
-  deriving anyclass (ClickHaskell ExpectedColumns)
+  deriving anyclass (ClickHaskell TestExpectedColumns)
 
 
-type ExpectedColumns =
+type TestExpectedColumns =
  '[ Column "expectedName" Int64
   ]
