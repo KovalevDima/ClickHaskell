@@ -281,26 +281,26 @@ data QueryPacket = MkQueryPacket
   deriving (Generic, Serializable)
 
 data QueryPacketArgs = MkQueryPacketArgs
-  { user :: String
-  , mOsUser :: Maybe String
-  , mHostname :: Maybe String
-  , query :: ChString
+  { initial_user :: ChString
+  , hostname     :: ChString
+  , os_user      :: ChString
+  , query        :: ChString
   }
 
 serializeQueryPacket :: QueryPacketArgs -> (ProtocolRevision -> Builder)
-serializeQueryPacket MkQueryPacketArgs{user, mOsUser, mHostname, query} rev =
+serializeQueryPacket MkQueryPacketArgs{initial_user, os_user, hostname, query} rev =
   serialize rev $ Query
     MkQueryPacket
       { query_id = ""
       , client_info  = MkSinceRevision MkClientInfo
         { query_kind                   = InitialQuery
-        , initial_user                 = toChType user
+        , initial_user
         , initial_query_id             = ""
         , initial_adress               = "0.0.0.0:0"
         , initial_time                 = MkSinceRevision 0
         , interface_type               = 1 -- [tcp - 1, http - 2]
-        , os_user                      = maybe "" toChType mOsUser
-        , hostname                     = maybe "" toChType mHostname
+        , os_user
+        , hostname
         , client_name                  = clientName
         , client_version_major         = major
         , client_version_minor         = minor

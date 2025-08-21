@@ -52,9 +52,12 @@ writeToConnection MkConnectionState{revision, buffer} serializer =
 data Connection where MkConnection :: (MVar ConnectionState) -> Connection
 
 data ConnectionState = MkConnectionState
-  { buffer   :: Buffer
-  , revision :: ProtocolRevision
-  , creds    :: ConnectionArgs
+  { buffer       :: Buffer
+  , revision     :: ProtocolRevision
+  , initial_user :: ChString
+  , os_user      :: ChString
+  , hostname     :: ChString
+  , creds        :: ConnectionArgs
   }
 
 createConnectionState

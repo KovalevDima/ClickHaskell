@@ -173,7 +173,10 @@ select ::
 select (MkSelect mkQuery) conn f = do
   withConnection conn $ \connState -> do
     writeToConnection connState
-      (serializeQueryPacket . mkQueryArgs connState . mkQuery $ expectedColumns @columns @output)
+      . serializeQueryPacket
+      . mkQueryArgs connState
+      . mkQuery
+      $ expectedColumns @columns @output
     writeToConnection connState (serializeDataPacket "" 0 0)
     loopSelect connState []
   where
@@ -303,8 +306,7 @@ type GenericClickHaskell record hasColumns =
 -- * Internal
 
 mkQueryArgs :: ConnectionState -> ChString -> QueryPacketArgs
-mkQueryArgs MkConnectionState{creds=MkConnectionArgs{..}} query
-  = MkQueryPacketArgs{..}
+mkQueryArgs MkConnectionState {..} query = MkQueryPacketArgs {..}
 
 -- ** Connection
 
@@ -325,13 +327,19 @@ withConnection (MkConnection connStateMVar) f =
     return b
 
 auth :: Buffer -> ConnectionArgs -> IO ConnectionState
-auth buffer creds@MkConnectionArgs{db, user, pass} = do
+auth buffer creds@MkConnectionArgs{db, user, pass, mOsUser, mHostname} = do
   (writeSock buffer . seriliazeHelloPacket db user pass) latestSupportedRevision
   serverPacketType <- readBuffer buffer (deserialize latestSupportedRevision)
   case serverPacketType of
     HelloResponse MkHelloResponse{server_revision} -> do
-      let revision = min server_revision latestSupportedRevision
-          conn = MkConnectionState{..}
+      let conn =
+            MkConnectionState
+              { revision     = min server_revision latestSupportedRevision
+              , os_user      = maybe "" toChType mOsUser
+              , hostname     = maybe "" toChType mHostname
+              , initial_user = toChType user
+              , ..
+              }
       writeToConnection conn (\rev -> serialize rev MkAddendum{quota_key = MkSinceRevision ""})
       pure conn
     Exception exception -> throwIO (DatabaseException exception)
