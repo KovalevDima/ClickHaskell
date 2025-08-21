@@ -4,7 +4,7 @@ module ClickHaskell.Columns where
 import ClickHaskell.Primitive
 
 -- GHC included
-import Data.Binary.Get
+import Data.Serialize.Get
 import Data.ByteString.Builder
 import Data.ByteString.Char8 as BS8 (pack)
 import Data.Traversable (forM)

@@ -52,7 +52,7 @@ Library
     -- GHC included libraries
       base >= 4.7 && <5
     , bytestring < 1
-    , binary < 9
+    , cereal < 1
     , deepseq < 2
     , time < 2
 

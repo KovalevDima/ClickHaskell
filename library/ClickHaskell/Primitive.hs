@@ -7,7 +7,7 @@ import Paths_ClickHaskell (version)
 -- GHC included
 import Control.Applicative (liftA2)
 import Control.DeepSeq (NFData)
-import Data.Binary.Get
+import Data.Serialize.Get
 import Data.Bits (Bits (setBit, unsafeShiftL, unsafeShiftR, (.&.), (.|.)))
 import Data.ByteString as BS (ByteString, length)
 import Data.ByteString.Builder

@@ -5,12 +5,12 @@ import ClickHaskell.Primitive
 
 -- GHC included
 import Control.Concurrent (MVar)
-import Control.Exception (throwIO, SomeException, finally, catch, bracketOnError)
-import Data.Binary.Builder (Builder, toLazyByteString)
-import Data.Binary.Get
+import Control.Exception (SomeException, bracketOnError, catch, finally, throwIO)
 import Data.ByteString as BS (ByteString, length)
+import Data.ByteString.Builder (Builder, toLazyByteString)
 import Data.IORef (IORef, atomicModifyIORef, atomicWriteIORef, newIORef, readIORef)
 import Data.Maybe (fromMaybe)
+import Data.Serialize.Get
 import GHC.Exception (Exception)
 import Prelude hiding (liftA2)
 
@@ -89,13 +89,14 @@ flushBuffer :: Buffer -> IO ()
 flushBuffer MkBuffer{buff} = atomicWriteIORef buff ""
 
 rawBufferRead :: Buffer -> Get packet -> IO packet
-rawBufferRead buffer@MkBuffer{..} parser = runBufferReader (runGetIncremental parser)
+rawBufferRead buffer@MkBuffer{..} parser =
+  runBufferReader . runGetPartial parser =<< readBuffer
   where
-  runBufferReader :: Decoder packet -> IO packet
+  runBufferReader :: Result packet -> IO packet
   runBufferReader = \case
-    (Partial decoder) -> readBuffer >>= runBufferReader . decoder . Just
-    (Done leftover _consumed packet) -> packet <$ atomicModifyIORef buff (leftover,)
-    (Fail _leftover _consumed msg) -> throwIO  (DeserializationError msg)
+    Partial k -> readBuffer >>= runBufferReader . k
+    Done packet leftover -> packet <$ atomicModifyIORef buff (\_ -> (leftover, ()))
+    Fail msg _  -> throwIO (DeserializationError msg)
 
   readBuffer :: IO BS.ByteString
   readBuffer =

@@ -95,7 +95,7 @@ import ClickHaskell.Statements
 import Control.Concurrent (newMVar, putMVar, takeMVar)
 import Control.Exception (Exception, catch, mask, onException, throw, throwIO)
 import Control.Monad (when)
-import Data.Binary.Get
+import Data.Serialize.Get
 import Data.ByteString.Builder
 import Data.Int (Int16, Int32, Int64, Int8)
 import Data.Kind (Type)
