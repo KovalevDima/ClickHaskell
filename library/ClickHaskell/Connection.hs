@@ -5,19 +5,21 @@ import ClickHaskell.Primitive
 
 -- GHC included
 import Control.Concurrent (MVar)
-import Control.Exception (throwIO)
+import Control.Exception (throwIO, SomeException, finally, catch, bracketOnError)
 import Data.Binary.Builder (Builder, toLazyByteString)
 import Data.Binary.Get
 import Data.ByteString as BS (ByteString, length)
 import Data.IORef (IORef, atomicModifyIORef, atomicWriteIORef, newIORef, readIORef)
+import Data.Maybe (fromMaybe)
 import GHC.Exception (Exception)
 import Prelude hiding (liftA2)
 
 -- External
 import Network.Socket hiding (SocketOption(..))
-import Network.Socket qualified as Sock (SocketOption(..))
+import Network.Socket (SocketOption(..))
 import Network.Socket.ByteString (recv)
 import Network.Socket.ByteString.Lazy (sendAll)
+import System.Timeout (timeout)
 
 
 
@@ -50,10 +52,31 @@ writeToConnection MkConnectionState{revision, buffer} serializer =
 data Connection where MkConnection :: (MVar ConnectionState) -> Connection
 
 data ConnectionState = MkConnectionState
-  { buffer   :: Buffer
-  , revision :: ProtocolRevision
-  , creds    :: ConnectionArgs
+  { buffer       :: Buffer
+  , revision     :: ProtocolRevision
+  , initial_user :: ChString
+  , os_user      :: ChString
+  , hostname     :: ChString
+  , creds        :: ConnectionArgs
   }
+
+createConnectionState
+  :: (Buffer -> ConnectionArgs -> IO ConnectionState)
+  -> ConnectionArgs
+  -> IO ConnectionState
+createConnectionState postInitAction creds@MkConnectionArgs {host, initBuffer, resolveAddrName} = do
+  addrInfo <- resolveAddrName creds
+  buffer <- initBuffer host addrInfo
+  postInitAction buffer creds
+
+recreateConnectionState
+  :: (Buffer -> ConnectionArgs -> IO ConnectionState)
+  -> ConnectionState
+  -> IO ConnectionState
+recreateConnectionState postInitAction MkConnectionState{creds, buffer} = do
+  flushBuffer buffer
+  closeSock buffer
+  createConnectionState postInitAction creds
 
 data Buffer = MkBuffer
   { readSock :: IO BS.ByteString
@@ -97,10 +120,11 @@ data ConnectionArgs = MkConnectionArgs
   , db   :: String
   , host :: HostName
   , mPort :: Maybe ServiceName
-  , isTLS :: Bool
+  , defPort :: ServiceName
   , mOsUser :: Maybe String
   , mHostname :: Maybe String
-  , initBuffer :: HostName -> SockAddr -> Socket -> IO Buffer
+  , resolveAddrName :: ConnectionArgs -> IO AddrInfo
+  , initBuffer :: HostName -> AddrInfo -> IO Buffer
   }
 
 {- |
@@ -108,8 +132,6 @@ data ConnectionArgs = MkConnectionArgs
 
   Use `setUser`, `setPassword`, `setHost`, `setPort`, `setDatabase`
   to modify connection defaults.
-
-  Or 'setSecure', 'overrideTLS' to configure TLS connection
 -}
 defaultConnectionArgs :: ConnectionArgs
 defaultConnectionArgs = MkConnectionArgs
@@ -117,14 +139,34 @@ defaultConnectionArgs = MkConnectionArgs
   , pass = ""
   , host = "localhost"
   , db   = "default"
-  , isTLS = False
+  , defPort = "9000"
   , mPort = Nothing
   , mOsUser = Nothing
   , mHostname = Nothing
-  , initBuffer  = \_hostname addrAddress sock -> do
-      setSocketOption sock Sock.NoDelay 1
-      setSocketOption sock Sock.KeepAlive 1
-      connect sock addrAddress
+  , resolveAddrName = \MkConnectionArgs{..} -> do
+      let hints = defaultHints{addrFlags = [AI_ADDRCONFIG], addrSocketType = Stream}
+          port  = fromMaybe defPort mPort
+      addrs <- getAddrInfo (Just hints) (Just host) (Just port)
+      case addrs of
+        []  -> throwIO NoAdressResolved
+        x:_ -> pure x
+  , initBuffer  = \_hostname AddrInfo{..} -> do
+      sock <- maybe (throwIO EstablishTimeout) pure
+        =<< timeout 3_000_000 (
+          bracketOnError
+            (socket addrFamily addrSocketType addrProtocol)
+            (\sock ->
+              catch @SomeException
+                (finally (shutdown sock ShutdownBoth) (close sock))
+                (const $ pure ())
+            )
+          (\sock -> do
+            setSocketOption sock NoDelay 1
+            setSocketOption sock KeepAlive 1
+            connect sock addrAddress
+            pure sock
+          )
+          )
       buff <- newIORef ""
       pure
         MkBuffer
@@ -155,7 +197,9 @@ setHost :: HostName -> ConnectionArgs -> ConnectionArgs
 setHost new MkConnectionArgs{..} = MkConnectionArgs{host=new, ..}
 
 {- |
-  Overrides default port __9000__ (or __9443__ for TLS)
+  Set a custom port instead of the default __9000__ (or __9443__ if TLS is used).
+
+  The default port can only be overridden by 'overrideNetwork'.
 -}
 setPort :: ServiceName -> ConnectionArgs -> ConnectionArgs
 setPort new MkConnectionArgs{..} = MkConnectionArgs{mPort=Just new, ..} 
@@ -183,8 +227,16 @@ overrideOsUser :: String -> ConnectionArgs -> ConnectionArgs
 overrideOsUser new MkConnectionArgs{..} = MkConnectionArgs{mOsUser=Just new, ..}
 
 overrideNetwork
-  :: Bool
-  -> (HostName -> SockAddr -> Socket -> IO Buffer)
+  :: ServiceName
+  -> (HostName -> AddrInfo -> IO Buffer)
   -> (ConnectionArgs -> ConnectionArgs)
-overrideNetwork new new2 = \MkConnectionArgs{..} ->
-  MkConnectionArgs{isTLS=new, initBuffer=new2, ..}
+overrideNetwork
+  newDefPort
+  newInitBuffer
+  MkConnectionArgs {user, pass, db, host, mPort, mOsUser, mHostname, resolveAddrName}
+  =
+  MkConnectionArgs
+    { defPort = newDefPort
+    , initBuffer = newInitBuffer
+    , ..
+    }

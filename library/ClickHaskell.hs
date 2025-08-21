@@ -93,22 +93,19 @@ import ClickHaskell.Statements
 
 -- GHC included
 import Control.Concurrent (newMVar, putMVar, takeMVar)
-import Control.Exception (Exception, SomeException, bracketOnError, catch, finally, mask, onException, throw, throwIO)
+import Control.Exception (Exception, catch, mask, onException, throw, throwIO)
 import Control.Monad (when)
 import Data.Binary.Get
 import Data.ByteString.Builder
 import Data.Int (Int16, Int32, Int64, Int8)
 import Data.Kind (Type)
-import Data.Maybe (fromMaybe, listToMaybe)
 import GHC.Generics (C1, D1, Generic (..), K1 (K1, unK1), M1 (M1, unM1), Meta (MetaSel), Rec0, S1, type (:*:) (..))
 import GHC.Stack (HasCallStack, callStack, prettyCallStack)
 import GHC.TypeLits (ErrorMessage (..), TypeError)
 import System.Environment (lookupEnv)
-import System.Timeout (timeout)
 
 -- External
 import Data.WideWord (Int128 (..), Word128 (..))
-import Network.Socket hiding (SocketOption (..))
 
 -- * Connection
 
@@ -117,7 +114,7 @@ openConnection creds@MkConnectionArgs{mHostname, mOsUser} = do
   hostname <- maybe (lookupEnv "HOSTNAME") (pure . Just) mHostname
   osUser   <- maybe (lookupEnv "USER")     (pure . Just) mOsUser
   connectionState <-
-    createConnectionState
+    createConnectionState auth
       . (maybe id overrideHostname hostname)
       . (maybe id overrideOsUser osUser)
       $ creds
@@ -176,7 +173,10 @@ select ::
 select (MkSelect mkQuery) conn f = do
   withConnection conn $ \connState -> do
     writeToConnection connState
-      (serializeQueryPacket . mkQueryArgs connState . mkQuery $ expectedColumns @columns @output)
+      . serializeQueryPacket
+      . mkQueryArgs connState
+      . mkQuery
+      $ expectedColumns @columns @output
     writeToConnection connState (serializeDataPacket "" 0 0)
     loopSelect connState []
   where
@@ -306,8 +306,7 @@ type GenericClickHaskell record hasColumns =
 -- * Internal
 
 mkQueryArgs :: ConnectionState -> ChString -> QueryPacketArgs
-mkQueryArgs MkConnectionState{creds=MkConnectionArgs{..}} query
-  = MkQueryPacketArgs{..}
+mkQueryArgs MkConnectionState {..} query = MkQueryPacketArgs {..}
 
 -- ** Connection
 
@@ -323,43 +322,24 @@ withConnection (MkConnection connStateMVar) f =
     connState <- takeMVar connStateMVar
     b <- onException
       (restore (f connState))
-      (putMVar connStateMVar =<< reopenConnection connState)
+      (putMVar connStateMVar =<< recreateConnectionState auth connState)
     putMVar connStateMVar connState
     return b
 
-reopenConnection :: ConnectionState -> IO ConnectionState
-reopenConnection MkConnectionState{creds, buffer} = do
-  flushBuffer buffer
-  closeSock buffer
-  createConnectionState creds
-
-createConnectionState :: ConnectionArgs -> IO ConnectionState
-createConnectionState creds@MkConnectionArgs {user, pass, db, host, mPort, initBuffer, isTLS} = do
-  let port = fromMaybe (if isTLS then "9440" else "9000") mPort
-  AddrInfo{addrFamily, addrSocketType, addrProtocol, addrAddress}
-    <- maybe (throwIO NoAdressResolved) pure . listToMaybe
-    =<< getAddrInfo
-      (Just defaultHints{addrFlags = [AI_ADDRCONFIG], addrSocketType = Stream})
-      (Just host)
-      (Just port)
-  buffer <- maybe (throwIO EstablishTimeout) pure
-    =<< timeout 3_000_000 (
-      bracketOnError
-        (socket addrFamily addrSocketType addrProtocol)
-        (\sock ->
-          catch @SomeException
-            (finally (shutdown sock ShutdownBoth) (close sock))
-            (const $ pure ())
-        )
-        (\sock -> initBuffer host addrAddress sock)
-      )
-
+auth :: Buffer -> ConnectionArgs -> IO ConnectionState
+auth buffer creds@MkConnectionArgs{db, user, pass, mOsUser, mHostname} = do
   (writeSock buffer . seriliazeHelloPacket db user pass) latestSupportedRevision
   serverPacketType <- readBuffer buffer (deserialize latestSupportedRevision)
   case serverPacketType of
     HelloResponse MkHelloResponse{server_revision} -> do
-      let revision = min server_revision latestSupportedRevision
-          conn = MkConnectionState{..}
+      let conn =
+            MkConnectionState
+              { revision     = min server_revision latestSupportedRevision
+              , os_user      = maybe "" toChType mOsUser
+              , hostname     = maybe "" toChType mHostname
+              , initial_user = toChType user
+              , ..
+              }
       writeToConnection conn (\rev -> serialize rev MkAddendum{quota_key = MkSinceRevision ""})
       pure conn
     Exception exception -> throwIO (DatabaseException exception)
@@ -367,7 +347,6 @@ createConnectionState creds@MkConnectionArgs {user, pass, db, host, mPort, initB
 
 
 -- ** Serialization Generic API
-
 
 class GClickHaskell (columns :: [Type]) f
   where
