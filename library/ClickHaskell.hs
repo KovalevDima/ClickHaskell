@@ -165,10 +165,12 @@ data UserError
   Returns __block processing__ result
 -}
 select ::
+  forall columns output result
+  .
   ClickHaskell columns output
   =>
   Select columns output -> Connection -> (ExpectedColumns columns output -> IO result) -> IO [result]
-select (MkSelect mkQuery :: Select columns output) conn f = do
+select (MkSelect mkQuery) conn f = do
   withConnection conn $ \connState -> do
     writeToConnection connState
       . serializeQueryPacket
@@ -199,10 +201,12 @@ select (MkSelect mkQuery :: Select columns output) conn f = do
 -- *** INSERT
 
 insert ::
+  forall columns record
+  .
   ClickHaskell columns record
   =>
   Insert columns record -> Connection -> ExpectedColumns columns record -> IO ()
-insert (MkInsert mkQuery:: Insert columns record ) conn (columnsData :: ExpectedColumns columns record) = do
+insert (MkInsert mkQuery) conn columnsData = do
   withConnection conn $ \connState -> do
     writeToConnection connState
       . serializeQueryPacket
