@@ -165,12 +165,10 @@ data UserError
   Returns __block processing__ result
 -}
 select ::
-  forall columns output result
-  .
   ClickHaskell columns output
   =>
   Select columns output -> Connection -> (ExpectedColumns columns output -> IO result) -> IO [result]
-select (MkSelect mkQuery) conn f = do
+select (MkSelect mkQuery :: Select columns output) conn f = do
   withConnection conn $ \connState -> do
     writeToConnection connState
       . serializeQueryPacket
@@ -204,7 +202,7 @@ insert ::
   ClickHaskell columns record
   =>
   Insert columns record -> Connection -> ExpectedColumns columns record -> IO ()
-insert ((MkInsert mkQuery) :: Insert columns record) conn columnsData = do
+insert (MkInsert mkQuery:: Insert columns record ) conn (columnsData :: ExpectedColumns columns record) = do
   withConnection conn $ \connState -> do
     writeToConnection connState
       . serializeQueryPacket
@@ -276,13 +274,13 @@ command conn query = do
 
 class ClickHaskell columns record
   where
-  default fromRecords :: GenericClickHaskell record columns => Bool -> ProtocolRevision -> UVarInt -> Get [record]
-  fromRecords :: Bool -> ProtocolRevision -> UVarInt -> Get [record]
-  fromRecords doCheck rev size = gFromRecords @columns doCheck rev size to
+  default toRecords :: GenericClickHaskell record columns => ExpectedColumns columns record -> [record]
+  toRecords :: ExpectedColumns columns record -> [record]
+  toRecords = gToRecords @columns @(Rep record) to
 
-  default toRecords :: GenericClickHaskell record columns => [record] -> ProtocolRevision -> Builder
-  toRecords :: [record] -> ProtocolRevision -> Builder
-  toRecords records rev = gToRecords @columns rev records from
+  default fromRecords :: GenericClickHaskell record columns => [record] -> ExpectedColumns columns record
+  fromRecords :: [record] -> ExpectedColumns columns record
+  fromRecords = gFromRecords @columns  @(Rep record) from
 
   default expectedColumns :: GenericClickHaskell record columns => [(Builder, Builder)]
   expectedColumns :: [(Builder, Builder)]
@@ -366,8 +364,8 @@ class GClickHaskell (columns :: [Type]) f
     1) Columns serialization logic generator
     2) Columns-to-rows(list of records) transposer
   -}
-  gFromRecords :: Bool -> ProtocolRevision -> UVarInt -> (f p -> res) -> Get [res]
-  gToRecords :: ProtocolRevision -> [res] -> (res -> f p) -> Builder
+  gToRecords :: (f p -> res) -> Columns (GExpectedColumns columns f) -> [res]
+  gFromRecords :: (res -> f p) -> [res] -> Columns (GExpectedColumns columns f)
   {-
     and affected columns extractor
   -}
@@ -387,11 +385,11 @@ instance
   =>
   GClickHaskell columns (D1 c (C1 c2 f))
   where
-  {-# INLINE gFromRecords #-}
-  gFromRecords doCheck rev size f = gFromRecords @columns doCheck rev size (f . M1 . M1)
-
   {-# INLINE gToRecords #-}
-  gToRecords rev xs f = gToRecords @columns rev xs (unM1 . unM1 . f)
+  gToRecords f cols = gToRecords @columns @f (f . M1 . M1) cols
+
+  {-# INLINE gFromRecords #-}
+  gFromRecords f cols = gFromRecords @columns (unM1 . unM1 . f) cols
 
   gExpectedColumns = gExpectedColumns @columns @f
   gColumnsCount = gColumnsCount @columns @f
@@ -422,15 +420,17 @@ instance
   =>
   GClickHaskell columns ((left :*: right1) :*: right2)
   where
-  {-# INLINE gFromRecords #-}
-  gFromRecords doCheck rev size f =
-    gFromRecords @columns @(left :*: (right1 :*: right2)) doCheck rev size
-      (\(l :*: (r1:*:r2)) -> f ((l :*: r1):*:r2))
-
   {-# INLINE gToRecords #-}
-  gToRecords rev xs f =
-    gToRecords @columns @(left :*: (right1 :*: right2)) rev xs
+  gToRecords f cols =
+    gToRecords @columns @(left :*: (right1 :*: right2))
+      (f . (\(l :*: (r1:*:r2)) -> ((l :*: r1):*:r2)))
+      cols
+
+  {-# INLINE gFromRecords #-}
+  gFromRecords f cols =
+    gFromRecords @columns @(left :*: (right1 :*: right2)) 
       ((\((l:*:r1) :*: r2) -> l :*: (r1 :*: r2)) . f)
+      cols
 
   gExpectedColumns = gExpectedColumns @columns @(left :*: (right1 :*: right2))
   gColumnsCount = gColumnsCount @columns @(left :*: (right1 :*: right2))
@@ -456,16 +456,17 @@ instance
   =>
   GClickHaskell columns ((S1 (MetaSel (Just name) a b f)) (Rec0 inputType) :*: right)
   where
-  {-# INLINE gFromRecords #-}
-  gFromRecords doCheck rev size f = do
-    lefts  <- gFromRecords @columns @(S1 (MetaSel (Just name) a b f) (Rec0 inputType)) doCheck rev size id
-    rights <- gFromRecords @columns @right doCheck rev size id
-    deserializeProduct (\l r -> f $ l :*: r) lefts rights
-
   {-# INLINE gToRecords #-}
-  gToRecords rev xs f
-    =  gToRecords @columns rev xs ((\(l:*:_) -> l) . f)
-    <> gToRecords @columns rev xs ((\(_:*:r) -> r) . f)
+  gToRecords f (AddColumn col cols) = do
+    let lefts = gToRecords @columns @(S1 (MetaSel (Just name) a b f) (Rec0 inputType)) id (AddColumn col Empty)
+        rights = gToRecords @columns @right id cols
+    deserializeProduct ((\l r -> f $ l :*: r)) lefts rights
+
+  {-# INLINE gFromRecords #-}
+  gFromRecords f records =
+    case (gFromRecords @columns @(S1 (MetaSel (Just name) a b f) (Rec0 inputType)) ((\(l:*:_) -> l) . f) records) of
+      AddColumn col Empty ->   
+        AddColumn col (gFromRecords @columns @right ((\(_:*:r) -> r) . f) records)
 
   gExpectedColumns = gExpectedColumns @columns @(S1 (MetaSel (Just name) a b f) (Rec0 inputType)) ++ gExpectedColumns @columns @right
   gColumnsCount = gColumnsCount @columns @(S1 (MetaSel (Just name) a b f) (Rec0 inputType)) + gColumnsCount @columns @right
@@ -482,12 +483,12 @@ instance
     <> gSerializeColumns @columns @right rev cols
   {-# INLINE gSerializeColumns #-}
 
-deserializeProduct ::  (l -> r -> a) -> [l] -> [r] -> Get [a]
+deserializeProduct ::  (l -> r -> a) -> [l] -> [r] -> [a]
 deserializeProduct f lefts rights = goDeserialize [] lefts rights
   where
   goDeserialize !acc (l:ls) (r:rs) = goDeserialize ((:acc) $! f l r) ls rs
-  goDeserialize !acc [] [] = pure acc
-  goDeserialize _ _ _ = fail "Mismatched lengths in gFromRecords"
+  goDeserialize !acc [] [] = acc
+  goDeserialize _ _ _ = fail "Mismatched lengths in gToRecords"
 
 {-
   Unwrapping a single generic field (recursion breaker)
@@ -501,17 +502,17 @@ instance
   , Column name chType ~ TakeColumn name columns
   ) => GClickHaskell columns ((S1 (MetaSel (Just name) a b f)) (Rec0 inputType))
   where
-  {-# INLINE gFromRecords #-}
-  gFromRecords doCheck rev size f = do
-    handleColumnHeader @(Column name chType) doCheck rev
-    deserializeColumn @(Column name chType) rev size (f . M1 . K1 . fromChType)
-
   {-# INLINE gToRecords #-}
-  gToRecords rev values f
-    =  serialize @ChString rev (toChType (renderColumnName @(Column name chType)))
-    <> serialize @ChString rev (toChType (renderColumnType @(Column name chType)))
-    <> afterRevision @DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION rev (serialize @UInt8 rev 0)
-    <> serializeColumn @(Column name chType) rev (toChType . unK1 . unM1 . f) values
+  gToRecords f =
+    map (f . M1 . K1 . fromChType)
+    . fromColumn @(Column name chType)
+    . (\(AddColumn col Empty) -> col)
+
+  {-# INLINE gFromRecords #-}
+  gFromRecords f =
+    (\col -> AddColumn col Empty)
+    . toColumn @(Column name chType)
+    . map (toChType . unK1 . unM1 . f)
 
   gExpectedColumns = (renderColumnName @(Column name chType), renderColumnType @(Column name chType)) : []
   gColumnsCount = 1
