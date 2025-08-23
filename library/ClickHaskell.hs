@@ -169,7 +169,7 @@ select ::
   .
   ClickHaskell columns output
   =>
-  Select columns output -> Connection -> ([output] -> IO result) -> IO [result]
+  Select columns output -> Connection -> (ExpectedColumns columns output -> IO result) -> IO [result]
 select (MkSelect mkQuery) conn f = do
   withConnection conn $ \connState -> do
     writeToConnection connState
@@ -189,7 +189,7 @@ select (MkSelect mkQuery) conn f = do
         when (columns_count /= expected) $
           (throw . UnmatchedResult . UnmatchedColumnsCount)
             ("Expected " <> show expected <> " columns but got " <> show columns_count)
-        !result <- f =<< readBuffer buffer (deserializeRecords @columns True revision rows_count)
+        !result <- f =<< readBuffer buffer (deserializeColumns @columns @output True revision rows_count)
         loopSelect connState (result : acc)
       Progress    _       -> loopSelect connState acc
       ProfileInfo _       -> loopSelect connState acc
@@ -205,7 +205,7 @@ insert ::
   .
   ClickHaskell columns record
   =>
-  Insert columns record -> Connection -> [record] -> IO ()
+  Insert columns record -> Connection -> ExpectedColumns columns record -> IO ()
 insert (MkInsert mkQuery) conn columnsData = do
   withConnection conn $ \connState -> do
     writeToConnection connState
@@ -221,11 +221,11 @@ insert (MkInsert mkQuery) conn columnsData = do
     case firstPacket of
       TableColumns      _ -> loopInsert connState 
       DataResponse MkDataPacket{} -> do
-        _emptyDataPacket <- readBuffer buffer (deserializeRecords @columns @record False revision 0)
-        let rows = fromIntegral (Prelude.length columnsData)
+        _emptyDataPacket <- readBuffer buffer (deserializeColumns @columns @record False revision 0)
+        let rows = fromIntegral (colLen columnsData)
             cols = columnsCount @columns @record
         writeToConnection connState (serializeDataPacket "" cols rows)
-        writeToConnection connState (serializeRecords @columns columnsData)
+        writeToConnection connState (serializeColumns @columns @record columnsData)
         writeToConnection connState (serializeDataPacket "" 0 0)
         loopInsert connState
       EndOfStream         -> pure ()
@@ -278,28 +278,39 @@ command conn query = do
 
 class ClickHaskell columns record
   where
-  default deserializeRecords :: GenericClickHaskell record columns => Bool -> ProtocolRevision -> UVarInt -> Get [record]
-  deserializeRecords :: Bool -> ProtocolRevision -> UVarInt -> Get [record]
-  deserializeRecords isCheckRequired rev size =
-    gDeserializeRecords @columns isCheckRequired rev size to
+  default toRecords :: GenericClickHaskell record columns => ExpectedColumns columns record -> [record]
+  toRecords :: ExpectedColumns columns record -> [record]
+  toRecords = gToRecords @columns @(Rep record) to
 
-  default serializeRecords :: GenericClickHaskell record columns => [record] -> ProtocolRevision -> Builder
-  serializeRecords :: [record] -> ProtocolRevision -> Builder
-  serializeRecords records rev = gSerializeRecords @columns rev records from
+  default fromRecords :: GenericClickHaskell record columns => [record] -> ExpectedColumns columns record
+  fromRecords :: [record] -> ExpectedColumns columns record
+  fromRecords = gFromRecords @columns  @(Rep record) from
 
   default expectedColumns :: GenericClickHaskell record columns => [(Builder, Builder)]
   expectedColumns :: [(Builder, Builder)]
-  expectedColumns = gReadingColumns @columns @(Rep record)
+  expectedColumns = gExpectedColumns @columns @(Rep record)
 
   default columnsCount :: GenericClickHaskell record columns => UVarInt
   columnsCount :: UVarInt
   columnsCount = gColumnsCount @columns @(Rep record)
+
+  default deserializeColumns :: GenericClickHaskell record columns => Bool -> ProtocolRevision -> UVarInt -> Get (ExpectedColumns columns record)
+  deserializeColumns :: Bool -> ProtocolRevision -> UVarInt -> Get (ExpectedColumns columns record)
+  deserializeColumns doCheck rev size = gDeserializeColumns @columns @(Rep record) doCheck rev size
+
+  default serializeColumns :: GenericClickHaskell record columns => ExpectedColumns columns record -> ProtocolRevision -> Builder
+  serializeColumns :: ExpectedColumns columns record -> ProtocolRevision -> Builder
+  serializeColumns columns rev = gSerializeColumns @columns @(Rep record) rev columns
 
 type GenericClickHaskell record hasColumns =
   ( Generic record
   , GClickHaskell hasColumns (Rep record)
   )
 
+
+type family ExpectedColumns columns record :: Type
+  where
+  ExpectedColumns columns record = Columns (GExpectedColumns columns (Rep record))
 
 
 
@@ -350,7 +361,6 @@ auth buffer creds@MkConnectionArgs{db, user, pass, mOsUser, mHostname} = do
 
 class GClickHaskell (columns :: [Type]) f
   where
-
   {-
     Generic deriving can be a bit tricky
 
@@ -358,13 +368,17 @@ class GClickHaskell (columns :: [Type]) f
     1) Columns serialization logic generator
     2) Columns-to-rows(list of records) transposer
   -}
-  gDeserializeRecords :: Bool -> ProtocolRevision -> UVarInt -> (f p -> res) -> Get [res]
-  gSerializeRecords :: ProtocolRevision -> [res] -> (res -> f p) -> Builder
+  gToRecords :: (f p -> res) -> Columns (GExpectedColumns columns f) -> [res]
+  gFromRecords :: (res -> f p) -> [res] -> Columns (GExpectedColumns columns f)
   {-
     and affected columns extractor
   -}
-  gReadingColumns :: [(Builder, Builder)]
+  gExpectedColumns :: [(Builder, Builder)]
   gColumnsCount :: UVarInt
+
+  type GExpectedColumns columns f :: [Type]
+  gDeserializeColumns :: Bool -> ProtocolRevision -> UVarInt -> Get (Columns (GExpectedColumns columns f))
+  gSerializeColumns :: ProtocolRevision -> Columns (GExpectedColumns columns f) -> Builder
 
 {-
   Unwrapping data type constructor
@@ -375,15 +389,20 @@ instance
   =>
   GClickHaskell columns (D1 c (C1 c2 f))
   where
-  {-# INLINE gDeserializeRecords #-}
-  gDeserializeRecords isCheckRequired rev size f =
-    gDeserializeRecords @columns isCheckRequired rev size (f . M1 . M1)
+  {-# INLINE gToRecords #-}
+  gToRecords f cols = gToRecords @columns @f (f . M1 . M1) cols
 
-  {-# INLINE gSerializeRecords #-}
-  gSerializeRecords rev xs f = gSerializeRecords @columns rev xs (unM1 . unM1 . f)
+  {-# INLINE gFromRecords #-}
+  gFromRecords f cols = gFromRecords @columns (unM1 . unM1 . f) cols
 
-  gReadingColumns = gReadingColumns @columns @f
+  gExpectedColumns = gExpectedColumns @columns @f
   gColumnsCount = gColumnsCount @columns @f
+
+  type GExpectedColumns columns (D1 c (C1 c2 f)) = GExpectedColumns columns f
+  gDeserializeColumns doCheck rev size = gDeserializeColumns @columns @f doCheck rev size
+  {-# INLINE gDeserializeColumns #-}
+  gSerializeColumns rev col = gSerializeColumns @columns @f rev col
+  {-# INLINE gSerializeColumns #-}
 
 {-
   Flattening of generic products
@@ -405,18 +424,26 @@ instance
   =>
   GClickHaskell columns ((left :*: right1) :*: right2)
   where
-  {-# INLINE gDeserializeRecords #-}
-  gDeserializeRecords isCheckRequired rev size f =
-    gDeserializeRecords @columns @(left :*: (right1 :*: right2)) isCheckRequired rev size
-      (\(l :*: (r1:*:r2)) -> f ((l :*: r1):*:r2))
+  {-# INLINE gToRecords #-}
+  gToRecords f cols =
+    gToRecords @columns @(left :*: (right1 :*: right2))
+      (f . (\(l :*: (r1:*:r2)) -> ((l :*: r1):*:r2)))
+      cols
 
-  {-# INLINE gSerializeRecords #-}
-  gSerializeRecords rev xs f =
-    gSerializeRecords @columns @(left :*: (right1 :*: right2)) rev xs
+  {-# INLINE gFromRecords #-}
+  gFromRecords f cols =
+    gFromRecords @columns @(left :*: (right1 :*: right2)) 
       ((\((l:*:r1) :*: r2) -> l :*: (r1 :*: r2)) . f)
+      cols
 
-  gReadingColumns = gReadingColumns @columns @(left :*: (right1 :*: right2))
+  gExpectedColumns = gExpectedColumns @columns @(left :*: (right1 :*: right2))
   gColumnsCount = gColumnsCount @columns @(left :*: (right1 :*: right2))
+
+  type GExpectedColumns columns ((left :*: right1) :*: right2) = GExpectedColumns columns (left :*: (right1 :*: right2))
+  gDeserializeColumns doCheck rev size = gDeserializeColumns @columns @(left :*: (right1 :*: right2)) doCheck rev size
+  {-# INLINE gDeserializeColumns #-}
+  gSerializeColumns rev col = gSerializeColumns @columns @(left :*: (right1 :*: right2)) rev col
+  {-# INLINE gSerializeColumns #-}
 
 {-
   Unwrapping a product starting with a field
@@ -433,26 +460,39 @@ instance
   =>
   GClickHaskell columns ((S1 (MetaSel (Just name) a b f)) (Rec0 inputType) :*: right)
   where
-  {-# INLINE gDeserializeRecords #-}
-  gDeserializeRecords isCheckRequired rev size f = do
-    lefts  <- gDeserializeRecords @columns @(S1 (MetaSel (Just name) a b f) (Rec0 inputType)) isCheckRequired rev size id
-    rights <- gDeserializeRecords @columns @right isCheckRequired rev size id
-    deserializeProduct (\l r -> f $ l :*: r) lefts rights
+  {-# INLINE gToRecords #-}
+  gToRecords f (AddColumn col cols) = do
+    let lefts = gToRecords @columns @(S1 (MetaSel (Just name) a b f) (Rec0 inputType)) id (AddColumn col Empty)
+        rights = gToRecords @columns @right id cols
+    deserializeProduct ((\l r -> f $ l :*: r)) lefts rights
 
-  {-# INLINE gSerializeRecords #-}
-  gSerializeRecords rev xs f
-    =  gSerializeRecords @columns rev xs ((\(l:*:_) -> l) . f)
-    <> gSerializeRecords @columns rev xs ((\(_:*:r) -> r) . f)
+  {-# INLINE gFromRecords #-}
+  gFromRecords f records =
+    case (gFromRecords @columns @(S1 (MetaSel (Just name) a b f) (Rec0 inputType)) ((\(l:*:_) -> l) . f) records) of
+      AddColumn col Empty ->   
+        AddColumn col (gFromRecords @columns @right ((\(_:*:r) -> r) . f) records)
 
-  gReadingColumns = gReadingColumns @columns @(S1 (MetaSel (Just name) a b f) (Rec0 inputType)) ++ gReadingColumns @columns @right
+  gExpectedColumns = gExpectedColumns @columns @(S1 (MetaSel (Just name) a b f) (Rec0 inputType)) ++ gExpectedColumns @columns @right
   gColumnsCount = gColumnsCount @columns @(S1 (MetaSel (Just name) a b f) (Rec0 inputType)) + gColumnsCount @columns @right
 
-deserializeProduct ::  (l -> r -> a) -> [l] -> [r] -> Get [a]
+  type GExpectedColumns columns ((S1 (MetaSel (Just name) a b f)) (Rec0 inputType) :*: right)
+    = Column name (GetColumnType (TakeColumn name columns)) ': GExpectedColumns columns right
+  gDeserializeColumns doCheck rev size = do
+    (AddColumn col Empty) <- gDeserializeColumns @columns @(S1 (MetaSel (Just name) a b f) (Rec0 inputType)) doCheck rev size
+    rights <- gDeserializeColumns @columns @right doCheck rev size
+    pure $ AddColumn col rights
+  {-# INLINE gDeserializeColumns #-}
+  gSerializeColumns rev (AddColumn col cols) =
+    gSerializeColumns @(columns) @(S1 (MetaSel (Just name) a b f) (Rec0 inputType)) rev (AddColumn col Empty)
+    <> gSerializeColumns @columns @right rev cols
+  {-# INLINE gSerializeColumns #-}
+
+deserializeProduct ::  (l -> r -> a) -> [l] -> [r] -> [a]
 deserializeProduct f lefts rights = goDeserialize [] lefts rights
   where
   goDeserialize !acc (l:ls) (r:rs) = goDeserialize ((:acc) $! f l r) ls rs
-  goDeserialize !acc [] [] = pure acc
-  goDeserialize _ _ _ = fail "Mismatched lengths in gDeserializeRecords"
+  goDeserialize !acc [] [] = acc
+  goDeserialize _ _ _ = fail "Mismatched lengths in gToRecords"
 
 {-
   Unwrapping a single generic field (recursion breaker)
@@ -466,32 +506,46 @@ instance
   , Column name chType ~ TakeColumn name columns
   ) => GClickHaskell columns ((S1 (MetaSel (Just name) a b f)) (Rec0 inputType))
   where
-  {-# INLINE gDeserializeRecords #-}
-  gDeserializeRecords isCheckRequired rev size f = do
-    handleColumnHeader @(Column name chType) isCheckRequired rev
-    deserializeColumn @(Column name chType) rev size (f . M1 . K1 . fromChType)
+  {-# INLINE gToRecords #-}
+  gToRecords f =
+    map (f . M1 . K1 . fromChType)
+    . fromColumn @(Column name chType)
+    . (\(AddColumn col Empty) -> col)
 
-  {-# INLINE gSerializeRecords #-}
-  gSerializeRecords rev values f
+  {-# INLINE gFromRecords #-}
+  gFromRecords f =
+    (\col -> AddColumn col Empty)
+    . toColumn @(Column name chType)
+    . map (toChType . unK1 . unM1 . f)
+
+  gExpectedColumns = (renderColumnName @(Column name chType), renderColumnType @(Column name chType)) : []
+  gColumnsCount = 1
+
+  type GExpectedColumns columns ((S1 (MetaSel (Just name) a b f)) (Rec0 inputType))
+    = '[Column name (GetColumnType (TakeColumn name columns))]
+  gDeserializeColumns doCheck rev size = do
+    handleColumnHeader @(Column name chType) doCheck rev
+    col <- deserializeColumn @(Column name chType) rev size id
+    pure $ AddColumn (toColumn @(Column name chType) col) Empty
+  {-# INLINE gDeserializeColumns #-}
+  gSerializeColumns rev (AddColumn col Empty)
     =  serialize @ChString rev (toChType (renderColumnName @(Column name chType)))
     <> serialize @ChString rev (toChType (renderColumnType @(Column name chType)))
     <> afterRevision @DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION rev (serialize @UInt8 rev 0)
-    <> serializeColumn @(Column name chType) rev (toChType . unK1 . unM1 . f) values
-
-  gReadingColumns = (renderColumnName @(Column name chType), renderColumnType @(Column name chType)) : []
-  gColumnsCount = 1
+    <> serializeColumn @(Column name chType) rev id (fromColumn @(Column name chType) col)
+  {-# INLINE gSerializeColumns #-}
 
 handleColumnHeader :: forall column . KnownColumn column => Bool -> ProtocolRevision -> Get ()
-handleColumnHeader isCheckRequired rev = do
+handleColumnHeader doCheck rev = do
   let expectedColumnName = toChType (renderColumnName @column)
   resultColumnName <- deserialize @ChString rev
-  when (isCheckRequired && resultColumnName /= expectedColumnName) $
+  when (doCheck && resultColumnName /= expectedColumnName) $
     throw . UnmatchedResult . UnmatchedColumn
       $ "Got column \"" <> show resultColumnName <> "\" but expected \"" <> show expectedColumnName <> "\""
 
   let expectedType = toChType (renderColumnType @column)
   resultType <- deserialize @ChString rev
-  when (isCheckRequired && resultType /= expectedType) $
+  when (doCheck && resultType /= expectedType) $
     throw . UnmatchedResult . UnmatchedType
       $ "Column " <> show resultColumnName <> " has type " <> show resultType <> ". But expected type is " <> show expectedType
 

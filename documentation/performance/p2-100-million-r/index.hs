@@ -36,7 +36,7 @@ main = do
           totalRows
         )
         connection
-        (pure . length)
+        (pure . length . toRecords @ExampleColumns @ExampleData)
 
   print $ "Processing done. " <> show result <> " rows was processed"
 

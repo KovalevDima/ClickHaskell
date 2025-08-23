@@ -94,7 +94,7 @@ main = do
         )
       )
       connection
-      pure
+      (pure . toRecords @ExampleCols @ExampleData)
 
   insert
     (intoTable
@@ -103,5 +103,5 @@ main = do
       @ExampleData
     )
     connection
-    (mconcat results)
+    (fromRecords @ExampleCols @ExampleData $ mconcat results)
 </code></pre>

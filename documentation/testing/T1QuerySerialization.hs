@@ -19,7 +19,7 @@ module T1QuerySerialization
 -- Internal
 import ClickHaskell
   ( Connection(..)
-  , ClickHaskell, select, unsafeMkSelect
+  , ClickHaskell(toRecords), select, unsafeMkSelect
   , Column, KnownColumn, SerializableColumn
   , IsChType(..), ToChType(..)
   , ToQueryPart(..)
@@ -81,7 +81,7 @@ runTestForType connection testValues = do
               (\_cols -> "SELECT CAST(" <> toQueryPart chType <> ", '" <> typeName <> "') as testSample;")
             )
             connection
-            pure
+            (pure . toRecords @'[Column "testSample" chType])
 
       (when (chType /= testSample selectChType) . error)
         (  "Deserialized value of type " <> show (toLazyByteString typeName) <> " unmatched:"
