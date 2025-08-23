@@ -296,8 +296,8 @@ class ClickHaskell columns record
   deserializeColumns :: Bool -> ProtocolRevision -> UVarInt -> Get (ExpectedColumns columns record)
   deserializeColumns doCheck rev size = gDeserializeColumns @columns @(Rep record) doCheck rev size
 
-  default serializeColumns :: GenericClickHaskell record columns => Columns (GExpectedColumns columns (Rep record)) -> ProtocolRevision -> Builder
-  serializeColumns :: Columns (GExpectedColumns columns (Rep record)) -> ProtocolRevision -> Builder
+  default serializeColumns :: GenericClickHaskell record columns => ExpectedColumns columns record -> ProtocolRevision -> Builder
+  serializeColumns :: ExpectedColumns columns record -> ProtocolRevision -> Builder
   serializeColumns columns rev = gSerializeColumns @columns @(Rep record) rev columns
 
 type GenericClickHaskell record hasColumns =
