@@ -19,7 +19,7 @@ import ClickHaskell
   , select, fromView, parameter
   , command
   , Connection, openConnection, defaultConnectionArgs
-  , Column, toRecords, fromRecords
+  , Column
   )
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async (Concurrently (..))
@@ -73,7 +73,7 @@ initVisitsTracker MkDocsStatisticsArgs{..} = do
             insert
               (intoTable @"ClickHaskellStats" @DocStatColumns @DocsStatistics)
               clickHouse
-              (fromRecords @DocStatColumns @DocsStatistics dataToWrite)
+              dataToWrite
           )
           (print @SomeException)
         threadDelay 5_000_000
@@ -105,7 +105,7 @@ readCurrentHistoryLast clickHouse hours =
         (parameter @"hoursLength" @UInt16 hours)
       )
       clickHouse
-      (pure . toRecords @HistoryColumns @HourData)
+      pure
 
 data HistoryData = History{history :: [HourData]} | HistoryUpdate{realtime :: HourData}
   deriving stock (Generic)

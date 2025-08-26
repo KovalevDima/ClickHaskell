@@ -26,7 +26,7 @@ import ClickHaskell
   , toChType
   , UInt8, UInt16, UInt32, UInt64, UInt128
   , UUID, DateTime, ChString, Int128, Word128
-  , Nullable, DateTime64, fromRecords, toRecords
+  , Nullable, DateTime64
   )
 
 -- GHC included
@@ -47,7 +47,7 @@ t2 connection = do
       @TestData
     )
     connection
-    (fromRecords @TestColumns [testData])
+    [testData]
 
   [result] <-
     concat <$>
@@ -58,7 +58,7 @@ t2 connection = do
           @TestData
         )
         connection
-        (pure . toRecords @TestColumns)
+        pure
 
   let testLabel = "WriteReadEquality: "
 

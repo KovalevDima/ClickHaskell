@@ -16,6 +16,7 @@ module ClickHaskell
   , overrideNetwork, overrideHostname, overrideOsUser
   , Connection(..), openConnection
   , Buffer(..)
+  , h
 
   {- * Statements and commands -}
 
@@ -169,7 +170,7 @@ select ::
   .
   ClickHaskell columns output
   =>
-  Select columns output -> Connection -> (ExpectedColumns columns output -> IO result) -> IO [result]
+  Select columns output -> Connection -> ([output] -> IO result) -> IO [result]
 select (MkSelect mkQuery) conn f = do
   withConnection conn $ \connState -> do
     writeToConnection connState
@@ -189,7 +190,7 @@ select (MkSelect mkQuery) conn f = do
         when (columns_count /= expected) $
           (throw . UnmatchedResult . UnmatchedColumnsCount)
             ("Expected " <> show expected <> " columns but got " <> show columns_count)
-        !result <- f =<< readBuffer buffer (deserializeColumns @columns @output True revision rows_count)
+        !result <- f . toRecords @columns @output =<< readBuffer buffer (deserializeColumns @columns @output True revision rows_count)
         loopSelect connState (result : acc)
       Progress    _       -> loopSelect connState acc
       ProfileInfo _       -> loopSelect connState acc
@@ -199,13 +200,12 @@ select (MkSelect mkQuery) conn f = do
 
 
 -- *** INSERT
-
 insert ::
   forall columns record
   .
   ClickHaskell columns record
   =>
-  Insert columns record -> Connection -> ExpectedColumns columns record -> IO ()
+  Insert columns record -> Connection -> [record] -> IO ()
 insert (MkInsert mkQuery) conn columnsData = do
   withConnection conn $ \connState -> do
     writeToConnection connState
@@ -222,10 +222,10 @@ insert (MkInsert mkQuery) conn columnsData = do
       TableColumns      _ -> loopInsert connState 
       DataResponse MkDataPacket{} -> do
         _emptyDataPacket <- readBuffer buffer (deserializeColumns @columns @record False revision 0)
-        let rows = fromIntegral (colLen columnsData)
+        let rows = fromIntegral (length columnsData)
             cols = columnsCount @columns @record
         writeToConnection connState (serializeDataPacket "" cols rows)
-        writeToConnection connState (serializeColumns @columns @record columnsData)
+        writeToConnection connState (serializeColumns @columns @record . fromRecords @columns @record $ columnsData)
         writeToConnection connState (serializeDataPacket "" 0 0)
         loopInsert connState
       EndOfStream         -> pure ()
@@ -276,15 +276,8 @@ command conn query = do
 
 -- ** Deriving
 
-class ClickHaskell columns record
+class GenericClickHaskell record columns => ClickHaskell columns record
   where
-  default toRecords :: GenericClickHaskell record columns => ExpectedColumns columns record -> [record]
-  toRecords :: ExpectedColumns columns record -> [record]
-  toRecords = gToRecords @columns @(Rep record) to
-
-  default fromRecords :: GenericClickHaskell record columns => [record] -> ExpectedColumns columns record
-  fromRecords :: [record] -> ExpectedColumns columns record
-  fromRecords = gFromRecords @columns  @(Rep record) from
 
   default expectedColumns :: GenericClickHaskell record columns => [(Builder, Builder)]
   expectedColumns :: [(Builder, Builder)]
@@ -312,6 +305,34 @@ type family ExpectedColumns columns record :: Type
   where
   ExpectedColumns columns record = Columns (GExpectedColumns columns (Rep record))
 
+{-# INLINE h #-}
+h ::
+  forall columns record
+  .
+  (ClickHaskell columns record)
+  =>
+  Columns (GExpectedColumns columns (Rep record)) -> Columns (GExpectedColumns columns (Rep record))
+h x = fromRecords @columns @record (toRecords @columns @record x)
+
+{-# NOINLINE [1] fromRecords #-}
+fromRecords :: forall columns record . ClickHaskell  columns record => [record] -> ExpectedColumns columns record
+fromRecords = gFromRecords @columns @(Rep record) from
+
+{-# NOINLINE [1] toRecords #-}
+toRecords :: forall columns record . ClickHaskell  columns record=> ExpectedColumns columns record -> [record]
+toRecords = gToRecords @columns @(Rep record) to
+
+{-# RULES
+"toRecords/fromRecords"
+  forall (x :: ExpectedColumns columns record)
+  .
+  fromRecords @columns @record (toRecords @columns @record x) = x
+
+"fromRecords/toRecords"
+  forall (x :: [record])
+  .
+  toRecords (fromRecords x) = x
+#-}
 
 
 -- * Internal
