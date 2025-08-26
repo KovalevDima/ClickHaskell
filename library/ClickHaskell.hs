@@ -311,8 +311,8 @@ h ::
   .
   (ClickHaskell columns record)
   =>
-  Columns (GExpectedColumns columns (Rep record)) -> Columns (GExpectedColumns columns (Rep record))
-h x = fromRecords @columns @record (toRecords @columns @record x)
+  [record] -> [record]
+h x = toRecords @columns @record (fromRecords @columns @record x)
 
 {-# NOINLINE [1] fromRecords #-}
 fromRecords :: forall columns record . ClickHaskell  columns record => [record] -> ExpectedColumns columns record
@@ -329,9 +329,9 @@ toRecords = gToRecords @columns @(Rep record) to
   fromRecords @columns @record (toRecords @columns @record x) = x
 
 "fromRecords/toRecords"
-  forall (x :: [record])
+  forall columns record . forall (x :: [record])
   .
-  toRecords (fromRecords x) = x
+  toRecords @columns @record (fromRecords @columns @record x) = x
 #-}
 
 
