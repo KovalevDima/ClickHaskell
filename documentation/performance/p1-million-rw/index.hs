@@ -18,7 +18,6 @@ import Data.ByteString (ByteString)
 import Data.Word (Word32)
 import Debug.Trace (traceMarkerIO)
 import GHC.Generics (Generic)
-import GHC.Base (inline)
 
 
 main :: IO ()
@@ -52,7 +51,7 @@ main = do
         totalRows
       )
       readingConnection
-      (inline $ insert (intoTable @"profiler" @ExampleColumns @ExampleData) writingConnection)
+      (insert (intoTable @"profiler" @ExampleColumns @ExampleData) writingConnection)
 
   print $ "Writing done. " <> show totalRows <> " rows was written"
 
