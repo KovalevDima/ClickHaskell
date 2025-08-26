@@ -28,6 +28,9 @@ data Columns (columns :: [Type]) where
     -> Columns columns
     -> Columns (Column name chType ': columns)
 
+colLen :: Columns columns -> Int
+colLen (AddColumn (col :: col) _) = length $ fromColumn @col col
+colLen Empty = 0
 
 {- |
 Column declaration

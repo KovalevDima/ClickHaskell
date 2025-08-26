@@ -280,8 +280,7 @@ class ClickHaskell columns record
   where
   default deserializeRecords :: GenericClickHaskell record columns => Bool -> ProtocolRevision -> UVarInt -> Get [record]
   deserializeRecords :: Bool -> ProtocolRevision -> UVarInt -> Get [record]
-  deserializeRecords isCheckRequired rev size =
-    gDeserializeRecords @columns isCheckRequired rev size to
+  deserializeRecords doCheck rev size = gDeserializeRecords @columns doCheck rev size to
 
   default serializeRecords :: GenericClickHaskell record columns => [record] -> ProtocolRevision -> Builder
   serializeRecords :: [record] -> ProtocolRevision -> Builder
@@ -376,8 +375,8 @@ instance
   GClickHaskell columns (D1 c (C1 c2 f))
   where
   {-# INLINE gDeserializeRecords #-}
-  gDeserializeRecords isCheckRequired rev size f =
-    gDeserializeRecords @columns isCheckRequired rev size (f . M1 . M1)
+  gDeserializeRecords doCheck rev size f =
+    gDeserializeRecords @columns doCheck rev size (f . M1 . M1)
 
   {-# INLINE gSerializeRecords #-}
   gSerializeRecords rev xs f = gSerializeRecords @columns rev xs (unM1 . unM1 . f)
@@ -406,8 +405,8 @@ instance
   GClickHaskell columns ((left :*: right1) :*: right2)
   where
   {-# INLINE gDeserializeRecords #-}
-  gDeserializeRecords isCheckRequired rev size f =
-    gDeserializeRecords @columns @(left :*: (right1 :*: right2)) isCheckRequired rev size
+  gDeserializeRecords doCheck rev size f =
+    gDeserializeRecords @columns @(left :*: (right1 :*: right2)) doCheck rev size
       (\(l :*: (r1:*:r2)) -> f ((l :*: r1):*:r2))
 
   {-# INLINE gSerializeRecords #-}
@@ -434,9 +433,9 @@ instance
   GClickHaskell columns ((S1 (MetaSel (Just name) a b f)) (Rec0 inputType) :*: right)
   where
   {-# INLINE gDeserializeRecords #-}
-  gDeserializeRecords isCheckRequired rev size f = do
-    lefts  <- gDeserializeRecords @columns @(S1 (MetaSel (Just name) a b f) (Rec0 inputType)) isCheckRequired rev size id
-    rights <- gDeserializeRecords @columns @right isCheckRequired rev size id
+  gDeserializeRecords doCheck rev size f = do
+    lefts  <- gDeserializeRecords @columns @(S1 (MetaSel (Just name) a b f) (Rec0 inputType)) doCheck rev size id
+    rights <- gDeserializeRecords @columns @right doCheck rev size id
     deserializeProduct (\l r -> f $ l :*: r) lefts rights
 
   {-# INLINE gSerializeRecords #-}
@@ -467,8 +466,8 @@ instance
   ) => GClickHaskell columns ((S1 (MetaSel (Just name) a b f)) (Rec0 inputType))
   where
   {-# INLINE gDeserializeRecords #-}
-  gDeserializeRecords isCheckRequired rev size f = do
-    handleColumnHeader @(Column name chType) isCheckRequired rev
+  gDeserializeRecords doCheck rev size f = do
+    handleColumnHeader @(Column name chType) doCheck rev
     deserializeColumn @(Column name chType) rev size (f . M1 . K1 . fromChType)
 
   {-# INLINE gSerializeRecords #-}
@@ -482,16 +481,16 @@ instance
   gColumnsCount = 1
 
 handleColumnHeader :: forall column . KnownColumn column => Bool -> ProtocolRevision -> Get ()
-handleColumnHeader isCheckRequired rev = do
+handleColumnHeader doCheck rev = do
   let expectedColumnName = toChType (renderColumnName @column)
   resultColumnName <- deserialize @ChString rev
-  when (isCheckRequired && resultColumnName /= expectedColumnName) $
+  when (doCheck && resultColumnName /= expectedColumnName) $
     throw . UnmatchedResult . UnmatchedColumn
       $ "Got column \"" <> show resultColumnName <> "\" but expected \"" <> show expectedColumnName <> "\""
 
   let expectedType = toChType (renderColumnType @column)
   resultType <- deserialize @ChString rev
-  when (isCheckRequired && resultType /= expectedType) $
+  when (doCheck && resultType /= expectedType) $
     throw . UnmatchedResult . UnmatchedType
       $ "Column " <> show resultColumnName <> " has type " <> show resultType <> ". But expected type is " <> show expectedType
 
