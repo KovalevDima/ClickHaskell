@@ -192,8 +192,7 @@ select (MkSelect mkQuery) conn f = do
         when (columns_count /= expected) $
           (throw . UnmatchedResult . UnmatchedColumnsCount)
             ("Expected " <> show expected <> " columns but got " <> show columns_count)
-        !result <- g
-          =<< readBuffer buffer (deserializeColumns @columns @output True revision rows_count)
+        !result <- g =<< readBuffer buffer (deserializeColumns @columns @output True revision rows_count)
         loopSelect connState (result : acc)
       Progress    _       -> loopSelect connState acc
       ProfileInfo _       -> loopSelect connState acc
@@ -209,7 +208,7 @@ insert ::
   ClickHaskell columns record
   =>
   Insert columns record -> Connection -> [record] -> IO ()
-insert (MkInsert mkQuery) conn records = do
+insert (MkInsert mkQuery) conn columnsData = do
   withConnection conn $ \connState -> do
     writeToConnection connState
       . serializeQueryPacket
@@ -219,7 +218,7 @@ insert (MkInsert mkQuery) conn records = do
     writeToConnection connState (serializeDataPacket "" 0 0)
     loopInsert connState
   where
-  columns = fromRecords @columns @record records
+  columns = fromRecords @columns @record columnsData
 
   loopInsert connState@MkConnectionState{..} = do
     firstPacket <- readBuffer buffer (deserialize revision)
