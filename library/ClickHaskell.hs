@@ -16,7 +16,6 @@ module ClickHaskell
   , overrideNetwork, overrideHostname, overrideOsUser
   , Connection(..), openConnection
   , Buffer(..)
-  , h
 
   {- * Statements and commands -}
 
@@ -165,6 +164,7 @@ data UserError
 
   Returns __block processing__ result
 -}
+{-# INLINE select #-}
 select ::
   forall columns output result
   .
@@ -181,6 +181,8 @@ select (MkSelect mkQuery) conn f = do
     writeToConnection connState (serializeDataPacket "" 0 0)
     loopSelect connState []
   where
+  g = f . toRecords @columns @output
+
   loopSelect connState@MkConnectionState{..} acc =
     readBuffer buffer (deserialize revision)
     >>= \packet -> case packet of
@@ -190,7 +192,8 @@ select (MkSelect mkQuery) conn f = do
         when (columns_count /= expected) $
           (throw . UnmatchedResult . UnmatchedColumnsCount)
             ("Expected " <> show expected <> " columns but got " <> show columns_count)
-        !result <- f . toRecords @columns @output =<< readBuffer buffer (deserializeColumns @columns @output True revision rows_count)
+        !result <- g
+          =<< readBuffer buffer (deserializeColumns @columns @output True revision rows_count)
         loopSelect connState (result : acc)
       Progress    _       -> loopSelect connState acc
       ProfileInfo _       -> loopSelect connState acc
@@ -198,15 +201,15 @@ select (MkSelect mkQuery) conn f = do
       Exception exception -> throwIO (DatabaseException exception)
       otherPacket         -> throwIO (InternalError $ UnexpectedPacketType $ serverPacketToNum otherPacket)
 
-
 -- *** INSERT
+{-# INLINE insert #-}
 insert ::
   forall columns record
   .
   ClickHaskell columns record
   =>
   Insert columns record -> Connection -> [record] -> IO ()
-insert (MkInsert mkQuery) conn columnsData = do
+insert (MkInsert mkQuery) conn records = do
   withConnection conn $ \connState -> do
     writeToConnection connState
       . serializeQueryPacket
@@ -216,16 +219,18 @@ insert (MkInsert mkQuery) conn columnsData = do
     writeToConnection connState (serializeDataPacket "" 0 0)
     loopInsert connState
   where
-  loopInsert connState@MkConnectionState{..}  = do
+  columns = fromRecords @columns @record records
+
+  loopInsert connState@MkConnectionState{..} = do
     firstPacket <- readBuffer buffer (deserialize revision)
     case firstPacket of
-      TableColumns      _ -> loopInsert connState 
+      TableColumns      _ -> loopInsert connState
       DataResponse MkDataPacket{} -> do
         _emptyDataPacket <- readBuffer buffer (deserializeColumns @columns @record False revision 0)
-        let rows = fromIntegral (length columnsData)
-            cols = columnsCount @columns @record
-        writeToConnection connState (serializeDataPacket "" cols rows)
-        writeToConnection connState (serializeColumns @columns @record . fromRecords @columns @record $ columnsData)
+        let rowsCnt = fromIntegral (colLen columns)
+            colsCnt = columnsCount @columns @record
+        writeToConnection connState (serializeDataPacket "" colsCnt rowsCnt)
+        writeToConnection connState (serializeColumns @columns @record columns)
         writeToConnection connState (serializeDataPacket "" 0 0)
         loopInsert connState
       EndOfStream         -> pure ()
@@ -305,20 +310,12 @@ type family ExpectedColumns columns record :: Type
   where
   ExpectedColumns columns record = Columns (GExpectedColumns columns (Rep record))
 
-{-# INLINE h #-}
-h ::
-  forall columns record
-  .
-  (ClickHaskell columns record)
-  =>
-  [record] -> [record]
-h x = toRecords @columns @record (fromRecords @columns @record x)
 
-{-# NOINLINE [1] fromRecords #-}
+{-# INLINE [1] fromRecords #-}
 fromRecords :: forall columns record . ClickHaskell  columns record => [record] -> ExpectedColumns columns record
 fromRecords = gFromRecords @columns @(Rep record) from
 
-{-# NOINLINE [1] toRecords #-}
+{-# INLINE [1] toRecords #-}
 toRecords :: forall columns record . ClickHaskell  columns record=> ExpectedColumns columns record -> [record]
 toRecords = gToRecords @columns @(Rep record) to
 
