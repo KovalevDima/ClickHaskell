@@ -55,7 +55,6 @@ t2 connection = do
         (fromTable
           @"writeReadEqualityTable"
           @TestColumns
-          @TestData
         )
         connection
         pure

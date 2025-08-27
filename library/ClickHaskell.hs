@@ -224,12 +224,12 @@ insert (MkInsert mkQuery) conn records = do
   loopInsert connState@MkConnectionState{..} = do
     firstPacket <- readBuffer buffer (deserialize revision)
     case firstPacket of
-      TableColumns      _ -> loopInsert connState
+      TableColumns      _ -> loopInsert connState 
       DataResponse MkDataPacket{} -> do
         _emptyDataPacket <- readBuffer buffer (deserializeColumns @columns @record False revision 0)
-        let rowsCnt = fromIntegral (colLen columns)
-            colsCnt = columnsCount @columns @record
-        writeToConnection connState (serializeDataPacket "" colsCnt rowsCnt)
+        let rows = fromIntegral (colLen columns)
+            cols = columnsCount @columns @record
+        writeToConnection connState (serializeDataPacket "" cols rows)
         writeToConnection connState (serializeColumns @columns @record columns)
         writeToConnection connState (serializeDataPacket "" 0 0)
         loopInsert connState

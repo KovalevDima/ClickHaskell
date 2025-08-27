@@ -70,10 +70,7 @@ initVisitsTracker MkDocsStatisticsArgs{..} = do
     ( Concurrently (forever $ do
         catch (do
             dataToWrite <- (atomically . flushTBQueue) docsStatQueue
-            insert
-              (intoTable @"ClickHaskellStats" @DocStatColumns @DocsStatistics)
-              clickHouse
-              dataToWrite
+            insert (intoTable @"ClickHaskellStats" @DocStatColumns) clickHouse dataToWrite
           )
           (print @SomeException)
         threadDelay 5_000_000
@@ -101,7 +98,6 @@ readCurrentHistoryLast clickHouse hours =
       (fromView
         @"historyByHours"
         @HistoryColumns
-        @HourData
         (parameter @"hoursLength" @UInt16 hours)
       )
       clickHouse
