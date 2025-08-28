@@ -123,8 +123,8 @@ data ConnectionArgs = MkConnectionArgs
   , mOsUser :: Maybe String
   , mHostname :: Maybe String
   , resolveAddrName :: ConnectionArgs -> IO AddrInfo
-  , initSocket :: AddrInfo -> IO Socket
   , initBuffer :: HostName -> Socket -> IO Buffer
+  , initSocket :: AddrInfo -> IO Socket
   }
 
 {- |
@@ -143,6 +143,13 @@ defaultConnectionArgs = MkConnectionArgs
   , mPort = Nothing
   , mOsUser = Nothing
   , mHostname = Nothing
+  , resolveAddrName = \MkConnectionArgs {host, mPort, defPort} -> do
+      let hints = defaultHints{addrFlags = [AI_ADDRCONFIG], addrSocketType = Stream}
+          port  = fromMaybe defPort mPort
+      addrs <- getAddrInfo (Just hints) (Just host) (Just port)
+      case addrs of
+        []  -> throwIO NoAdressResolved
+        x:_ -> pure x
   , initSocket = \AddrInfo{..} -> do
       maybe (throwIO EstablishTimeout) pure
         =<< timeout 3_000_000 (
@@ -160,13 +167,6 @@ defaultConnectionArgs = MkConnectionArgs
             pure sock
           )
         )
-  , resolveAddrName = \MkConnectionArgs {host, mPort, defPort} -> do
-      let hints = defaultHints{addrFlags = [AI_ADDRCONFIG], addrSocketType = Stream}
-          port  = fromMaybe defPort mPort
-      addrs <- getAddrInfo (Just hints) (Just host) (Just port)
-      case addrs of
-        []  -> throwIO NoAdressResolved
-        x:_ -> pure x
   , initBuffer = \_hostname sock -> do
       buff <- newIORef ""
       pure
