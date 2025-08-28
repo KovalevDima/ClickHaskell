@@ -14,6 +14,7 @@ module ClickHaskell
     ConnectionArgs, defaultConnectionArgs
   , setHost, setPort, setUser, setDatabase, setPassword
   , overrideNetwork, overrideHostname, overrideOsUser
+  , mkBuffer
   , Connection(..), openConnection
   , Buffer(..)
 
@@ -327,7 +328,7 @@ withConnection (MkConnection connStateMVar) f =
 
 auth :: Buffer -> ConnectionArgs -> IO ConnectionState
 auth buffer creds@MkConnectionArgs{db, user, pass, mOsUser, mHostname} = do
-  (writeSock buffer . seriliazeHelloPacket db user pass) latestSupportedRevision
+  (writeBufff buffer . seriliazeHelloPacket db user pass) latestSupportedRevision
   serverPacketType <- readBuffer buffer (deserialize latestSupportedRevision)
   case serverPacketType of
     HelloResponse MkHelloResponse{server_revision} -> do

@@ -47,7 +47,7 @@ data InternalError
 
 writeToConnection :: ConnectionState -> (ProtocolRevision -> Builder) -> IO ()
 writeToConnection MkConnectionState{revision, buffer} serializer =
-  (writeSock buffer) (serializer revision)
+  (writeBufff buffer) (serializer revision)
 
 data Connection where MkConnection :: (MVar ConnectionState) -> Connection
 
@@ -74,13 +74,13 @@ recreateConnectionState
   -> IO ConnectionState
 recreateConnectionState postInitAction MkConnectionState{creds, buffer} = do
   flushBuffer buffer
-  closeSock buffer
+  destroyBufff buffer
   createConnectionState postInitAction creds
 
 data Buffer = MkBuffer
-  { readSock :: IO BS.ByteString
-  , writeSock :: Builder -> IO ()
-  , closeSock :: IO ()
+  { readBufff :: IO BS.ByteString
+  , writeBufff :: Builder -> IO ()
+  , destroyBufff :: IO ()
   , buff :: IORef BS.ByteString
   }
 
@@ -101,7 +101,7 @@ rawBufferRead buffer@MkBuffer{..} parser = runBufferReader (runGetIncremental pa
     readIORef buff
       >>= (\currentBuffer ->
         case BS.length currentBuffer of
-          0 -> readSock
+          0 -> readBufff
           _ -> flushBuffer buffer *> pure currentBuffer
       )
 
@@ -167,17 +167,37 @@ defaultConnectionArgs = MkConnectionArgs
             pure sock
           )
         )
-  , initBuffer = \_hostname sock -> do
-      buff <- newIORef ""
-      pure
-        MkBuffer
-          { writeSock = \bs -> (sendAll sock . toLazyByteString) bs
-          , readSock  = recv sock 4096
-          , closeSock = close sock
-          , buff
-          }
+  , initBuffer = \_hostname sock -> 
+      mkBuffer
+        sock
+        (\s -> (sendAll s . toLazyByteString))
+        (\s -> recv s 4096)
+        (\s ->
+          catch @SomeException
+            (finally (shutdown s ShutdownBoth) (close s))
+            (const $ pure ())
+        )
   }
 
+mkBuffer
+  :: conn
+  -> (conn -> Builder -> IO ())
+  -> (conn -> IO ByteString)
+  -> (conn -> IO ())
+  -> IO Buffer 
+mkBuffer sock sendSock readSock closeSock = do
+  buff <- newIORef ""
+
+  pure MkBuffer
+    { writeBufff = sendSock sock
+    , readBufff =
+      -- ToDo: Move here actual buffer code
+      readSock sock
+    , destroyBufff =
+      -- ToDo: Move here actual buffer destroy code
+      closeSock sock
+    , buff
+    }
 
 {- |
   Overrides default user __"default"__
