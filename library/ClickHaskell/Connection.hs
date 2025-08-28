@@ -64,9 +64,8 @@ createConnectionState
   :: (Buffer -> ConnectionArgs -> IO ConnectionState)
   -> ConnectionArgs
   -> IO ConnectionState
-createConnectionState postInitAction creds@MkConnectionArgs {host, initBuffer, resolveAddrName} = do
-  addrInfo <- resolveAddrName creds
-  buffer <- initBuffer host addrInfo
+createConnectionState postInitAction creds@MkConnectionArgs {initBuffer, host,initSocket, resolveAddrName} = do
+  buffer <- initBuffer host =<< initSocket =<< resolveAddrName creds
   postInitAction buffer creds
 
 recreateConnectionState
@@ -124,7 +123,8 @@ data ConnectionArgs = MkConnectionArgs
   , mOsUser :: Maybe String
   , mHostname :: Maybe String
   , resolveAddrName :: ConnectionArgs -> IO AddrInfo
-  , initBuffer :: HostName -> AddrInfo -> IO Buffer
+  , initSocket :: AddrInfo -> IO Socket
+  , initBuffer :: HostName -> Socket -> IO Buffer
   }
 
 {- |
@@ -143,15 +143,8 @@ defaultConnectionArgs = MkConnectionArgs
   , mPort = Nothing
   , mOsUser = Nothing
   , mHostname = Nothing
-  , resolveAddrName = \MkConnectionArgs{..} -> do
-      let hints = defaultHints{addrFlags = [AI_ADDRCONFIG], addrSocketType = Stream}
-          port  = fromMaybe defPort mPort
-      addrs <- getAddrInfo (Just hints) (Just host) (Just port)
-      case addrs of
-        []  -> throwIO NoAdressResolved
-        x:_ -> pure x
-  , initBuffer  = \_hostname AddrInfo{..} -> do
-      sock <- maybe (throwIO EstablishTimeout) pure
+  , initSocket = \AddrInfo{..} -> do
+      maybe (throwIO EstablishTimeout) pure
         =<< timeout 3_000_000 (
           bracketOnError
             (socket addrFamily addrSocketType addrProtocol)
@@ -166,7 +159,15 @@ defaultConnectionArgs = MkConnectionArgs
             connect sock addrAddress
             pure sock
           )
-          )
+        )
+  , resolveAddrName = \MkConnectionArgs {host, mPort, defPort} -> do
+      let hints = defaultHints{addrFlags = [AI_ADDRCONFIG], addrSocketType = Stream}
+          port  = fromMaybe defPort mPort
+      addrs <- getAddrInfo (Just hints) (Just host) (Just port)
+      case addrs of
+        []  -> throwIO NoAdressResolved
+        x:_ -> pure x
+  , initBuffer = \_hostname sock -> do
       buff <- newIORef ""
       pure
         MkBuffer
@@ -228,12 +229,12 @@ overrideOsUser new MkConnectionArgs{..} = MkConnectionArgs{mOsUser=Just new, ..}
 
 overrideNetwork
   :: ServiceName
-  -> (HostName -> AddrInfo -> IO Buffer)
+  -> (HostName -> Socket -> IO Buffer)
   -> (ConnectionArgs -> ConnectionArgs)
 overrideNetwork
   newDefPort
   newInitBuffer
-  MkConnectionArgs {user, pass, db, host, mPort, mOsUser, mHostname, resolveAddrName}
+  MkConnectionArgs {..}
   =
   MkConnectionArgs
     { defPort = newDefPort
