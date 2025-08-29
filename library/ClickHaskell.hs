@@ -13,10 +13,10 @@ module ClickHaskell
   {- * Connection -}
     ConnectionArgs, defaultConnectionArgs
   , setHost, setPort, setUser, setDatabase, setPassword
+  , Connection(..), openConnection
+  {- ** Hacking  -}
   , overrideNetwork, overrideHostname, overrideOsUser
   , mkBuffer
-  , Connection(..), openConnection
-  , Buffer(..)
 
   {- * Statements and commands -}
 
@@ -326,7 +326,10 @@ withConnection (MkConnection connStateMVar) f =
     connState <- takeMVar connStateMVar
     b <- onException
       (restore (f connState))
-      (putMVar connStateMVar =<< recreateConnectionState auth connState)
+      (do
+        newConnState <- recreateConnectionState auth connState
+        putMVar connStateMVar newConnState
+      )
     putMVar connStateMVar connState
     return b
 

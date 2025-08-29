@@ -63,8 +63,9 @@ createConnectionState
   :: (Buffer -> ConnectionArgs -> IO ConnectionState)
   -> ConnectionArgs
   -> IO ConnectionState
-createConnectionState postInitAction creds@MkConnectionArgs {initBuffer, host,initSocket, resolveAddrName} = do
-  buffer <- initBuffer host =<< initSocket =<< resolveAddrName creds
+createConnectionState postInitAction creds@MkConnectionArgs{..} = do
+  let port = fromMaybe defPort mPort
+  buffer <- initBuffer host =<< initSocket =<< resolveHostName host port
   postInitAction buffer creds
 
 recreateConnectionState
@@ -99,7 +100,7 @@ data ConnectionArgs = MkConnectionArgs
   , defPort :: ServiceName
   , mOsUser :: Maybe String
   , mHostname :: Maybe String
-  , resolveAddrName :: ConnectionArgs -> IO AddrInfo
+  , resolveHostName :: HostName -> ServiceName -> IO AddrInfo
   , initBuffer :: HostName -> Socket -> IO Buffer
   , initSocket :: AddrInfo -> IO Socket
   }
@@ -120,61 +121,47 @@ defaultConnectionArgs = MkConnectionArgs
   , mPort = Nothing
   , mOsUser = Nothing
   , mHostname = Nothing
-  , resolveAddrName = \MkConnectionArgs {host, mPort, defPort} -> do
-      let hints = defaultHints{addrFlags = [AI_ADDRCONFIG], addrSocketType = Stream}
-          port  = fromMaybe defPort mPort
-      addrs <- getAddrInfo (Just hints) (Just host) (Just port)
-      case addrs of
-        []  -> throwIO NoAdressResolved
-        x:_ -> pure x
-  , initSocket = \AddrInfo{..} -> do
-      maybe (throwIO EstablishTimeout) pure
-        =<< timeout 3_000_000 (
-          bracketOnError
-            (socket addrFamily addrSocketType addrProtocol)
-            (\sock ->
-              catch @SomeException
-                (finally (shutdown sock ShutdownBoth) (close sock))
-                (const $ pure ())
-            )
-          (\sock -> do
-            setSocketOption sock NoDelay 1
-            setSocketOption sock KeepAlive 1
-            connect sock addrAddress
-            pure sock
-          )
-        )
-  , initBuffer = \_hostname sock -> 
-      mkBuffer
-        (sendAll sock . toLazyByteString)
-        (recv sock 4096)
-        (catch @SomeException
-          (finally (shutdown sock ShutdownBoth) (close sock))
-          (const $ pure ())
-        )
+  , resolveHostName = defaultResolveHostName
+  , initSocket = defaultInitSocket
+  , initBuffer = defaultInitBuffer
   }
 
-mkBuffer
-  :: (Builder -> IO ())
-  -> IO ByteString
-  -> IO ()
-  -> IO Buffer 
-mkBuffer sendSock readSock closeSock = do
-  buff <- newIORef ""
-  let writeBuff bs = atomicWriteIORef buff bs
+defaultResolveHostName :: HostName -> ServiceName -> IO AddrInfo
+defaultResolveHostName host port = do
+  let hints = defaultHints{addrFlags = [AI_ADDRCONFIG], addrSocketType = Stream}
+  addrs <- getAddrInfo (Just hints) (Just host) (Just port)
+  case addrs of
+    []  -> throwIO NoAdressResolved
+    x:_ -> pure x
 
-  pure MkBuffer
-    { writeConn = sendSock
-    , writeBuff
-    , readBuff = do
-      currentBuffer <- readIORef buff
-      case BS.length currentBuffer of
-        0 -> readSock
-        _ -> writeBuff "" *> pure currentBuffer
-    , destroyBuff = do
-      closeSock
-      writeBuff ""
-    }
+defaultInitSocket :: AddrInfo -> IO Socket
+defaultInitSocket AddrInfo{..} = do
+  maybe (throwIO EstablishTimeout) pure
+    =<< timeout 3_000_000 (
+      bracketOnError
+        (socket addrFamily addrSocketType addrProtocol)
+        (\sock ->
+          catch @SomeException
+            (finally (shutdown sock ShutdownBoth) (close sock))
+            (const $ pure ())
+        )
+      (\sock -> do
+        setSocketOption sock NoDelay 1
+        setSocketOption sock KeepAlive 1
+        connect sock addrAddress
+        pure sock
+      )
+    )
+
+defaultInitBuffer :: HostName -> Socket -> IO Buffer
+defaultInitBuffer _hostname sock = 
+  mkBuffer
+    (sendAll sock . toLazyByteString)
+    (recv sock 4096)
+    (catch @SomeException
+      (finally (shutdown sock ShutdownBoth) (close sock))
+      (const $ pure ())
+    )
 
 {- |
   Overrides default user __"default"__
@@ -208,10 +195,48 @@ setPort new MkConnectionArgs{..} = MkConnectionArgs{mPort=Just new, ..}
 setDatabase :: String -> ConnectionArgs -> ConnectionArgs
 setDatabase new MkConnectionArgs{..} = MkConnectionArgs{db=new, ..}
 
+
+
+
+-- * Overriders
+
 {- |
-  Overrides default hostname value which is:
-  1. __$HOSTNAME__ variable value (if set)
+  This function should be used when you want to override
+  the default connection behaviour
+
+  Designed to be passed into 'overrideNetwork'
+
+  Watch __ClickHaskell-tls__ package for example
+-}
+mkBuffer
+  :: (Builder -> IO ())
+  -> IO ByteString
+  -> IO ()
+  -> IO Buffer 
+mkBuffer sendSock readSock closeSock = do
+  buff <- newIORef ""
+  let writeBuff bs = atomicWriteIORef buff bs
+
+  pure MkBuffer
+    { writeConn = sendSock
+    , writeBuff
+    , readBuff = do
+      currentBuffer <- readIORef buff
+      case BS.length currentBuffer of
+        0 -> readSock
+        _ -> writeBuff "" *> pure currentBuffer
+    , destroyBuff = do
+      closeSock
+      writeBuff ""
+    }
+
+{- |
+  Overrides default client hostname value which is:
+
+  1. __$HOSTNAME__ env variable value (if set)
   2. __""__ otherwise
+
+  Client hostname being displayed in ClickHouse logs
 -}
 overrideHostname :: String -> ConnectionArgs -> ConnectionArgs
 overrideHostname new MkConnectionArgs{..} = MkConnectionArgs{mHostname=Just new, ..}
