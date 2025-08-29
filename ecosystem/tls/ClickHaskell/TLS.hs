@@ -24,7 +24,6 @@ setSecure modifyParams = overrideNetwork "9443" initTLS
     context <- contextNew sock defClientParams
     handshake context
     mkBuffer
-      context
-      (\c bs -> sendData c (toLazyByteString bs))
-      (recvData)
-      (contextClose)
+      (\bs -> sendData context (toLazyByteString bs))
+      (recvData context)
+      (contextClose context)

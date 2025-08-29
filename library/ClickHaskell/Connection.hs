@@ -7,9 +7,8 @@ import ClickHaskell.Primitive
 import Control.Concurrent (MVar)
 import Control.Exception (throwIO, SomeException, finally, catch, bracketOnError)
 import Data.Binary.Builder (Builder, toLazyByteString)
-import Data.Binary.Get
 import Data.ByteString as BS (ByteString, length)
-import Data.IORef (IORef, atomicModifyIORef, atomicWriteIORef, newIORef, readIORef)
+import Data.IORef (atomicWriteIORef, newIORef, readIORef)
 import Data.Maybe (fromMaybe)
 import GHC.Exception (Exception)
 import Prelude hiding (liftA2)
@@ -47,7 +46,7 @@ data InternalError
 
 writeToConnection :: ConnectionState -> (ProtocolRevision -> Builder) -> IO ()
 writeToConnection MkConnectionState{revision, buffer} serializer =
-  (writeBufff buffer) (serializer revision)
+  (writeConn buffer) (serializer revision)
 
 data Connection where MkConnection :: (MVar ConnectionState) -> Connection
 
@@ -73,37 +72,15 @@ recreateConnectionState
   -> ConnectionState
   -> IO ConnectionState
 recreateConnectionState postInitAction MkConnectionState{creds, buffer} = do
-  flushBuffer buffer
-  destroyBufff buffer
+  destroyBuff buffer
   createConnectionState postInitAction creds
 
 data Buffer = MkBuffer
-  { readBufff :: IO BS.ByteString
-  , writeBufff :: Builder -> IO ()
-  , destroyBufff :: IO ()
-  , buff :: IORef BS.ByteString
+  { readBuff :: IO BS.ByteString
+  , destroyBuff :: IO ()
+  , writeBuff :: BS.ByteString -> IO ()
+  , writeConn :: Builder -> IO ()
   }
-
-flushBuffer :: Buffer -> IO ()
-flushBuffer MkBuffer{buff} = atomicWriteIORef buff ""
-
-rawBufferRead :: Buffer -> Get packet -> IO packet
-rawBufferRead buffer@MkBuffer{..} parser = runBufferReader (runGetIncremental parser)
-  where
-  runBufferReader :: Decoder packet -> IO packet
-  runBufferReader = \case
-    (Partial decoder) -> readBuffer >>= runBufferReader . decoder . Just
-    (Done leftover _consumed packet) -> packet <$ atomicModifyIORef buff (leftover,)
-    (Fail _leftover _consumed msg) -> throwIO  (DeserializationError msg)
-
-  readBuffer :: IO BS.ByteString
-  readBuffer =
-    readIORef buff
-      >>= (\currentBuffer ->
-        case BS.length currentBuffer of
-          0 -> readBufff
-          _ -> flushBuffer buffer *> pure currentBuffer
-      )
 
 
 
@@ -169,34 +146,34 @@ defaultConnectionArgs = MkConnectionArgs
         )
   , initBuffer = \_hostname sock -> 
       mkBuffer
-        sock
-        (\s -> (sendAll s . toLazyByteString))
-        (\s -> recv s 4096)
-        (\s ->
-          catch @SomeException
-            (finally (shutdown s ShutdownBoth) (close s))
-            (const $ pure ())
+        (sendAll sock . toLazyByteString)
+        (recv sock 4096)
+        (catch @SomeException
+          (finally (shutdown sock ShutdownBoth) (close sock))
+          (const $ pure ())
         )
   }
 
 mkBuffer
-  :: conn
-  -> (conn -> Builder -> IO ())
-  -> (conn -> IO ByteString)
-  -> (conn -> IO ())
+  :: (Builder -> IO ())
+  -> IO ByteString
+  -> IO ()
   -> IO Buffer 
-mkBuffer sock sendSock readSock closeSock = do
+mkBuffer sendSock readSock closeSock = do
   buff <- newIORef ""
+  let writeBuff bs = atomicWriteIORef buff bs
 
   pure MkBuffer
-    { writeBufff = sendSock sock
-    , readBufff =
-      -- ToDo: Move here actual buffer code
-      readSock sock
-    , destroyBufff =
-      -- ToDo: Move here actual buffer destroy code
-      closeSock sock
-    , buff
+    { writeConn = sendSock
+    , writeBuff
+    , readBuff = do
+      currentBuffer <- readIORef buff
+      case BS.length currentBuffer of
+        0 -> readSock
+        _ -> writeBuff "" *> pure currentBuffer
+    , destroyBuff = do
+      closeSock
+      writeBuff ""
     }
 
 {- |
