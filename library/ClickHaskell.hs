@@ -13,9 +13,10 @@ module ClickHaskell
   {- * Connection -}
     ConnectionArgs, defaultConnectionArgs
   , setHost, setPort, setUser, setDatabase, setPassword
-  , overrideNetwork, overrideHostname, overrideOsUser
   , Connection(..), openConnection
-  , Buffer(..)
+  {- ** Hacking  -}
+  , overrideNetwork, overrideHostname, overrideOsUser
+  , mkBuffer
 
   {- * Statements and commands -}
 
@@ -93,7 +94,7 @@ import ClickHaskell.Statements
 
 -- GHC included
 import Control.Concurrent (newMVar, putMVar, takeMVar)
-import Control.Exception (Exception, catch, mask, onException, throw, throwIO)
+import Control.Exception (Exception, mask, onException, throw, throwIO)
 import Control.Monad (when)
 import Data.Binary.Get
 import Data.ByteString.Builder
@@ -310,10 +311,14 @@ mkQueryArgs MkConnectionState {..} query = MkQueryPacketArgs {..}
 -- ** Connection
 
 readBuffer :: Buffer -> Get a -> IO a
-readBuffer buffer deseralize =
-  catch @InternalError
-    (rawBufferRead buffer deseralize)
-    (throwIO . InternalError)
+readBuffer MkBuffer{readBuff, writeBuff} parser = runBufferReader (runGetIncremental parser)
+  where
+  runBufferReader :: Decoder packet -> IO packet
+  runBufferReader = \case
+    (Partial decoder) -> readBuff >>= runBufferReader . decoder . Just
+    (Done leftover _consumed packet) -> packet <$ writeBuff leftover
+    (Fail _leftover _consumed msg) -> throwIO  (InternalError $ DeserializationError msg)
+
 
 withConnection :: HasCallStack => Connection -> (ConnectionState -> IO a) -> IO a
 withConnection (MkConnection connStateMVar) f =
@@ -321,13 +326,16 @@ withConnection (MkConnection connStateMVar) f =
     connState <- takeMVar connStateMVar
     b <- onException
       (restore (f connState))
-      (putMVar connStateMVar =<< recreateConnectionState auth connState)
+      (do
+        newConnState <- recreateConnectionState auth connState
+        putMVar connStateMVar newConnState
+      )
     putMVar connStateMVar connState
     return b
 
 auth :: Buffer -> ConnectionArgs -> IO ConnectionState
 auth buffer creds@MkConnectionArgs{db, user, pass, mOsUser, mHostname} = do
-  (writeSock buffer . seriliazeHelloPacket db user pass) latestSupportedRevision
+  (writeConn buffer . seriliazeHelloPacket db user pass) latestSupportedRevision
   serverPacketType <- readBuffer buffer (deserialize latestSupportedRevision)
   case serverPacketType of
     HelloResponse MkHelloResponse{server_revision} -> do
