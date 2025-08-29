@@ -233,7 +233,7 @@ overrideNetwork
 overrideNetwork
   newDefPort
   newInitBuffer
-  MkConnectionArgs {user, pass, db, host, mPort, mOsUser, mHostname, resolveAddrName}
+  MkConnectionArgs {..}
   =
   MkConnectionArgs
     { defPort = newDefPort
