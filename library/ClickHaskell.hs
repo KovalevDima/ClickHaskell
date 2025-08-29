@@ -289,7 +289,7 @@ class ClickHaskell columns record
 
   default expectedColumns :: GenericClickHaskell record columns => [(Builder, Builder)]
   expectedColumns :: [(Builder, Builder)]
-  expectedColumns = gReadingColumns @columns @(Rep record)
+  expectedColumns = gExpectedColumns @columns @(Rep record)
 
   default columnsCount :: GenericClickHaskell record columns => UVarInt
   columnsCount :: UVarInt
@@ -370,7 +370,7 @@ class GClickHaskell (columns :: [Type]) f
   {-
     and affected columns extractor
   -}
-  gReadingColumns :: [(Builder, Builder)]
+  gExpectedColumns :: [(Builder, Builder)]
   gColumnsCount :: UVarInt
 
 {-
@@ -389,7 +389,7 @@ instance
   {-# INLINE gSerializeRecords #-}
   gSerializeRecords rev xs f = gSerializeRecords @columns rev xs (unM1 . unM1 . f)
 
-  gReadingColumns = gReadingColumns @columns @f
+  gExpectedColumns = gExpectedColumns @columns @f
   gColumnsCount = gColumnsCount @columns @f
 
 {-
@@ -422,7 +422,7 @@ instance
     gSerializeRecords @columns @(left :*: (right1 :*: right2)) rev xs
       ((\((l:*:r1) :*: r2) -> l :*: (r1 :*: r2)) . f)
 
-  gReadingColumns = gReadingColumns @columns @(left :*: (right1 :*: right2))
+  gExpectedColumns = gExpectedColumns @columns @(left :*: (right1 :*: right2))
   gColumnsCount = gColumnsCount @columns @(left :*: (right1 :*: right2))
 
 {-
@@ -451,7 +451,7 @@ instance
     =  gSerializeRecords @columns rev xs ((\(l:*:_) -> l) . f)
     <> gSerializeRecords @columns rev xs ((\(_:*:r) -> r) . f)
 
-  gReadingColumns = gReadingColumns @columns @(S1 (MetaSel (Just name) a b f) (Rec0 inputType)) ++ gReadingColumns @columns @right
+  gExpectedColumns = gExpectedColumns @columns @(S1 (MetaSel (Just name) a b f) (Rec0 inputType)) ++ gExpectedColumns @columns @right
   gColumnsCount = gColumnsCount @columns @(S1 (MetaSel (Just name) a b f) (Rec0 inputType)) + gColumnsCount @columns @right
 
 deserializeProduct ::  (l -> r -> a) -> [l] -> [r] -> Get [a]
@@ -485,7 +485,7 @@ instance
     <> afterRevision @DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION rev (serialize @UInt8 rev 0)
     <> serializeColumn @(Column name chType) rev (toChType . unK1 . unM1 . f) values
 
-  gReadingColumns = (renderColumnName @(Column name chType), renderColumnType @(Column name chType)) : []
+  gExpectedColumns = (renderColumnName @(Column name chType), renderColumnType @(Column name chType)) : []
   gColumnsCount = 1
 
 handleColumnHeader :: forall column . KnownColumn column => Bool -> ProtocolRevision -> Get ()
