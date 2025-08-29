@@ -190,7 +190,7 @@ select (MkSelect mkQuery) conn f = do
         when (columns_count /= expected) $
           (throw . UnmatchedResult . UnmatchedColumnsCount)
             ("Expected " <> show expected <> " columns but got " <> show columns_count)
-        !result <- f =<< readBuffer buffer (deserializeRecords @columns True revision rows_count)
+        !result <- f =<< readBuffer buffer (deserializeColumns @columns True revision rows_count)
         loopSelect connState (result : acc)
       Progress    _       -> loopSelect connState acc
       ProfileInfo _       -> loopSelect connState acc
@@ -217,16 +217,16 @@ insert (MkInsert mkQuery) conn columnsData = do
     writeToConnection connState (serializeDataPacket "" 0 0)
     loopInsert connState
   where
-  loopInsert connState@MkConnectionState{..}  = do
+  loopInsert connState@MkConnectionState{..} = do
     firstPacket <- readBuffer buffer (deserialize revision)
     case firstPacket of
       TableColumns      _ -> loopInsert connState 
       DataResponse MkDataPacket{} -> do
-        _emptyDataPacket <- readBuffer buffer (deserializeRecords @columns @record False revision 0)
+        _emptyDataPacket <- readBuffer buffer (deserializeColumns @columns @record False revision 0)
         let rows = fromIntegral (Prelude.length columnsData)
             cols = columnsCount @columns @record
         writeToConnection connState (serializeDataPacket "" cols rows)
-        writeToConnection connState (serializeRecords @columns columnsData)
+        writeToConnection connState (serializeColumns @columns columnsData)
         writeToConnection connState (serializeDataPacket "" 0 0)
         loopInsert connState
       EndOfStream         -> pure ()
@@ -279,17 +279,17 @@ command conn query = do
 
 class ClickHaskell columns record
   where
-  default deserializeRecords :: GenericClickHaskell record columns => Bool -> ProtocolRevision -> UVarInt -> Get [record]
-  deserializeRecords :: Bool -> ProtocolRevision -> UVarInt -> Get [record]
-  deserializeRecords doCheck rev size = gDeserializeRecords @columns doCheck rev size to
+  default deserializeColumns :: GenericClickHaskell record columns => Bool -> ProtocolRevision -> UVarInt -> Get [record]
+  deserializeColumns :: Bool -> ProtocolRevision -> UVarInt -> Get [record]
+  deserializeColumns doCheck rev size = gDeserializeColumns @columns doCheck rev size to
 
-  default serializeRecords :: GenericClickHaskell record columns => [record] -> ProtocolRevision -> Builder
-  serializeRecords :: [record] -> ProtocolRevision -> Builder
-  serializeRecords records rev = gSerializeRecords @columns rev records from
+  default serializeColumns :: GenericClickHaskell record columns => [record] -> ProtocolRevision -> Builder
+  serializeColumns :: [record] -> ProtocolRevision -> Builder
+  serializeColumns records rev = gSerializeRecords @columns rev records from
 
   default expectedColumns :: GenericClickHaskell record columns => [(Builder, Builder)]
   expectedColumns :: [(Builder, Builder)]
-  expectedColumns = gReadingColumns @columns @(Rep record)
+  expectedColumns = gExpectedColumns @columns @(Rep record)
 
   default columnsCount :: GenericClickHaskell record columns => UVarInt
   columnsCount :: UVarInt
@@ -365,12 +365,12 @@ class GClickHaskell (columns :: [Type]) f
     1) Columns serialization logic generator
     2) Columns-to-rows(list of records) transposer
   -}
-  gDeserializeRecords :: Bool -> ProtocolRevision -> UVarInt -> (f p -> res) -> Get [res]
+  gDeserializeColumns :: Bool -> ProtocolRevision -> UVarInt -> (f p -> res) -> Get [res]
   gSerializeRecords :: ProtocolRevision -> [res] -> (res -> f p) -> Builder
   {-
     and affected columns extractor
   -}
-  gReadingColumns :: [(Builder, Builder)]
+  gExpectedColumns :: [(Builder, Builder)]
   gColumnsCount :: UVarInt
 
 {-
@@ -382,14 +382,14 @@ instance
   =>
   GClickHaskell columns (D1 c (C1 c2 f))
   where
-  {-# INLINE gDeserializeRecords #-}
-  gDeserializeRecords doCheck rev size f =
-    gDeserializeRecords @columns doCheck rev size (f . M1 . M1)
+  {-# INLINE gDeserializeColumns #-}
+  gDeserializeColumns doCheck rev size f =
+    gDeserializeColumns @columns doCheck rev size (f . M1 . M1)
 
   {-# INLINE gSerializeRecords #-}
   gSerializeRecords rev xs f = gSerializeRecords @columns rev xs (unM1 . unM1 . f)
 
-  gReadingColumns = gReadingColumns @columns @f
+  gExpectedColumns = gExpectedColumns @columns @f
   gColumnsCount = gColumnsCount @columns @f
 
 {-
@@ -412,9 +412,9 @@ instance
   =>
   GClickHaskell columns ((left :*: right1) :*: right2)
   where
-  {-# INLINE gDeserializeRecords #-}
-  gDeserializeRecords doCheck rev size f =
-    gDeserializeRecords @columns @(left :*: (right1 :*: right2)) doCheck rev size
+  {-# INLINE gDeserializeColumns #-}
+  gDeserializeColumns doCheck rev size f =
+    gDeserializeColumns @columns @(left :*: (right1 :*: right2)) doCheck rev size
       (\(l :*: (r1:*:r2)) -> f ((l :*: r1):*:r2))
 
   {-# INLINE gSerializeRecords #-}
@@ -422,7 +422,7 @@ instance
     gSerializeRecords @columns @(left :*: (right1 :*: right2)) rev xs
       ((\((l:*:r1) :*: r2) -> l :*: (r1 :*: r2)) . f)
 
-  gReadingColumns = gReadingColumns @columns @(left :*: (right1 :*: right2))
+  gExpectedColumns = gExpectedColumns @columns @(left :*: (right1 :*: right2))
   gColumnsCount = gColumnsCount @columns @(left :*: (right1 :*: right2))
 
 {-
@@ -440,10 +440,10 @@ instance
   =>
   GClickHaskell columns ((S1 (MetaSel (Just name) a b f)) (Rec0 inputType) :*: right)
   where
-  {-# INLINE gDeserializeRecords #-}
-  gDeserializeRecords doCheck rev size f = do
-    lefts  <- gDeserializeRecords @columns @(S1 (MetaSel (Just name) a b f) (Rec0 inputType)) doCheck rev size id
-    rights <- gDeserializeRecords @columns @right doCheck rev size id
+  {-# INLINE gDeserializeColumns #-}
+  gDeserializeColumns doCheck rev size f = do
+    lefts  <- gDeserializeColumns @columns @(S1 (MetaSel (Just name) a b f) (Rec0 inputType)) doCheck rev size id
+    rights <- gDeserializeColumns @columns @right doCheck rev size id
     deserializeProduct (\l r -> f $ l :*: r) lefts rights
 
   {-# INLINE gSerializeRecords #-}
@@ -451,7 +451,7 @@ instance
     =  gSerializeRecords @columns rev xs ((\(l:*:_) -> l) . f)
     <> gSerializeRecords @columns rev xs ((\(_:*:r) -> r) . f)
 
-  gReadingColumns = gReadingColumns @columns @(S1 (MetaSel (Just name) a b f) (Rec0 inputType)) ++ gReadingColumns @columns @right
+  gExpectedColumns = gExpectedColumns @columns @(S1 (MetaSel (Just name) a b f) (Rec0 inputType)) ++ gExpectedColumns @columns @right
   gColumnsCount = gColumnsCount @columns @(S1 (MetaSel (Just name) a b f) (Rec0 inputType)) + gColumnsCount @columns @right
 
 deserializeProduct ::  (l -> r -> a) -> [l] -> [r] -> Get [a]
@@ -459,7 +459,7 @@ deserializeProduct f lefts rights = goDeserialize [] lefts rights
   where
   goDeserialize !acc (l:ls) (r:rs) = goDeserialize ((:acc) $! f l r) ls rs
   goDeserialize !acc [] [] = pure acc
-  goDeserialize _ _ _ = fail "Mismatched lengths in gDeserializeRecords"
+  goDeserialize _ _ _ = fail "Mismatched lengths in gDeserializeColumns"
 
 {-
   Unwrapping a single generic field (recursion breaker)
@@ -473,8 +473,8 @@ instance
   , Column name chType ~ TakeColumn name columns
   ) => GClickHaskell columns ((S1 (MetaSel (Just name) a b f)) (Rec0 inputType))
   where
-  {-# INLINE gDeserializeRecords #-}
-  gDeserializeRecords doCheck rev size f = do
+  {-# INLINE gDeserializeColumns #-}
+  gDeserializeColumns doCheck rev size f = do
     handleColumnHeader @(Column name chType) doCheck rev
     deserializeColumn @(Column name chType) rev size (f . M1 . K1 . fromChType)
 
@@ -485,7 +485,7 @@ instance
     <> afterRevision @DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION rev (serialize @UInt8 rev 0)
     <> serializeColumn @(Column name chType) rev (toChType . unK1 . unM1 . f) values
 
-  gReadingColumns = (renderColumnName @(Column name chType), renderColumnType @(Column name chType)) : []
+  gExpectedColumns = (renderColumnName @(Column name chType), renderColumnType @(Column name chType)) : []
   gColumnsCount = 1
 
 handleColumnHeader :: forall column . KnownColumn column => Bool -> ProtocolRevision -> Get ()
