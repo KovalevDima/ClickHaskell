@@ -2,7 +2,7 @@ import { Link, LinksFunction, Links, Meta, Outlet, Scripts } from "react-router"
 import "./index.css";
 import logo from "/assets/logo.svg";
 import GitHubStars from "~/components/GitHubStars";
-import { ThemeProvider } from "@/components/theme-provider";
+import { ThemeProvider } from "@/components/theme-provider"
 import { ModeToggle } from "@/components/ui/mode-toggle";
 import {
   NavigationMenu, NavigationMenuItem, NavigationMenuLink, NavigationMenuList
@@ -15,7 +15,7 @@ export const links: LinksFunction = () => {
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <html className="dark" lang="en">
+    <html lang="en">
       <head>
         <meta charSet="utf-8" />
         <meta httpEquiv="x-ua-compatible" content="ie=edge" />
@@ -73,7 +73,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   </Link>
                 </NavigationMenuLink>
               </NavigationMenuItem>
-              {/* NavigationMenuItem>
+              {/* <NavigationMenuItem>
                 <ModeToggle />
               </NavigationMenuItem> */}
             </NavigationMenuList>
@@ -81,7 +81,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
         </header>
         <main role="main" className="flex flex-col items-center">
-          {children}
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            {children}
+          </ThemeProvider>
           <Scripts />
         </main>
       </body>
@@ -91,8 +98,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   return (
-    <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-      <Outlet />
-    </ThemeProvider>
+    <Outlet />
   )
 }
