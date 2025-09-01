@@ -6,7 +6,7 @@ export default function HomePage() {
     <div className="flex flex-col gap-y-3">
       <Card className="p-6">
         <p>
-          ClickHaskell is a pure Haskell implementation<br/>
+          ClickHaskell is a pure Haskell implementation
           of ClickHouse Native protocol
         </p>
       </Card>

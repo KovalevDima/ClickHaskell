@@ -18,7 +18,8 @@
     "react-router": "^7.6.3",
     "recharts": "^2.15.4",
     "tailwind-merge": "^3.3.1",
-    "tailwindcss": "^4.1.11"
+    "tailwindcss": "^4.1.11",
+    "next-themes": "^0.4.6"
   },
   "devDependencies": {
     "@react-router/dev": "^7.6.3",
