@@ -6,11 +6,6 @@
     haskell-flake.url = "github:srid/haskell-flake";
     process-compose-flake.url = "github:Platonic-Systems/process-compose-flake";
     services-flake.url = "github:juspay/services-flake";
-    # tmp override
-    wide-word = {
-      url = "github:erikd/wide-word";
-      flake = false;
-    };
   };
 
   outputs = {self, flake-parts, nixpkgs, ...} @ inputs:

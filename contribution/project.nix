@@ -20,6 +20,6 @@
     };
   };
   packages = {
-    wide-word.source = inputs.wide-word;
+    # package.source = inputs.package;
   };
 }
