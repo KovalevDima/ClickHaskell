@@ -65,6 +65,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </NavigationMenuList>
               <NavigationMenuList>
                 <NavigationMenuItem>
+                  <ModeToggle />
+                </NavigationMenuItem>
+                <NavigationMenuItem>
                   <NavigationMenuLink asChild>
                     <Link to="https://hackage.haskell.org/package/ClickHaskell" className="flex-row items-center h-9">
                       <img alt="hckg" width="24" height="24" src={hackage} />
@@ -78,9 +81,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
                       <GitHubStars />
                     </Link>
                   </NavigationMenuLink>
-                </NavigationMenuItem>
-                <NavigationMenuItem>
-                  <ModeToggle />
                 </NavigationMenuItem>
               </NavigationMenuList>
             </NavigationMenu>
