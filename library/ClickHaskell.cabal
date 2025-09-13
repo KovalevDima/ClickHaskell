@@ -65,6 +65,7 @@ Library
   if flag(dev)
     GHC-Options:
       -ddump-to-file
+      -ddump-timings
       -ddump-simpl
       -ddump-spec
       -ddump-simpl-stats

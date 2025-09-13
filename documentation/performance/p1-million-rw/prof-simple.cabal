@@ -8,6 +8,7 @@ license:            BSD-3-Clause
 common dump-core
   ghc-options:
     -ddump-to-file
+    -ddump-timings
     -ddump-simpl
     -ddump-spec
     -ddump-simpl-stats
