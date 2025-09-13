@@ -15,7 +15,10 @@ module ClickHaskell
   , setHost, setPort, setUser, setDatabase, setPassword
   , Connection(..), openConnection
   {- ** Hacking  -}
-  , overrideNetwork, overrideHostname, overrideOsUser
+  , overrideInitConnection
+  , overrideHostname
+  , overrideOsUser
+  , overrideDefaultPort
   , mkBuffer
 
   {- * Statements and commands -}

@@ -3,7 +3,7 @@
 module ClickHaskell.TLS where
 
 -- Internal
-import ClickHaskell (ConnectionArgs, overrideNetwork, mkBuffer)
+import ClickHaskell (ConnectionArgs, overrideInitConnection, overrideDefaultPort, mkBuffer)
 
 -- GHC included
 import Data.ByteString.Builder (toLazyByteString)
@@ -17,7 +17,7 @@ import Network.TLS (ClientParams (..), contextClose, contextNew, defaultParamsCl
   Uses 9443 port by default. Watch 'setPort' to override it
 -}
 setSecure :: (ClientParams -> ClientParams) -> ConnectionArgs -> ConnectionArgs
-setSecure modifyParams = overrideNetwork "9443" initTLS
+setSecure modifyParams = overrideDefaultPort "9443" . overrideInitConnection initTLS
   where
   initTLS = \hostname sock -> do
     let defClientParams = modifyParams (defaultParamsClient hostname "")

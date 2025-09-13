@@ -249,17 +249,10 @@ overrideHostname new MkConnectionArgs{..} = MkConnectionArgs{mHostname=Just new,
 overrideOsUser :: String -> ConnectionArgs -> ConnectionArgs
 overrideOsUser new MkConnectionArgs{..} = MkConnectionArgs{mOsUser=Just new, ..}
 
-overrideNetwork
-  :: ServiceName
-  -> (HostName -> Socket -> IO Buffer)
-  -> (ConnectionArgs -> ConnectionArgs)
-overrideNetwork
-  newDefPort
-  newInitBuffer
-  MkConnectionArgs {..}
-  =
-  MkConnectionArgs
-    { defPort = newDefPort
-    , initBuffer = newInitBuffer
-    , ..
-    }
+overrideInitConnection :: (HostName -> Socket -> IO Buffer) -> (ConnectionArgs -> ConnectionArgs)
+overrideInitConnection new MkConnectionArgs {..} =
+  MkConnectionArgs{initBuffer = new, ..}
+
+overrideDefaultPort :: ServiceName -> (ConnectionArgs -> ConnectionArgs)
+overrideDefaultPort new MkConnectionArgs {..} =
+  MkConnectionArgs {defPort = new, ..}
