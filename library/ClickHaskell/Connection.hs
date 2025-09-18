@@ -253,6 +253,15 @@ overrideInitConnection :: (HostName -> Socket -> IO Buffer) -> (ConnectionArgs -
 overrideInitConnection new MkConnectionArgs {..} =
   MkConnectionArgs{initBuffer = new, ..}
 
+{- |
+Override the default port used when no port was set explicitly via 'setPort'.
+
+This does not immediately fix the connection port:
+if the user has already called 'setPort', that value takes precedence.
+Otherwise, the given port becomes the new default.
+
+Typical use case: provide a different default for TLS connections, e.g. 9443.
+-}
 overrideDefaultPort :: ServiceName -> (ConnectionArgs -> ConnectionArgs)
 overrideDefaultPort new MkConnectionArgs {..} =
   MkConnectionArgs {defPort = new, ..}
