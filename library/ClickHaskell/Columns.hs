@@ -17,6 +17,8 @@ import GHC.TypeLits (ErrorMessage (..), KnownSymbol, Symbol, TypeError, symbolVa
 
 -- External
 import Data.WideWord (Int128 (..))
+import Debug.Trace (traceShowId)
+import Control.Monad ((<$!>))
 
 -- * Column
 
@@ -242,22 +244,9 @@ instance {-# OVERLAPPING #-}
   )
   => SerializableColumn (Column name (Array chType)) where
   {-# INLINE deserializeColumn #-}
-  deserializeColumn rev _rows _f = do
-    (arraySize, _offsets) <- readOffsets rev
-    _types <- replicateGet @chType rev (fromIntegral arraySize)
+  deserializeColumn rev rows _f = do
+    offsets <- traceShowId <$!> replicateGet @UInt64 rev rows
     pure $ []
-    where
-    readOffsets :: ProtocolRevision -> Get (UInt64, [UInt64])
-    readOffsets revivion = do
-      size <- deserialize @UInt64 rev
-      (size, ) <$> goArrayOffsets size
-      where
-      goArrayOffsets arraySize =
-        do
-        nextOffset <- deserialize @UInt64 revivion
-        if arraySize >= nextOffset
-          then pure [nextOffset]
-          else (nextOffset :) <$> goArrayOffsets arraySize
 
   {-# INLINE serializeColumn #-}
   serializeColumn _rev _column = undefined
