@@ -249,17 +249,19 @@ overrideHostname new MkConnectionArgs{..} = MkConnectionArgs{mHostname=Just new,
 overrideOsUser :: String -> ConnectionArgs -> ConnectionArgs
 overrideOsUser new MkConnectionArgs{..} = MkConnectionArgs{mOsUser=Just new, ..}
 
-overrideNetwork
-  :: ServiceName
-  -> (HostName -> Socket -> IO Buffer)
-  -> (ConnectionArgs -> ConnectionArgs)
-overrideNetwork
-  newDefPort
-  newInitBuffer
-  MkConnectionArgs {..}
-  =
-  MkConnectionArgs
-    { defPort = newDefPort
-    , initBuffer = newInitBuffer
-    , ..
-    }
+overrideInitConnection :: (HostName -> Socket -> IO Buffer) -> (ConnectionArgs -> ConnectionArgs)
+overrideInitConnection new MkConnectionArgs {..} =
+  MkConnectionArgs{initBuffer = new, ..}
+
+{- |
+Override the default port used when no port was set explicitly via 'setPort'.
+
+This does not immediately fix the connection port:
+if the user has already called 'setPort', that value takes precedence.
+Otherwise, the given port becomes the new default.
+
+Typical use case: provide a different default for TLS connections, e.g. 9443.
+-}
+overrideDefaultPort :: ServiceName -> (ConnectionArgs -> ConnectionArgs)
+overrideDefaultPort new MkConnectionArgs {..} =
+  MkConnectionArgs {defPort = new, ..}
