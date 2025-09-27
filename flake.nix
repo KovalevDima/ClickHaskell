@@ -18,7 +18,7 @@
       perSystem = {self', pkgs, config, lib, ...}:
       let
         mapMergeAttrsList = f: x: lib.mergeAttrsList (map f x);
-        supportedGHCs = ["ghc8107" "ghc902" "ghc928" "ghc948" "ghc966" "ghc984" "ghc9101" "ghc9122"];
+        supportedGHCs = ["ghc948" "ghc967" "ghc984" "ghc9103" "ghc9122"];
       in
       {
         process-compose = {
