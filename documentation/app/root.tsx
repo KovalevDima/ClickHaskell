@@ -36,10 +36,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <main role="main" className="flex flex-col items-center">
             <div className="w-full [--header-height:calc(--spacing(14))]">
               <SidebarProvider className="flex flex-col" defaultOpen={false}>
-                <Header />
                 <div className="flex flex-1">
                   <AppSidebar/>
                   <SidebarInset>
+                    <Header />
                     <div className="flex flex-1 flex-col gap-4 p-4">
                       {children}
                     </div>

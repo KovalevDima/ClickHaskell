@@ -10,6 +10,8 @@ import {
   Send,
   Settings2,
   SquareTerminal,
+  BugOff,
+  GitPullRequestCreate,
 } from "lucide-react"
 
 import {
@@ -20,40 +22,68 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarTrigger,
 } from "@/components/ui/sidebar"
 import { ModeToggle } from "./ui/mode-toggle"
+import { Link } from "react-router"
+import logo from "/assets/logo.svg";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar
-      className="top-(--header-height) h-[calc(100svh-var(--header-height))]!"
       collapsible="icon"
       {...props}
     >
-      <SidebarHeader>
+      <SidebarHeader className="h-(--header-height) bg-background">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
-              <a href="#">
-                <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
-                  <Command className="size-4" />
+              <Link to="/">
+                <div className="flex aspect-square size-8 items-center justify-center rounded-lg">
+                  <img alt="logo" className="size-5" src={logo} />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">Acme Inc</span>
-                  <span className="truncate text-xs">Enterprise</span>
+                  <span className="truncate font-medium">ClickHaskell</span>
+                  <span className="truncate text-xs">overview</span>
                 </div>
-              </a>
+              </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
-      <SidebarContent>
-        {/* ToDo: Content */}
+      <SidebarContent className="bg-background">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton size="lg" asChild>
+              <Link to="/contribution">
+
+                <div className="flex aspect-square size-8 items-center justify-center rounded-lg">
+                  <GitPullRequestCreate />
+                </div>
+
+                <div className="grid flex-1 text-left text-sm leading-tight">
+                  <span className="truncate font-medium">Contribution</span>
+                </div>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton size="lg" asChild>
+              <Link to="/testing">
+
+                <div className="flex aspect-square size-8 items-center justify-center rounded-lg">
+                  <BugOff/>
+                </div>
+
+                <div className="grid flex-1 text-left text-sm leading-tight">
+                  <span className="truncate font-medium">About QA</span>
+                </div>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarContent>
-      <SidebarFooter>
+      <SidebarFooter className="bg-background">
         <ModeToggle />
-        <SidebarTrigger className="h-[2rem] w-[2rem]"/>
       </SidebarFooter>
     </Sidebar>
   )

@@ -10,6 +10,7 @@ import { ModeToggle } from "@/components/ui/mode-toggle";
 import hackage from "/assets/hackage.svg";
 import { Link } from "react-router";
 import logo from "/assets/logo.svg";
+import { SidebarTrigger } from "./ui/sidebar";
 
 
 export function Header() {
@@ -18,24 +19,7 @@ export function Header() {
       <NavigationMenu className="w-full " viewport={false}>
         <NavigationMenuList className="flex justify-between">
           <NavigationMenuItem>
-            <NavigationMenuLink asChild>
-              <Link to="/"><img alt="logo" className="size-5" src={logo} /></Link>
-            </NavigationMenuLink>
-          </NavigationMenuItem>
-          <NavigationMenuItem>
-            <NavigationMenuLink asChild>
-              <Link to="/contribution">/contribution</Link>
-            </NavigationMenuLink>
-          </NavigationMenuItem>
-          <NavigationMenuItem>
-            <NavigationMenuLink asChild>
-              <Link to="/testing">/testing</Link>
-            </NavigationMenuLink>
-          </NavigationMenuItem>
-          <NavigationMenuItem>
-            <NavigationMenuLink asChild>
-              <Link to="/usage/">/usage</Link>
-            </NavigationMenuLink>
+              <SidebarTrigger/>
           </NavigationMenuItem>
           {/* <li><Link to="/performance">/performance</Link></li> */}
           {/* <li><a href="/protocol/server/">/protocol/server</a></li> */}
