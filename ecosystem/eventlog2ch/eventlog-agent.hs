@@ -338,7 +338,7 @@ eventToName evSpec = case evSpec of
   HeapProfSampleString{}      -> "HeapProfSampleString"
   ProfSampleCostCentre{}      -> "ProfSampleCostCentre"
   ProfBegin{}                 -> "ProfBegin"
-  UserBinaryMessage{}         -> "UserBinaryMessage"
+  UserBinaryMessage msg       -> "UserBinaryMessage"
   ConcMarkBegin{}             -> "ConcMarkBegin"
   ConcMarkEnd{}               -> "ConcMarkEnd"
   ConcSyncBegin{}             -> "ConcSyncBegin"
