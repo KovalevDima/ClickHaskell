@@ -35,7 +35,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         >
           <main role="main" className="flex flex-col items-center">
             <div className="w-full [--header-height:calc(--spacing(14))]">
-              <SidebarProvider className="flex flex-col" defaultOpen={false}>
+              <SidebarProvider className="flex flex-col" defaultOpen={true}>
                 <div className="flex flex-1">
                   <AppSidebar/>
                   <SidebarInset>
