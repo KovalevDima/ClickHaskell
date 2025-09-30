@@ -19,7 +19,7 @@ export function Header() {
       <NavigationMenu className="w-full " viewport={false}>
         <NavigationMenuList className="flex justify-between">
           <NavigationMenuItem>
-              <SidebarTrigger/>
+            <SidebarTrigger className="size-8"/>
           </NavigationMenuItem>
           {/* <li><Link to="/performance">/performance</Link></li> */}
           {/* <li><a href="/protocol/server/">/protocol/server</a></li> */}

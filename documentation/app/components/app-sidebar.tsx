@@ -12,6 +12,7 @@ import {
   SquareTerminal,
   BugOff,
   GitPullRequestCreate,
+  PackagePlus,
 } from "lucide-react"
 
 import {
@@ -52,6 +53,20 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
       <SidebarContent className="bg-background">
         <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton size="lg" asChild>
+              <Link to="/usage">
+
+                <div className="flex aspect-square size-8 items-center justify-center rounded-lg">
+                  <PackagePlus />
+                </div>
+
+                <div className="grid flex-1 text-left text-sm leading-tight">
+                  <span className="truncate font-medium">How to</span>
+                </div>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
               <Link to="/contribution">
