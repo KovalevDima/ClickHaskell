@@ -37,7 +37,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <div className="w-full [--header-height:calc(--spacing(14))]">
               <SidebarProvider className="flex flex-col" defaultOpen={true}>
                 <div className="flex flex-1">
-                  <AppSidebar/>
+                  <AppSidebar />
                   <SidebarInset>
                     <Header />
                     <div className="flex flex-1 flex-col gap-4 p-4">
@@ -46,7 +46,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   </SidebarInset>
                 </div>
               </SidebarProvider>
-              
               <Scripts />
             </div>
           </main>
