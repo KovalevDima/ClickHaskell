@@ -37,13 +37,17 @@ main = do
 commonDoc :: ByteString
 commonDoc = (BS8.pack . renderHtml . mconcat)
   [ toDocPart @DataPacket
+  , toDocPart @BlockInfo
   ]
+
 deriving instance ToDocPart DataPacket
+deriving instance ToDocPart BlockInfo
 
 serverDoc :: ByteString
 serverDoc = (BS8.pack . renderHtml . mconcat)
   [ toDocPart @ExceptionPacket
   , toDocPart @HelloResponse
+  , toDocPart @PasswordComplexityRules
   , toDocPart @ProfileInfo
   , toDocPart @ProgressPacket
   , toDocPart @TableColumns
@@ -51,6 +55,7 @@ serverDoc = (BS8.pack . renderHtml . mconcat)
 
 deriving instance ToDocPart ExceptionPacket
 deriving instance ToDocPart HelloResponse
+deriving instance ToDocPart PasswordComplexityRules
 deriving instance ToDocPart ProfileInfo
 deriving instance ToDocPart ProgressPacket
 deriving instance ToDocPart TableColumns
@@ -59,6 +64,7 @@ clientDoc :: ByteString
 clientDoc = (BS8.pack . renderHtml . mconcat)
   [ toDocPart @HelloPacket
   , toDocPart @QueryPacket
+  , toDocPart @ClientInfo
   ]
 
 deriving instance ToDocPart HelloPacket
@@ -122,7 +128,7 @@ class HasName hasName where fieldName :: String
 instance HasName UVarInt where fieldName = "UVarInt"
 instance HasName ProtocolRevision where fieldName = "UVarInt"
 instance HasName [PasswordComplexityRules] where fieldName = "[PasswordComplexityRules]"
-instance HasName ClientInfo where fieldName = "[ClientInfo]"
+instance HasName ClientInfo where fieldName = "ClientInfo"
 instance HasName QueryKind where fieldName = "QueryKind"
 instance HasName DbSettings where fieldName = "DbSettings"
 instance HasName QueryStage where fieldName = "QueryStage"
