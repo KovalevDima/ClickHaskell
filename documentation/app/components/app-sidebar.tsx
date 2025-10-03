@@ -7,6 +7,7 @@ import {
   LucideIcon,
   ChevronRight,
   Microscope,
+  Binary,
 } from "lucide-react"
 
 import {
@@ -59,6 +60,30 @@ const data = {
           title: "About QA",
           icon: BugOff,
           url: "/testing",
+        },
+      ]
+    },
+
+    {
+      title: "Protocol",
+      url: "/protocol",
+      icon: Binary,
+      isActive: true,
+      items: [
+        {
+          title: "Client",
+          icon: GitPullRequestCreate,
+          url: "/protocol/client",
+        },
+        {
+          title: "Server",
+          icon: BugOff,
+          url: "/protocol/server",
+        },
+        {
+          title: "Common",
+          icon: BugOff,
+          url: "/protocol/common",
         },
       ]
     },

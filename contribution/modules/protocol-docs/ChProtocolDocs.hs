@@ -20,9 +20,10 @@ import GHC.Generics
 import GHC.TypeLits (KnownSymbol, symbolVal, natVal, KnownNat)
 import Text.Blaze.Html
 import Text.Blaze.Html.Renderer.Pretty (renderHtml)
-import Text.Blaze.Html5 (table, td, tr, h1, h3, thead, tbody, th)
+import Text.Blaze.Html5 (table, td, tr, h3, thead, tbody, th, div)
 import Data.ByteString.Lazy.Char8 as BS8
 import System.Directory
+import Prelude hiding (div)
 
 main :: IO ()
 main = do
@@ -35,15 +36,13 @@ main = do
 
 commonDoc :: ByteString
 commonDoc = (BS8.pack . renderHtml . mconcat)
-  [ h1 (string "Common packets")
-  , toDocPart @DataPacket
+  [ toDocPart @DataPacket
   ]
 deriving instance ToDocPart DataPacket
 
 serverDoc :: ByteString
 serverDoc = (BS8.pack . renderHtml . mconcat)
-  [ h1 (string "Server packets")
-  , toDocPart @ExceptionPacket
+  [ toDocPart @ExceptionPacket
   , toDocPart @HelloResponse
   , toDocPart @ProfileInfo
   , toDocPart @ProgressPacket
@@ -58,8 +57,7 @@ deriving instance ToDocPart TableColumns
 
 clientDoc :: ByteString
 clientDoc = (BS8.pack . renderHtml . mconcat)
-  [ h1 (string "Client packets")
-  , toDocPart @HelloPacket
+  [ toDocPart @HelloPacket
   , toDocPart @QueryPacket
   ]
 
@@ -82,13 +80,14 @@ instance
   GToDocPart (D1 (MetaData name m p nt) (C1 c2 f)) 
   where
   gToDocPart = do
-    h3 (string $ symbolVal @name $ Proxy)
-    table $ do
-      thead $ do
-        th (string "Field")
-        th (string "type")
-        th (string "since")
-      tbody (gToDocPart @f)
+    div $ do
+      h3 (string $ symbolVal @name $ Proxy)
+      table $ do
+        thead $ do
+          th (string "Field")
+          th (string "type")
+          th (string "since")
+        tbody (gToDocPart @f)
 
 instance (GToDocPart left, GToDocPart right) => GToDocPart (left :*: right)
   where
