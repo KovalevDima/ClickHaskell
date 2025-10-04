@@ -29,7 +29,6 @@ code {
   font-family: 'Hasklig', monospace
 }
 
-
 table {
   border: 1px solid;
   border-collapse: collapse;
@@ -41,9 +40,6 @@ td {
   padding: 5px 3px 3px 5px;
 }
 
-main {
-  padding: 0px 8px 0px 8px;
-}
 
 a {
   color: var(--color-foreground);
@@ -173,4 +169,16 @@ a:visited {
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.646 0.222 41.116);
+}
+
+/* 
+---break--- */
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
 }
