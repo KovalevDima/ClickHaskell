@@ -17,6 +17,7 @@ import GHC.TypeLits (ErrorMessage (..), KnownSymbol, Symbol, TypeError, symbolVa
 
 -- External
 import Data.WideWord (Int128 (..))
+import Debug.Trace (traceWith)
 
 -- * Column
 
@@ -238,26 +239,17 @@ instance {-# OVERLAPPING #-}
 instance {-# OVERLAPPING #-}
   ( KnownColumn (Column name (Array chType))
   , Serializable chType
-  , TypeError ('Text "Arrays deserialization still unsupported")
+  , Show chType
+  -- , TypeError ('Text "Arrays deserialization still unsupported")
   )
   => SerializableColumn (Column name (Array chType)) where
   {-# INLINE deserializeColumn #-}
-  deserializeColumn rev _rows _f = do
-    (arraySize, _offsets) <- readOffsets rev
-    _types <- replicateGet @chType rev (fromIntegral arraySize)
-    pure $ []
-    where
-    readOffsets :: ProtocolRevision -> Get (UInt64, [UInt64])
-    readOffsets revivion = do
-      size <- deserialize @UInt64 rev
-      (size, ) <$> goArrayOffsets size
-      where
-      goArrayOffsets arraySize =
-        do
-        nextOffset <- deserialize @UInt64 revivion
-        if arraySize >= nextOffset
-          then pure [nextOffset]
-          else (nextOffset :) <$> goArrayOffsets arraySize
+  deserializeColumn rev rows _f = do
+    !offsets <- traceWith (\offset -> "Offset: " <> show offset) <$> replicateGet @UInt64 rev (traceWith (\rws -> "Rows: " <> show rws) rows)
+    let sizes = zipWith (\x1 x2 -> fromIntegral @_ @UVarInt $ x2 - x1) offsets (drop 1 offsets)
+    !_values <- traceWith (\value -> "Value: " <> show value) <$> MkChArray . mconcat <$> mapM  (replicateGet @chType rev)
+      (traceWith (\size -> "Calculated size: " <> show size) sizes)
+    pure []
 
   {-# INLINE serializeColumn #-}
   serializeColumn _rev _column = undefined
