@@ -19,17 +19,17 @@
   settings.processes = {
     "executable" = {
       command = ''
-      CLICKHASKELL_STATIC_FILES_DIR=./documentation/ \
-        EVENTLOG_SOCKET_PATH="./data/.eventlog.sock" \
-        DEV= \
+        export CLICKHASKELL_STATIC_FILES_DIR=./documentation/
+        export EVENTLOG_SOCKET_PATH="./data/.eventlog.sock"
+        export DEV=
         cabal run server -- +RTS -l-agpfsuT --eventlog-flush-interval=1 -RTS
       '';
       depends_on."database".condition = "process_healthy";
     };
     "agent" = {
       command = ''
-      sleep 3
-      EVENTLOG_SOCKET_PATH="./data/.eventlog.sock" \
+        sleep 3
+        export EVENTLOG_SOCKET_PATH="./data/.eventlog.sock"
         cabal run eventlog-agent
       '';
       depends_on."executable".condition = "process_started";
