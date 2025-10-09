@@ -33,6 +33,9 @@
         cabal run eventlog-agent
       '';
       depends_on."executable".condition = "process_started";
+      availability = {
+        restart = "on_failure";
+      };
     };
     "ui" = {
       command = ''

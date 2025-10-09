@@ -17,7 +17,7 @@ import Control.Concurrent.Async (Concurrently (..))
 import Control.Concurrent.STM (TBQueue, atomically, flushTBQueue, newTBQueueIO, writeTBQueue)
 import Control.Exception (SomeException, bracketOnError, catch, finally)
 import Control.Monad (forever, void)
-import Data.ByteString as BS (ByteString, length)
+import Data.ByteString as BS (ByteString, length, null)
 import Data.IORef (IORef, atomicModifyIORef, atomicWriteIORef, newIORef, readIORef)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time (UTCTime, getCurrentTime)
@@ -106,7 +106,11 @@ readBuffer MkBuffer{..} =
   readIORef buff
     >>= (\currentBuffer ->
       case BS.length currentBuffer of
-        0 -> recv bufferSocket 4096
+        0 -> do
+          received <- recv bufferSocket 4096
+          if BS.null received
+            then error "Socket closed"
+            else pure received
         _ -> atomicWriteIORef buff "" *> pure currentBuffer
     )
 
