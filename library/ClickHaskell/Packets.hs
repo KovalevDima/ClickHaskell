@@ -327,11 +327,17 @@ data DbSetting = MkDbSetting
   , flags   :: Flags `SinceRevision` DBMS_MIN_REVISION_WITH_SETTINGS_SERIALIZED_AS_STRINGS
   , value   :: ChString
   }
+  deriving (Generic, Serializable)
+
 instance Serializable DbSettings where
-  serialize rev (MkDbSettings _setts) =
-    serialize @ChString rev ""
-  deserialize _rev =
-    fail "DbSettings reading unimplemented"
+  serialize rev (MkDbSettings setts) = do
+    foldMap (serialize @DbSetting rev) setts
+    <> serialize @ChString rev ""
+  deserialize rev = do
+    str <- deserialize @ChString rev
+    case str of
+      "" -> pure $ MkDbSettings []
+      _ -> pure $ MkDbSettings []
 
 data QueryParameters = MkQueryParameters
 instance Serializable QueryParameters where
@@ -359,10 +365,20 @@ instance Serializable QueryStage where
 
 
 data Flags = IMPORTANT | CUSTOM | TIER
-_flagCode :: Flags -> UInt64
-_flagCode IMPORTANT = 0x01
-_flagCode CUSTOM    = 0x02
-_flagCode TIER      = 0x0c
+instance Serializable Flags where
+  serialize rev flags = serialize rev $ fromFlagCode flags
+  deserialize rev = do
+    flagCode <- deserialize @UInt8 rev
+    case flagCode of
+      0x01 -> pure IMPORTANT
+      0x02 -> pure CUSTOM
+      0x0c -> pure TIER
+      _ -> fail "Unknown flag code"
+
+fromFlagCode :: Flags -> UInt8
+fromFlagCode IMPORTANT = 0x01
+fromFlagCode CUSTOM    = 0x02
+fromFlagCode TIER      = 0x0c
 
 data ClientInfo = MkClientInfo
   { query_kind                   :: QueryKind
