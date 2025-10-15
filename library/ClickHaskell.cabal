@@ -38,7 +38,9 @@ Library
   Other-Modules:
     ClickHaskell.Columns
     ClickHaskell.Connection
-    ClickHaskell.Packets
+    ClickHaskell.Packets.Client
+    ClickHaskell.Packets.Data
+    ClickHaskell.Packets.Server
     ClickHaskell.Primitive
     ClickHaskell.Statements
     Paths_ClickHaskell
