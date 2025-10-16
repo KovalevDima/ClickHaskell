@@ -406,7 +406,7 @@ instance ToChType (DateTime64 precision tz) Word64 where
 
 -- | ClickHouse Array column type
 newtype Array a = MkChArray [a]
-  deriving newtype (Show, Eq, NFData)
+  deriving newtype (Show, Eq, NFData, Foldable)
 instance IsChType chType => IsChType (Array chType)
   where
   chTypeName = "Array(" <> chTypeName @chType <> ")"

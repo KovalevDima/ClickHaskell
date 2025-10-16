@@ -246,4 +246,6 @@ instance {-# OVERLAPPING #-}
     forM offsets (fmap (f . MkChArray) . replicateGet @chType rev . fromIntegral)
 
   {-# INLINE serializeColumn #-}
-  serializeColumn _rev _column = undefined
+  serializeColumn rev f column
+    =  mconcat (map (serialize @UInt64 rev . fromIntegral . length . f) column)
+    <> foldMap (foldMap (serialize @chType rev) . f) column
