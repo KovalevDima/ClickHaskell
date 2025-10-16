@@ -53,8 +53,8 @@ t1 conn = do
   -- runTestForType @(DateTime64 0 "") conn [minBound, toEnum 0, maxBound]
   runTestForType @ChString conn (map (toChType . BS.singleton) [1..255])
   -- ToDo: runTestForType @(LowCardinality ChString) connection (map (toChType . BS.singleton) [0..255])
-  runTestForType @(Array ChString) conn (map toChType $  map (replicate 2 . BS.singleton) [0..255])
-  runTestForType @(Array Int64) conn (map ((toChType @(Array Int64) @[Int64]) . (\x -> [x])) [0 .. 255])
+  runTestForType @(Array ChString) conn [toChType $ map BS.singleton [0..255]]
+  runTestForType @(Array Int64) conn [toChType @(Array Int64) @[Int64] [0 .. 255]]
 
 
 runTestForType ::

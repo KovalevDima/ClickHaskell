@@ -170,8 +170,8 @@ testData = MkTestData
       toChType (0 :: Word64, (pos 3)*4 + (pos 2)*2  )
     -- ^ 00000000-0000-0000-0000-000000004200
   , uuidNullable = Nothing
-  , stringArray = ["array1"]
-  , int64Array = [64]
+  , stringArray = ["array1", "array2"]
+  , int64Array = [64, 128]
   }
 
 createTableQuery :: ChString
