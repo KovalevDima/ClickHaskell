@@ -200,5 +200,5 @@ instance (IsChType chType, ToQueryPart chType) => ToQueryPart (Array chType)
   where
   toQueryPart
     = (\x -> "[" <> x <> "]")
-    . (maybe "" (uncurry (foldr (\a b -> a <> "," <> b))) . uncons
+    . (maybe "" (uncurry (foldl (\a b -> a <> "," <> b))) . uncons
     . map (toQueryPart @chType)) . coerce @(Array chType) @[chType]

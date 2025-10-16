@@ -174,7 +174,7 @@ instance
   toColumn = LowCardinalityColumn . map coerce
   fromColumn (LowCardinalityColumn values) = map coerce values
 
-instance KnownSymbol name => KnownColumn (Column name (Array ChString)) where
+instance (KnownSymbol name, IsChType chType) => KnownColumn (Column name (Array chType)) where
   toColumn = ArrayColumn
   fromColumn (ArrayColumn values) = values
 
@@ -238,26 +238,14 @@ instance {-# OVERLAPPING #-}
 instance {-# OVERLAPPING #-}
   ( KnownColumn (Column name (Array chType))
   , Serializable chType
-  , TypeError ('Text "Arrays deserialization still unsupported")
   )
   => SerializableColumn (Column name (Array chType)) where
   {-# INLINE deserializeColumn #-}
-  deserializeColumn rev _rows _f = do
-    (arraySize, _offsets) <- readOffsets rev
-    _types <- replicateGet @chType rev (fromIntegral arraySize)
-    pure $ []
-    where
-    readOffsets :: ProtocolRevision -> Get (UInt64, [UInt64])
-    readOffsets revivion = do
-      size <- deserialize @UInt64 rev
-      (size, ) <$> goArrayOffsets size
-      where
-      goArrayOffsets arraySize =
-        do
-        nextOffset <- deserialize @UInt64 revivion
-        if arraySize >= nextOffset
-          then pure [nextOffset]
-          else (nextOffset :) <$> goArrayOffsets arraySize
+  deserializeColumn rev rows f = do
+    offsets <- replicateGet @UInt64 rev rows
+    forM offsets (fmap (f . MkChArray) . replicateGet @chType rev . fromIntegral)
 
   {-# INLINE serializeColumn #-}
-  serializeColumn _rev _column = undefined
+  serializeColumn rev f column
+    =  mconcat (map (serialize @UInt64 rev . fromIntegral . length . f) column)
+    <> foldMap (foldMap (serialize @chType rev) . f) column
