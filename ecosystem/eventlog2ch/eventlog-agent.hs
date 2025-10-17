@@ -176,8 +176,8 @@ createEventLogTable conn =
   command conn
     "CREATE TABLE IF NOT EXISTS haskell_eventlog \
     \( \
-    \    `startTime` DateTime, \
-    \    `evTime` DateTime64(9), \
+    \    `startTime` DateTime CODEC(Delta, ZSTD), \
+    \    `evTime` DateTime64(9) CODEC(Delta, ZSTD), \
     \    `evType` LowCardinality(String), \
     \    `cap` Int64, \
     \    `gcGen` Int64, \
