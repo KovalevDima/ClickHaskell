@@ -9,7 +9,7 @@ Maintainer:     Kovalev Dmitry
 Category:       ClickHouse
 Synopsis:       ClickHouse driver
 Description:    Small dependency footprint highlevel ClickHouse driver 
-Tested-with:    GHC == 8.10.7, GHC == 9.0.2, GHC == 9.2.8, GHC == 9.4.8, GHC == 9.6.6, GHC == 9.8.4, GHC == 9.10.1
+Tested-with:    GHC == 9.4.8, GHC == 9.6.7, GHC == 9.8.4, GHC == 9.10.3, GHC == 9.12.2
 Homepage:       https://clickhaskell.dev/
 Bug-reports:    https://git.clickhaskell.dev/
 License:        BSD-3-Clause
@@ -38,7 +38,9 @@ Library
   Other-Modules:
     ClickHaskell.Columns
     ClickHaskell.Connection
-    ClickHaskell.Packets
+    ClickHaskell.Packets.Client
+    ClickHaskell.Packets.Data
+    ClickHaskell.Packets.Server
     ClickHaskell.Primitive
     ClickHaskell.Statements
     Paths_ClickHaskell
@@ -65,6 +67,7 @@ Library
   if flag(dev)
     GHC-Options:
       -ddump-to-file
+      -ddump-timings
       -ddump-simpl
       -ddump-spec
       -ddump-simpl-stats

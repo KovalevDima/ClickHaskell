@@ -15,7 +15,10 @@ module ClickHaskell
   , setHost, setPort, setUser, setDatabase, setPassword
   , Connection(..), openConnection
   {- ** Hacking  -}
-  , overrideNetwork, overrideHostname, overrideOsUser
+  , overrideInitConnection
+  , overrideHostname
+  , overrideOsUser
+  , overrideDefaultPort
   , mkBuffer
 
   {- * Statements and commands -}
@@ -88,9 +91,11 @@ module ClickHaskell
 -- Internal
 import ClickHaskell.Columns
 import ClickHaskell.Connection
-import ClickHaskell.Packets
 import ClickHaskell.Primitive
 import ClickHaskell.Statements
+import ClickHaskell.Packets.Client
+import ClickHaskell.Packets.Data
+import ClickHaskell.Packets.Server
 
 -- GHC included
 import Control.Concurrent (newMVar, putMVar, takeMVar)
@@ -179,7 +184,7 @@ select (MkSelect mkQuery) conn f = do
       . mkQueryArgs connState
       . mkQuery
       $ expectedColumns @columns @output
-    writeToConnection connState (serializeDataPacket "" 0 0)
+    writeToConnection connState (\rev -> serialize rev . Data $ mkDataPacket "" 0 0)
     loopSelect connState []
   where
   loopSelect connState@MkConnectionState{..} acc =
@@ -214,7 +219,7 @@ insert (MkInsert mkQuery) conn columnsData = do
       . mkQueryArgs connState
       . mkQuery
       $ expectedColumns @columns @record
-    writeToConnection connState (serializeDataPacket "" 0 0)
+    writeToConnection connState (\rev -> serialize rev . Data $ mkDataPacket "" 0 0)
     loopInsert connState
   where
   loopInsert connState@MkConnectionState{..} = do
@@ -226,9 +231,9 @@ insert (MkInsert mkQuery) conn columnsData = do
         let columns = fromRecords @columns @record columnsData
             rows = fromIntegral (colLen columns)
             cols = columnsCount @columns @record
-        writeToConnection connState (serializeDataPacket "" cols rows)
+        writeToConnection connState (\rev -> serialize rev . Data $ mkDataPacket "" cols rows)
         writeToConnection connState (serializeColumns @columns @record columns)
-        writeToConnection connState (serializeDataPacket "" 0 0)
+        writeToConnection connState (\rev -> serialize rev . Data $ mkDataPacket "" 0 0)
         loopInsert connState
       EndOfStream         -> pure ()
       Exception exception -> throwIO (DatabaseException exception)
@@ -264,7 +269,7 @@ command :: HasCallStack => Connection -> ChString -> IO ()
 command conn query = do
   withConnection conn $ \connState -> do
     writeToConnection connState (serializeQueryPacket (mkQueryArgs connState query))
-    writeToConnection connState (serializeDataPacket "" 0 0)
+    writeToConnection connState (\rev -> serialize rev . Data $ mkDataPacket "" 0 0)
     handleCreate connState
   where
   handleCreate :: ConnectionState -> IO ()

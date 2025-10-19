@@ -26,7 +26,7 @@ import ClickHaskell
   , toChType
   , UInt8, UInt16, UInt32, UInt64, UInt128
   , UUID, DateTime, ChString, Int128, Word128
-  , Nullable, DateTime64
+  , Nullable, DateTime64, Array
   )
 
 -- GHC included
@@ -98,6 +98,8 @@ type TestColumns =
    , Column "uint8Nullable" (Nullable UInt8)
    , Column "uuid" UUID
    , Column "uuidNullable" (Nullable UUID)
+   , Column "stringArray" (Array ChString)
+   , Column "int64Array" (Array Int64)
    ]
 
 data TestData = MkTestData
@@ -129,6 +131,8 @@ data TestData = MkTestData
   , uint8Nullable :: Nullable UInt8
   , uuid :: UUID
   , uuidNullable :: Nullable UUID
+  , stringArray :: [ChString]
+  , int64Array :: [Int64]
   }
   deriving (Generic, Show, Eq)
 
@@ -166,6 +170,8 @@ testData = MkTestData
       toChType (0 :: Word64, (pos 3)*4 + (pos 2)*2  )
     -- ^ 00000000-0000-0000-0000-000000004200
   , uuidNullable = Nothing
+  , stringArray = ["array1", "array2"]
+  , int64Array = [64, 128]
   }
 
 createTableQuery :: ChString
@@ -199,7 +205,9 @@ createTableQuery =
   \    `uint8` UInt8, \
   \    `uint8Nullable` Nullable(UInt8), \
   \    `uuid` UUID, \
-  \    `uuidNullable` Nullable(UUID) \
+  \    `uuidNullable` Nullable(UUID), \
+  \    `stringArray` Array(String), \
+  \    `int64Array` Array(Int64), \
   \) \
   \ENGINE = MergeTree \
   \PARTITION BY () \

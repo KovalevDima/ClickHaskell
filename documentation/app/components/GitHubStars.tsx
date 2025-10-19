@@ -9,13 +9,11 @@ function GitHubStars() {
       .then(data => {
         setStars(data.stargazers_count);
       })
-      .catch(() => {
-        // ничего не делаем при ошибке
-      });
+      .catch(() => {});
   }, []);
 
   if (stars === null) {
-    return null; // или можно вернуть <p>Загрузка...</p>
+    return null;
   }
 
   return(

@@ -6,11 +6,6 @@
     haskell-flake.url = "github:srid/haskell-flake";
     process-compose-flake.url = "github:Platonic-Systems/process-compose-flake";
     services-flake.url = "github:juspay/services-flake";
-    # tmp override
-    wide-word = {
-      url = "github:erikd/wide-word";
-      flake = false;
-    };
   };
 
   outputs = {self, flake-parts, nixpkgs, ...} @ inputs:
@@ -23,7 +18,7 @@
       perSystem = {self', pkgs, config, lib, ...}:
       let
         mapMergeAttrsList = f: x: lib.mergeAttrsList (map f x);
-        supportedGHCs = ["ghc8107" "ghc902" "ghc928" "ghc948" "ghc966" "ghc984" "ghc9101" "ghc9122"];
+        supportedGHCs = ["ghc948" "ghc967" "ghc984" "ghc9103" "ghc9122"];
       in
       {
         process-compose = {
@@ -67,7 +62,7 @@
             default = pkgs.mkShell {
               inputsFrom = [config.haskellProjects.ghc984.outputs.devShell];
               packages = with pkgs; with haskellPackages; with (self'.packages);
-                [clickhouse nodejs nil eventlog2html graphmod ghc984-html2hs];
+                [clickhouse nodejs nil eventlog2html graphmod ghc984-html2hs cloc];
             };
           };
         # Build documnetation
