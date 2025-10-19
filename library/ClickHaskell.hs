@@ -197,6 +197,7 @@ select (MkSelect mkQuery) conn f = do
             ("Expected " <> show expected <> " columns but got " <> show columns_count)
         !result <- f =<< readBuffer buffer (deserializeColumns @columns True revision rows_count)
         loopSelect connState (result : acc)
+      ProfileEvents _     -> loopSelect connState acc
       Progress    _       -> loopSelect connState acc
       ProfileInfo _       -> loopSelect connState acc
       EndOfStream         -> pure acc

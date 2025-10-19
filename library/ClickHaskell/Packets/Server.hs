@@ -2,11 +2,13 @@ module ClickHaskell.Packets.Server where
 
 -- Internal
 import ClickHaskell.Primitive
-import ClickHaskell.Packets.Data (DataPacket)
+import ClickHaskell.Packets.Data (DataPacket(..))
 
 -- GHC
 import Data.Int
 import GHC.Generics
+import ClickHaskell.Columns (Column, deserializeColumn, ColumnHeader)
+import Control.Monad (when)
 
 
 -- * Server packets
@@ -26,7 +28,7 @@ data ServerPacket where
   TableColumns         :: TableColumns -> ServerPacket
   UUIDs                :: ServerPacket
   ReadTaskRequest      :: ServerPacket
-  ProfileEvents        :: ServerPacket
+  ProfileEvents        :: ProfileEventsPacket -> ServerPacket
   UnknownPacket        :: UVarInt -> ServerPacket
 
 instance Serializable ServerPacket where
@@ -45,7 +47,7 @@ instance Serializable ServerPacket where
     TableColumns hello   -> serialize @UVarInt rev 11 <> serialize rev hello
     UUIDs                -> serialize @UVarInt rev 12
     ReadTaskRequest      -> serialize @UVarInt rev 13
-    ProfileEvents        -> serialize @UVarInt rev 14
+    ProfileEvents dat    -> serialize @UVarInt rev 14 <> serialize rev dat
     UnknownPacket num    -> serialize @UVarInt rev num
   deserialize rev = do
     packetNum <- deserialize @UVarInt rev
@@ -64,7 +66,7 @@ instance Serializable ServerPacket where
       11 -> TableColumns <$> deserialize rev
       12 -> pure UUIDs
       13 -> pure ReadTaskRequest
-      14 -> pure ProfileEvents
+      14 -> ProfileEvents <$> deserialize rev
       _  -> pure $ UnknownPacket packetNum
 
 serverPacketToNum :: ServerPacket -> UVarInt
@@ -76,7 +78,7 @@ serverPacketToNum = \case
   (Extremes)        -> 8; (TablesStatusResponse) -> 9
   (Log)             -> 10; (TableColumns _)      -> 11;
   (UUIDs)           -> 12; (ReadTaskRequest)     -> 13
-  (ProfileEvents)   -> 14; (UnknownPacket num)   -> num
+  (ProfileEvents _) -> 14; (UnknownPacket num)   -> num
 
 
 {-
@@ -142,3 +144,31 @@ data TableColumns = MkTableColumns
   , table_columns :: ChString
   }
   deriving (Generic, Serializable)
+
+data ProfileEventsPacket = MkProfileEventsPacket
+  { dataPacket :: DataPacket
+  , host_name :: [ChString]
+  , current_time :: [DateTime ""]
+  , thread_id :: [UInt64]
+  , type_ :: [Int8]
+  , name :: [ChString]
+  , value :: [UInt64]
+  } deriving (Generic)
+
+instance Serializable ProfileEventsPacket where
+  serialize rev MkProfileEventsPacket{dataPacket}
+    =  serialize rev dataPacket
+    <> ""
+  deserialize rev = do
+    dataPacket@MkDataPacket{rows_count, columns_count} <- deserialize rev
+    validateColumnsCount columns_count
+    !host_name    <- deserialize @ColumnHeader rev *> deserializeColumn @(Column "" ChString) rev rows_count id
+    !current_time <- deserialize @ColumnHeader rev *> deserializeColumn @(Column "" (DateTime "")) rev rows_count id
+    !thread_id    <- deserialize @ColumnHeader rev *> deserializeColumn @(Column "" UInt64) rev rows_count id
+    !type_        <- deserialize @ColumnHeader rev *> deserializeColumn @(Column "" Int8) rev rows_count id
+    !name         <- deserialize @ColumnHeader rev *> deserializeColumn @(Column "" ChString) rev rows_count id
+    !value        <- deserialize @ColumnHeader rev *> deserializeColumn @(Column "" UInt64) rev rows_count id
+    pure $ MkProfileEventsPacket{..}
+    where
+    validateColumnsCount count = when (count /= 6) . fail $
+      "Unable to parse ProfileEvents packet. Expected 6 columns but got " <> show count
