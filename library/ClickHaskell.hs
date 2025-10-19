@@ -173,6 +173,8 @@ data UserError
 select ::
   forall columns output result
   .
+  HasCallStack
+  =>
   ClickHaskell columns output
   =>
   Select columns output -> Connection -> ([output] -> IO result) -> IO [result]
@@ -210,6 +212,8 @@ select (MkSelect mkQuery) conn f = do
 insert ::
   forall columns record
   .
+  HasCallStack
+  =>
   ClickHaskell columns record
   =>
   Insert columns record -> Connection -> [record] -> IO ()

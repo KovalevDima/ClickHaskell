@@ -91,7 +91,7 @@ data Addendum = MkAddendum
   { quota_key :: ChString `SinceRevision` DBMS_MIN_PROTOCOL_VERSION_WITH_QUOTA_KEY
   , proto_send_chunked :: ChString `SinceRevision` DBMS_MIN_PROTOCOL_VERSION_WITH_CHUNKED_PACKETS
   , proto_recv_chunked :: ChString `SinceRevision` DBMS_MIN_PROTOCOL_VERSION_WITH_CHUNKED_PACKETS
-  , replicas_version :: ProtocolRevision `SinceRevision` DBMS_PARALLEL_REPLICAS_PROTOCOL_VERSION
+  , replicas_version :: ProtocolRevision `SinceRevision` DBMS_MIN_REVISION_WITH_VERSIONED_PARALLEL_REPLICAS_PROTOCOL
   }
   deriving (Generic, Serializable)
 
