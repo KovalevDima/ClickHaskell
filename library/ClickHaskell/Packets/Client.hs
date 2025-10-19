@@ -8,6 +8,7 @@ import ClickHaskell.Packets.Data (DataPacket)
 import Data.Int
 import GHC.Generics
 import Data.Binary.Builder (Builder)
+import Data.ByteString as BS (null)
 
 
 -- * Client packets
@@ -86,8 +87,21 @@ seriliazeHelloPacket db user pass =
       }
 
 
-data Addendum = MkAddendum{quota_key :: ChString `SinceRevision` DBMS_MIN_PROTOCOL_VERSION_WITH_QUOTA_KEY}
+data Addendum = MkAddendum
+  { quota_key :: ChString `SinceRevision` DBMS_MIN_PROTOCOL_VERSION_WITH_QUOTA_KEY
+  , proto_send_chunked :: ChString `SinceRevision` DBMS_MIN_PROTOCOL_VERSION_WITH_CHUNKED_PACKETS
+  , proto_recv_chunked :: ChString `SinceRevision` DBMS_MIN_PROTOCOL_VERSION_WITH_CHUNKED_PACKETS
+  , replicas_version :: ProtocolRevision `SinceRevision` DBMS_MIN_REVISION_WITH_VERSIONED_PARALLEL_REPLICAS_PROTOCOL
+  }
   deriving (Generic, Serializable)
+
+mkAddendum :: Addendum
+mkAddendum = MkAddendum
+  { quota_key          = MkSinceRevision ""
+  , proto_send_chunked = MkSinceRevision "notchunked"
+  , proto_recv_chunked = MkSinceRevision "notchunked"
+  , replicas_version   = MkSinceRevision $ mkRev @DBMS_PARALLEL_REPLICAS_PROTOCOL_VERSION
+  }
 
 -- ** Query
 
@@ -95,6 +109,7 @@ data QueryPacket = MkQueryPacket
   { query_id           :: ChString
   , client_info        :: ClientInfo `SinceRevision` DBMS_MIN_REVISION_WITH_CLIENT_INFO
   , settings           :: DbSettings
+  , external_roles     :: UVarInt `SinceRevision` DBMS_MIN_PROTOCOL_VERSION_WITH_INTERSERVER_EXTERNALLY_GRANTED_ROLES
   , interserver_secret :: ChString `SinceRevision` DBMS_MIN_REVISION_WITH_INTERSERVER_SECRET
   , query_stage        :: QueryStage
   , compression        :: UVarInt
@@ -135,6 +150,9 @@ serializeQueryPacket MkQueryPacketArgs{initial_user, os_user, hostname, query} r
         , collaborate_with_initiator   = MkSinceRevision 0
         , count_participating_replicas = MkSinceRevision 0
         , number_of_current_replica    = MkSinceRevision 0
+        , script_query_number          = MkSinceRevision 0
+        , script_line_number           = MkSinceRevision 0
+        , jwt                          = MkSinceRevision (MkJwt "")
         }
       , settings           = MkDbSettings []
       , interserver_secret = MkSinceRevision ""
@@ -142,6 +160,7 @@ serializeQueryPacket MkQueryPacketArgs{initial_user, os_user, hostname, query} r
       , compression        = 0
       , query
       , parameters         = MkSinceRevision MkQueryParameters
+      , external_roles     = MkSinceRevision 0
       }
 
 data DbSettings = MkDbSettings [DbSetting]
@@ -223,6 +242,9 @@ data ClientInfo = MkClientInfo
   , collaborate_with_initiator   :: UVarInt `SinceRevision` DBMS_MIN_REVISION_WITH_PARALLEL_REPLICAS
   , count_participating_replicas :: UVarInt `SinceRevision` DBMS_MIN_REVISION_WITH_PARALLEL_REPLICAS
   , number_of_current_replica    :: UVarInt `SinceRevision` DBMS_MIN_REVISION_WITH_PARALLEL_REPLICAS
+  , script_query_number          :: UVarInt `SinceRevision` DBMS_MIN_REVISION_WITH_QUERY_AND_LINE_NUMBERS
+  , script_line_number           :: UVarInt `SinceRevision` DBMS_MIN_REVISION_WITH_QUERY_AND_LINE_NUMBERS
+  , jwt                          :: Jwt `SinceRevision` DBMS_MIN_REVISON_WITH_JWT_IN_INTERSERVER
   }
   deriving (Generic, Serializable)
 
@@ -234,3 +256,15 @@ instance Serializable QueryKind where
       2 -> pure InitialQuery
       3 -> pure SecondaryQuery
       num -> fail ("Unknown QueryKind " <> show num)
+
+data Jwt = MkJwt ChString
+instance Serializable Jwt where
+  serialize rev (MkJwt str@(MkChString bs)) =
+    if not (BS.null bs)
+    then serialize @UInt8 rev 1 <> serialize rev str
+    else serialize @UInt8 rev 0
+  deserialize rev = do
+    has_jwt <- deserialize @UInt8 rev
+    if has_jwt == 1
+    then MkJwt <$> deserialize rev
+    else pure $ MkJwt ""

@@ -173,6 +173,8 @@ data UserError
 select ::
   forall columns output result
   .
+  HasCallStack
+  =>
   ClickHaskell columns output
   =>
   Select columns output -> Connection -> ([output] -> IO result) -> IO [result]
@@ -210,6 +212,8 @@ select (MkSelect mkQuery) conn f = do
 insert ::
   forall columns record
   .
+  HasCallStack
+  =>
   ClickHaskell columns record
   =>
   Insert columns record -> Connection -> [record] -> IO ()
@@ -353,7 +357,7 @@ auth buffer creds@MkConnectionArgs{db, user, pass, mOsUser, mHostname} = do
               , initial_user = toChType user
               , ..
               }
-      writeToConnection conn (\rev -> serialize rev MkAddendum{quota_key = MkSinceRevision ""})
+      writeToConnection conn (\rev -> serialize rev mkAddendum)
       pure conn
     Exception exception -> throwIO (DatabaseException exception)
     otherPacket         -> throwIO (InternalError $ UnexpectedPacketType $ serverPacketToNum otherPacket)

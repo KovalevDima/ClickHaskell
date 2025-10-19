@@ -2,6 +2,7 @@ module ClickHaskell.Packets.Server where
 
 -- Internal
 import ClickHaskell.Primitive
+import ClickHaskell.Packets.Client (DbSettings)
 import ClickHaskell.Packets.Data (DataPacket(..))
 
 -- GHC
@@ -97,6 +98,8 @@ data HelloResponse = MkHelloResponse
   , proto_recv_chunked_srv         :: ChString `SinceRevision` DBMS_MIN_PROTOCOL_VERSION_WITH_CHUNKED_PACKETS
   , password_complexity_rules      :: [PasswordComplexityRules] `SinceRevision` DBMS_MIN_PROTOCOL_VERSION_WITH_PASSWORD_COMPLEXITY_RULES
   , read_nonce                     :: UInt64 `SinceRevision` DBMS_MIN_REVISION_WITH_INTERSERVER_SECRET_V2
+  , settings                       :: DbSettings `SinceRevision` DBMS_MIN_REVISION_WITH_SERVER_SETTINGS
+  , server_query_plan_serialization_version :: UVarInt `SinceRevision` DBMS_MIN_REVISION_WITH_QUERY_PLAN_SERIALIZATION
   }
   deriving (Generic, Serializable)
 
