@@ -13,6 +13,7 @@ import Data.Kind
 import Data.Coerce
 import Data.Typeable (Proxy (..))
 import Data.Bits (Bits ((.&.)))
+import GHC.Generics (Generic)
 import GHC.TypeLits (ErrorMessage (..), KnownSymbol, Symbol, TypeError, symbolVal)
 
 -- External
@@ -64,6 +65,12 @@ data Column (name :: Symbol) (chType :: Type) where
 
 type family GetColumnName column :: Symbol where GetColumnName (Column name columnType) = name
 type family GetColumnType column :: Type   where GetColumnType (Column name columnType) = columnType
+
+data ColumnHeader = MkColumnHeader
+  { name :: ChString
+  , type_ :: ChString
+  , is_custom :: UInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION
+  } deriving (Generic, Serializable)
 
 
 class

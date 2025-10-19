@@ -581,7 +581,7 @@ instance
   Slightly modified C++ sources:
   https://github.com/ClickHouse/ClickHouse/blob/eb4a74d7412a1fcf52727cd8b00b365d6b9ed86c/src/Core/ProtocolDefines.h#L6
 -}
-type DBMS_TCP_PROTOCOL_VERSION = 54448;
+type DBMS_TCP_PROTOCOL_VERSION = DBMS_MIN_PROTOCOL_VERSION_WITH_PARAMETERS;
 
 type DBMS_MIN_REVISION_WITH_CLIENT_INFO = 54032;
 type DBMS_MIN_REVISION_WITH_SERVER_TIMEZONE = 54058;
