@@ -8,9 +8,8 @@ import ClickHaskell.Packets.Data (DataPacket(..))
 -- GHC
 import Data.Int
 import GHC.Generics
-import ClickHaskell.Columns (Column, deserializeColumn, ColumnHeader)
+import ClickHaskell.Columns (Column, deserializeColumn, ColumnHeader, serializeColumn, mkHeader)
 import Control.Monad (when)
-
 
 -- * Server packets
 
@@ -158,19 +157,25 @@ data ProfileEventsPacket = MkProfileEventsPacket
   , value :: [UInt64]
   } deriving (Generic)
 
+-- ToDo: Simplify
 instance Serializable ProfileEventsPacket where
-  serialize rev MkProfileEventsPacket{dataPacket}
+  serialize rev MkProfileEventsPacket{..}
     =  serialize rev dataPacket
-    <> ""
+    <> serialize rev (mkHeader @(Column "host_name" ChString)) <> serializeColumn @(Column "host_name" ChString) rev id host_name
+    <> serialize rev (mkHeader @(Column "current_time" (DateTime ""))) <> serializeColumn @(Column "current_time" (DateTime "")) rev id current_time
+    <> serialize rev (mkHeader @(Column "thread_id" UInt64)) <> serializeColumn @(Column "thread_id" UInt64) rev id thread_id
+    <> serialize rev (mkHeader @(Column "type" Int8)) <> serializeColumn @(Column "type" Int8) rev id type_
+    <> serialize rev (mkHeader @(Column "name" ChString)) <> serializeColumn @(Column "name" ChString) rev id name
+    <> serialize rev (mkHeader @(Column "value" UInt64)) <> serializeColumn @(Column "value" UInt64) rev id value
   deserialize rev = do
     dataPacket@MkDataPacket{rows_count, columns_count} <- deserialize rev
     validateColumnsCount columns_count
-    !host_name    <- deserialize @ColumnHeader rev *> deserializeColumn @(Column "" ChString) rev rows_count id
-    !current_time <- deserialize @ColumnHeader rev *> deserializeColumn @(Column "" (DateTime "")) rev rows_count id
-    !thread_id    <- deserialize @ColumnHeader rev *> deserializeColumn @(Column "" UInt64) rev rows_count id
-    !type_        <- deserialize @ColumnHeader rev *> deserializeColumn @(Column "" Int8) rev rows_count id
-    !name         <- deserialize @ColumnHeader rev *> deserializeColumn @(Column "" ChString) rev rows_count id
-    !value        <- deserialize @ColumnHeader rev *> deserializeColumn @(Column "" UInt64) rev rows_count id
+    !host_name    <- deserialize @ColumnHeader rev *> deserializeColumn @(Column "host_name" ChString) rev rows_count id
+    !current_time <- deserialize @ColumnHeader rev *> deserializeColumn @(Column "current_time" (DateTime "")) rev rows_count id
+    !thread_id    <- deserialize @ColumnHeader rev *> deserializeColumn @(Column "thread_id" UInt64) rev rows_count id
+    !type_        <- deserialize @ColumnHeader rev *> deserializeColumn @(Column "type" Int8) rev rows_count id
+    !name         <- deserialize @ColumnHeader rev *> deserializeColumn @(Column "name" ChString) rev rows_count id
+    !value        <- deserialize @ColumnHeader rev *> deserializeColumn @(Column "value" UInt64) rev rows_count id
     pure $ MkProfileEventsPacket{..}
     where
     validateColumnsCount count = when (count /= 6) . fail $
