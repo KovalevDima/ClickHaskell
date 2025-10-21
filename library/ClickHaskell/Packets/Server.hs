@@ -8,7 +8,7 @@ import ClickHaskell.Packets.Data (DataPacket(..))
 -- GHC
 import Data.Int
 import GHC.Generics
-import ClickHaskell.Columns (Column, deserializeColumn, ColumnHeader(..), serializeColumn, mkHeader)
+import ClickHaskell.Columns (Column, deserializeColumn, ColumnHeader, serializeColumn, mkHeader)
 import Control.Monad (when)
 
 -- * Server packets
