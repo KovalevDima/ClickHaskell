@@ -25,7 +25,7 @@ executable prof-pings
   main-is: index.hs
   hs-source-dirs: .
   ghc-options:
-    -O2 -threaded
+    -O2
     -main-is Pings
     -Wall
   if impl(ghc >= 9.4)
