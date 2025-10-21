@@ -9,6 +9,10 @@ import GHC.Generics
 -- * Server settings
 
 data DbSettings = MkDbSettings [DbSetting]
+
+addSetting :: DbSetting -> DbSettings -> DbSettings
+addSetting setting (MkDbSettings list) = MkDbSettings (setting : list)
+
 data DbSetting = MkDbSetting
   { setting :: ChString
   , flags   :: Flags `SinceRevision` DBMS_MIN_REVISION_WITH_SETTINGS_SERIALIZED_AS_STRINGS
@@ -21,10 +25,15 @@ instance Serializable DbSettings where
     foldMap (serialize @DbSetting rev) setts
     <> serialize @ChString rev ""
   deserialize rev = do
-    str <- deserialize @ChString rev
-    case str of
+    setting <- deserialize @ChString rev
+    case setting of
       "" -> pure $ MkDbSettings []
-      _ -> pure $ MkDbSettings []
+      _ -> do
+        _ <- fail "Settings deserialization unsupported"
+        flags <- deserialize rev
+        value <- deserialize rev
+        addSetting MkDbSetting{..}
+          <$> deserialize rev
 
 data Flags = IMPORTANT | CUSTOM | TIER
 instance Serializable Flags where
