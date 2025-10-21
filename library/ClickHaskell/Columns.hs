@@ -200,7 +200,7 @@ instance
   deserializeColumn rev rows f = map f <$> replicateGet rev rows
 
   {-# INLINE serializeColumn #-}
-  serializeColumn rev f column  = mconcat (Prelude.map (serialize @chType rev . f) column)
+  serializeColumn rev f column = foldMap (serialize @chType rev . f) column
 
 instance {-# OVERLAPPING #-}
   ( KnownColumn (Column name (Nullable chType))
@@ -209,20 +209,17 @@ instance {-# OVERLAPPING #-}
   ) =>
   SerializableColumn (Column name (Nullable chType)) where
   {-# INLINE deserializeColumn #-}
-
   deserializeColumn rev rows f = do
     nulls <- replicateGet @UInt8 rev rows
-    forM
-        nulls
-        (\case
-          0 -> f . Just <$> deserialize @chType rev
-          _ -> (f Nothing <$ deserialize @chType rev)
-        )
+    forM nulls (\case
+        0 -> f . Just <$> deserialize @chType rev
+        _ -> (f Nothing <$ deserialize @chType rev)
+      )
 
   {-# INLINE serializeColumn #-}
   serializeColumn rev f column
-    =  mconcat (Prelude.map (serialize @UInt8 rev . maybe 1 (const 0) . f) column)
-    <> mconcat (Prelude.map (serialize @chType rev . maybe defaultValueOfTypeName id . f) column)
+    =  foldMap (serialize @UInt8 rev . maybe 1 (const 0) . f) column
+    <> foldMap (serialize @chType rev . maybe defaultValueOfTypeName id . f) column
 
 instance {-# OVERLAPPING #-}
   ( KnownColumn (Column name (LowCardinality chType))
@@ -254,5 +251,5 @@ instance {-# OVERLAPPING #-}
 
   {-# INLINE serializeColumn #-}
   serializeColumn rev f column
-    =  mconcat (map (serialize @UInt64 rev . fromIntegral . length . f) column)
+    =  foldMap (serialize @UInt64 rev . fromIntegral . length . f) column
     <> foldMap (foldMap (serialize @chType rev) . f) column
