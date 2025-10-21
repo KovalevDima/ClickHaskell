@@ -3,6 +3,7 @@ module ClickHaskell.Packets.Settings where
 -- Internal
 import ClickHaskell.Primitive
 
+-- GHC
 import GHC.Generics
 
 -- * Server settings
