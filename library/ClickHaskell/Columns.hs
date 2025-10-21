@@ -211,12 +211,10 @@ instance {-# OVERLAPPING #-}
   {-# INLINE deserializeColumn #-}
   deserializeColumn rev rows f = do
     nulls <- replicateGet @UInt8 rev rows
-    forM
-        nulls
-        (\case
-          0 -> f . Just <$> deserialize @chType rev
-          _ -> (f Nothing <$ deserialize @chType rev)
-        )
+    forM nulls (\case
+        0 -> f . Just <$> deserialize @chType rev
+        _ -> (f Nothing <$ deserialize @chType rev)
+      )
 
   {-# INLINE serializeColumn #-}
   serializeColumn rev f column
