@@ -96,6 +96,7 @@ import ClickHaskell.Statements
 import ClickHaskell.Packets.Client
 import ClickHaskell.Packets.Data
 import ClickHaskell.Packets.Server
+import ClickHaskell.Packets.Settings
 
 -- GHC included
 import Control.Concurrent (newMVar, putMVar, takeMVar)

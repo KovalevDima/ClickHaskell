@@ -3,6 +3,7 @@ module ClickHaskell.Packets.Client where
 -- Internal
 import ClickHaskell.Primitive
 import ClickHaskell.Packets.Data (DataPacket)
+import ClickHaskell.Packets.Settings (DbSettings (..))
 
 -- GHC
 import Data.Int
@@ -163,23 +164,6 @@ serializeQueryPacket MkQueryPacketArgs{initial_user, os_user, hostname, query} r
       , external_roles     = MkSinceRevision 0
       }
 
-data DbSettings = MkDbSettings [DbSetting]
-data DbSetting = MkDbSetting
-  { setting :: ChString
-  , flags   :: Flags `SinceRevision` DBMS_MIN_REVISION_WITH_SETTINGS_SERIALIZED_AS_STRINGS
-  , value   :: ChString
-  }
-  deriving (Generic, Serializable)
-
-instance Serializable DbSettings where
-  serialize rev (MkDbSettings setts) = do
-    foldMap (serialize @DbSetting rev) setts
-    <> serialize @ChString rev ""
-  deserialize rev = do
-    str <- deserialize @ChString rev
-    case str of
-      "" -> pure $ MkDbSettings []
-      _ -> pure $ MkDbSettings []
 
 data QueryParameters = MkQueryParameters
 instance Serializable QueryParameters where
@@ -205,22 +189,6 @@ instance Serializable QueryStage where
       4 -> pure WithMergeableStateAfterAggregationAndLimit
       num -> fail ("Unknown QueryStage " <> show num)
 
-
-data Flags = IMPORTANT | CUSTOM | TIER
-instance Serializable Flags where
-  serialize rev flags = serialize rev $ fromFlagCode flags
-  deserialize rev = do
-    flagCode <- deserialize @UInt8 rev
-    case flagCode of
-      0x01 -> pure IMPORTANT
-      0x02 -> pure CUSTOM
-      0x0c -> pure TIER
-      _ -> fail "Unknown flag code"
-
-fromFlagCode :: Flags -> UInt8
-fromFlagCode IMPORTANT = 0x01
-fromFlagCode CUSTOM    = 0x02
-fromFlagCode TIER      = 0x0c
 
 data ClientInfo = MkClientInfo
   { query_kind                   :: QueryKind
