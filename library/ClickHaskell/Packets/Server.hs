@@ -2,8 +2,8 @@ module ClickHaskell.Packets.Server where
 
 -- Internal
 import ClickHaskell.Primitive
-import ClickHaskell.Packets.Client (DbSettings)
 import ClickHaskell.Packets.Data (DataPacket(..))
+import ClickHaskell.Packets.Settings (DbSettings)
 
 -- GHC
 import Data.Int
