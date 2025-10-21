@@ -84,6 +84,13 @@ class
   renderColumnType :: Builder
   renderColumnType = byteString . BS8.pack $ chTypeName @(GetColumnType column)
 
+  mkHeader :: ColumnHeader
+  mkHeader = let
+    name = toChType $ renderColumnName @column
+    type_ = toChType $ chTypeName @(GetColumnType column)
+    is_custom = MkSinceRevision 0
+    in MkColumnHeader{..}
+
   toColumn :: [GetColumnType column] -> Column (GetColumnName column) (GetColumnType column)
   fromColumn :: Column (GetColumnName column) (GetColumnType column) -> [GetColumnType column]
 
