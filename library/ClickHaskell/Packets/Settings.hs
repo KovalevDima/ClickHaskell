@@ -27,7 +27,12 @@ instance Serializable DbSettings where
 
 data Flags = IMPORTANT | CUSTOM | TIER
 instance Serializable Flags where
-  serialize rev flags = serialize rev $ fromFlagCode flags
+  serialize rev flags =
+    serialize @UInt8 rev $
+      case flags of
+        IMPORTANT -> 0x01
+        CUSTOM -> 0x02
+        TIER -> 0x0c
   deserialize rev = do
     flagCode <- deserialize @UInt8 rev
     case flagCode of
@@ -35,8 +40,3 @@ instance Serializable Flags where
       0x02 -> pure CUSTOM
       0x0c -> pure TIER
       _ -> fail "Unknown flag code"
-
-fromFlagCode :: Flags -> UInt8
-fromFlagCode IMPORTANT = 0x01
-fromFlagCode CUSTOM    = 0x02
-fromFlagCode TIER      = 0x0c
