@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedRecordDot #-}
 module ClickHaskell.Packets.Server where
 
 -- Internal
