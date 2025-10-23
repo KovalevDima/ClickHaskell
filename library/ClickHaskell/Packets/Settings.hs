@@ -4,7 +4,11 @@ module ClickHaskell.Packets.Settings where
 import ClickHaskell.Primitive
 
 -- GHC
+import Data.Binary (Get)
+import Data.Binary.Builder (Builder)
+import Data.Typeable (Proxy (..))
 import GHC.Generics
+import GHC.TypeLits (KnownSymbol, symbolVal)
 
 -- * Server settings
 
@@ -33,7 +37,7 @@ instance Serializable DbSettings where
         flags <- deserialize rev
         value <- deserialize rev
         addSetting MkDbSetting{..}
-          <$> deserialize rev
+          <$> deserialize @DbSettings rev
 
 data Flags = IMPORTANT | CUSTOM | TIER
 instance Serializable Flags where
@@ -50,3 +54,43 @@ instance Serializable Flags where
       0x02 -> pure CUSTOM
       0x0c -> pure TIER
       _ -> fail "Unknown flag code"
+
+data SettingValue = forall a . Serializable a => SettingValue a
+
+data SettingDescriptor = forall a. Serializable a =>
+  SettingDescriptor
+    { deserializer :: ProtocolRevision -> Get a
+    , serializer :: ProtocolRevision -> a -> Builder
+    }
+
+type SettingMap = [(ChString, SettingDescriptor)]
+
+settingMap :: SettingMap
+settingMap =
+  [ mkSettingDesc @"max_threads" @UInt64
+  , mkSettingDesc @"max_memory_usage" @UInt64
+  , mkSettingDesc @"join_use_nulls" @UInt64
+  ]
+
+mkSettingDesc :: forall name settType . (Serializable settType, KnownSymbol name) => (ChString, SettingDescriptor)
+mkSettingDesc = 
+  let name = toChType (symbolVal @name Proxy)
+      desc = SettingDescriptor (deserialize @settType) (serialize @settType)
+  in (name, desc)
+
+deserializeSettingsMap :: ProtocolRevision -> Get [(ChString, SettingValue)]
+deserializeSettingsMap rev  = go []
+  where
+    go acc = do
+      name <- deserialize @ChString rev
+      if (name == "")
+      then do
+        _flags <- deserialize @(Flags `SinceRevision` DBMS_MIN_REVISION_WITH_SETTINGS_SERIALIZED_AS_STRINGS) rev
+        case lookup name settingMap of
+          Just (SettingDescriptor deserializer _serializer) -> do
+            val <- deserializer rev
+            go ((name, (SettingValue val)) : acc)
+          Nothing -> do
+            strVal <- deserialize @ChString rev
+            go ((name, (SettingValue strVal)): acc)
+      else pure acc
