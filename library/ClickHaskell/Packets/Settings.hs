@@ -1,43 +1,61 @@
+{-# LANGUAGE TypeAbstractions #-}
 module ClickHaskell.Packets.Settings where
 
 -- Internal
 import ClickHaskell.Primitive
 
 -- GHC
-import Data.Binary (Get)
+import Control.Applicative (liftA2)
 import Data.Binary.Builder (Builder)
+import Data.Binary.Get (Get, lookAhead, skip)
+import Data.ByteString as BS (null)
 import Data.Typeable (Proxy (..))
-import GHC.Generics
+import GHC.Generics (Generic)
 import GHC.TypeLits (KnownSymbol, symbolVal)
+import Prelude hiding (liftA2)
 
 -- * Server settings
 
 data DbSettings = MkDbSettings [DbSetting]
 
+lookupSetting :: ChString -> Maybe SettingDescriptor
+lookupSetting name = lookup name settingsMap
+
 addSetting :: DbSetting -> DbSettings -> DbSettings
 addSetting setting (MkDbSettings list) = MkDbSettings (setting : list)
 
-data DbSetting = MkDbSetting
+data DbSetting = forall a . Serializable a => MkDbSetting
   { setting :: ChString
   , flags   :: Flags `SinceRevision` DBMS_MIN_REVISION_WITH_SETTINGS_SERIALIZED_AS_STRINGS
-  , value   :: ChString
+  , value   :: a
   }
-  deriving (Generic, Serializable)
+
+instance Serializable DbSetting where
+  deserialize rev = do
+    
+    setting <- deserialize @ChString rev
+    flags <- deserilize @Flags
+    
+    value <- case lookupSetting setting of
+      Nothing -> fail ("Unsupported option " <> show setting)
+      Just SettingDescriptor{deserializer} -> deserializer rev
+    pure $ MkDbSetting{..} 
+  serialize rev MkDbSetting{setting,flags,value} = case lookupSetting setting of
+    Nothing -> error "Impossible"
+    Just (SettingDescriptor{serializer}) -> serialize rev setting <> serialize rev flags <> serializer rev value
 
 instance Serializable DbSettings where
   serialize rev (MkDbSettings setts) = do
     foldMap (serialize @DbSetting rev) setts
     <> serialize @ChString rev ""
   deserialize rev = do
-    setting <- deserialize @ChString rev
-    case setting of
-      "" -> pure $ MkDbSettings []
-      _ -> do
-        _ <- fail "Settings deserialization unsupported"
-        flags <- deserialize rev
-        value <- deserialize rev
-        addSetting MkDbSetting{..}
-          <$> deserialize @DbSettings rev
+    (MkChString setting) <- lookAhead (deserialize @ChString rev)
+    if BS.null setting
+      then skip 1 *> pure (MkDbSettings [])
+      else liftA2
+        addSetting
+        (deserialize @DbSetting rev)
+        (deserialize @DbSettings rev)
 
 data Flags = IMPORTANT | CUSTOM | TIER
 instance Serializable Flags where
@@ -55,7 +73,6 @@ instance Serializable Flags where
       0x0c -> pure TIER
       _ -> fail "Unknown flag code"
 
-data SettingValue = forall a . Serializable a => SettingValue a
 
 data SettingDescriptor = forall a. Serializable a =>
   SettingDescriptor
@@ -63,10 +80,10 @@ data SettingDescriptor = forall a. Serializable a =>
     , serializer :: ProtocolRevision -> a -> Builder
     }
 
-type SettingMap = [(ChString, SettingDescriptor)]
+type SettingsMap = [(ChString, SettingDescriptor)]
 
-settingMap :: SettingMap
-settingMap =
+settingsMap :: SettingsMap
+settingsMap =
   [ mkSettingDesc @"max_threads" @UInt64
   , mkSettingDesc @"max_memory_usage" @UInt64
   , mkSettingDesc @"join_use_nulls" @UInt64
@@ -75,22 +92,5 @@ settingMap =
 mkSettingDesc :: forall name settType . (Serializable settType, KnownSymbol name) => (ChString, SettingDescriptor)
 mkSettingDesc = 
   let name = toChType (symbolVal @name Proxy)
-      desc = SettingDescriptor (deserialize @settType) (serialize @settType)
+      desc = SettingDescriptor  @settType (deserialize @settType) (serialize @settType)
   in (name, desc)
-
-deserializeSettingsMap :: ProtocolRevision -> Get [(ChString, SettingValue)]
-deserializeSettingsMap rev  = go []
-  where
-    go acc = do
-      name <- deserialize @ChString rev
-      if (name == "")
-      then do
-        _flags <- deserialize @(Flags `SinceRevision` DBMS_MIN_REVISION_WITH_SETTINGS_SERIALIZED_AS_STRINGS) rev
-        case lookup name settingMap of
-          Just (SettingDescriptor deserializer _serializer) -> do
-            val <- deserializer rev
-            go ((name, (SettingValue val)) : acc)
-          Nothing -> do
-            strVal <- deserialize @ChString rev
-            go ((name, (SettingValue strVal)): acc)
-      else pure acc
