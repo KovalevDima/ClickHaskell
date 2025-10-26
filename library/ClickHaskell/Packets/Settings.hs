@@ -20,12 +20,11 @@ data DbSettings = MkDbSettings [DbSetting]
 addSetting :: DbSetting -> DbSettings -> DbSettings
 addSetting setting (MkDbSettings list) = MkDbSettings (setting : list)
 
-data DbSetting =
-  MkDbSetting
-    { setting    :: ChString 
-    , flags      :: Flags `SinceRevision` DBMS_MIN_REVISION_WITH_SETTINGS_SERIALIZED_AS_STRINGS
-    , value      :: SettingType
-    }
+data DbSetting = MkDbSetting
+  { setting    :: ChString 
+  , flags      :: Flags `SinceRevision` DBMS_MIN_REVISION_WITH_SETTINGS_SERIALIZED_AS_STRINGS
+  , value      :: SettingType
+  }
 
 instance Serializable DbSetting where
   deserialize rev = do
