@@ -9,8 +9,9 @@ import Control.Applicative (liftA2)
 import Data.Binary.Builder (Builder)
 import Data.Binary.Get (Get, lookAhead, skip)
 import Data.ByteString as BS (null)
+import Data.Kind (Type)
 import Data.Typeable (Proxy (..))
-import GHC.TypeLits (KnownSymbol, symbolVal)
+import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
 import Prelude hiding (liftA2)
 
 -- * Server settings
@@ -33,13 +34,13 @@ instance Serializable DbSetting where
     flags <- deserialize @(Flags `SinceRevision` DBMS_MIN_REVISION_WITH_SETTINGS_SERIALIZED_AS_STRINGS) rev
     case lookupSetting setting of
       Nothing -> fail ("Unsupported option " <> show setting)
-      Just MkSettingDescriptor{deserializer} -> do
+      Just MkSettingSerializer{deserializer} -> do
         value <- deserializer rev
         pure $ MkDbSetting{..} 
   serialize rev MkDbSetting{setting, flags, value} =
     case lookupSetting setting of
-      Nothing -> error "Impossible"
-      Just MkSettingDescriptor{serializer} ->
+      Nothing -> error "Impossible. Unknown setting was added to query packet"
+      Just MkSettingSerializer{serializer} ->
         serialize rev setting
         <> serialize rev flags
         <> serializer rev value
@@ -74,16 +75,33 @@ instance Serializable Flags where
       _ -> fail "Unknown flag code"
 
 
-data SettingDescriptor  = 
-  MkSettingDescriptor
+data SettingSerializer  = 
+  MkSettingSerializer
     { deserializer :: ProtocolRevision -> Get SettingType
     , serializer   :: ProtocolRevision -> SettingType -> Builder
     }
 
-lookupSetting :: ChString -> Maybe SettingDescriptor
-lookupSetting name = lookup name settingsMap
+lookupSetting :: ChString -> Maybe SettingSerializer
+lookupSetting name = lookup name (settingsMap @SupportedSettings)
 
-type SettingsMap = [(ChString, SettingDescriptor)]
+class SettingsMapBuilder (list :: [Type]) where
+  settingsMap :: SettingsMap
+
+instance SettingsMapBuilder '[] where settingsMap = []
+instance
+  (SettingsMapBuilder xs, IsSettingType settType, KnownSymbol name)
+  =>
+  SettingsMapBuilder (Setting name settType ': xs)
+  where
+  settingsMap =
+    let name = toChType (symbolVal @name Proxy)
+        desc = MkSettingSerializer
+          { deserializer = \rev -> toSettingType <$> deserialize @settType rev
+          , serializer = \rev -> serialize @settType rev . fromSettingType
+          }
+    in (name, desc) : settingsMap @xs
+
+type SettingsMap = [(ChString, SettingSerializer)]
 
 data SettingType where
   SettingUInt64 :: UInt64 -> SettingType
@@ -100,18 +118,18 @@ instance IsSettingType UInt64 where
   toSettingType uint64 = SettingUInt64 uint64
   fromSettingType (SettingUInt64 uint64) = uint64
 
-mkSettingDesc :: forall name settType . (IsSettingType settType, KnownSymbol name) => (ChString, SettingDescriptor)
+mkSettingDesc :: forall name settType . (IsSettingType settType, KnownSymbol name) => (ChString, SettingSerializer)
 mkSettingDesc = 
   let name = toChType (symbolVal @name Proxy)
-      desc = MkSettingDescriptor
+      desc = MkSettingSerializer
         { deserializer = \rev -> toSettingType <$> deserialize @settType rev
         , serializer = \rev -> serialize @settType rev . fromSettingType
         }
   in (name, desc)
 
-settingsMap :: SettingsMap
-settingsMap =
-  [ mkSettingDesc @"max_threads" @UInt64
-  , mkSettingDesc @"max_memory_usage" @UInt64
-  , mkSettingDesc @"join_use_nulls" @UInt64
+data Setting (a :: Symbol) (settType :: Type)
+
+type SupportedSettings = '[
+    Setting "max_threads_for_indexes" UInt64,
+    Setting "max_memory_usage" UInt64
   ]
