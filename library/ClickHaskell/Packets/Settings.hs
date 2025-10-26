@@ -1,4 +1,3 @@
-{-# LANGUAGE TypeAbstractions #-}
 module ClickHaskell.Packets.Settings where
 
 -- Internal
