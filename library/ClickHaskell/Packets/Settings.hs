@@ -31,7 +31,7 @@ instance Serializable DbSetting where
     setting <- deserialize @ChString rev
     flags <- deserialize @(Flags `SinceRevision` DBMS_MIN_REVISION_WITH_SETTINGS_SERIALIZED_AS_STRINGS) rev
     case lookupSetting setting of
-      Nothing -> fail ("Unsupported option " <> show setting)
+      Nothing -> fail ("Unsupported setting " <> show setting)
       Just MkSettingSerializer{deserializer} -> do
         value <- deserializer rev
         pure $ MkDbSetting{..} 
