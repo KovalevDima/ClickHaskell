@@ -83,7 +83,7 @@ lookupSetting :: ChString -> Maybe SettingSerializer
 lookupSetting name = lookup name (settingsMap @SupportedSettings)
 
 class SettingsMapBuilder (list :: [Type]) where
-  settingsMap :: SettingsMap
+  settingsMap :: [(ChString, SettingSerializer)]
 
 instance SettingsMapBuilder '[] where settingsMap = []
 instance
@@ -99,8 +99,6 @@ instance
           }
     in (name, desc) : settingsMap @xs
 
-type SettingsMap = [(ChString, SettingSerializer)]
-
 data SettingType where
   SettingUInt64 :: UInt64 -> SettingType
 
@@ -115,15 +113,6 @@ class
 instance IsSettingType UInt64 where
   toSettingType uint64 = SettingUInt64 uint64
   fromSettingType (SettingUInt64 uint64) = uint64
-
-mkSettingDesc :: forall name settType . (IsSettingType settType, KnownSymbol name) => (ChString, SettingSerializer)
-mkSettingDesc = 
-  let name = toChType (symbolVal @name Proxy)
-      desc = MkSettingSerializer
-        { deserializer = \rev -> toSettingType <$> deserialize @settType rev
-        , serializer = \rev -> serialize @settType rev . fromSettingType
-        }
-  in (name, desc)
 
 data Setting (a :: Symbol) (settType :: Type)
 
