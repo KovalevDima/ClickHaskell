@@ -3,7 +3,7 @@ module ClickHaskell.Packets.Client where
 -- Internal
 import ClickHaskell.Primitive
 import ClickHaskell.Packets.Data (DataPacket)
-import ClickHaskell.Packets.Settings (DbSettings (..))
+import ClickHaskell.Packets.Settings (DbSettings(..), SettingType(..), addSetting, DbSetting(..), Flags(..))
 
 -- GHC
 import Data.Int
@@ -155,7 +155,9 @@ serializeQueryPacket MkQueryPacketArgs{initial_user, os_user, hostname, query} r
         , script_line_number           = MkSinceRevision 0
         , jwt                          = MkSinceRevision (MkJwt "")
         }
-      , settings           = MkDbSettings []
+      , settings = 
+        addTestSetting $
+        MkDbSettings []
       , interserver_secret = MkSinceRevision ""
       , query_stage        = Complete
       , compression        = 0
@@ -164,6 +166,12 @@ serializeQueryPacket MkQueryPacketArgs{initial_user, os_user, hostname, query} r
       , external_roles     = MkSinceRevision 0
       }
 
+addTestSetting :: DbSettings -> DbSettings
+addTestSetting = addSetting MkDbSetting
+  { setting = "max_threads_for_indexes"
+  , flags = MkSinceRevision IMPORTANT
+  , value = SettingUInt64 54
+  }
 
 data QueryParameters = MkQueryParameters
 instance Serializable QueryParameters where

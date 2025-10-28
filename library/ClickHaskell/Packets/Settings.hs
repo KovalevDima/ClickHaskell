@@ -41,7 +41,9 @@ instance Serializable DbSetting where
       Just MkSettingSerializer{serializer} ->
         serialize rev setting
         <> serialize rev flags
-        <> serializer rev value
+        <>
+          -- (serialize rev . toChType @ChString)
+          (serializer rev value)
 
 instance Serializable DbSettings where
   serialize rev (MkDbSettings setts) = do
@@ -59,13 +61,13 @@ instance Serializable DbSettings where
 data Flags = IMPORTANT | CUSTOM | TIER
 instance Serializable Flags where
   serialize rev flags =
-    serialize @UInt8 rev $
+    serialize @UVarInt rev $
       case flags of
         IMPORTANT -> 0x01
         CUSTOM -> 0x02
         TIER -> 0x0c
   deserialize rev = do
-    flagCode <- deserialize @UInt8 rev
+    flagCode <- deserialize @UVarInt rev
     case flagCode of
       0x01 -> pure IMPORTANT
       0x02 -> pure CUSTOM
