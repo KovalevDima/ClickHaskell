@@ -559,14 +559,14 @@ Protocol implementation part for backward compatilibity formalization
 
 NB:
 
-  Be carefull with `NotPresented` value.
+  Be carefull with `BeforeRevision` value.
 
   If **chosen protocol** revision would be >= **revisionNumber**
   then you would get an exception during serialization.
 
   To avoid this:
 
-  1. On client side - provide `MkSinceRevision` with some empty value
+  1. On client side - provide `AfterRevision` with some empty value
   2. On proxy side - provide server-to-server packets mapping with fallbacks on revision upgrade
 
 -}
@@ -583,7 +583,7 @@ instance
     if rev < mkRev @revision
     then mempty
     else case sinceRevVal of
-      BeforeRevision _b -> error "Impossible happened" -- Watch `Revisioned` note
+      BeforeRevision _b -> error "Protocol-specific implementation error" -- Watch `Revisioned` note
       AfterRevision a -> serialize rev a
   deserialize rev =
     if rev < mkRev @revision
