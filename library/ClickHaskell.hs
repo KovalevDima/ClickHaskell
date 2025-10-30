@@ -70,7 +70,7 @@ module ClickHaskell
   {- * Protocol parts -}
 
   {- ** Shared -}
-  , UVarInt(..), SinceRevision(..), ProtocolRevision
+  , UVarInt(..), Revisioned(..), ProtocolRevision
   {- *** Data packet -}, DataPacket(..), BlockInfo(..)
 
   {- ** Client -}, ClientPacket(..)
@@ -78,7 +78,7 @@ module ClickHaskell
   {- *** Query -}
   , QueryPacket(..)
   , DbSettings(..), QueryParameters(..), QueryStage(..)
-  , ClientInfo(..), QueryKind(..)
+  , ClientInfo(..), QueryKind(..), Jwt(..)
   
   {- ** Server -}, ServerPacket(..)
   {- *** Hello -}, HelloResponse(..), PasswordComplexityRules(..)

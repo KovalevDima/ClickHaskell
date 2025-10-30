@@ -98,10 +98,10 @@ data Addendum = MkAddendum
 
 mkAddendum :: Addendum
 mkAddendum = MkAddendum
-  { quota_key          = MkSinceRevision ""
-  , proto_send_chunked = MkSinceRevision "notchunked"
-  , proto_recv_chunked = MkSinceRevision "notchunked"
-  , replicas_version   = MkSinceRevision $ mkRev @DBMS_PARALLEL_REPLICAS_PROTOCOL_VERSION
+  { quota_key          = AfterRevision ""
+  , proto_send_chunked = AfterRevision "notchunked"
+  , proto_recv_chunked = AfterRevision "notchunked"
+  , replicas_version   = AfterRevision $ mkRev @DBMS_PARALLEL_REPLICAS_PROTOCOL_VERSION
   }
 
 -- ** Query
@@ -131,12 +131,12 @@ serializeQueryPacket MkQueryPacketArgs{initial_user, os_user, hostname, query} r
   serialize rev $ Query
     MkQueryPacket
       { query_id = ""
-      , client_info  = MkSinceRevision MkClientInfo
+      , client_info  = AfterRevision MkClientInfo
         { query_kind                   = InitialQuery
         , initial_user
         , initial_query_id             = ""
         , initial_adress               = "0.0.0.0:0"
-        , initial_time                 = MkSinceRevision 0
+        , initial_time                 = AfterRevision 0
         , interface_type               = 1 -- [tcp - 1, http - 2]
         , os_user
         , hostname
@@ -144,32 +144,30 @@ serializeQueryPacket MkQueryPacketArgs{initial_user, os_user, hostname, query} r
         , client_version_major         = major
         , client_version_minor         = minor
         , client_revision              = rev
-        , quota_key                    = MkSinceRevision ""
-        , distrubuted_depth            = MkSinceRevision 0
-        , client_version_patch         = MkSinceRevision patch
-        , open_telemetry               = MkSinceRevision 0
-        , collaborate_with_initiator   = MkSinceRevision 0
-        , count_participating_replicas = MkSinceRevision 0
-        , number_of_current_replica    = MkSinceRevision 0
-        , script_query_number          = MkSinceRevision 0
-        , script_line_number           = MkSinceRevision 0
-        , jwt                          = MkSinceRevision (MkJwt "")
+        , quota_key                    = AfterRevision ""
+        , distrubuted_depth            = AfterRevision 0
+        , client_version_patch         = AfterRevision patch
+        , open_telemetry               = AfterRevision 0
+        , collaborate_with_initiator   = AfterRevision 0
+        , count_participating_replicas = AfterRevision 0
+        , number_of_current_replica    = AfterRevision 0
+        , script_query_number          = AfterRevision 0
+        , script_line_number           = AfterRevision 0
+        , jwt                          = AfterRevision (MkJwt "")
         }
-      , settings = 
-        addTestSetting $
-        MkDbSettings []
-      , interserver_secret = MkSinceRevision ""
+      , settings           = MkDbSettings []
+      , interserver_secret = AfterRevision ""
       , query_stage        = Complete
       , compression        = 0
       , query
-      , parameters         = MkSinceRevision MkQueryParameters
-      , external_roles     = MkSinceRevision 0
+      , parameters         = AfterRevision MkQueryParameters
+      , external_roles     = AfterRevision 0
       }
 
 addTestSetting :: DbSettings -> DbSettings
 addTestSetting = addSetting MkDbSetting
   { setting = "max_threads_for_indexes"
-  , flags = MkSinceRevision IMPORTANT
+  , flags = AfterRevision IMPORTANT
   , value = SettingUInt64 54
   }
 
