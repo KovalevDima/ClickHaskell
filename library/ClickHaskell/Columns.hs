@@ -88,7 +88,7 @@ class
   mkHeader = let
     name = toChType $ renderColumnName @column
     type_ = toChType $ chTypeName @(GetColumnType column)
-    is_custom = MkSinceRevision 0
+    is_custom = AfterRevision 0
     in MkColumnHeader{..}
 
   toColumn :: [GetColumnType column] -> Column (GetColumnName column) (GetColumnType column)

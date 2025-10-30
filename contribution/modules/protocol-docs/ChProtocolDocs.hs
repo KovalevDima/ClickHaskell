@@ -116,11 +116,11 @@ instance {-# OVERLAPPABLE #-}
     (td . string) ("-")
 
 instance  
-  (HasName chType, KnownNat rev)
+  (HasName after, KnownNat rev)
   =>
-  GToDocPart (Rec0 (chType `SinceRevision` rev)) where
+  GToDocPart (Rec0 (Revisioned rev () after)) where
   gToDocPart = do
-    (td . string) (fieldName @chType)
+    (td . string) (fieldName @after)
     (td . string) (show $ natVal @rev Proxy)
 
 
@@ -134,6 +134,7 @@ instance HasName DbSettings where fieldName = "DbSettings"
 instance HasName QueryStage where fieldName = "QueryStage"
 instance HasName QueryParameters where fieldName = "QueryParameters"
 instance HasName BlockInfo where fieldName = "BlockInfo"
+instance HasName Jwt where fieldName = "Jwt"
 
 instance {-# OVERLAPPABLE #-} IsChType chType => HasName chType where 
   fieldName = chTypeName @chType

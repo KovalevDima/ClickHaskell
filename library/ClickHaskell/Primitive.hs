@@ -548,36 +548,51 @@ clientName = fromString $
 newtype ProtocolRevision = MkProtocolRevision UVarInt
   deriving newtype (Eq, Num, Ord, Serializable)
 
-{-# INLINE [0] afterRevision #-}
-afterRevision
-  :: forall rev monoid
-  . (KnownNat rev, Monoid monoid)
-  => ProtocolRevision -> monoid -> monoid
-afterRevision chosenRevision monoid =
-  if chosenRevision >= (fromIntegral . natVal) (Proxy @rev)
-  then monoid
-  else mempty
-
 latestSupportedRevision :: ProtocolRevision
 latestSupportedRevision = mkRev @DBMS_TCP_PROTOCOL_VERSION
 
 mkRev :: forall nat . KnownNat nat => ProtocolRevision
 mkRev = (fromIntegral . natVal) (Proxy @nat)
 
-data SinceRevision a (revisionNumber :: Nat) = MkSinceRevision a | NotPresented
+{- |
+Protocol implementation part for backward compatilibity formalization
+
+NB:
+
+  Be carefull with `NotPresented` value.
+
+  If **chosen protocol** revision would be >= **revisionNumber**
+  then you would get an exception during serialization.
+
+  To avoid this:
+
+  1. On client side - provide `MkSinceRevision` with some empty value
+  2. On proxy side - provide server-to-server packets mapping with fallbacks on revision upgrade
+
+-}
+data Revisioned (revisionNumber :: Nat) b a = BeforeRevision b | AfterRevision a
+
+type SinceRevision after rev = Revisioned rev () after
 
 instance
-  (KnownNat revision, Serializable chType)
+  (KnownNat revision, Serializable before, Serializable after)
   =>
-  Serializable (SinceRevision chType revision)
+  Serializable (Revisioned revision before after)
   where
-  serialize rev (MkSinceRevision val) = afterRevision @revision rev (serialize rev val)
-  serialize rev NotPresented          = afterRevision @revision rev (error "Unexpected error")
-
+  serialize rev sinceRevVal =
+    if rev < mkRev @revision
+    then mempty
+    else case sinceRevVal of
+      BeforeRevision _b -> error "Impossible happened" -- Watch `Revisioned` note
+      AfterRevision a -> serialize rev a
   deserialize rev =
-    if rev >= mkRev @revision
-    then MkSinceRevision <$> deserialize @chType rev
-    else pure NotPresented
+    if rev < mkRev @revision
+    then BeforeRevision <$> deserialize @before rev
+    else AfterRevision <$> deserialize @after rev
+
+instance Serializable () where
+  serialize _ () = ""
+  deserialize _ = pure ()
 
 
 {-
