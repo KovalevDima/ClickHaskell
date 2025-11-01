@@ -155,7 +155,9 @@ serializeQueryPacket MkQueryPacketArgs{initial_user, os_user, hostname, query} r
         , script_line_number           = AfterRevision 0
         , jwt                          = AfterRevision (MkJwt "")
         }
-      , settings           = MkDbSettings []
+      , settings           =
+          addTestSetting $
+          MkDbSettings []
       , interserver_secret = AfterRevision ""
       , query_stage        = Complete
       , compression        = 0

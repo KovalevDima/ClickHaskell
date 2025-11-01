@@ -2,11 +2,11 @@ module ClickHaskell.Packets.Settings where
 
 -- Internal
 import ClickHaskell.Primitive
+import ClickHaskell.Statements (ToQueryPart(toQueryPart))
 
 -- GHC
-import Control.Applicative (liftA2)
 import Data.Binary.Builder (Builder)
-import Data.Binary.Get (Get, lookAhead, skip)
+import Data.Binary.Get (Get, lookAhead)
 import Data.ByteString as BS (null)
 import Data.Kind (Type)
 import Data.Typeable (Proxy (..))
@@ -36,27 +36,23 @@ instance Serializable DbSetting where
         value <- deserializer rev
         pure $ MkDbSetting{..} 
   serialize rev MkDbSetting{setting, flags, value} =
-    case lookupSetting setting of
-      Nothing -> error "Impossible. Unknown setting was added to query packet"
-      Just MkSettingSerializer{serializer} ->
-        serialize rev setting
-        <> serialize rev flags
-        <>
-          -- (serialize rev . toChType @ChString)
-          (serializer rev value)
+    serialize rev setting
+    <> serialize rev flags
+    <> case lookupSetting setting of
+      Nothing -> error "Impossible happened. Unknown setting was added to query packet"
+      Just MkSettingSerializer{serializer} -> serializer rev value
 
 instance Serializable DbSettings where
-  serialize rev (MkDbSettings setts) = do
+  serialize rev (MkDbSettings setts) =
     foldMap (serialize @DbSetting rev) setts
     <> serialize @ChString rev ""
   deserialize rev = do
     (MkChString setting) <- lookAhead (deserialize @ChString rev)
     if BS.null setting
-      then skip 1 *> pure (MkDbSettings [])
-      else liftA2
-        addSetting
-        (deserialize @DbSetting rev)
-        (deserialize @DbSettings rev)
+      then deserialize @ChString rev *> pure (MkDbSettings [])
+      else do
+        sett <- deserialize @DbSetting rev
+        addSetting sett <$> deserialize @DbSettings rev
 
 data Flags = IMPORTANT | CUSTOM | TIER
 instance Serializable Flags where
@@ -96,8 +92,14 @@ instance
   settingsMap =
     let name = toChType (symbolVal @name Proxy)
         desc = MkSettingSerializer
-          { deserializer = \rev -> toSettingType <$> deserialize @settType rev
-          , serializer = \rev -> serialize @settType rev . fromSettingType
+          { deserializer = \rev ->
+            if rev >= mkRev @DBMS_MIN_REVISION_WITH_SETTINGS_SERIALIZED_AS_STRINGS
+            then fail "Deserialization of Settings serializaed as strings is unsuported"
+            else toSettingType <$> deserialize @settType rev
+          , serializer = \rev -> 
+            if rev >= mkRev @DBMS_MIN_REVISION_WITH_SETTINGS_SERIALIZED_AS_STRINGS
+            then (serialize @ChString rev . settingToText @settType)
+            else serialize @settType rev . fromSettingType
           }
     in (name, desc) : settingsMap @xs
 
@@ -105,12 +107,15 @@ data SettingType where
   SettingUInt64 :: UInt64 -> SettingType
 
 class
-  Serializable settType
+  (Serializable settType, ToQueryPart settType)
   =>
   IsSettingType settType
   where
   toSettingType :: settType -> SettingType
   fromSettingType :: SettingType -> settType
+
+  settingToText :: SettingType -> ChString
+  settingToText = toChType . toQueryPart @settType . fromSettingType
 
 instance IsSettingType UInt64 where
   toSettingType uint64 = SettingUInt64 uint64
