@@ -62,7 +62,7 @@
             default = pkgs.mkShell {
               inputsFrom = [config.haskellProjects.ghc984.outputs.devShell];
               packages = with pkgs; with haskellPackages; with (self'.packages);
-                [clickhouse nodejs nil eventlog2html graphmod ghc984-html2hs cloc];
+                [clickhouse nodejs nil eventlog2html graphmod ghc9103-html2hs cloc];
             };
           };
         # Build documnetation
@@ -70,7 +70,7 @@
           "documentation" = import ./documentation/documentation.nix {inherit pkgs;};
           "ClickHaskell-dist" = import ./contribution/hackage.nix {
             inherit pkgs;
-            distPackage = self'.packages.ghc984-ClickHaskell;
+            distPackage = self'.packages.ghc9103-ClickHaskell;
           };
         };
       };
