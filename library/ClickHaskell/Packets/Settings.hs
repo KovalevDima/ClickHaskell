@@ -7,6 +7,7 @@ import ClickHaskell.Statements (ToQueryPart(toQueryPart))
 -- GHC
 import Data.Binary.Builder (Builder)
 import Data.Binary.Get (Get, lookAhead)
+import Data.Bits
 import Data.ByteString as BS (null)
 import Data.Kind (Type)
 import Data.Typeable (Proxy (..))
@@ -54,22 +55,42 @@ instance Serializable DbSettings where
         sett <- deserialize @DbSetting rev
         addSetting sett <$> deserialize @DbSettings rev
 
-data Flags = IMPORTANT | CUSTOM | TIER
-instance Serializable Flags where
-  serialize rev flags =
-    serialize @UVarInt rev $
-      case flags of
-        IMPORTANT -> 0x01
-        CUSTOM -> 0x02
-        TIER -> 0x0c
-  deserialize rev = do
-    flagCode <- deserialize @UVarInt rev
-    case flagCode of
-      0x01 -> pure IMPORTANT
-      0x02 -> pure CUSTOM
-      0x0c -> pure TIER
-      _ -> fail "Unknown flag code"
+-- ** Flags
 
+newtype Flags = MkFlags UVarInt
+  deriving newtype (Serializable, Num, Eq, Bits)
+
+-- *** Custom
+
+fCUSTOM :: Flags
+fCUSTOM = 0x02
+
+isCustom :: Flags -> Bool
+isCustom = (/= 0) . (.&. fCUSTOM)
+
+setCustom :: Flags -> Flags
+setCustom = (.|. fCUSTOM)
+
+-- *** Important
+
+fIMPORTANT :: Flags
+fIMPORTANT = 0x01
+
+isImportant :: Flags -> Bool
+isImportant = (/= 0) . (.&. fIMPORTANT)
+
+setImportant :: Flags -> Flags
+setImportant = (.|. fIMPORTANT)
+
+-- *** Tier
+
+fTIER :: Flags
+fTIER = 0x0c -- 0b1100 == 2 bits
+
+
+
+
+-- * Serialization internals
 
 data SettingSerializer  = 
   MkSettingSerializer

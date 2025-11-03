@@ -3,7 +3,7 @@ module ClickHaskell.Packets.Client where
 -- Internal
 import ClickHaskell.Primitive
 import ClickHaskell.Packets.Data (DataPacket)
-import ClickHaskell.Packets.Settings (DbSettings(..), SettingType(..), addSetting, DbSetting(..), Flags(..))
+import ClickHaskell.Packets.Settings (DbSettings(..), SettingType(..), addSetting, DbSetting(..), fIMPORTANT)
 
 -- GHC
 import Data.Int
@@ -169,7 +169,7 @@ serializeQueryPacket MkQueryPacketArgs{initial_user, os_user, hostname, query} r
 addTestSetting :: DbSettings -> DbSettings
 addTestSetting = addSetting MkDbSetting
   { setting = "max_threads_for_indexes"
-  , flags = AfterRevision IMPORTANT
+  , flags = AfterRevision fIMPORTANT
   , value = SettingUInt64 54
   }
 
