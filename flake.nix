@@ -6,6 +6,10 @@
     haskell-flake.url = "github:srid/haskell-flake";
     process-compose-flake.url = "github:Platonic-Systems/process-compose-flake";
     services-flake.url = "github:juspay/services-flake";
+    clickhouse = {
+      url = "github:ClickHouse/ClickHouse";
+      flake = false;
+    };
   };
 
   outputs = {self, flake-parts, nixpkgs, ...} @ inputs:
@@ -71,6 +75,10 @@
           "ClickHaskell-dist" = import ./contribution/hackage.nix {
             inherit pkgs;
             distPackage = self'.packages.ghc984-ClickHaskell;
+          };
+          "settsFile" = import ./contribution/genSettings.nix {
+            inherit pkgs;
+            clickhouseRepo = inputs.clickhouse;
           };
         };
       };
