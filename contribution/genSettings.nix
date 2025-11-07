@@ -22,7 +22,7 @@ pkgs.stdenv.mkDerivation {
 
         if (typ == "UInt64") { htype="UInt64" }
         else if (typ == "Int32") { htype="Int32" }
-        else if (typ == "String") { htype="String" }
+        else if (typ == "String") { htype="ChString" }
 
         # TODO: add support
         else if ( \
@@ -36,7 +36,42 @@ pkgs.stdenv.mkDerivation {
             typ == "NonZeroUInt64" || \
             typ == "Float" || \
             typ == "Int64" || \
-            typ == "Bool" \
+            typ == "Int64" || \
+            typ == "Bool" || \
+            typ == "TotalsMode" || \
+            typ == "DistributedProductMode" || \
+            typ == "UInt64Auto" || \
+            typ == "UpdateParallelMode" || \
+            typ == "Map" || \
+            typ == "JoinStrictness" || \
+            typ == "BoolAuto" || \
+            typ == "OverflowMode" || \
+            typ == "OverflowModeGroupBy" || \
+            typ == "Double" || \
+            typ == "JoinAlgorithm" || \
+            typ == "LogsLevel" || \
+            typ == "GeoToH3ArgumentOrder" || \
+            typ == "LightweightDeleteMode" || \
+            typ == "MySQLDataTypesSupport" || \
+            typ == "AlterUpdateMode" || \
+            typ == "IcebergMetadataLogLevel" || \
+            typ == "QueryResultCacheNondeterministicFunctionHandling" || \
+            typ == "DefaultTableEngine" || \
+            typ == "LogQueriesType" || \
+            typ == "DistributedDDLOutputMode" || \
+            typ == "SetOperationMode" || \
+            typ == "DecorrelationJoinKind" || \
+            typ == "ShortCircuitFunctionEvaluation" || \
+            typ == "LocalFSReadMethod" || \
+            typ == "DistributedCacheLogMode" || \
+            typ == "DistributedCachePoolBehaviourOnLimit" || \
+            typ == "DateTimeInputFormat" || \
+            typ == "SQLSecurityType" || \
+            typ == "ParallelReplicasMode" || \
+            typ == "Timezone" || \
+            typ == "VectorSearchFilterStrategy" || \
+            typ == "TransactionsWaitCSNMode" || \
+            typ == "QueryResultCacheSystemTableHandling" \
             ) { next }
 
         else {
