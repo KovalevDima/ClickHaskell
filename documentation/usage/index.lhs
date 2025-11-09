@@ -93,8 +93,8 @@ main = do
         )
     addSettingsToQuery =
       passSettings (
-        addSetting @"max_threads_for_indexes" 42 .
-        addSetting @"max_local_write_bandwidth" 42 .
+        addSetting @"max_threads_for_indexes" 8 .
+        addSetting @"max_local_write_bandwidth" 4096 .
         id
       )
 
