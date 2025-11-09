@@ -91,7 +91,11 @@ main = do
           \   defaultValueOfTypeName('DateTime') as a3 \
           \ LIMIT 5;"
         )
-    addSettingsToQuery = passSettings (addTestSetting . id)
+    addSettingsToQuery =
+      passSettings (
+        addTestSetting .
+        id
+      )
 
   results <-
     select
