@@ -31,7 +31,7 @@ module ClickHaskell
 
   {- ** Settings -}
   , passSettings
-  , addTestSetting
+  , addSetting
 
   {- ** SELECT -}
   {- *** Runner -}, select

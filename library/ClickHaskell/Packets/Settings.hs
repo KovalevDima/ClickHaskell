@@ -13,15 +13,33 @@ import Data.Bits
 import Data.ByteString as BS (null)
 import Data.Kind (Type)
 import Data.Typeable (Proxy (..))
-import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
+import GHC.TypeLits (KnownSymbol, Symbol, symbolVal, TypeError, ErrorMessage (..))
 import Prelude hiding (liftA2)
 
 -- * Server settings
 
 data DbSettings = MkDbSettings [DbSetting]
 
-addSetting :: DbSetting -> DbSettings -> DbSettings
-addSetting setting (MkDbSettings list) = MkDbSettings (setting : list)
+-- addSetting :: DbSetting -> DbSettings -> DbSettings
+-- addSetting setting (MkDbSettings list) = MkDbSettings (setting : list)
+
+addSetting
+  :: forall name settType.
+     ( settType ~ LookupSettingType name SupportedSettings
+     , KnownSymbol name
+     , IsSettingType settType
+     )
+  => settType
+  -> DbSettings
+  -> DbSettings
+addSetting val (MkDbSettings xs) =
+  let name = toChType (symbolVal @name Proxy)
+      setting = MkDbSetting
+        { setting = name
+        , flags   = AfterRevision fIMPORTANT
+        , value   = toSettingType val
+        }
+  in MkDbSettings (setting : xs)
 
 data DbSetting = MkDbSetting
   { setting    :: ChString 
@@ -55,7 +73,8 @@ instance Serializable DbSettings where
       then deserialize @ChString rev *> pure (MkDbSettings [])
       else do
         sett <- deserialize @DbSetting rev
-        addSetting sett <$> deserialize @DbSettings rev
+        (\(MkDbSettings setts) -> MkDbSettings (sett : setts))
+          <$> deserialize @DbSettings rev
 
 -- ** Flags
 
@@ -152,6 +171,12 @@ instance IsSettingType UInt64 where
   toSettingType uint64 = SettingUInt64 uint64
   fromSettingType (SettingUInt64 uint64) = uint64
   fromSettingType _ = error "Impossible"
+
+type family LookupSettingType (name :: Symbol) (settings :: [Type]) :: Type where
+  LookupSettingType name '[] =
+    TypeError ('Text "Unknown setting name: " ':<>: 'ShowType name)
+  LookupSettingType name (Setting name t ': xs) = t
+  LookupSettingType name (_ ': xs) = LookupSettingType name xs
 
 data Setting (a :: Symbol) (settType :: Type)
 
