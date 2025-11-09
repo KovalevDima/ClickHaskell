@@ -80,10 +80,9 @@ main = do
   connection <- openConnection defaultConnectionArgs
 
   createTable connection
-
-  results <-
-    select
-      (unsafeMkSelect
+  let
+    selectQuery =
+      unsafeMkSelect
         @ExampleCols
         @ExampleData
         (\_cols -> " SELECT \
@@ -92,7 +91,11 @@ main = do
           \   defaultValueOfTypeName('DateTime') as a3 \
           \ LIMIT 5;"
         )
-      )
+    addSettingsToQuery = passSettings (addTestSetting . id)
+
+  results <-
+    select
+      (addSettingsToQuery selectQuery)
       connection
       pure
 
