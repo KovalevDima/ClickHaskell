@@ -5,7 +5,6 @@ module ClickHaskell.Packets.Settings where
 
 -- Internal
 import ClickHaskell.Primitive
-import ClickHaskell.Statements (ToQueryPart(toQueryPart))
 
 -- GHC
 import Data.Binary.Builder (Builder)

@@ -29,6 +29,9 @@ module ClickHaskell
   , UserError(..)
   , InternalError(..)
 
+  {- ** Settings -}
+  , passSettings
+
   {- ** SELECT -}
   {- *** Runner -}, select
   {- *** Statements -}
@@ -38,6 +41,7 @@ module ClickHaskell
   {- *** View -}
   , fromView
   , parameter, Parameter, Parameters, viewParameters
+
   {- ** INSERT -}
   , Insert, unsafeMkInsert
   , insert
@@ -179,11 +183,11 @@ select ::
   ClickHaskell columns output
   =>
   Select columns output -> Connection -> ([output] -> IO result) -> IO [result]
-select (MkSelect mkQuery) conn f = do
+select (MkSelect mkQuery setts) conn f = do
   withConnection conn $ \connState -> do
     writeToConnection connState
       . serializeQueryPacket
-      . mkQueryArgs connState
+      . mkQueryArgs connState setts
       . mkQuery
       $ expectedColumns @columns @output
     writeToConnection connState (\rev -> serialize rev . Data $ mkDataPacket "" 0 0)
@@ -218,11 +222,11 @@ insert ::
   ClickHaskell columns record
   =>
   Insert columns record -> Connection -> [record] -> IO ()
-insert (MkInsert mkQuery) conn columnsData = do
+insert (MkInsert mkQuery dbSettings) conn columnsData = do
   withConnection conn $ \connState -> do
     writeToConnection connState
       . serializeQueryPacket
-      . mkQueryArgs connState
+      . mkQueryArgs connState dbSettings
       . mkQuery
       $ expectedColumns @columns @record
     writeToConnection connState (\rev -> serialize rev . Data $ mkDataPacket "" 0 0)
@@ -273,7 +277,7 @@ ping conn = do
 command :: HasCallStack => Connection -> ChString -> IO ()
 command conn query = do
   withConnection conn $ \connState -> do
-    writeToConnection connState (serializeQueryPacket (mkQueryArgs connState query))
+    writeToConnection connState (serializeQueryPacket (mkQueryArgs connState (MkDbSettings []) query))
     writeToConnection connState (\rev -> serialize rev . Data $ mkDataPacket "" 0 0)
     handleCreate connState
   where
@@ -316,8 +320,8 @@ type GenericClickHaskell record hasColumns =
 
 -- * Internal
 
-mkQueryArgs :: ConnectionState -> ChString -> QueryPacketArgs
-mkQueryArgs MkConnectionState {..} query = MkQueryPacketArgs {..}
+mkQueryArgs :: ConnectionState -> DbSettings -> ChString -> QueryPacketArgs
+mkQueryArgs MkConnectionState {..} settings query = MkQueryPacketArgs {..}
 
 -- ** Connection
 

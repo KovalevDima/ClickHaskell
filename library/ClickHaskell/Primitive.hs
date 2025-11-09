@@ -11,9 +11,11 @@ import Data.Binary.Get
 import Data.Bits (Bits (setBit, unsafeShiftL, unsafeShiftR, (.&.), (.|.)))
 import Data.ByteString as BS (ByteString, length)
 import Data.ByteString.Builder
-import Data.ByteString.Char8 as BS8 (pack, unpack)
+import Data.ByteString.Char8 as BS8 (pack, unpack, concatMap, singleton, replicate, length)
 import Data.ByteString.Lazy (toStrict)
+import Data.Coerce (coerce)
 import Data.Int (Int16, Int32, Int64, Int8)
+import Data.List (uncons)
 import Data.String (IsString (..))
 import Data.Time (UTCTime)
 import Data.Time.Clock.POSIX
@@ -61,6 +63,8 @@ instance Serializable prim => Serializable [prim] where
     replicateGet @prim rev len
   {-# INLINE deserialize #-}
 
+class ToQueryPart chType where
+  toQueryPart :: chType -> Builder
 
 class IsChType chType
   where
@@ -94,6 +98,9 @@ instance Serializable Int8 where
   deserialize _ = getInt8
   {-# INLINE deserialize #-}
 
+instance ToQueryPart Int8 where
+  toQueryPart = byteString . BS8.pack . show
+
 
 -- ** Int16
 
@@ -105,6 +112,9 @@ instance Serializable Int16 where
   serialize _ = int16LE
   deserialize _ = getInt16le
   {-# INLINE deserialize #-}
+
+instance ToQueryPart Int16 where
+  toQueryPart = byteString . BS8.pack . show
 
 
 -- ** Int32
@@ -118,6 +128,9 @@ instance Serializable Int32 where
   deserialize _ = getInt32le
   {-# INLINE deserialize #-}
 
+instance ToQueryPart Int32 where
+  toQueryPart = byteString . BS8.pack . show
+
 
 -- ** Int64
 
@@ -129,6 +142,9 @@ instance Serializable Int64 where
   serialize _ = int64LE
   deserialize _ = getInt64le
   {-# INLINE deserialize #-}
+
+instance ToQueryPart Int64 where
+  toQueryPart = byteString . BS8.pack . show
 
 
 -- ** Int128
@@ -145,6 +161,9 @@ instance Serializable Int128 where
     pure $ Int128 high low
   {-# INLINE deserialize #-}
 
+instance ToQueryPart Int128 where
+  toQueryPart = byteString . BS8.pack . show
+
 
 -- ** UInt8
 
@@ -158,6 +177,9 @@ instance Serializable UInt8 where
   serialize _ = word8
   deserialize _ = getWord8
   {-# INLINE deserialize #-}
+
+instance ToQueryPart UInt8 where
+  toQueryPart = byteString . BS8.pack . show
 
 
 -- ** UInt16
@@ -173,6 +195,9 @@ instance Serializable UInt16 where
   deserialize _ = getWord16le
   {-# INLINE deserialize #-}
 
+instance ToQueryPart UInt16 where
+  toQueryPart = byteString . BS8.pack . show
+
 
 -- ** UInt32
 
@@ -187,6 +212,9 @@ instance Serializable UInt32 where
   deserialize _ = getWord32le
   {-# INLINE deserialize #-}
 
+instance ToQueryPart UInt32 where
+  toQueryPart = byteString . BS8.pack . show
+
 
 -- ** UInt64
 
@@ -200,6 +228,9 @@ instance Serializable UInt64 where
   serialize _ = word64LE
   deserialize _ = getWord64le
   {-# INLINE deserialize #-}
+
+instance ToQueryPart UInt64 where
+  toQueryPart = byteString . BS8.pack . show
 
 
 -- ** UInt128
@@ -217,6 +248,9 @@ instance Serializable UInt128 where
     high <- getWord64le
     pure $ Word128 high low
   {-# INLINE deserialize #-}
+
+instance ToQueryPart UInt128 where
+  toQueryPart w128 = "'" <> (byteString . BS8.pack . show) w128 <> "'"
 
 
 -- ** Int256
@@ -236,6 +270,9 @@ instance Serializable UInt256 where
     high <- getWord64le
     pure $ Word256 high mid1 mid0 low
   {-# INLINE deserialize #-}
+
+instance ToQueryPart UInt256 where
+  toQueryPart w256 = "'" <> (byteString . BS8.pack . show) w256 <> "'"
 
 
 -- ** Date
@@ -287,6 +324,13 @@ instance ToChType ChString String where
   toChType = MkChString . BS8.pack
   fromChType (MkChString bs)= BS8.unpack bs
 
+instance ToQueryPart ChString where
+  toQueryPart (MkChString string) =  "'" <> escapeQuery string <> "'"
+    where
+    escapeQuery :: BS.ByteString -> Builder
+    escapeQuery = byteString . BS8.concatMap (\case '\'' -> "\\\'"; '\\' -> "\\\\"; sym -> BS8.singleton sym;)
+
+
 
 -- ** UUID
 
@@ -309,6 +353,13 @@ instance ToChType UUID (Word64, Word64) where
   toChType = MkUUID . uncurry (flip Word128)
   fromChType (MkUUID (Word128 w64hi w64lo)) = (w64hi, w64lo)
 
+instance ToQueryPart UUID where
+  toQueryPart (MkUUID (Word128 hi lo)) = mconcat
+    ["'", p 3 hi, p 2 hi, "-", p 1 hi, "-", p 0 hi, "-", p 3 lo, "-", p 2 lo, p 1 lo, p 0 lo, "'"]
+    where
+    p :: Int -> Word64 -> Builder
+    p shiftN word = word16HexFixed $ fromIntegral (word `unsafeShiftR` (shiftN*16))
+
 
 -- ** Nullable
 
@@ -328,6 +379,10 @@ instance
   where
   toChType = fmap (toChType @inputType @chType)
   fromChType = fmap (fromChType @inputType)
+
+instance ToQueryPart chType => ToQueryPart (Nullable chType)
+  where
+  toQueryPart = maybe "null" toQueryPart
 
 
 -- ** DateTime
@@ -362,6 +417,11 @@ instance ToChType (DateTime tz) Word32     where
 instance ToChType (DateTime tz) UTCTime    where
   toChType = MkDateTime . floor . utcTimeToPOSIXSeconds
   fromChType (MkDateTime w32) = posixSecondsToUTCTime (fromIntegral w32)
+
+instance ToQueryPart (DateTime tz)
+  where
+  toQueryPart chDateTime = let time = BS8.pack . show . coerce @(DateTime tz) @Word32 $ chDateTime
+    in byteString (BS8.replicate (10 - BS8.length time) '0' <> time)
 
 
 -- ** DateTime64
@@ -400,6 +460,13 @@ instance ToChType (DateTime64 precision tz) Word64 where
   toChType = MkDateTime64
   fromChType (MkDateTime64 w64) = w64
 
+-- ToDo: Need to be fixed
+-- instance ToQueryPart (DateTime64 precision tz)
+--   where
+--   toQueryPart chDateTime =
+--     let time = BS8.pack . show . fromChType @_ @Word64 $ chDateTime
+--     in byteString (BS8.replicate (12 - BS8.length time) '0' <> time)
+
 
 -- ** Array
 
@@ -415,6 +482,13 @@ instance ToChType chType inputType => ToChType (Array chType) [inputType]
   where
   toChType = MkChArray . map toChType
   fromChType (MkChArray values) = map fromChType values
+
+instance (IsChType chType, ToQueryPart chType) => ToQueryPart (Array chType)
+  where
+  toQueryPart
+    = (\x -> "[" <> x <> "]")
+    . (maybe "" (uncurry (foldl (\a b -> a <> "," <> b))) . uncons
+    . map (toQueryPart @chType)) . coerce @(Array chType) @[chType]
 
 
 -- ** LowCardinality
@@ -455,6 +529,10 @@ instance
   ToChType (LowCardinality inputType) chType where
   toChType = MkLowCardinality . toChType
   fromChType (MkLowCardinality lc)= fromChType @inputType lc
+
+instance ToQueryPart chType => ToQueryPart (LowCardinality chType)
+  where
+  toQueryPart (MkLowCardinality chType) = toQueryPart chType
 
 
 -- ** Generics
