@@ -173,8 +173,7 @@ instance IsSettingType UInt64 where
   fromSettingType _ = error "Impossible"
 
 type family LookupSettingType (name :: Symbol) (settings :: [Type]) :: Type where
-  LookupSettingType name '[] =
-    TypeError ('Text "Unknown setting name: " ':<>: 'ShowType name)
+  LookupSettingType name '[] = TypeError ('Text "Unknown setting name: " ':<>: 'ShowType name)
   LookupSettingType name (Setting name t ': xs) = t
   LookupSettingType name (_ ': xs) = LookupSettingType name xs
 
