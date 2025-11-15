@@ -20,26 +20,23 @@ import Prelude hiding (liftA2)
 
 data DbSettings = MkDbSettings [DbSetting]
 
--- addSetting :: DbSetting -> DbSettings -> DbSettings
--- addSetting setting (MkDbSettings list) = MkDbSettings (setting : list)
+type KnownSetting name settType =
+  ( settType ~ LookupSettingType name SupportedSettings
+  , KnownSymbol name
+  , IsSettingType settType
+  )
 
 addSetting
-  :: forall name settType.
-     ( settType ~ LookupSettingType name SupportedSettings
-     , KnownSymbol name
-     , IsSettingType settType
-     )
+  :: forall name settType
+  . KnownSetting name settType
   => settType
   -> DbSettings
   -> DbSettings
 addSetting val (MkDbSettings xs) =
-  let name = toChType (symbolVal @name Proxy)
-      setting = MkDbSetting
-        { setting = name
-        , flags   = AfterRevision fIMPORTANT
-        , value   = toSettingType val
-        }
-  in MkDbSettings (setting : xs)
+  let setting = toChType (symbolVal @name Proxy)
+      flags = AfterRevision fIMPORTANT
+      value = toSettingType val
+  in MkDbSettings (MkDbSetting{..} : xs)
 
 data DbSetting = MkDbSetting
   { setting    :: ChString 
@@ -125,7 +122,11 @@ lookupSetting name = lookup name (settingsMap @SupportedSettings)
 class SettingsMapBuilder (list :: [Type]) where
   settingsMap :: [(ChString, SettingSerializer)]
 
-instance SettingsMapBuilder '[] where settingsMap = []
+instance
+  SettingsMapBuilder '[]
+  where
+  settingsMap = []
+
 instance
   (SettingsMapBuilder xs, IsSettingType settType, KnownSymbol name)
   =>
@@ -133,19 +134,15 @@ instance
   where
   settingsMap =
     let name = toChType (symbolVal @name Proxy)
-        desc = MkSettingSerializer
-          { deserializer = \rev ->
-            if rev >= mkRev @DBMS_MIN_REVISION_WITH_SETTINGS_SERIALIZED_AS_STRINGS
-            then fail "Deserialization of Settings serializaed as strings is unsuported"
-            else toSettingType <$> deserialize @settType rev
-          , serializer = \rev -> 
-            if rev >= mkRev @DBMS_MIN_REVISION_WITH_SETTINGS_SERIALIZED_AS_STRINGS
-            then (serialize @ChString rev . settingToText @settType)
-            else serialize @settType rev . fromSettingType
-          }
-    in (name, desc) : settingsMap @xs
-
-class KnownSetting name settType | settType -> name where
+        deserializer = \rev ->
+          if rev >= mkRev @DBMS_MIN_REVISION_WITH_SETTINGS_SERIALIZED_AS_STRINGS
+          then fail "Deserialization of Settings serializaed as strings is unsuported"
+          else toSettingType <$> deserialize @settType rev
+        serializer = \rev ->
+          if rev >= mkRev @DBMS_MIN_REVISION_WITH_SETTINGS_SERIALIZED_AS_STRINGS
+          then (serialize @ChString rev . settingToText @settType)
+          else serialize @settType rev . fromSettingType
+    in (name, MkSettingSerializer{..}) : settingsMap @xs
 
 data SettingType where
   SettingUInt64 :: UInt64 -> SettingType
