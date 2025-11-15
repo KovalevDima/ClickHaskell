@@ -26,6 +26,7 @@ type KnownSetting name settType =
   , IsSettingType settType
   )
 
+{-# DEPRECATED addSetting "Unstable function. Use carefully with old ClickHouse versions" #-}
 addSetting
   :: forall name settType
   . KnownSetting name settType
