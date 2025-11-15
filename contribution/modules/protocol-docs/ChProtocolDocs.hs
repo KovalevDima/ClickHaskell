@@ -14,6 +14,7 @@
 module Main (main) where
 
 import ClickHaskell
+import ClickHaskell.Protocol
 import Data.Kind
 import Data.Proxy
 import GHC.Generics
