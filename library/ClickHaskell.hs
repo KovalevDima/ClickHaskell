@@ -70,27 +70,6 @@ module ClickHaskell
   , UUID(..)
   , Array(..)
   , ChString(..)
-
-
-  {- * Protocol parts -}
-
-  {- ** Shared -}
-  , UVarInt(..), Revisioned(..), ProtocolRevision
-  {- *** Data packet -}, DataPacket(..), BlockInfo(..)
-
-  {- ** Client -}, ClientPacket(..)
-  {- *** Hello -}, HelloPacket(..), Addendum(..)
-  {- *** Query -}
-  , QueryPacket(..)
-  , DbSettings(..), QueryParameters(..), QueryStage(..)
-  , ClientInfo(..), QueryKind(..), Jwt(..)
-  
-  {- ** Server -}, ServerPacket(..)
-  {- *** Hello -}, HelloResponse(..), PasswordComplexityRules(..)
-  {- *** Exception -}, ExceptionPacket(..)
-  {- *** Progress -}, ProgressPacket(..)
-  {- *** ProfileInfo -}, ProfileInfo(..)
-  {- *** TableColumns -}, TableColumns(..)
   ) where
 
 -- Internal
