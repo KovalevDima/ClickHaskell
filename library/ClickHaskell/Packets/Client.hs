@@ -3,7 +3,7 @@ module ClickHaskell.Packets.Client where
 -- Internal
 import ClickHaskell.Primitive
 import ClickHaskell.Packets.Data (DataPacket)
-import ClickHaskell.Packets.Settings (DbSettings (..))
+import ClickHaskell.Packets.Settings (DbSettings(..))
 
 -- GHC
 import Data.Int
@@ -124,10 +124,11 @@ data QueryPacketArgs = MkQueryPacketArgs
   , hostname     :: ChString
   , os_user      :: ChString
   , query        :: ChString
+  , settings     :: DbSettings
   }
 
 serializeQueryPacket :: QueryPacketArgs -> (ProtocolRevision -> Builder)
-serializeQueryPacket MkQueryPacketArgs{initial_user, os_user, hostname, query} rev =
+serializeQueryPacket MkQueryPacketArgs{initial_user, os_user, hostname, query, settings} rev =
   serialize rev $ Query
     MkQueryPacket
       { query_id = ""
@@ -155,7 +156,7 @@ serializeQueryPacket MkQueryPacketArgs{initial_user, os_user, hostname, query} r
         , script_line_number           = AfterRevision 0
         , jwt                          = AfterRevision (MkJwt "")
         }
-      , settings           = MkDbSettings []
+      , settings
       , interserver_secret = AfterRevision ""
       , query_stage        = Complete
       , compression        = 0
@@ -163,7 +164,6 @@ serializeQueryPacket MkQueryPacketArgs{initial_user, os_user, hostname, query} r
       , parameters         = AfterRevision MkQueryParameters
       , external_roles     = AfterRevision 0
       }
-
 
 data QueryParameters = MkQueryParameters
 instance Serializable QueryParameters where
