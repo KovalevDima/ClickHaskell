@@ -29,6 +29,10 @@ module ClickHaskell
   , UserError(..)
   , InternalError(..)
 
+  {- ** Settings -}
+  , passSettings
+  , addSetting
+
   {- ** SELECT -}
   {- *** Runner -}, select
   {- *** Statements -}
@@ -38,6 +42,7 @@ module ClickHaskell
   {- *** View -}
   , fromView
   , parameter, Parameter, Parameters, viewParameters
+
   {- ** INSERT -}
   , Insert, unsafeMkInsert
   , insert
@@ -65,27 +70,6 @@ module ClickHaskell
   , UUID(..)
   , Array(..)
   , ChString(..)
-
-
-  {- * Protocol parts -}
-
-  {- ** Shared -}
-  , UVarInt(..), SinceRevision(..), ProtocolRevision
-  {- *** Data packet -}, DataPacket(..), BlockInfo(..)
-
-  {- ** Client -}, ClientPacket(..)
-  {- *** Hello -}, HelloPacket(..), Addendum(..)
-  {- *** Query -}
-  , QueryPacket(..)
-  , DbSettings(..), QueryParameters(..), QueryStage(..)
-  , ClientInfo(..), QueryKind(..)
-  
-  {- ** Server -}, ServerPacket(..)
-  {- *** Hello -}, HelloResponse(..), PasswordComplexityRules(..)
-  {- *** Exception -}, ExceptionPacket(..)
-  {- *** Progress -}, ProgressPacket(..)
-  {- *** ProfileInfo -}, ProfileInfo(..)
-  {- *** TableColumns -}, TableColumns(..)
   ) where
 
 -- Internal
@@ -96,6 +80,7 @@ import ClickHaskell.Statements
 import ClickHaskell.Packets.Client
 import ClickHaskell.Packets.Data
 import ClickHaskell.Packets.Server
+import ClickHaskell.Packets.Settings
 
 -- GHC included
 import Control.Concurrent (newMVar, putMVar, takeMVar)
@@ -173,14 +158,16 @@ data UserError
 select ::
   forall columns output result
   .
+  HasCallStack
+  =>
   ClickHaskell columns output
   =>
   Select columns output -> Connection -> ([output] -> IO result) -> IO [result]
-select (MkSelect mkQuery) conn f = do
+select (MkSelect mkQuery setts) conn f = do
   withConnection conn $ \connState -> do
     writeToConnection connState
       . serializeQueryPacket
-      . mkQueryArgs connState
+      . mkQueryArgs connState setts
       . mkQuery
       $ expectedColumns @columns @output
     writeToConnection connState (\rev -> serialize rev . Data $ mkDataPacket "" 0 0)
@@ -210,14 +197,16 @@ select (MkSelect mkQuery) conn f = do
 insert ::
   forall columns record
   .
+  HasCallStack
+  =>
   ClickHaskell columns record
   =>
   Insert columns record -> Connection -> [record] -> IO ()
-insert (MkInsert mkQuery) conn columnsData = do
+insert (MkInsert mkQuery dbSettings) conn columnsData = do
   withConnection conn $ \connState -> do
     writeToConnection connState
       . serializeQueryPacket
-      . mkQueryArgs connState
+      . mkQueryArgs connState dbSettings
       . mkQuery
       $ expectedColumns @columns @record
     writeToConnection connState (\rev -> serialize rev . Data $ mkDataPacket "" 0 0)
@@ -268,7 +257,7 @@ ping conn = do
 command :: HasCallStack => Connection -> ChString -> IO ()
 command conn query = do
   withConnection conn $ \connState -> do
-    writeToConnection connState (serializeQueryPacket (mkQueryArgs connState query))
+    writeToConnection connState (serializeQueryPacket (mkQueryArgs connState (MkDbSettings []) query))
     writeToConnection connState (\rev -> serialize rev . Data $ mkDataPacket "" 0 0)
     handleCreate connState
   where
@@ -311,8 +300,8 @@ type GenericClickHaskell record hasColumns =
 
 -- * Internal
 
-mkQueryArgs :: ConnectionState -> ChString -> QueryPacketArgs
-mkQueryArgs MkConnectionState {..} query = MkQueryPacketArgs {..}
+mkQueryArgs :: ConnectionState -> DbSettings -> ChString -> QueryPacketArgs
+mkQueryArgs MkConnectionState {..} settings query = MkQueryPacketArgs {..}
 
 -- ** Connection
 
@@ -353,7 +342,7 @@ auth buffer creds@MkConnectionArgs{db, user, pass, mOsUser, mHostname} = do
               , initial_user = toChType user
               , ..
               }
-      writeToConnection conn (\rev -> serialize rev MkAddendum{quota_key = MkSinceRevision ""})
+      writeToConnection conn (\rev -> serialize rev mkAddendum)
       pure conn
     Exception exception -> throwIO (DatabaseException exception)
     otherPacket         -> throwIO (InternalError $ UnexpectedPacketType $ serverPacketToNum otherPacket)
@@ -481,35 +470,30 @@ instance
   where
   {-# INLINE gDeserializeColumns #-}
   gDeserializeColumns doCheck rev size f = do
-    handleColumnHeader @(Column name chType) doCheck rev
+    validateColumnHeader @(Column name chType) doCheck =<< deserialize @ColumnHeader rev
     deserializeColumn @(Column name chType) rev size (f . M1 . K1 . fromChType)
 
   {-# INLINE gSerializeRecords #-}
   gSerializeRecords rev values f
-    =  serialize @ChString rev (toChType (renderColumnName @(Column name chType)))
-    <> serialize @ChString rev (toChType (renderColumnType @(Column name chType)))
-    <> afterRevision @DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION rev (serialize @UInt8 rev 0)
+    =  serialize rev (mkHeader @(Column name chType))
     <> serializeColumn @(Column name chType) rev (toChType . unK1 . unM1 . f) values
 
   gExpectedColumns = (renderColumnName @(Column name chType), renderColumnType @(Column name chType)) : []
   gColumnsCount = 1
 
-handleColumnHeader :: forall column . KnownColumn column => Bool -> ProtocolRevision -> Get ()
-handleColumnHeader doCheck rev = do
+validateColumnHeader :: forall column . KnownColumn column => Bool -> ColumnHeader -> Get ()
+validateColumnHeader doCheck MkColumnHeader{..} = do
   let expectedColumnName = toChType (renderColumnName @column)
-  resultColumnName <- deserialize @ChString rev
+      resultColumnName = name
   when (doCheck && resultColumnName /= expectedColumnName) $
     throw . UnmatchedResult . UnmatchedColumn
       $ "Got column \"" <> show resultColumnName <> "\" but expected \"" <> show expectedColumnName <> "\""
 
   let expectedType = toChType (renderColumnType @column)
-  resultType <- deserialize @ChString rev
+      resultType = type_
   when (doCheck && resultType /= expectedType) $
     throw . UnmatchedResult . UnmatchedType
       $ "Column " <> show resultColumnName <> " has type " <> show resultType <> ". But expected type is " <> show expectedType
-
-  _isCustom <- deserialize @(UInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION) rev
-  pure ()
 
 type family
   TakeColumn name columns :: Type

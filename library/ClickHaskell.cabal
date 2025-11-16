@@ -35,12 +35,14 @@ Library
     Paths_ClickHaskell
   Exposed-Modules:
     ClickHaskell
+    ClickHaskell.Protocol
   Other-Modules:
     ClickHaskell.Columns
     ClickHaskell.Connection
     ClickHaskell.Packets.Client
     ClickHaskell.Packets.Data
     ClickHaskell.Packets.Server
+    ClickHaskell.Packets.Settings
     ClickHaskell.Primitive
     ClickHaskell.Statements
     Paths_ClickHaskell
