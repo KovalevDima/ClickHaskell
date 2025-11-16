@@ -32,7 +32,7 @@
     "highlight.js": "^11.11.1",
     "tw-animate-css": "^1.3.5",
     "typescript": "^5.8.3",
-    "vite": ">=7.0.7",
+    "vite": ">=7.0.8",
     "vite-tsconfig-paths": "^5.1.4"
   },
   "scripts": {
