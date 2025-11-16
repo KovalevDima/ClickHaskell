@@ -2,12 +2,14 @@ module ClickHaskell.Packets.Server where
 
 -- Internal
 import ClickHaskell.Primitive
-import ClickHaskell.Packets.Data (DataPacket)
+import ClickHaskell.Packets.Data (DataPacket(..))
+import ClickHaskell.Packets.Settings (DbSettings)
 
 -- GHC
 import Data.Int
 import GHC.Generics
-
+import ClickHaskell.Columns (Column, deserializeColumn, ColumnHeader, serializeColumn, mkHeader)
+import Control.Monad (when)
 
 -- * Server packets
 
@@ -26,7 +28,7 @@ data ServerPacket where
   TableColumns         :: TableColumns -> ServerPacket
   UUIDs                :: ServerPacket
   ReadTaskRequest      :: ServerPacket
-  ProfileEvents        :: ServerPacket
+  ProfileEvents        :: ProfileEventsPacket -> ServerPacket
   UnknownPacket        :: UVarInt -> ServerPacket
 
 instance Serializable ServerPacket where
@@ -45,7 +47,7 @@ instance Serializable ServerPacket where
     TableColumns hello   -> serialize @UVarInt rev 11 <> serialize rev hello
     UUIDs                -> serialize @UVarInt rev 12
     ReadTaskRequest      -> serialize @UVarInt rev 13
-    ProfileEvents        -> serialize @UVarInt rev 14
+    ProfileEvents dat    -> serialize @UVarInt rev 14 <> serialize rev dat
     UnknownPacket num    -> serialize @UVarInt rev num
   deserialize rev = do
     packetNum <- deserialize @UVarInt rev
@@ -64,7 +66,7 @@ instance Serializable ServerPacket where
       11 -> TableColumns <$> deserialize rev
       12 -> pure UUIDs
       13 -> pure ReadTaskRequest
-      14 -> pure ProfileEvents
+      14 -> ProfileEvents <$> deserialize rev
       _  -> pure $ UnknownPacket packetNum
 
 serverPacketToNum :: ServerPacket -> UVarInt
@@ -76,7 +78,7 @@ serverPacketToNum = \case
   (Extremes)        -> 8; (TablesStatusResponse) -> 9
   (Log)             -> 10; (TableColumns _)      -> 11;
   (UUIDs)           -> 12; (ReadTaskRequest)     -> 13
-  (ProfileEvents)   -> 14; (UnknownPacket num)   -> num
+  (ProfileEvents _) -> 14; (UnknownPacket num)   -> num
 
 
 {-
@@ -95,6 +97,8 @@ data HelloResponse = MkHelloResponse
   , proto_recv_chunked_srv         :: ChString `SinceRevision` DBMS_MIN_PROTOCOL_VERSION_WITH_CHUNKED_PACKETS
   , password_complexity_rules      :: [PasswordComplexityRules] `SinceRevision` DBMS_MIN_PROTOCOL_VERSION_WITH_PASSWORD_COMPLEXITY_RULES
   , read_nonce                     :: UInt64 `SinceRevision` DBMS_MIN_REVISION_WITH_INTERSERVER_SECRET_V2
+  , settings                       :: DbSettings `SinceRevision` DBMS_MIN_REVISION_WITH_SERVER_SETTINGS
+  , server_query_plan_serialization_version :: UVarInt `SinceRevision` DBMS_MIN_REVISION_WITH_QUERY_PLAN_SERIALIZATION
   }
   deriving (Generic, Serializable)
 
@@ -142,3 +146,37 @@ data TableColumns = MkTableColumns
   , table_columns :: ChString
   }
   deriving (Generic, Serializable)
+
+data ProfileEventsPacket = MkProfileEventsPacket
+  { dataPacket :: DataPacket
+  , host_name :: [ChString]
+  , current_time :: [DateTime ""]
+  , thread_id :: [UInt64]
+  , type_ :: [Int8]
+  , name :: [ChString]
+  , value :: [UInt64]
+  } deriving (Generic)
+
+-- ToDo: Simplify
+instance Serializable ProfileEventsPacket where
+  serialize rev MkProfileEventsPacket{..}
+    =  serialize rev dataPacket
+    <> serialize rev (mkHeader @(Column "host_name" ChString)) <> serializeColumn @(Column "host_name" ChString) rev id host_name
+    <> serialize rev (mkHeader @(Column "current_time" (DateTime ""))) <> serializeColumn @(Column "current_time" (DateTime "")) rev id current_time
+    <> serialize rev (mkHeader @(Column "thread_id" UInt64)) <> serializeColumn @(Column "thread_id" UInt64) rev id thread_id
+    <> serialize rev (mkHeader @(Column "type" Int8)) <> serializeColumn @(Column "type" Int8) rev id type_
+    <> serialize rev (mkHeader @(Column "name" ChString)) <> serializeColumn @(Column "name" ChString) rev id name
+    <> serialize rev (mkHeader @(Column "value" UInt64)) <> serializeColumn @(Column "value" UInt64) rev id value
+  deserialize rev = do
+    dataPacket@MkDataPacket{rows_count, columns_count} <- deserialize rev
+    validateColumnsCount columns_count
+    !host_name    <- deserialize @ColumnHeader rev *> deserializeColumn @(Column "host_name" ChString) rev rows_count id
+    !current_time <- deserialize @ColumnHeader rev *> deserializeColumn @(Column "current_time" (DateTime "")) rev rows_count id
+    !thread_id    <- deserialize @ColumnHeader rev *> deserializeColumn @(Column "thread_id" UInt64) rev rows_count id
+    !type_        <- deserialize @ColumnHeader rev *> deserializeColumn @(Column "type" Int8) rev rows_count id
+    !name         <- deserialize @ColumnHeader rev *> deserializeColumn @(Column "name" ChString) rev rows_count id
+    !value        <- deserialize @ColumnHeader rev *> deserializeColumn @(Column "value" UInt64) rev rows_count id
+    pure $ MkProfileEventsPacket{..}
+    where
+    validateColumnsCount count = when (count /= 6) . fail $
+      "Unable to parse ProfileEvents packet. Expected 6 columns but got " <> show count

@@ -13,6 +13,7 @@ import Data.Kind
 import Data.Coerce
 import Data.Typeable (Proxy (..))
 import Data.Bits (Bits ((.&.)))
+import GHC.Generics (Generic)
 import GHC.TypeLits (ErrorMessage (..), KnownSymbol, Symbol, TypeError, symbolVal)
 
 -- External
@@ -65,6 +66,12 @@ data Column (name :: Symbol) (chType :: Type) where
 type family GetColumnName column :: Symbol where GetColumnName (Column name columnType) = name
 type family GetColumnType column :: Type   where GetColumnType (Column name columnType) = columnType
 
+data ColumnHeader = MkColumnHeader
+  { name :: ChString
+  , type_ :: ChString
+  , is_custom :: UInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION
+  } deriving (Generic, Serializable)
+
 
 class
   ( IsChType (GetColumnType column)
@@ -76,6 +83,13 @@ class
 
   renderColumnType :: Builder
   renderColumnType = byteString . BS8.pack $ chTypeName @(GetColumnType column)
+
+  mkHeader :: ColumnHeader
+  mkHeader = let
+    name = toChType $ renderColumnName @column
+    type_ = toChType $ chTypeName @(GetColumnType column)
+    is_custom = AfterRevision 0
+    in MkColumnHeader{..}
 
   toColumn :: [GetColumnType column] -> Column (GetColumnName column) (GetColumnType column)
   fromColumn :: Column (GetColumnName column) (GetColumnType column) -> [GetColumnType column]
@@ -193,7 +207,7 @@ instance
   deserializeColumn rev rows f = map f <$> replicateGet rev rows
 
   {-# INLINE serializeColumn #-}
-  serializeColumn rev f column  = mconcat (Prelude.map (serialize @chType rev . f) column)
+  serializeColumn rev f column = foldMap (serialize @chType rev . f) column
 
 instance {-# OVERLAPPING #-}
   ( KnownColumn (Column name (Nullable chType))
@@ -202,20 +216,17 @@ instance {-# OVERLAPPING #-}
   ) =>
   SerializableColumn (Column name (Nullable chType)) where
   {-# INLINE deserializeColumn #-}
-
   deserializeColumn rev rows f = do
     nulls <- replicateGet @UInt8 rev rows
-    forM
-        nulls
-        (\case
-          0 -> f . Just <$> deserialize @chType rev
-          _ -> (f Nothing <$ deserialize @chType rev)
-        )
+    forM nulls (\case
+        0 -> f . Just <$> deserialize @chType rev
+        _ -> (f Nothing <$ deserialize @chType rev)
+      )
 
   {-# INLINE serializeColumn #-}
   serializeColumn rev f column
-    =  mconcat (Prelude.map (serialize @UInt8 rev . maybe 1 (const 0) . f) column)
-    <> mconcat (Prelude.map (serialize @chType rev . maybe defaultValueOfTypeName id . f) column)
+    =  foldMap (serialize @UInt8 rev . maybe 1 (const 0) . f) column
+    <> foldMap (serialize @chType rev . maybe defaultValueOfTypeName id . f) column
 
 instance {-# OVERLAPPING #-}
   ( KnownColumn (Column name (LowCardinality chType))
@@ -247,5 +258,5 @@ instance {-# OVERLAPPING #-}
 
   {-# INLINE serializeColumn #-}
   serializeColumn rev f column
-    =  mconcat (map (serialize @UInt64 rev . fromIntegral . length . f) column)
+    =  foldMap (serialize @UInt64 rev . fromIntegral . length . f) column
     <> foldMap (foldMap (serialize @chType rev) . f) column

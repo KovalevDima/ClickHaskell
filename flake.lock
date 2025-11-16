@@ -1,5 +1,21 @@
 {
   "nodes": {
+    "clickhouse": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1762472449,
+        "narHash": "sha256-cKf0F19t9Ph2o3dM4X+XrjnDY3KQEJpGGIKlUSs9Ca8=",
+        "owner": "ClickHouse",
+        "repo": "ClickHouse",
+        "rev": "5987364193574d92676a80aad9f1147f0ad5efd2",
+        "type": "github"
+      },
+      "original": {
+        "owner": "ClickHouse",
+        "repo": "ClickHouse",
+        "type": "github"
+      }
+    },
     "flake-parts": {
       "inputs": {
         "nixpkgs-lib": "nixpkgs-lib"
@@ -81,6 +97,7 @@
     },
     "root": {
       "inputs": {
+        "clickhouse": "clickhouse",
         "flake-parts": "flake-parts",
         "haskell-flake": "haskell-flake",
         "nixpkgs": "nixpkgs",
