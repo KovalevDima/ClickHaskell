@@ -19,6 +19,7 @@ module ClickHaskell
   , overrideHostname
   , overrideOsUser
   , overrideDefaultPort
+  , overrideMaxRevision
   , mkBuffer
 
   {- * Statements and commands -}
@@ -329,14 +330,14 @@ withConnection (MkConnection connStateMVar) f =
     return b
 
 auth :: Buffer -> ConnectionArgs -> IO ConnectionState
-auth buffer creds@MkConnectionArgs{db, user, pass, mOsUser, mHostname} = do
-  (writeConn buffer . seriliazeHelloPacket db user pass) latestSupportedRevision
-  serverPacketType <- readBuffer buffer (deserialize latestSupportedRevision)
+auth buffer creds@MkConnectionArgs{db, user, pass, mOsUser, mHostname, maxRevision} = do
+  (writeConn buffer . seriliazeHelloPacket db user pass) maxRevision
+  serverPacketType <- readBuffer buffer (deserialize maxRevision)
   case serverPacketType of
     HelloResponse MkHelloResponse{server_revision} -> do
       let conn =
             MkConnectionState
-              { revision     = min server_revision latestSupportedRevision
+              { revision     = min server_revision maxRevision
               , os_user      = maybe "" toChType mOsUser
               , hostname     = maybe "" toChType mHostname
               , initial_user = toChType user

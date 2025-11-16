@@ -75,13 +75,13 @@ data HelloPacket = MkHelloPacket
   deriving (Generic, Serializable)
 
 seriliazeHelloPacket :: String -> String -> String -> (ProtocolRevision -> Builder)
-seriliazeHelloPacket db user pass =
-  flip serialize $ Hello
+seriliazeHelloPacket db user pass rev =
+  serialize rev $ Hello
     MkHelloPacket
       { client_name          = clientName
       , client_version_major = major
       , client_version_minor = minor
-      , tcp_protocol_version = latestSupportedRevision
+      , tcp_protocol_version = rev
       , default_database     = toChType db
       , user                 = toChType user
       , pass                 = toChType pass
