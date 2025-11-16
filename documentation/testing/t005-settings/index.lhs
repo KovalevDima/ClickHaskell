@@ -1,4 +1,5 @@
 ```haskell
+{-# OPTIONS_GHC -fno-warn-deprecations #-}
 {-# OPTIONS_GHC -freduction-depth=1200 #-}
 module Main (main) where
 
@@ -8,7 +9,8 @@ import GHC.Generics
 
 main :: IO ()
 main = do
-  connection <- openConnection defaultConnectionArgs
+  connLatest <- openConnection defaultConnectionArgs
+  connOld <- openConnection (overrideMaxRevision 54420 defaultConnectionArgs)
 
   let
     sampleQuery =
@@ -25,12 +27,12 @@ main = do
         addSetting @"max_ast_depth" 1000 .
         id
       )
+    query = addSampleSettings sampleQuery
 
   _res <-
-    select
-      (addSampleSettings sampleQuery)
-      connection
-      pure
+    mapM
+      (\conn -> select query conn pure)
+      [connLatest, connOld]
 
   putStrLn "t005: Ok"
 

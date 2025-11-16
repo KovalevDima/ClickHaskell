@@ -98,6 +98,7 @@ data ConnectionArgs = MkConnectionArgs
   , host :: HostName
   , mPort :: Maybe ServiceName
   , defPort :: ServiceName
+  , maxRevision :: ProtocolRevision
   , mOsUser :: Maybe String
   , mHostname :: Maybe String
   , resolveHostName :: HostName -> ServiceName -> IO AddrInfo
@@ -121,6 +122,7 @@ defaultConnectionArgs = MkConnectionArgs
   , mPort = Nothing
   , mOsUser = Nothing
   , mHostname = Nothing
+  , maxRevision = mkRev @DBMS_TCP_PROTOCOL_VERSION
   , resolveHostName = defaultResolveHostName
   , initSocket = defaultInitSocket
   , initBuffer = defaultInitBuffer
@@ -265,3 +267,7 @@ Typical use case: provide a different default for TLS connections, e.g. 9443.
 overrideDefaultPort :: ServiceName -> (ConnectionArgs -> ConnectionArgs)
 overrideDefaultPort new MkConnectionArgs {..} =
   MkConnectionArgs {defPort = new, ..}
+
+overrideMaxRevision :: ProtocolRevision -> (ConnectionArgs -> ConnectionArgs)
+overrideMaxRevision new MkConnectionArgs {..} =
+  MkConnectionArgs {maxRevision = new, ..}

@@ -626,9 +626,6 @@ clientName = fromString $
 newtype ProtocolRevision = MkProtocolRevision UVarInt
   deriving newtype (Eq, Num, Ord, Serializable)
 
-latestSupportedRevision :: ProtocolRevision
-latestSupportedRevision = mkRev @DBMS_TCP_PROTOCOL_VERSION
-
 mkRev :: forall nat . KnownNat nat => ProtocolRevision
 mkRev = (fromIntegral . natVal) (Proxy @nat)
 
