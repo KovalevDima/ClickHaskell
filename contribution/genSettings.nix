@@ -6,14 +6,26 @@ pkgs.stdenv.mkDerivation {
 
   src = clickhouseRepo;
 
-  # Нужные утилиты для генерации
   buildInputs = with pkgs; [ gawk coreutils bash ];
 
   installPhase = ''
     mkdir -p $out
-    outFile=$out/SupportedSettings.hs
+    outFile=$out/SettingsSupport.hs
 
-    echo "type SupportedSettings = '[" > $outFile
+    cat > $outFile << EOF
+    module ClickHaskell.Packets.SettingsSupport where
+
+    -- Internal
+    import ClickHaskell.Primitive
+
+    -- GHC
+    import Data.Kind
+    import GHC.TypeLits
+
+    data Setting (a :: Symbol) (settType :: Type)
+    
+    type SupportedSettings = '[
+    EOF
 
     gawk '
       match($0, /DECLARE\(\s*([A-Za-z0-9_]+)\s*,\s*([A-Za-z0-9_]+)/, m) {
@@ -21,7 +33,6 @@ pkgs.stdenv.mkDerivation {
         htype = "";
 
         if (typ == "UInt64") { htype="UInt64" }
-        else if (typ == "Int32") { htype="Int32" }
         else if (typ == "String") { htype="ChString" }
 
         # TODO: add support
@@ -36,7 +47,7 @@ pkgs.stdenv.mkDerivation {
             typ == "NonZeroUInt64" || \
             typ == "Float" || \
             typ == "Int64" || \
-            typ == "Int64" || \
+            typ == "Int32" || \
             typ == "Bool" || \
             typ == "TotalsMode" || \
             typ == "DistributedProductMode" || \
