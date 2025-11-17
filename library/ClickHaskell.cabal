@@ -43,6 +43,7 @@ Library
     ClickHaskell.Packets.Data
     ClickHaskell.Packets.Server
     ClickHaskell.Packets.Settings
+    ClickHaskell.Packets.SettingsSupport
     ClickHaskell.Primitive
     ClickHaskell.Statements
     Paths_ClickHaskell
