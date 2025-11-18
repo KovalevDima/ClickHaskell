@@ -25,7 +25,7 @@ class Statement statement where
   passSettings :: (DbSettings -> DbSettings) -> statement -> statement
 
 instance Statement (Select cols output) where
-  passSettings pass (MkSelect mkQuery dbSettings) = MkSelect mkQuery (pass dbSettings)
+  passSettings pass (MkSelect{..}) = MkSelect {settings=pass settings, ..}
 
 instance Statement (Insert cols input) where
   passSettings pass (MkInsert mkQuery dbSettings) = MkInsert mkQuery (pass dbSettings)
@@ -37,10 +37,16 @@ instance Statement (Insert cols input) where
 -}
 data Select (columns :: [Type]) output
   where
-  MkSelect :: ([(Builder, Builder)] -> ChString) -> DbSettings -> Select columns output
+  MkSelect :: {
+    mkQuery :: ProtocolRevision -> [(Builder, Builder)] -> ChString,
+    settings :: DbSettings
+  } -> Select columns output
 
-unsafeMkSelect :: ([(Builder, Builder)] -> Builder) -> Select columns output
-unsafeMkSelect s = MkSelect (toChType . s) (MkDbSettings [])
+unsafeMkSelect :: (ProtocolRevision -> [(Builder, Builder)] -> Builder) -> Select columns output
+unsafeMkSelect mkQueryImpl = MkSelect {
+    mkQuery = \rev -> (toChType . mkQueryImpl rev),
+    settings = MkDbSettings []
+  }
 
 {-|
   Type-safe wrapper for statements like
@@ -53,7 +59,7 @@ fromTable ::
   KnownSymbol name
   =>
   Select columns output
-fromTable = unsafeMkSelect $ \cols ->
+fromTable = unsafeMkSelect $ \_rev cols ->
   "SELECT " <> selectedColumns cols <>
   " FROM " <> tableName @name
   where
@@ -66,7 +72,7 @@ fromView ::
   KnownSymbol name
   =>
   (Parameters '[] -> Parameters params) -> Select columns output
-fromView interpreter = unsafeMkSelect $ \cols ->
+fromView interpreter = unsafeMkSelect $ \_rev cols ->
   "SELECT " <> selectedColumns cols <>
   " FROM " <> tableName @name <> viewParameters interpreter
   where
@@ -79,7 +85,7 @@ fromGenerateRandom ::
   (UInt64, UInt64, UInt64) -> UInt64 -> Select columns output
 fromGenerateRandom (randomSeed, maxStrLen, maxArrayLen) limit = query
   where
-  query = unsafeMkSelect $ \cols ->
+  query = unsafeMkSelect $ \_rev cols ->
     "SELECT * FROM generateRandom(" <>
         "'" <> columnsAndTypes cols <> "'" <> "," <>
         toQueryPart randomSeed <> "," <>

@@ -81,13 +81,13 @@ class
   renderColumnName :: Builder
   renderColumnName = (stringUtf8 . symbolVal @(GetColumnName column)) Proxy
 
-  renderColumnType :: Builder
-  renderColumnType = byteString . BS8.pack $ chTypeName @(GetColumnType column)
+  renderColumnType :: ProtocolRevision -> Builder
+  renderColumnType rev = byteString . BS8.pack $ chTypeName @(GetColumnType column) rev
 
-  mkHeader :: ColumnHeader
-  mkHeader = let
+  mkHeader :: ProtocolRevision -> ColumnHeader
+  mkHeader rev = let
     name = toChType $ renderColumnName @column
-    type_ = toChType $ chTypeName @(GetColumnType column)
+    type_ = toChType $ chTypeName @(GetColumnType column) rev
     is_custom = AfterRevision 0
     in MkColumnHeader{..}
 

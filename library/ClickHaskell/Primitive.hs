@@ -74,7 +74,7 @@ class IsChType chType
   -- chTypeName \@ChString = \"String\"
   -- chTypeName \@(Nullable UInt32) = \"Nullable(UInt32)\"
   -- @
-  chTypeName :: String
+  chTypeName :: ProtocolRevision -> String
 
   defaultValueOfTypeName :: chType
 
@@ -90,7 +90,7 @@ instance {-# OVERLAPPABLE #-} (IsChType chType, chType ~ inputType) => ToChType 
 -- ** Int8
 
 instance IsChType Int8 where
-  chTypeName = "Int8"
+  chTypeName _ = "Int8"
   defaultValueOfTypeName = 0
 
 instance Serializable Int8 where
@@ -105,7 +105,7 @@ instance ToQueryPart Int8 where
 -- ** Int16
 
 instance IsChType Int16 where
-  chTypeName = "Int16"
+  chTypeName _ = "Int16"
   defaultValueOfTypeName = 0
 
 instance Serializable Int16 where
@@ -120,7 +120,7 @@ instance ToQueryPart Int16 where
 -- ** Int32
 
 instance IsChType Int32 where
-  chTypeName = "Int32"
+  chTypeName _ = "Int32"
   defaultValueOfTypeName = 0
 
 instance Serializable Int32 where
@@ -135,7 +135,7 @@ instance ToQueryPart Int32 where
 -- ** Int64
 
 instance IsChType Int64 where
-  chTypeName = "Int64"
+  chTypeName _ = "Int64"
   defaultValueOfTypeName = 0
 
 instance Serializable Int64 where
@@ -150,7 +150,7 @@ instance ToQueryPart Int64 where
 -- ** Int128
 
 instance IsChType Int128 where
-  chTypeName = "Int128"
+  chTypeName _ = "Int128"
   defaultValueOfTypeName = 0
 
 instance Serializable Int128 where
@@ -170,7 +170,7 @@ instance ToQueryPart Int128 where
 {- | ClickHouse UInt8 column type -}
 type UInt8 = Word8
 instance IsChType UInt8 where
-  chTypeName = "UInt8"
+  chTypeName _ = "UInt8"
   defaultValueOfTypeName = 0
 
 instance Serializable UInt8 where
@@ -187,7 +187,7 @@ instance ToQueryPart UInt8 where
 {- | ClickHouse UInt16 column type -}
 type UInt16 = Word16
 instance IsChType UInt16 where
-  chTypeName = "UInt16"
+  chTypeName _ = "UInt16"
   defaultValueOfTypeName = 0
 
 instance Serializable UInt16 where
@@ -204,7 +204,7 @@ instance ToQueryPart UInt16 where
 {- | ClickHouse UInt32 column type -}
 type UInt32 = Word32
 instance IsChType UInt32 where
-  chTypeName = "UInt32"
+  chTypeName _ = "UInt32"
   defaultValueOfTypeName = 0
 
 instance Serializable UInt32 where
@@ -221,7 +221,7 @@ instance ToQueryPart UInt32 where
 {- | ClickHouse UInt64 column type -}
 type UInt64 = Word64
 instance IsChType UInt64 where
-  chTypeName = "UInt64"
+  chTypeName _ = "UInt64"
   defaultValueOfTypeName = 0
 
 instance Serializable UInt64 where
@@ -238,7 +238,7 @@ instance ToQueryPart UInt64 where
 {- | ClickHouse UInt128 column type -}
 type UInt128 = Word128
 instance IsChType UInt128 where
-  chTypeName = "UInt128"
+  chTypeName _ = "UInt128"
   defaultValueOfTypeName = 0
 
 instance Serializable UInt128 where
@@ -258,7 +258,7 @@ instance ToQueryPart UInt128 where
 {- | ClickHouse UInt128 column type -}
 type UInt256 = Word256
 instance IsChType UInt256 where
-  chTypeName = "UInt256"
+  chTypeName _ = "UInt256"
   defaultValueOfTypeName = 0
 
 instance Serializable UInt256 where
@@ -282,7 +282,7 @@ newtype Date = MkDate Word16
   deriving newtype (Show, Eq, Bits, Bounded, Enum, NFData, Num)
 
 instance IsChType Date where
-  chTypeName = "Date"
+  chTypeName _ = "Date"
   defaultValueOfTypeName = 0
 
 instance Serializable Date where
@@ -302,7 +302,7 @@ newtype ChString = MkChString BS.ByteString
   deriving newtype (Show, Eq, IsString, NFData)
 
 instance IsChType ChString where
-  chTypeName = "String"
+  chTypeName _ = "String"
   defaultValueOfTypeName = ""
 
 instance Serializable ChString where
@@ -338,7 +338,7 @@ instance ToQueryPart ChString where
 newtype UUID = MkUUID Word128
   deriving newtype (Generic, Show, Eq, NFData, Bounded, Enum, Num)
 instance IsChType UUID where
-  chTypeName = "UUID"
+  chTypeName _ = "UUID"
   defaultValueOfTypeName = 0
 
 instance Serializable UUID where
@@ -369,7 +369,7 @@ instance ToQueryPart UUID where
 type Nullable = Maybe
 instance IsChType chType => IsChType (Nullable chType)
   where
-  chTypeName = "Nullable(" <> chTypeName @chType <> ")"
+  chTypeName rev = "Nullable(" <> chTypeName @chType rev <> ")"
   defaultValueOfTypeName = Nothing
 
 instance
@@ -400,9 +400,11 @@ newtype DateTime (tz :: Symbol) = MkDateTime Word32
 
 instance KnownSymbol tz => IsChType (DateTime tz)
   where
-  chTypeName = case (symbolVal @tz Proxy) of
-    "" -> "DateTime"
-    tz -> "DateTime('" <> tz <> "')" 
+  chTypeName rev =
+    let tz = symbolVal @tz Proxy in
+    if tz == "" || rev < mkRev @DBMS_MIN_REVISION_WITH_TIME_ZONE_PARAMETER_IN_DATETIME_DATA_TYPE
+    then "DateTime"
+    else "DateTime('" <> tz <> "')"
   defaultValueOfTypeName = MkDateTime 0
 
 instance Serializable (DateTime tz) where
@@ -442,13 +444,14 @@ instance
   =>
   IsChType (DateTime64 precision tz)
   where
-  chTypeName =
+  chTypeName rev =
     let
       prec = show (natVal @precision Proxy)
+      tz = symbolVal @tz Proxy
     in
-    case symbolVal @tz Proxy of
-      "" -> "DateTime64(" <> prec <> ")"
-      tz -> "DateTime64(" <> prec <> ", '" <> tz <> "')"
+    if tz == "" || rev < mkRev @DBMS_MIN_REVISION_WITH_TIME_ZONE_PARAMETER_IN_DATETIME_DATA_TYPE
+    then "DateTime64(" <> prec <> ")"
+    else "DateTime64(" <> prec <> ", '" <> tz <> "')"
   defaultValueOfTypeName = MkDateTime64 0
 
 instance Serializable (DateTime64 precision tz) where
@@ -475,7 +478,7 @@ newtype Array a = MkChArray [a]
   deriving newtype (Show, Eq, NFData, Foldable)
 instance IsChType chType => IsChType (Array chType)
   where
-  chTypeName = "Array(" <> chTypeName @chType <> ")"
+  chTypeName rev = "Array(" <> chTypeName @chType rev <> ")"
   defaultValueOfTypeName = MkChArray []
 
 instance ToChType chType inputType => ToChType (Array chType) [inputType]
@@ -497,7 +500,7 @@ instance (IsChType chType, ToQueryPart chType) => ToQueryPart (Array chType)
 newtype LowCardinality chType = MkLowCardinality chType
 instance IsLowCardinalitySupported chType => IsChType (LowCardinality chType)
   where
-  chTypeName = "LowCardinality(" <> chTypeName @chType <> ")"
+  chTypeName rev = "LowCardinality(" <> chTypeName @chType rev <> ")"
   defaultValueOfTypeName = MkLowCardinality $ defaultValueOfTypeName @chType
 
 deriving newtype instance (Eq chType, IsLowCardinalitySupported chType) => Eq (LowCardinality chType)

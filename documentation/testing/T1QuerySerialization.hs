@@ -69,7 +69,7 @@ runTestForType ::
   =>
   Connection -> [chType] -> IO ()
 runTestForType connection testValues = do
-  let typeName = (byteString . BS8.pack) (chTypeName @chType)
+  let typeName = (byteString . BS8.pack . chTypeName @chType)
   mapM_
     (\chType -> do
       [selectChType] <-
@@ -78,20 +78,20 @@ runTestForType connection testValues = do
             (unsafeMkSelect
               @'[Column "testSample" chType]
               @(TestSample chType)
-              (\_cols -> "SELECT CAST(" <> toQueryPart chType <> ", '" <> typeName <> "') as testSample;")
+              (\rev _cols -> "SELECT CAST(" <> toQueryPart chType <> ", '" <> typeName rev <> "') as testSample;")
             )
             connection
             pure
 
       (when (chType /= testSample selectChType) . error)
-        (  "Deserialized value of type " <> show (toLazyByteString typeName) <> " unmatched:"
+        (  "Deserialized value of type " <> show (toLazyByteString (typeName 0) ) <> " unmatched:"
         <> " Expected: " <> show chType
         <> ". But got: " <> show selectChType <> "."
         )
     )
     testValues
 
-  print (toLazyByteString typeName <> ": Ok")
+  print (toLazyByteString (typeName 0) <> ": Ok")
 
 
 data TestSample chType = MkTestSample {testSample :: chType}

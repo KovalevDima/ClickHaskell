@@ -165,12 +165,12 @@ select ::
   =>
   Select columns output -> Connection -> ([output] -> IO result) -> IO [result]
 select (MkSelect mkQuery setts) conn f = do
-  withConnection conn $ \connState -> do
+  withConnection conn $ \connState@MkConnectionState{revision} -> do
     writeToConnection connState
       . serializeQueryPacket
       . mkQueryArgs connState setts
-      . mkQuery
-      $ expectedColumns @columns @output
+      . mkQuery revision
+      $ expectedColumns @columns @output revision
     writeToConnection connState (\rev -> serialize rev . Data $ mkDataPacket "" 0 0)
     loopSelect connState []
   where
@@ -204,12 +204,12 @@ insert ::
   =>
   Insert columns record -> Connection -> [record] -> IO ()
 insert (MkInsert mkQuery dbSettings) conn columnsData = do
-  withConnection conn $ \connState -> do
+  withConnection conn $ \connState@MkConnectionState{revision} -> do
     writeToConnection connState
       . serializeQueryPacket
       . mkQueryArgs connState dbSettings
       . mkQuery
-      $ expectedColumns @columns @record
+      $ expectedColumns @columns @record revision
     writeToConnection connState (\rev -> serialize rev . Data $ mkDataPacket "" 0 0)
     loopInsert connState
   where
@@ -283,9 +283,9 @@ class ClickHaskell columns record
   serializeColumns :: [record] -> ProtocolRevision -> Builder
   serializeColumns records rev = gSerializeRecords @columns rev records from
 
-  default expectedColumns :: GenericClickHaskell record columns => [(Builder, Builder)]
-  expectedColumns :: [(Builder, Builder)]
-  expectedColumns = gExpectedColumns @columns @(Rep record)
+  default expectedColumns :: GenericClickHaskell record columns => ProtocolRevision -> [(Builder, Builder)]
+  expectedColumns :: ProtocolRevision -> [(Builder, Builder)]
+  expectedColumns rev = gExpectedColumns @columns @(Rep record) rev
 
   default columnsCount :: GenericClickHaskell record columns => UVarInt
   columnsCount :: UVarInt
@@ -366,7 +366,7 @@ class GClickHaskell (columns :: [Type]) f
   {-
     and affected columns extractor
   -}
-  gExpectedColumns :: [(Builder, Builder)]
+  gExpectedColumns :: ProtocolRevision -> [(Builder, Builder)]
   gColumnsCount :: UVarInt
 
 {-
@@ -447,7 +447,7 @@ instance
     =  gSerializeRecords @columns rev xs ((\(l:*:_) -> l) . f)
     <> gSerializeRecords @columns rev xs ((\(_:*:r) -> r) . f)
 
-  gExpectedColumns = gExpectedColumns @columns @(S1 (MetaSel (Just name) a b f) (Rec0 inputType)) ++ gExpectedColumns @columns @right
+  gExpectedColumns rev = gExpectedColumns @columns @(S1 (MetaSel (Just name) a b f) (Rec0 inputType)) rev ++ gExpectedColumns @columns @right rev
   gColumnsCount = gColumnsCount @columns @(S1 (MetaSel (Just name) a b f) (Rec0 inputType)) + gColumnsCount @columns @right
 
 deserializeProduct ::  (l -> r -> a) -> [l] -> [r] -> Get [a]
@@ -471,26 +471,26 @@ instance
   where
   {-# INLINE gDeserializeColumns #-}
   gDeserializeColumns doCheck rev size f = do
-    validateColumnHeader @(Column name chType) doCheck =<< deserialize @ColumnHeader rev
+    validateColumnHeader @(Column name chType) rev doCheck =<< deserialize @ColumnHeader rev
     deserializeColumn @(Column name chType) rev size (f . M1 . K1 . fromChType)
 
   {-# INLINE gSerializeRecords #-}
   gSerializeRecords rev values f
-    =  serialize rev (mkHeader @(Column name chType))
+    =  serialize rev (mkHeader @(Column name chType) rev)
     <> serializeColumn @(Column name chType) rev (toChType . unK1 . unM1 . f) values
 
-  gExpectedColumns = (renderColumnName @(Column name chType), renderColumnType @(Column name chType)) : []
+  gExpectedColumns rev = (renderColumnName @(Column name chType), renderColumnType @(Column name chType) rev) : []
   gColumnsCount = 1
 
-validateColumnHeader :: forall column . KnownColumn column => Bool -> ColumnHeader -> Get ()
-validateColumnHeader doCheck MkColumnHeader{..} = do
+validateColumnHeader :: forall column . KnownColumn column => ProtocolRevision -> Bool -> ColumnHeader -> Get ()
+validateColumnHeader rev doCheck MkColumnHeader{..} = do
   let expectedColumnName = toChType (renderColumnName @column)
       resultColumnName = name
   when (doCheck && resultColumnName /= expectedColumnName) $
     throw . UnmatchedResult . UnmatchedColumn
       $ "Got column \"" <> show resultColumnName <> "\" but expected \"" <> show expectedColumnName <> "\""
 
-  let expectedType = toChType (renderColumnType @column)
+  let expectedType = toChType (renderColumnType @column rev)
       resultType = type_
   when (doCheck && resultType /= expectedType) $
     throw . UnmatchedResult . UnmatchedType

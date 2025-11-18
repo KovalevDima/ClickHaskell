@@ -138,4 +138,4 @@ instance HasName BlockInfo where fieldName = "BlockInfo"
 instance HasName Jwt where fieldName = "Jwt"
 
 instance {-# OVERLAPPABLE #-} IsChType chType => HasName chType where 
-  fieldName = chTypeName @chType
+  fieldName = chTypeName @chType 0

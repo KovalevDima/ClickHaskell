@@ -71,12 +71,16 @@ module Tests where
 <p>Main function</p>
 
 <pre><code data-lang="haskell" class="haskell"
->import ClickHaskell (openConnection, defaultConnectionArgs)
+>import ClickHaskell (openConnection, defaultConnectionArgs, overrideMaxRevision)
 
 main :: IO ()
 main = do
   connection <- openConnection defaultConnectionArgs
+  connOld <- openConnection (overrideMaxRevision 54226 defaultConnectionArgs)
   mapM_
-    (\runner -> runner connection) 
+    (\runner -> do
+      runner connection
+      runner connOld
+    ) 
     [t1,t2,t3,t4]
 </code></pre>
