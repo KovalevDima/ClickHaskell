@@ -394,9 +394,9 @@ instance KnownSymbol enums => IsChType (Enum8 enums) where
   chTypeName = "Enum8(" <> symbolVal @enums Proxy <> ")"
   defaultValueOfTypeName = 0
 
-instance ToChType (Enum8 enums) Int8     where
+instance ToChType (Enum8 enums) Int8 where
   toChType = MkEnum8
-  fromChType (MkEnum8 i16)= i16
+  fromChType (MkEnum8 i8)= i8
 
 
 -- ** Enum16
@@ -408,9 +408,9 @@ instance KnownSymbol enums => IsChType (Enum16 enums) where
   chTypeName = "Enum16(" <> symbolVal @enums Proxy <> ")"
   defaultValueOfTypeName = 0
 
-instance ToChType (Enum16 enums) Int16     where
+instance ToChType (Enum16 enums) Int16 where
   toChType = MkEnum16
-  fromChType (MkEnum16 i16)= i16
+  fromChType (MkEnum16 i16) = i16
 
 -- ** DateTime
 
