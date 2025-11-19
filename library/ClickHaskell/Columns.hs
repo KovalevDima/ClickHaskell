@@ -56,6 +56,8 @@ data Column (name :: Symbol) (chType :: Type) where
   UInt256Column :: [UInt256] -> Column name UInt256
   DateTimeColumn :: [DateTime tz] -> Column name (DateTime tz)
   DateTime64Column :: [DateTime64 precision tz] -> Column name (DateTime64 precision tz)
+  Enum8Column :: [Enum8 enums] -> Column name (Enum8 enums)
+  Enum16Column :: [Enum16 enums] -> Column name (Enum16 enums)
   DateColumn :: [Date] -> Column name Date
   UUIDColumn :: [UUID] -> Column name UUID
   StringColumn :: [ChString] -> Column name ChString
@@ -159,6 +161,14 @@ instance
   where
   toColumn = DateTime64Column
   fromColumn (DateTime64Column values) = values
+
+instance (KnownSymbol name, KnownSymbol enums) => KnownColumn (Column name (Enum8 enums)) where
+  toColumn = Enum8Column
+  fromColumn (Enum8Column values) = values
+
+instance (KnownSymbol name, KnownSymbol enums) => KnownColumn (Column name (Enum16 enums)) where
+  toColumn = Enum16Column
+  fromColumn (Enum16Column values) = values
 
 instance KnownSymbol name => KnownColumn (Column name UUID) where
   toColumn = UUIDColumn

@@ -385,6 +385,40 @@ instance ToQueryPart chType => ToQueryPart (Nullable chType)
   toQueryPart = maybe "null" toQueryPart
 
 
+-- ** Enum8
+
+newtype Enum8 (enums :: Symbol) = MkEnum8 Int8
+  deriving newtype (Serializable, Show, Eq, Num, Bits, Bounded, Enum)
+
+instance KnownSymbol enums => IsChType (Enum8 enums) where
+  chTypeName = "Enum8(" <> symbolVal @enums Proxy <> ")"
+  defaultValueOfTypeName = 0
+
+instance ToChType (Enum8 enums) Int8 where
+  toChType = MkEnum8
+  fromChType (MkEnum8 i8)= i8
+
+instance ToQueryPart (Enum8 enums) where
+  toQueryPart = toQueryPart . fromChType @_ @Int8
+
+
+-- ** Enum16
+
+newtype Enum16 (enums :: Symbol) = MkEnum16 Int16
+  deriving newtype (Serializable, Show, Eq, Num, Bits, Bounded, Enum)
+
+instance KnownSymbol enums => IsChType (Enum16 enums) where
+  chTypeName = "Enum16(" <> symbolVal @enums Proxy <> ")"
+  defaultValueOfTypeName = 0
+
+instance ToChType (Enum16 enums) Int16 where
+  toChType = MkEnum16
+  fromChType (MkEnum16 i16) = i16
+
+instance ToQueryPart (Enum16 enums) where
+  toQueryPart = toQueryPart . fromChType @_ @Int16
+
+
 -- ** DateTime
 
 {- |

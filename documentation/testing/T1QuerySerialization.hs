@@ -25,14 +25,16 @@ import ClickHaskell
   , ToQueryPart(..)
   , UInt8, UInt16, UInt32, UInt64
   , Int8, Int16, Int32, Int64
-  , ChString, UUID, DateTime, UInt128, UInt256, Array -- , DateTime64
+  , ChString, UUID, DateTime, UInt128, UInt256, Array
+  , Enum16, Enum8
+  -- , DateTime64
   )
 
 -- GHC included
 import Control.Monad (when)
-import Data.ByteString as BS (singleton)
+import Data.ByteString as BS (singleton, ByteString)
 import Data.ByteString.Char8 as BS8 (pack)
-import Data.ByteString.Builder (toLazyByteString, byteString)
+import Data.ByteString.Builder (byteString)
 import GHC.Generics (Generic)
 
 
@@ -50,6 +52,8 @@ t1 conn = do
   runTestForType @UInt256 conn [minBound, toEnum 0, maxBound]
   runTestForType @UUID conn [minBound, toEnum 0, maxBound]
   runTestForType @(DateTime "") conn [minBound, toEnum 0, maxBound]
+  runTestForType @(Enum8 "'hello' = 1") conn [minBound, toEnum 0, maxBound]
+  runTestForType @(Enum16 "'hello' = 1") conn [minBound, toEnum 0, maxBound]
   -- runTestForType @(DateTime64 0 "") conn [minBound, toEnum 0, maxBound]
   runTestForType @ChString conn (map (toChType . BS.singleton) [1..255])
   -- ToDo: runTestForType @(LowCardinality ChString) connection (map (toChType . BS.singleton) [0..255])
@@ -69,7 +73,7 @@ runTestForType ::
   =>
   Connection -> [chType] -> IO ()
 runTestForType connection testValues = do
-  let typeName = (byteString . BS8.pack) (chTypeName @chType)
+  let typeName = (toChType @ChString . byteString . BS8.pack) (chTypeName @chType)
   mapM_
     (\chType -> do
       [selectChType] <-
@@ -78,20 +82,20 @@ runTestForType connection testValues = do
             (unsafeMkSelect
               @'[Column "testSample" chType]
               @(TestSample chType)
-              (\_cols -> "SELECT CAST(" <> toQueryPart chType <> ", '" <> typeName <> "') as testSample;")
+              (\_cols -> "SELECT CAST(" <> toQueryPart chType <> ", " <> toQueryPart typeName <> ") as testSample;")
             )
             connection
             pure
 
       (when (chType /= testSample selectChType) . error)
-        (  "Deserialized value of type " <> show (toLazyByteString typeName) <> " unmatched:"
+        (  "Deserialized value of type " <> show typeName <> " unmatched:"
         <> " Expected: " <> show chType
         <> ". But got: " <> show selectChType <> "."
         )
     )
     testValues
 
-  print (toLazyByteString typeName <> ": Ok")
+  print (fromChType @ChString @ByteString typeName <> ": Ok")
 
 
 data TestSample chType = MkTestSample {testSample :: chType}
