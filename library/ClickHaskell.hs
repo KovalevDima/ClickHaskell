@@ -429,10 +429,7 @@ instance
 -}
 instance
   ( GClickHaskell columns right
-  , KnownColumn (Column name chType)
-  , SerializableColumn (Column name chType)
-  , ToChType chType inputType
-  , Column name chType ~ TakeColumn name columns
+  , GClickHaskell columns (S1 (MetaSel (Just name) a b f) (Rec0 inputType))
   )
   =>
   GClickHaskell columns ((S1 (MetaSel (Just name) a b f)) (Rec0 inputType) :*: right)
