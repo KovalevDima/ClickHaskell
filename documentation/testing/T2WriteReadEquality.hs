@@ -27,6 +27,7 @@ import ClickHaskell
   , UInt8, UInt16, UInt32, UInt64, UInt128
   , UUID, DateTime, ChString, Int128, Word128
   , Nullable, DateTime64, Array
+  , Enum8, Enum16
   )
 
 -- GHC included
@@ -74,6 +75,8 @@ type TestColumns =
    , Column "dateTimeNullable" (Nullable (DateTime "UTC"))
    , Column "dateTime64" (DateTime64 3 "UTC")
    , Column "dateTime64Nullable" (Nullable (DateTime64 3 "UTC"))
+   , Column "enum8" (Enum8 "'world' = -1, 'hello' = 1")
+   , Column "enum16" (Enum16 "'world' = -1, 'hello' = 1")
    , Column "int128" Int128
    , Column "int128Nullable" (Nullable Int128)
    , Column "int16" Int16
@@ -107,6 +110,8 @@ data TestData = MkTestData
   , dateTimeNullable :: Nullable (DateTime "UTC")
   , dateTime64 :: DateTime64 3 "UTC"
   , dateTime64Nullable :: Nullable (DateTime64 3 "UTC")
+  , enum8 :: Enum8 "'world' = -1, 'hello' = 1"
+  , enum16 :: Enum16 "'world' = -1, 'hello' = 1"
   , int128 :: Int128
   , int128Nullable :: Nullable Int128
   , int16 :: Int16
@@ -144,6 +149,8 @@ testData = MkTestData
   , dateTimeNullable = Just 42
   , dateTime64 = 42
   , dateTime64Nullable = Just 42
+  , enum8 = 0
+  , enum16 = 0
   , int128 = toChType (-128 :: Int128)
   , int128Nullable = toChType $ Just (-128 :: Int128)
   , int16 = toChType (-16 :: Int16)
@@ -182,6 +189,8 @@ createTableQuery =
   \    `dateTime64` DateTime64(3, 'UTC'), \
   \    `dateTimeNullable` Nullable(DateTime('UTC')), \
   \    `dateTime64Nullable` Nullable(DateTime64(3, 'UTC')), \
+  \    `enum8` Enum8('hello'=1, 'world'=-1), \
+  \    `enum16` Enum16('hello'=1, 'world'=-1), \
   \    `int128` Int128, \
   \    `int128Nullable` Nullable(Int128), \
   \    `int16` Int16, \

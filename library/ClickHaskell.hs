@@ -71,6 +71,7 @@ module ClickHaskell
   , UUID
   , Array
   , ChString
+  , Enum8, Enum16
   ) where
 
 -- Internal
