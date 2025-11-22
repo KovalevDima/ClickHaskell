@@ -8,7 +8,6 @@ import ClickHaskell.Packets.Settings (DbSettings(..))
 -- GHC
 import Data.Int
 import GHC.Generics
-import Data.Binary.Builder (Builder)
 import Data.ByteString as BS (null)
 
 
@@ -74,9 +73,9 @@ data HelloPacket = MkHelloPacket
   }
   deriving (Generic, Serializable)
 
-seriliazeHelloPacket :: String -> String -> String -> (ProtocolRevision -> Builder)
-seriliazeHelloPacket db user pass rev =
-  serialize rev $ Hello
+mkHelloPacket :: String -> String -> String -> ProtocolRevision -> ClientPacket
+mkHelloPacket db user pass rev =
+  Hello
     MkHelloPacket
       { client_name          = clientName
       , client_version_major = major
@@ -125,11 +124,12 @@ data QueryPacketArgs = MkQueryPacketArgs
   , os_user      :: ChString
   , query        :: ChString
   , settings     :: DbSettings
+  , revision     :: ProtocolRevision
   }
 
-serializeQueryPacket :: QueryPacketArgs -> (ProtocolRevision -> Builder)
-serializeQueryPacket MkQueryPacketArgs{initial_user, os_user, hostname, query, settings} rev =
-  serialize rev $ Query
+mkQueryPacket :: QueryPacketArgs -> ClientPacket
+mkQueryPacket MkQueryPacketArgs{initial_user, os_user, hostname, query, settings, revision} =
+  Query
     MkQueryPacket
       { query_id = ""
       , client_info  = AfterRevision MkClientInfo
@@ -144,7 +144,7 @@ serializeQueryPacket MkQueryPacketArgs{initial_user, os_user, hostname, query, s
         , client_name                  = clientName
         , client_version_major         = major
         , client_version_minor         = minor
-        , client_revision              = rev
+        , client_revision              = revision
         , quota_key                    = AfterRevision ""
         , distrubuted_depth            = AfterRevision 0
         , client_version_patch         = AfterRevision patch
