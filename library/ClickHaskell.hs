@@ -276,21 +276,21 @@ command conn query = do
 
 -- ** Deriving
 
-class ClickHaskell columns record
+class GenericClickHaskell record columns =>  ClickHaskell columns record
   where
-  default deserializeColumns :: GenericClickHaskell record columns => Bool -> ProtocolRevision -> UVarInt -> Get [record]
+  default deserializeColumns :: Bool -> ProtocolRevision -> UVarInt -> Get [record]
   deserializeColumns :: Bool -> ProtocolRevision -> UVarInt -> Get [record]
   deserializeColumns doCheck rev size = gDeserializeColumns @columns doCheck rev size to
 
-  default serializeColumns :: GenericClickHaskell record columns => [record] -> ProtocolRevision -> Builder
+  default serializeColumns :: [record] -> ProtocolRevision -> Builder
   serializeColumns :: [record] -> ProtocolRevision -> Builder
   serializeColumns records rev = gSerializeRecords @columns rev records from
 
-  default expectedColumns :: GenericClickHaskell record columns => [(Builder, Builder)]
+  default expectedColumns :: [(Builder, Builder)]
   expectedColumns :: [(Builder, Builder)]
   expectedColumns = gExpectedColumns @columns @(Rep record)
 
-  default columnsCount :: GenericClickHaskell record columns => UVarInt
+  default columnsCount :: UVarInt
   columnsCount :: UVarInt
   columnsCount = gColumnsCount @columns @(Rep record)
 
