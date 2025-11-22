@@ -19,6 +19,14 @@ module ClickHaskell.Protocol
   {- *** Progress -}, ProgressPacket(..)
   {- *** ProfileInfo -}, ProfileInfo(..)
   {- *** TableColumns -}, TableColumns(..)
+
+  {- * API -}
+  , addSetting
+  , mkDataPacket
+  , mkQueryPacket, QueryPacketArgs(..)
+  , mkHelloPacket
+  , mkAddendum
+  , serverPacketToNum
   ) where
 
 import ClickHaskell.Primitive

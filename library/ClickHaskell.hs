@@ -79,10 +79,7 @@ import ClickHaskell.Columns
 import ClickHaskell.Connection
 import ClickHaskell.Primitive
 import ClickHaskell.Statements
-import ClickHaskell.Packets.Client
-import ClickHaskell.Packets.Data
-import ClickHaskell.Packets.Server
-import ClickHaskell.Packets.Settings
+import ClickHaskell.Protocol
 
 -- GHC included
 import Control.Concurrent (newMVar, putMVar, takeMVar)
@@ -168,7 +165,8 @@ select ::
 select (MkSelect mkQuery setts) conn f = do
   withConnection conn $ \connState -> do
     writeToConnection connState
-      . serializeQueryPacket
+      . flip serialize  
+      . mkQueryPacket
       . mkQueryArgs connState setts
       . mkQuery
       $ expectedColumns @columns @output
@@ -207,7 +205,8 @@ insert ::
 insert (MkInsert mkQuery dbSettings) conn columnsData = do
   withConnection conn $ \connState -> do
     writeToConnection connState
-      . serializeQueryPacket
+      . flip serialize  
+      . mkQueryPacket
       . mkQueryArgs connState dbSettings
       . mkQuery
       $ expectedColumns @columns @record
@@ -259,7 +258,10 @@ ping conn = do
 command :: HasCallStack => Connection -> ChString -> IO ()
 command conn query = do
   withConnection conn $ \connState -> do
-    writeToConnection connState (serializeQueryPacket (mkQueryArgs connState (MkDbSettings []) query))
+    writeToConnection connState
+      . flip serialize
+      . mkQueryPacket
+      $ mkQueryArgs connState (MkDbSettings []) query
     writeToConnection connState (\rev -> serialize rev . Data $ mkDataPacket "" 0 0)
     handleCreate connState
   where
@@ -332,7 +334,9 @@ withConnection (MkConnection connStateMVar) f =
 
 auth :: Buffer -> ConnectionArgs -> IO ConnectionState
 auth buffer creds@MkConnectionArgs{db, user, pass, mOsUser, mHostname, maxRevision} = do
-  (writeConn buffer . seriliazeHelloPacket db user pass) maxRevision
+  writeConn buffer
+    . serialize maxRevision
+    $ mkHelloPacket db user pass maxRevision
   serverPacketType <- readBuffer buffer (deserialize maxRevision)
   case serverPacketType of
     HelloResponse MkHelloResponse{server_revision} -> do
