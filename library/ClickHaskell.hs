@@ -92,6 +92,8 @@ import Data.Binary.Get
 import Data.ByteString.Builder
 import Data.Int (Int16, Int32, Int64, Int8)
 import Data.Kind (Type)
+import Data.Type.Equality
+import Data.Type.Bool
 import GHC.Generics (C1, D1, Generic (..), K1 (K1, unK1), M1 (M1, unM1), Meta (MetaSel), Rec0, S1, type (:*:) (..))
 import GHC.Stack (HasCallStack, callStack, prettyCallStack)
 import GHC.TypeLits (ErrorMessage (..), TypeError)
@@ -464,7 +466,15 @@ instance
   ( KnownColumn (Column name chType)
   , SerializableColumn (Column name chType)
   , ToChType chType inputType
-  , Column name chType ~ TakeColumn name columns
+  , mColumn ~ TakeColumn name columns
+  , If
+      (mColumn == Nothing)
+      (TypeError
+        (    'Text "There is no column \"" :<>: 'Text name :<>: 'Text "\" in table"
+        :$$: 'Text "You can't use this field"
+        )
+      )
+      (Just (Column name chType) ~ mColumn)
   ) => GClickHaskell columns ((S1 (MetaSel (Just name) a b f)) (Rec0 inputType))
   where
   {-# INLINE gDeserializeColumns #-}
@@ -495,16 +505,13 @@ validateColumnHeader doCheck MkColumnHeader{..} = do
       $ "Column " <> show resultColumnName <> " has type " <> show resultType <> ". But expected type is " <> show expectedType
 
 type family
-  TakeColumn name columns :: Type
+  TakeColumn name columns :: Maybe Type
   where
   TakeColumn name columns = GoTakeColumn name columns '[]
 
 type family
-  GoTakeColumn name (columns :: [Type]) (acc :: [Type]) :: Type
+  GoTakeColumn name (columns :: [Type]) (acc :: [Type]) :: Maybe Type
   where
-  GoTakeColumn name (Column name chType ': columns) acc = Column name chType
+  GoTakeColumn name (Column name chType ': columns) acc = Just (Column name chType)
   GoTakeColumn name (Column name1 chType ': columns) acc = (GoTakeColumn name columns (Column name1 chType ': acc))
-  GoTakeColumn name '[]                 acc = TypeError
-    (    'Text "There is no column \"" :<>: 'Text name :<>: 'Text "\" in table"
-    :$$: 'Text "You can't use this field"
-    )
+  GoTakeColumn name '[] acc = Nothing
