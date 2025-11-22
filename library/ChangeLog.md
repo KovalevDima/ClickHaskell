@@ -4,7 +4,8 @@
 - Support and CI for GHCs: `8.10.7`, `9.0.2`, `9.2.8`, `9.12.2`
 - ~50% optimization of time and alloc (perf test 1 benchmark)
 - Added function `command` for statements with no result
-- Added DateTime64, UInt256 types support
+- Added `DateTime64`, `UInt256`, `Enum8`, `Enum16`, `Array(T)`(partial) types support
+- Added experimental support for settings passing (watch `addSetting` fuction)
 
 ## Fixes:
 - Fixed unexpected behavior when the number of result columns was different from expected.
