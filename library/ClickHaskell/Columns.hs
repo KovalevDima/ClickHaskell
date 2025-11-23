@@ -6,7 +6,7 @@ import ClickHaskell.Primitive
 -- GHC included
 import Data.Binary.Get
 import Data.ByteString.Builder
-import Data.ByteString.Char8 as BS8 (pack)
+import Data.ByteString.Char8 as BS8 (pack, isPrefixOf)
 import Data.Traversable (forM)
 import Data.Int
 import Data.Kind
@@ -74,6 +74,12 @@ data ColumnHeader = MkColumnHeader
   , is_custom :: UInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION
   } deriving (Generic, Serializable)
 
+fallbackTypeName :: ProtocolRevision -> ChString -> ChString
+fallbackTypeName rev (MkChString typeName) = MkChString $
+  if rev < mkRev @DBMS_MIN_REVISION_WITH_TIME_ZONE_PARAMETER_IN_DATETIME_DATA_TYPE
+    && isPrefixOf "DateTime(" typeName
+  then "DateTime"
+  else typeName
 
 class
   ( IsChType (GetColumnType column)
