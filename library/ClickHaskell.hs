@@ -483,7 +483,7 @@ instance
   where
   {-# INLINE gDeserializeColumns #-}
   gDeserializeColumns doCheck rev size f = do
-    validateColumnHeader @(Column name chType) doCheck =<< deserialize @ColumnHeader rev
+    validateColumnHeader @(Column name chType) doCheck rev =<< deserialize @ColumnHeader rev
     deserializeColumn @(Column name chType) rev size (f . M1 . K1 . fromChType)
 
   {-# INLINE gSerializeRecords #-}
@@ -494,16 +494,16 @@ instance
   gExpectedColumns = (renderColumnName @(Column name chType), renderColumnType @(Column name chType)) : []
   gColumnsCount = 1
 
-validateColumnHeader :: forall column . KnownColumn column => Bool -> ColumnHeader -> Get ()
-validateColumnHeader doCheck MkColumnHeader{..} = do
+validateColumnHeader :: forall column . KnownColumn column => Bool -> ProtocolRevision -> ColumnHeader -> Get ()
+validateColumnHeader doCheck rev MkColumnHeader{..} = do
   let expectedColumnName = toChType (renderColumnName @column)
       resultColumnName = name
   when (doCheck && resultColumnName /= expectedColumnName) $
     throw . UnmatchedResult . UnmatchedColumn
       $ "Got column \"" <> show resultColumnName <> "\" but expected \"" <> show expectedColumnName <> "\""
 
-  let expectedType = toChType (renderColumnType @column)
-      resultType = type_
+  let expectedType = fallbackTypeName rev $ toChType (renderColumnType @column)
+      resultType = fallbackTypeName rev type_
   when (doCheck && resultType /= expectedType) $
     throw . UnmatchedResult . UnmatchedType
       $ "Column " <> show resultColumnName <> " has type " <> show resultType <> ". But expected type is " <> show expectedType
