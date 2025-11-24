@@ -13,7 +13,7 @@ pkgs.stdenv.mkDerivation {
     outFile=$out/SettingsSupport.hs
 
     cat > $outFile << EOF
-    module ClickHaskell.Packets.SettingsSupport where
+    module ClickHaskell.Protocol.SettingsSupport where
 
     -- Internal
     import ClickHaskell.Primitive

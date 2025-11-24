@@ -1,4 +1,4 @@
-module ClickHaskell.Packets.SettingsSupport where
+module ClickHaskell.Protocol.SettingsSupport where
 
 -- Internal
 import ClickHaskell.Primitive

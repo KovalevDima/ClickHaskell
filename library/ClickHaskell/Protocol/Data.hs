@@ -1,4 +1,4 @@
-module ClickHaskell.Packets.Data where
+module ClickHaskell.Protocol.Data where
 
 -- Internal
 import ClickHaskell.Primitive
