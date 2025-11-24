@@ -98,7 +98,6 @@ Library
     ImportQualifiedPost
     FlexibleContexts
     FlexibleInstances
-    LambdaCase
     MultiParamTypeClasses
     NamedFieldPuns
     NumericUnderscores

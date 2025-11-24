@@ -328,7 +328,12 @@ instance ToQueryPart ChString where
   toQueryPart (MkChString string) =  "'" <> escapeQuery string <> "'"
     where
     escapeQuery :: BS.ByteString -> Builder
-    escapeQuery = byteString . BS8.concatMap (\case '\'' -> "\\\'"; '\\' -> "\\\\"; sym -> BS8.singleton sym;)
+    escapeQuery = byteString . BS8.concatMap (\sym ->
+      case sym of
+        '\'' -> "\\\'"
+        '\\' -> "\\\\"
+        _ -> BS8.singleton sym
+      )
 
 
 
