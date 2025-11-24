@@ -32,22 +32,22 @@ data ServerPacket where
   UnknownPacket        :: UVarInt -> ServerPacket
 
 instance Serializable ServerPacket where
-  serialize rev = \case
-    HelloResponse hello  -> serialize @UVarInt rev 0 <> serialize rev hello
-    DataResponse hello   -> serialize @UVarInt rev 1 <> serialize rev hello
-    Exception hello      -> serialize @UVarInt rev 2 <> serialize rev hello
-    Progress hello       -> serialize @UVarInt rev 3 <> serialize rev hello
+  serialize rev packet = case packet of
+    HelloResponse p      -> serialize @UVarInt rev 0 <> serialize rev p
+    DataResponse p       -> serialize @UVarInt rev 1 <> serialize rev p
+    Exception p          -> serialize @UVarInt rev 2 <> serialize rev p
+    Progress p           -> serialize @UVarInt rev 3 <> serialize rev p
     Pong                 -> serialize @UVarInt rev 4
     EndOfStream          -> serialize @UVarInt rev 5
-    ProfileInfo hello    -> serialize @UVarInt rev 6 <> serialize rev hello
+    ProfileInfo p        -> serialize @UVarInt rev 6 <> serialize rev p
     Totals               -> serialize @UVarInt rev 7
     Extremes             -> serialize @UVarInt rev 8
     TablesStatusResponse -> serialize @UVarInt rev 9
     Log                  -> serialize @UVarInt rev 10
-    TableColumns hello   -> serialize @UVarInt rev 11 <> serialize rev hello
+    TableColumns p       -> serialize @UVarInt rev 11 <> serialize rev p
     UUIDs                -> serialize @UVarInt rev 12
     ReadTaskRequest      -> serialize @UVarInt rev 13
-    ProfileEvents dat    -> serialize @UVarInt rev 14 <> serialize rev dat
+    ProfileEvents p      -> serialize @UVarInt rev 14 <> serialize rev p
     UnknownPacket num    -> serialize @UVarInt rev num
   deserialize rev = do
     packetNum <- deserialize @UVarInt rev
@@ -70,7 +70,7 @@ instance Serializable ServerPacket where
       _  -> pure $ UnknownPacket packetNum
 
 serverPacketToNum :: ServerPacket -> UVarInt
-serverPacketToNum = \case
+serverPacketToNum p = case p of
   (HelloResponse _) -> 0; (DataResponse _)       -> 1
   (Exception _)     -> 2; (Progress _)           -> 3;
   (Pong)            -> 4; (EndOfStream)          -> 5

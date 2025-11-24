@@ -44,21 +44,23 @@ instance Serializable ClientPacket where
     (MergeTreeReadTaskResponse) -> serialize @UVarInt rev 10
     (SSHChallengeRequest)       -> serialize @UVarInt rev 11
     (SSHChallengeResponse)      -> serialize @UVarInt rev 12
-  deserialize rev = deserialize @UVarInt rev >>= \case
-    0 -> Hello <$> deserialize rev
-    1 -> Query <$> deserialize rev
-    2 -> Data <$> deserialize rev
-    3 -> pure Cancel
-    4 -> pure Ping
-    5 -> pure TablesStatusRequest
-    6 -> pure KeepAlive
-    7 -> pure Scalar
-    8 -> pure IgnoredPartUUIDs
-    9 -> pure ReadTaskResponse
-    10 -> pure MergeTreeReadTaskResponse
-    11 -> pure SSHChallengeRequest
-    12 -> pure SSHChallengeResponse
-    num -> fail ("Unknown client packet " <> show num)
+  deserialize rev = do
+    code <- deserialize @UVarInt rev
+    case code of
+      0 -> Hello <$> deserialize rev
+      1 -> Query <$> deserialize rev
+      2 -> Data <$> deserialize rev
+      3 -> pure Cancel
+      4 -> pure Ping
+      5 -> pure TablesStatusRequest
+      6 -> pure KeepAlive
+      7 -> pure Scalar
+      8 -> pure IgnoredPartUUIDs
+      9 -> pure ReadTaskResponse
+      10 -> pure MergeTreeReadTaskResponse
+      11 -> pure SSHChallengeRequest
+      12 -> pure SSHChallengeResponse
+      num -> fail ("Unknown client packet " <> show num)
 
 -- ** Hello
 
@@ -181,7 +183,8 @@ data QueryStage
 instance Serializable QueryStage where
   serialize rev = serialize @UVarInt rev . fromIntegral . fromEnum
   deserialize rev = do
-    deserialize @UVarInt rev >>= \case
+    queryStageCode <- deserialize @UVarInt rev
+    case queryStageCode of
       0 -> pure FetchColumns
       1 -> pure WithMergeableState
       2 -> pure Complete
@@ -218,8 +221,14 @@ data ClientInfo = MkClientInfo
 
 data QueryKind = NoQuery | InitialQuery | SecondaryQuery
 instance Serializable QueryKind where
-  serialize rev = serialize @UInt8 rev . (\case NoQuery -> 1; InitialQuery -> 2; SecondaryQuery -> 3)
-  deserialize rev = deserialize @UInt8 rev >>= \case
+  serialize rev kind = serialize @UInt8 rev $
+    case kind of
+      NoQuery -> 1
+      InitialQuery -> 2
+      SecondaryQuery -> 3
+  deserialize rev = do
+    kindCode <- deserialize @UInt8 rev
+    case kindCode of
       1 -> pure NoQuery
       2 -> pure InitialQuery
       3 -> pure SecondaryQuery
