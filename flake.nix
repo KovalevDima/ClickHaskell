@@ -28,8 +28,8 @@
         process-compose = {
           default = import ./contribution/localServer.nix {
             inherit inputs pkgs;
-            app = self'.apps.ghc984-server;
-            agent = self'.apps.ghc984-eventlog-agent;
+            app = self'.apps.ghc9103-server;
+            agent = self'.apps.ghc9103-eventlog-agent;
             docDirPath = self'.packages."documentation";
           };
         }
@@ -64,7 +64,7 @@
           //
           {
             default = pkgs.mkShell {
-              inputsFrom = [config.haskellProjects.ghc984.outputs.devShell];
+              inputsFrom = [config.haskellProjects.ghc9103.outputs.devShell];
               packages = with pkgs; with haskellPackages; with (self'.packages);
                 [clickhouse nodejs nil eventlog2html graphmod ghc9103-html2hs markdown-unlit cloc];
             };
