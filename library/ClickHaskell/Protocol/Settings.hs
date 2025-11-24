@@ -1,10 +1,10 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# OPTIONS_GHC -freduction-depth=1200 #-}
 
-module ClickHaskell.Packets.Settings where
+module ClickHaskell.Protocol.Settings where
 
 -- Internal
-import ClickHaskell.Packets.SettingsSupport
+import ClickHaskell.Protocol.SettingsSupport
 import ClickHaskell.Primitive
 
 -- GHC

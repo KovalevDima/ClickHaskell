@@ -30,7 +30,7 @@ module ClickHaskell.Protocol
   ) where
 
 import ClickHaskell.Primitive
-import ClickHaskell.Packets.Client
-import ClickHaskell.Packets.Data
-import ClickHaskell.Packets.Server
-import ClickHaskell.Packets.Settings
+import ClickHaskell.Protocol.Client
+import ClickHaskell.Protocol.Data
+import ClickHaskell.Protocol.Server
+import ClickHaskell.Protocol.Settings

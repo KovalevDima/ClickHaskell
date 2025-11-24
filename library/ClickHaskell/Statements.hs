@@ -2,7 +2,7 @@ module ClickHaskell.Statements where
 
 -- Internal
 import ClickHaskell.Primitive
-import ClickHaskell.Packets.Settings (DbSettings (..))
+import ClickHaskell.Protocol.Settings (DbSettings (..))
 
 -- GHC included
 import Data.ByteString.Builder (Builder, byteString)

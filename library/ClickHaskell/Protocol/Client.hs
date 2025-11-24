@@ -1,9 +1,9 @@
-module ClickHaskell.Packets.Client where
+module ClickHaskell.Protocol.Client where
 
 -- Internal
 import ClickHaskell.Primitive
-import ClickHaskell.Packets.Data (DataPacket)
-import ClickHaskell.Packets.Settings (DbSettings(..))
+import ClickHaskell.Protocol.Data (DataPacket)
+import ClickHaskell.Protocol.Settings (DbSettings(..))
 
 -- GHC
 import Data.Int

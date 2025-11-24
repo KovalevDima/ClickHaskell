@@ -39,11 +39,11 @@ Library
   Other-Modules:
     ClickHaskell.Columns
     ClickHaskell.Connection
-    ClickHaskell.Packets.Client
-    ClickHaskell.Packets.Data
-    ClickHaskell.Packets.Server
-    ClickHaskell.Packets.Settings
-    ClickHaskell.Packets.SettingsSupport
+    ClickHaskell.Protocol.Client
+    ClickHaskell.Protocol.Data
+    ClickHaskell.Protocol.Server
+    ClickHaskell.Protocol.Settings
+    ClickHaskell.Protocol.SettingsSupport
     ClickHaskell.Primitive
     ClickHaskell.Statements
     Paths_ClickHaskell
