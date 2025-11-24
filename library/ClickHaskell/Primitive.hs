@@ -654,8 +654,7 @@ minor = case versionBranch version of (_:x:_) -> fromIntegral x; _ -> 0
 patch = case versionBranch version of (_:_:x:_) -> fromIntegral x; _ -> 0
 
 clientName :: ChString
-clientName = fromString $
-  "ClickHaskell-" <> show major <> "." <> show minor <> "." <> show patch
+clientName = "ClickHaskell"
 
 newtype ProtocolRevision = MkProtocolRevision UVarInt
   deriving newtype (Eq, Num, Ord, Serializable)
