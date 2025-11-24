@@ -77,7 +77,7 @@ main :: IO ()
 main = do
   connection <- openConnection defaultConnectionArgs
   connOld <- openConnection (overrideMaxRevision 1 defaultConnectionArgs)
-  -- t1 connection
+  t1 connection
   t1 connOld
   t2 connection
   t2 connOld
