@@ -23,52 +23,54 @@ import GHC.Generics (Generic)
 
 ClickHaskell provides unique API in area of DBMS clients<br>
 <br>
-We need to define our types
+We need to define our types and derive ClickHaskell instance
 
 <pre><code data-lang="haskell" class="haskell"
->data ExampleData = MkExampleData
-  { a1 :: Int32
-  , a2 :: ChString
-  , a3 :: UInt32
-  }
-  deriving (Generic, Show)
-
-type ExampleCols =
+>type ExampleCols =
  '[ Column "a1" Int32
   , Column "a2" ChString
   , Column "a3" (DateTime "")
   ]
-</code></pre>
-<br>
 
-and generate client side code
-
-<pre><code data-lang="haskell" class="haskell"
->{- Before GHC 9.8 its better to use standalone deriving
-   since type errors occures exact on deriving declaration.
--}
-deriving instance ClickHaskell ExampleCols ExampleData
+data ExampleData = MkExampleData
+  { a1 :: Int32
+  , a2 :: ChString
+  , a3 :: UInt32
+  }
+  deriving (Generic, ClickHaskell ExampleCols)
 </code></pre>
 <br>
 
 <p>
-  Also we should create the table
+  Define queries
 </p>
 
 
 <pre><code data-lang="haskell" class="haskell"
->createTable :: Connection -> IO ()
-createTable connection =
-  command
-    connection
-    "CREATE TABLE IF NOT EXISTS exampleTable ( \
-    \  `a1` Int32, \
-    \  `a2` String, \
-    \  `a3` DateTime, \
-    \) \
-    \ENGINE = MergeTree \
-    \PARTITION BY () \
-    \ORDER BY ();"
+>createTableQuery :: ChString
+createTableQuery  =
+  "CREATE TABLE IF NOT EXISTS exampleTable ( \
+  \  `a1` Int32, \
+  \  `a2` String, \
+  \  `a3` DateTime, \
+  \) \
+  \ENGINE = MergeTree \
+  \PARTITION BY () \
+  \ORDER BY ();"
+
+selectQuery :: Select ExampleCols ExampleData
+selectQuery =
+  unsafeMkSelect @ExampleCols @ExampleData
+    (\_cols ->
+        "SELECT \
+        \  defaultValueOfTypeName('Int32') as a1,   \
+        \  defaultValueOfTypeName('String') as a2,  \
+        \  defaultValueOfTypeName('DateTime') as a3 \
+        \ "
+    )
+
+insertQuery :: Insert ExampleCols ExampleData
+insertQuery = intoTable @"exampleTable" @ExampleCols @ExampleData
 </code></pre>
 <br>
 
@@ -79,37 +81,9 @@ createTable connection =
 main = do
   connection <- openConnection defaultConnectionArgs
 
-  createTable connection
-  let
-    selectQuery =
-      unsafeMkSelect
-        @ExampleCols
-        @ExampleData
-        (\_cols -> " SELECT \
-          \   defaultValueOfTypeName('Int32') as a1,   \
-          \   defaultValueOfTypeName('String') as a2,  \
-          \   defaultValueOfTypeName('DateTime') as a3 \
-          \ LIMIT 5;"
-        )
-    addSettingsToQuery =
-      passSettings (
-        addSetting @"max_threads_for_indexes" 8 .
-        addSetting @"max_local_write_bandwidth" 4096 .
-        id
-      )
+  command connection createTableQuery
 
-  results <-
-    select
-      (addSettingsToQuery selectQuery)
-      connection
-      pure
+  batches <- select selectQuery connection (\batch -> pure batch)
 
-  insert
-    (intoTable
-      @"exampleTable"
-      @ExampleCols
-      @ExampleData
-    )
-    connection
-    (mconcat results)
+  insert insertQuery connection (mconcat batches)
 </code></pre>
