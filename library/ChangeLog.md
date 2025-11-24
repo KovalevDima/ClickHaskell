@@ -67,6 +67,8 @@
            $ defaultConnectionArgs
        pure connection
      ```
+- ### `client_name` format was changed
+  from `ClickHaskell-x.y.z` to `ClickHaskell`
 
 # 0.2.0 -- 23-03-2023
 
