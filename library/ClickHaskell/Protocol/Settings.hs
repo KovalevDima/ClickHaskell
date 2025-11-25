@@ -4,8 +4,8 @@
 module ClickHaskell.Protocol.Settings where
 
 -- Internal
-import ClickHaskell.Protocol.SettingsSupport
 import ClickHaskell.Primitive
+import ClickHaskell.Protocol.SettingsSupport (KnownSetting, SettingType, IsSettingType (..))
 
 -- GHC
 import Data.Binary.Builder (Builder)
@@ -21,11 +21,10 @@ import Prelude hiding (liftA2)
 
 data DbSettings = MkDbSettings [DbSetting]
 
-type KnownSetting name settType =
-  ( settType ~ LookupSettingType name SupportedSettings
-  , KnownSymbol name
-  , IsSettingType settType
-  )
+
+
+
+data Setting (a :: Symbol) (settType :: Type)
 
 {-# DEPRECATED addSetting "Unstable function. Use carefully with old ClickHouse versions" #-}
 addSetting
@@ -118,6 +117,9 @@ data SettingSerializer  =
     , serializer   :: ProtocolRevision -> SettingType -> Builder
     }
 
+
+type SupportedSettings = '[]
+
 lookupSetting :: ChString -> Maybe SettingSerializer
 lookupSetting name = lookup name (settingsMap @SupportedSettings)
 
@@ -145,31 +147,6 @@ instance
           then (serialize @ChString rev . settingToText @settType)
           else serialize @settType rev . fromSettingType
     in (name, MkSettingSerializer{..}) : settingsMap @xs
-
-data SettingType where
-  SettingUInt64 :: UInt64 -> SettingType
-  SettingString :: ChString -> SettingType
-
-class
-  (Serializable settType, ToQueryPart settType)
-  =>
-  IsSettingType settType
-  where
-  toSettingType :: settType -> SettingType
-  fromSettingType :: SettingType -> settType
-
-  settingToText :: SettingType -> ChString
-  settingToText = toChType . toQueryPart @settType . fromSettingType
-
-instance IsSettingType ChString where
-  toSettingType str = SettingString str
-  fromSettingType (SettingString str) = str
-  fromSettingType _ = error "Impossible"
-
-instance IsSettingType UInt64 where
-  toSettingType uint64 = SettingUInt64 uint64
-  fromSettingType (SettingUInt64 uint64) = uint64
-  fromSettingType _ = error "Impossible"
 
 type family LookupSettingType (name :: Symbol) (settings :: [Type]) :: Type where
   LookupSettingType name '[] = TypeError ('Text "Unknown setting name: " ':<>: 'ShowType name)

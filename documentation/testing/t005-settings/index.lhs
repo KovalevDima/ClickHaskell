@@ -1,6 +1,5 @@
 ```haskell
 {-# OPTIONS_GHC -fno-warn-deprecations #-}
-{-# OPTIONS_GHC -freduction-depth=1200 #-}
 module Main (main) where
 
 import ClickHaskell

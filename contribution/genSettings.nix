@@ -19,12 +19,42 @@ pkgs.stdenv.mkDerivation {
     import ClickHaskell.Primitive
 
     -- GHC
-    import Data.Kind
     import GHC.TypeLits
 
-    data Setting (a :: Symbol) (settType :: Type)
-    
-    type SupportedSettings = '[
+
+    class
+      (Serializable settType, ToQueryPart settType)
+      =>
+      IsSettingType settType
+      where
+      toSettingType :: settType -> SettingType
+      fromSettingType :: SettingType -> settType
+
+      settingToText :: SettingType -> ChString
+      settingToText = toChType . toQueryPart @settType . fromSettingType
+
+    data SettingType where
+      SettingUInt64 :: UInt64 -> SettingType
+      SettingString :: ChString -> SettingType
+
+    instance IsSettingType ChString where
+      toSettingType str = SettingString str
+      fromSettingType (SettingString str) = str
+      fromSettingType _ = error "Impossible"
+
+    instance IsSettingType UInt64 where
+      toSettingType uint64 = SettingUInt64 uint64
+      fromSettingType (SettingUInt64 uint64) = uint64
+      fromSettingType _ = error "Impossible"
+
+
+    class
+      ( IsSettingType settType
+      , KnownSymbol name
+      )
+      =>
+      KnownSetting name settType | name -> settType
+
     EOF
 
     gawk '
@@ -91,12 +121,10 @@ pkgs.stdenv.mkDerivation {
         }
 
         if (htype != "") {
-          printf "    Setting \"%s\" %s,\n", name, htype
+          printf "instance KnownSetting \"%s\" %s\n", name, htype
         }
       }
 
     ' "$src/src/Core/Settings.cpp" | sed '$ s/,$//' >> $outFile
-
-    echo "  ]" >> $outFile
   '';
 }
