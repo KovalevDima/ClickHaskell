@@ -9,7 +9,7 @@ import GHC.Generics
 main :: IO ()
 main = do
   connLatest <- openConnection defaultConnectionArgs
-  connOld <- openConnection (overrideMaxRevision 54420 defaultConnectionArgs)
+  connOld <- openConnection (overrideMaxRevision (54429-1) defaultConnectionArgs)
 
   let
     sampleQuery =

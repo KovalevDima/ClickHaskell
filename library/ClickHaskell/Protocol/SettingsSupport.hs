@@ -4,6 +4,9 @@ module ClickHaskell.Protocol.SettingsSupport where
 import ClickHaskell.Primitive
 
 -- GHC
+import Data.Binary (Get)
+import Data.ByteString.Builder (Builder)
+import Data.Proxy (Proxy (..))
 import GHC.TypeLits
 
 
@@ -33,12 +36,32 @@ instance IsSettingType UInt64 where
   fromSettingType _ = error "Impossible"
 
 
+data SettingSerializer =
+  MkSettingSerializer
+    { deserializer :: ProtocolRevision -> Get SettingType
+    , serializer   :: ProtocolRevision -> SettingType -> Builder
+    }
+
 class
   ( IsSettingType settType
   , KnownSymbol name
   )
   =>
   KnownSetting name settType | name -> settType
+  where
+  mkSettingSerializer :: (ChString, SettingSerializer)
+  mkSettingSerializer =
+    let name = toChType (symbolVal @name Proxy)
+        deserializer = \rev ->
+          if rev >= mkRev @DBMS_MIN_REVISION_WITH_SETTINGS_SERIALIZED_AS_STRINGS
+          then fail "Deserialization of Settings serializaed as strings is unsuported"
+          else toSettingType <$> deserialize @settType rev
+        serializer = \rev ->
+          if rev >= mkRev @DBMS_MIN_REVISION_WITH_SETTINGS_SERIALIZED_AS_STRINGS
+          then (serialize @ChString rev . settingToText @settType)
+          else serialize @settType rev . fromSettingType
+    in (name, MkSettingSerializer{..})
+
 
 instance KnownSetting "min_compress_block_size" UInt64
 instance KnownSetting "max_compress_block_size" UInt64
