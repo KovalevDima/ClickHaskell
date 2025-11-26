@@ -1,6 +1,5 @@
 ```haskell
 {-# OPTIONS_GHC -fno-warn-deprecations #-}
-{-# OPTIONS_GHC -freduction-depth=1200 #-}
 module Main (main) where
 
 import ClickHaskell
@@ -10,7 +9,7 @@ import GHC.Generics
 main :: IO ()
 main = do
   connLatest <- openConnection defaultConnectionArgs
-  connOld <- openConnection (overrideMaxRevision 54420 defaultConnectionArgs)
+  connOld <- openConnection (overrideMaxRevision (54429-1) defaultConnectionArgs)
 
   let
     sampleQuery =

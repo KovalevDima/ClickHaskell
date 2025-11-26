@@ -4,28 +4,25 @@
 module ClickHaskell.Protocol.Settings where
 
 -- Internal
-import ClickHaskell.Protocol.SettingsSupport
 import ClickHaskell.Primitive
+import ClickHaskell.Protocol.SettingsSupport (KnownSetting (..), SettingType, IsSettingType (..), SettingSerializer (..))
 
 -- GHC
-import Data.Binary.Builder (Builder)
-import Data.Binary.Get (Get, lookAhead)
+import Data.Binary.Get (lookAhead)
 import Data.Bits
 import Data.ByteString as BS (null)
 import Data.Kind (Type)
 import Data.Typeable (Proxy (..))
-import GHC.TypeLits (KnownSymbol, Symbol, symbolVal, TypeError, ErrorMessage (..))
-import Prelude hiding (liftA2)
+import GHC.TypeLits (Symbol, symbolVal)
 
 -- * Server settings
 
 data DbSettings = MkDbSettings [DbSetting]
 
-type KnownSetting name settType =
-  ( settType ~ LookupSettingType name SupportedSettings
-  , KnownSymbol name
-  , IsSettingType settType
-  )
+
+
+
+data Setting (a :: Symbol) (settType :: Type)
 
 {-# DEPRECATED addSetting "Unstable function. Use carefully with old ClickHouse versions" #-}
 addSetting
@@ -112,11 +109,13 @@ fTIER = 0x0c -- 0b1100 == 2 bits
 
 -- * Serialization internals
 
-data SettingSerializer  = 
-  MkSettingSerializer
-    { deserializer :: ProtocolRevision -> Get SettingType
-    , serializer   :: ProtocolRevision -> SettingType -> Builder
-    }
+type SupportedSettings = '[
+    Setting "max_threads_for_indexes" UInt64,
+    Setting "max_local_write_bandwidth" UInt64,
+    Setting "default_view_definer" ChString,
+    Setting "max_ast_depth" UInt64,
+    Setting "stream_like_engine_insert_queue" ChString
+  ]
 
 lookupSetting :: ChString -> Maybe SettingSerializer
 lookupSetting name = lookup name (settingsMap @SupportedSettings)
@@ -130,48 +129,8 @@ instance
   settingsMap = []
 
 instance
-  (SettingsMapBuilder xs, IsSettingType settType, KnownSymbol name)
+  (SettingsMapBuilder xs, KnownSetting name settType)
   =>
   SettingsMapBuilder (Setting name settType ': xs)
   where
-  settingsMap =
-    let name = toChType (symbolVal @name Proxy)
-        deserializer = \rev ->
-          if rev >= mkRev @DBMS_MIN_REVISION_WITH_SETTINGS_SERIALIZED_AS_STRINGS
-          then fail "Deserialization of Settings serializaed as strings is unsuported"
-          else toSettingType <$> deserialize @settType rev
-        serializer = \rev ->
-          if rev >= mkRev @DBMS_MIN_REVISION_WITH_SETTINGS_SERIALIZED_AS_STRINGS
-          then (serialize @ChString rev . settingToText @settType)
-          else serialize @settType rev . fromSettingType
-    in (name, MkSettingSerializer{..}) : settingsMap @xs
-
-data SettingType where
-  SettingUInt64 :: UInt64 -> SettingType
-  SettingString :: ChString -> SettingType
-
-class
-  (Serializable settType, ToQueryPart settType)
-  =>
-  IsSettingType settType
-  where
-  toSettingType :: settType -> SettingType
-  fromSettingType :: SettingType -> settType
-
-  settingToText :: SettingType -> ChString
-  settingToText = toChType . toQueryPart @settType . fromSettingType
-
-instance IsSettingType ChString where
-  toSettingType str = SettingString str
-  fromSettingType (SettingString str) = str
-  fromSettingType _ = error "Impossible"
-
-instance IsSettingType UInt64 where
-  toSettingType uint64 = SettingUInt64 uint64
-  fromSettingType (SettingUInt64 uint64) = uint64
-  fromSettingType _ = error "Impossible"
-
-type family LookupSettingType (name :: Symbol) (settings :: [Type]) :: Type where
-  LookupSettingType name '[] = TypeError ('Text "Unknown setting name: " ':<>: 'ShowType name)
-  LookupSettingType name (Setting name t ': xs) = t
-  LookupSettingType name (_ ': xs) = LookupSettingType name xs
+  settingsMap = mkSettingSerializer @name @settType : settingsMap @xs
