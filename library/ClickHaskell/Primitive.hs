@@ -439,9 +439,9 @@ newtype DateTime (tz :: Symbol) = MkDateTime Word32
 
 instance KnownSymbol tz => IsChType (DateTime tz)
   where
-  chTypeName = case (symbolVal @tz Proxy) of
+  chTypeName = case symbolVal @tz Proxy of
     "" -> "DateTime"
-    tz -> "DateTime('" <> tz <> "')" 
+    tz -> "DateTime('" <> tz <> "')"
   defaultValueOfTypeName = MkDateTime 0
 
 instance Serializable (DateTime tz) where
@@ -466,7 +466,7 @@ instance ToQueryPart (DateTime tz)
 -- ** DateTime64
 
 {- |
-ClickHouse DateTime64 column type (paramtrized with timezone)
+ClickHouse DateTime64 column type (parametrized with timezone)
 
 >>> chTypeName @(DateTime64 3 "")
 "DateTime64(3)"
@@ -498,6 +498,12 @@ instance Serializable (DateTime64 precision tz) where
 instance ToChType (DateTime64 precision tz) Word64 where
   toChType = MkDateTime64
   fromChType (MkDateTime64 w64) = w64
+
+instance KnownNat precision => ToChType (DateTime64 precision tz) UTCTime where
+  toChType = MkDateTime64 . floor . (* (10 ^ natVal (Proxy @precision)))
+    . utcTimeToPOSIXSeconds
+  fromChType (MkDateTime64 w64) = posixSecondsToUTCTime
+    $ (/ (10 ^ natVal (Proxy @precision))) $ fromIntegral w64
 
 -- ToDo: Need to be fixed
 -- instance ToQueryPart (DateTime64 precision tz)
@@ -629,7 +635,7 @@ instance {-# OVERLAPPING #-}
 
 {- |
   Unsigned variable-length quantity encoding
-  
+
   Part of protocol implementation
 -}
 newtype UVarInt = MkUVarInt Word64
