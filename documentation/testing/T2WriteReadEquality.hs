@@ -35,6 +35,8 @@ import Control.Monad      (when)
 import Data.Int           (Int16, Int32, Int64, Int8)
 import Data.Word          (Word16, Word32, Word64, Word8)
 import GHC.Generics       (Generic)
+import Data.Time          (UTCTime)
+import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 
 t2 :: Connection -> IO ()
 t2 connection = do
@@ -72,8 +74,10 @@ t2 connection = do
 
 type TestColumns =
   '[ Column "dateTime" (DateTime "UTC")
+   , Column "dateTimeAmsterdam" (DateTime "Europe/Amsterdam")
    , Column "dateTimeNullable" (Nullable (DateTime "UTC"))
-   , Column "dateTime64" (DateTime64 3 "UTC")
+   , Column "dateTime64p3" (DateTime64 3 "UTC")
+   , Column "dateTime64p9" (DateTime64 9 "UTC")
    , Column "dateTime64Nullable" (Nullable (DateTime64 3 "UTC"))
    , Column "enum8" (Enum8 "'world' = -1, 'hello' = 1")
    , Column "enum16" (Enum16 "'world' = -1, 'hello' = 1")
@@ -106,10 +110,12 @@ type TestColumns =
    ]
 
 data TestData = MkTestData
-  { dateTime :: DateTime "UTC"
-  , dateTimeNullable :: Nullable (DateTime "UTC")
-  , dateTime64 :: DateTime64 3 "UTC"
-  , dateTime64Nullable :: Nullable (DateTime64 3 "UTC")
+  { dateTime :: UTCTime
+  , dateTimeAmsterdam :: UTCTime
+  , dateTimeNullable :: Nullable UTCTime
+  , dateTime64p3 :: UTCTime
+  , dateTime64p9 :: UTCTime
+  , dateTime64Nullable :: Nullable UTCTime
   , enum8 :: Enum8 "'world' = -1, 'hello' = 1"
   , enum16 :: Enum16 "'world' = -1, 'hello' = 1"
   , int128 :: Int128
@@ -145,10 +151,12 @@ instance ClickHaskell TestColumns TestData
 
 testData :: TestData
 testData = MkTestData
-  { dateTime = toChType (0 :: Word32)
-  , dateTimeNullable = Just 42
-  , dateTime64 = 42
-  , dateTime64Nullable = Just 42
+  { dateTime = posixSecondsToUTCTime 0
+  , dateTimeAmsterdam = posixSecondsToUTCTime 0
+  , dateTimeNullable = Just (posixSecondsToUTCTime 42)
+  , dateTime64p3 = posixSecondsToUTCTime 42.003
+  , dateTime64p9 = posixSecondsToUTCTime 42.000000003
+  , dateTime64Nullable = Just (posixSecondsToUTCTime 42)
   , enum8 = 0
   , enum16 = 0
   , int128 = toChType (-128 :: Int128)
@@ -186,7 +194,9 @@ createTableQuery =
   "CREATE TABLE IF NOT EXISTS writeReadEqualityTable \
   \( \
   \    `dateTime` DateTime('UTC'), \
-  \    `dateTime64` DateTime64(3, 'UTC'), \
+  \    `dateTimeAmsterdam` DateTime('Europe/Amsterdam'), \
+  \    `dateTime64p3` DateTime64(3, 'UTC'), \
+  \    `dateTime64p9` DateTime64(9, 'UTC'), \
   \    `dateTimeNullable` Nullable(DateTime('UTC')), \
   \    `dateTime64Nullable` Nullable(DateTime64(3, 'UTC')), \
   \    `enum8` Enum8('hello'=1, 'world'=-1), \
