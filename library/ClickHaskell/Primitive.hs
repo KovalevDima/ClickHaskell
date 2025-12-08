@@ -427,12 +427,19 @@ instance ToQueryPart (Enum16 enums) where
 -- ** DateTime
 
 {- |
-ClickHouse DateTime column type (paramtrized with timezone)
+ClickHouse DateTime column type (parametrized with timezone)
 
 >>> chTypeName @(DateTime "")
 "DateTime"
 >>> chTypeName @(DateTime "UTC")
 "DateTime('UTC')"
+
+__Note:__ 'DateTime' stores whole seconds only, so converting from 'UTCTime' \
+will drop any sub-second precision.
+
+>>> let myUtcTime = posixSecondsToUTCTime 0.042_042
+>>> toChType @(DateTime "") @UTCTime myUtcTime
+0
 -}
 newtype DateTime (tz :: Symbol) = MkDateTime Word32
   deriving newtype (Show, Eq, Num, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
@@ -472,6 +479,15 @@ ClickHouse DateTime64 column type (parametrized with timezone)
 "DateTime64(3)"
 >>> chTypeName @(DateTime64 3 "UTC")
 "DateTime64(3, 'UTC')"
+
+__Note:__ conversion from 'UTCTime' may lose sub-second precision if \
+the @precision@ parameter is lower than the actual timestamp precision.
+
+>>> let myUtcTime = posixSecondsToUTCTime 42.000_000_042
+>>> toChType @(DateTime64 6 "") @UTCTime myUtcTime
+42000000
+>>> toChType @(DateTime64 9 "") @UTCTime myUtcTime
+42000000042
 -}
 newtype DateTime64 (precision :: Nat) (tz :: Symbol) = MkDateTime64 Word64
   deriving newtype (Show, Eq, Num, Bits, Enum, Ord, Real, Integral, Bounded, NFData)

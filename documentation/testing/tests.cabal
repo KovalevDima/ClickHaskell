@@ -19,6 +19,7 @@ executable tests
     , data-default-class
     , base >=4.7 && <5
     , bytestring
+    , time
   other-modules:
     T1QuerySerialization
     T2WriteReadEquality
