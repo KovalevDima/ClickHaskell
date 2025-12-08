@@ -74,6 +74,7 @@ t2 connection = do
 
 type TestColumns =
   '[ Column "dateTime" (DateTime "UTC")
+   , Column "dateTimeAmsterdam" (DateTime "Europe/Amsterdam")
    , Column "dateTimeNullable" (Nullable (DateTime "UTC"))
    , Column "dateTime64p3" (DateTime64 3 "UTC")
    , Column "dateTime64p9" (DateTime64 9 "UTC")
@@ -110,6 +111,7 @@ type TestColumns =
 
 data TestData = MkTestData
   { dateTime :: UTCTime
+  , dateTimeAmsterdam :: UTCTime
   , dateTimeNullable :: Nullable UTCTime
   , dateTime64p3 :: UTCTime
   , dateTime64p9 :: UTCTime
@@ -150,6 +152,7 @@ instance ClickHaskell TestColumns TestData
 testData :: TestData
 testData = MkTestData
   { dateTime = posixSecondsToUTCTime 0
+  , dateTimeAmsterdam = posixSecondsToUTCTime 0
   , dateTimeNullable = Just (posixSecondsToUTCTime 42)
   , dateTime64p3 = posixSecondsToUTCTime 42.003
   , dateTime64p9 = posixSecondsToUTCTime 42.000000003
@@ -191,6 +194,7 @@ createTableQuery =
   "CREATE TABLE IF NOT EXISTS writeReadEqualityTable \
   \( \
   \    `dateTime` DateTime('UTC'), \
+  \    `dateTimeAmsterdam` DateTime('Europe/Amsterdam'), \
   \    `dateTime64p3` DateTime64(3, 'UTC'), \
   \    `dateTime64p9` DateTime64(9, 'UTC'), \
   \    `dateTimeNullable` Nullable(DateTime('UTC')), \
