@@ -1,5 +1,4 @@
 {-# LANGUAGE FunctionalDependencies #-}
-{-# OPTIONS_GHC -freduction-depth=1200 #-}
 
 module ClickHaskell.Protocol.Settings where
 
