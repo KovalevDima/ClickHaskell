@@ -160,7 +160,7 @@ pkgs.stdenv.mkDerivation {
           "instance KnownSetting \"" name "\" " htype
 
         settings[settings_count++] = \
-          "  Setting \"" name "\" " htype
+          "  mkSettingSerializer @\"" name "\""
       }
 
       END {
@@ -169,7 +169,8 @@ pkgs.stdenv.mkDerivation {
         }
 
         print ""
-        print "type SupportedSettings = '["
+        print "settingsMap :: [(ChString, SettingSerializer)]"
+        print "settingsMap = ["
         for (i = 0; i < settings_count; ++i) {
           line = settings[i]
           if (i < settings_count - 1) line = line ","

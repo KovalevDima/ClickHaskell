@@ -5,13 +5,12 @@ module ClickHaskell.Protocol.Settings where
 
 -- Internal
 import ClickHaskell.Primitive
-import ClickHaskell.Protocol.SettingsSupport (KnownSetting (..), SettingType, IsSettingType (..), SettingSerializer (..), SupportedSettings, Setting)
+import ClickHaskell.Protocol.SettingsSupport (KnownSetting (..), SettingType, IsSettingType (..), SettingSerializer (..), settingsMap)
 
 -- GHC
 import Data.Binary.Get (lookAhead)
 import Data.Bits
 import Data.ByteString as BS (null)
-import Data.Kind (Type)
 import Data.Typeable (Proxy (..))
 import GHC.TypeLits (symbolVal)
 
@@ -42,7 +41,7 @@ instance Serializable DbSetting where
   deserialize rev = do
     setting <- deserialize @ChString rev
     flags <- deserialize @(Flags `SinceRevision` DBMS_MIN_REVISION_WITH_SETTINGS_SERIALIZED_AS_STRINGS) rev
-    case lookupSetting setting of
+    case lookup setting settingsMap of
       Nothing -> fail ("Unsupported setting " <> show setting)
       Just MkSettingSerializer{deserializer} -> do
         value <- deserializer rev
@@ -50,7 +49,7 @@ instance Serializable DbSetting where
   serialize rev MkDbSetting{setting, flags, value} =
     serialize rev setting
     <> serialize rev flags
-    <> case lookupSetting setting of
+    <> case lookup setting settingsMap of
       Nothing -> error "Impossible happened. Unknown setting was added to query packet"
       Just MkSettingSerializer{serializer} -> serializer rev value
 
@@ -98,27 +97,3 @@ setImportant = (.|. fIMPORTANT)
 
 fTIER :: Flags
 fTIER = 0x0c -- 0b1100 == 2 bits
-
-
-
-
--- * Serialization internals
-
-
-lookupSetting :: ChString -> Maybe SettingSerializer
-lookupSetting name = lookup name (settingsMap @SupportedSettings)
-
-class SettingsMapBuilder (list :: [Type]) where
-  settingsMap :: [(ChString, SettingSerializer)]
-
-instance
-  SettingsMapBuilder '[]
-  where
-  settingsMap = []
-
-instance
-  (SettingsMapBuilder xs, KnownSetting name settType)
-  =>
-  SettingsMapBuilder (Setting name settType ': xs)
-  where
-  settingsMap = mkSettingSerializer @name @settType : settingsMap @xs
