@@ -1,5 +1,77 @@
 { pkgs, clickhouseRepo }:
 
+
+let templ = ''
+module ClickHaskell.Protocol.SettingsSupport where
+
+-- Internal
+import ClickHaskell.Primitive
+
+-- GHC
+import Data.Binary (Get)
+import Data.ByteString.Builder (Builder)
+import Data.Kind (Type)
+import Data.Proxy (Proxy (..))
+import GHC.TypeLits
+
+
+class
+  (Serializable settType, ToQueryPart settType)
+  =>
+  IsSettingType settType
+  where
+  toSettingType :: settType -> SettingType
+  fromSettingType :: SettingType -> settType
+
+  settingToText :: SettingType -> ChString
+  settingToText = toChType . toQueryPart @settType . fromSettingType
+
+data SettingType where
+  SettingUInt64 :: UInt64 -> SettingType
+  SettingString :: ChString -> SettingType
+
+instance IsSettingType ChString where
+  toSettingType str = SettingString str
+  fromSettingType (SettingString str) = str
+  fromSettingType _ = error "Impossible"
+
+instance IsSettingType UInt64 where
+  toSettingType uint64 = SettingUInt64 uint64
+  fromSettingType (SettingUInt64 uint64) = uint64
+  fromSettingType _ = error "Impossible"
+
+
+data SettingSerializer =
+  MkSettingSerializer
+    { deserializer :: ProtocolRevision -> Get SettingType
+    , serializer   :: ProtocolRevision -> SettingType -> Builder
+    }
+
+class
+  ( IsSettingType settType
+  , KnownSymbol name
+  )
+  =>
+  KnownSetting name settType | name -> settType
+  where
+  mkSettingSerializer :: (ChString, SettingSerializer)
+  mkSettingSerializer =
+    let name = toChType (symbolVal @name Proxy)
+        deserializer = \rev ->
+          if rev >= mkRev @DBMS_MIN_REVISION_WITH_SETTINGS_SERIALIZED_AS_STRINGS
+          then fail "Deserialization of Settings serializaed as strings is unsuported"
+          else toSettingType <$> deserialize @settType rev
+        serializer = \rev ->
+          if rev >= mkRev @DBMS_MIN_REVISION_WITH_SETTINGS_SERIALIZED_AS_STRINGS
+          then (serialize @ChString rev . settingToText @settType)
+          else serialize @settType rev . fromSettingType
+    in (name, MkSettingSerializer{..})
+
+data Setting (a :: Symbol) (settType :: Type)
+'';
+
+in
+
 pkgs.stdenv.mkDerivation {
   pname = "supported-settings";
   version = "1.0";
@@ -13,21 +85,15 @@ pkgs.stdenv.mkDerivation {
     outFile=$out/SettingsSupport.hs
 
     cat > $outFile << EOF
-    module ClickHaskell.Protocol.SettingsSupport where
-
-    -- Internal
-    import ClickHaskell.Primitive
-
-    -- GHC
-    import Data.Kind
-    import GHC.TypeLits
-
-    data Setting (a :: Symbol) (settType :: Type)
-    
-    type SupportedSettings = '[
+    ${templ}
     EOF
 
-    gawk '
+    gawk -f - "$src/src/Core/Settings.cpp" >> $outFile <<'AWK'
+      BEGIN {
+        settings_count = 0
+        inst_count = 0
+      }
+
       match($0, /DECLARE\(\s*([A-Za-z0-9_]+)\s*,\s*([A-Za-z0-9_]+)/, m) {
         typ = m[1]; name = m[2];
         htype = "";
@@ -90,13 +156,28 @@ pkgs.stdenv.mkDerivation {
           exit 1
         }
 
-        if (htype != "") {
-          printf "    Setting \"%s\" %s,\n", name, htype
-        }
+        instances[inst_count++] = \
+          "instance KnownSetting \"" name "\" " htype
+
+        settings[settings_count++] = \
+          "  mkSettingSerializer @\"" name "\""
       }
 
-    ' "$src/src/Core/Settings.cpp" | sed '$ s/,$//' >> $outFile
+      END {
+        for (i = 0; i < inst_count; ++i) {
+          print instances[i]
+        }
 
-    echo "  ]" >> $outFile
+        print ""
+        print "settingsMap :: [(ChString, SettingSerializer)]"
+        print "settingsMap = ["
+        for (i = 0; i < settings_count; ++i) {
+          line = settings[i]
+          if (i < settings_count - 1) line = line ","
+          print line
+        }
+        print "  ]"
+      }
+    AWK
   '';
 }

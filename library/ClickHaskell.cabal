@@ -93,6 +93,7 @@ Library
     DeriveGeneric
     DerivingStrategies
     DuplicateRecordFields
+    FunctionalDependencies
     GADTs
     GeneralizedNewtypeDeriving
     ImportQualifiedPost
