@@ -5,7 +5,7 @@ module ClickHaskell.Protocol.Settings where
 
 -- Internal
 import ClickHaskell.Primitive
-import ClickHaskell.Protocol.SettingsSupport (KnownSetting (..), SettingType, IsSettingType (..), SettingSerializer (..))
+import ClickHaskell.Protocol.SettingsSupport (KnownSetting (..), SettingType, IsSettingType (..), SettingSerializer (..), SupportedSettings, Setting)
 
 -- GHC
 import Data.Binary.Get (lookAhead)
@@ -13,16 +13,11 @@ import Data.Bits
 import Data.ByteString as BS (null)
 import Data.Kind (Type)
 import Data.Typeable (Proxy (..))
-import GHC.TypeLits (Symbol, symbolVal)
+import GHC.TypeLits (symbolVal)
 
 -- * Server settings
 
 data DbSettings = MkDbSettings [DbSetting]
-
-
-
-
-data Setting (a :: Symbol) (settType :: Type)
 
 {-# DEPRECATED addSetting "Unstable function. Use carefully with old ClickHouse versions" #-}
 addSetting
@@ -109,13 +104,6 @@ fTIER = 0x0c -- 0b1100 == 2 bits
 
 -- * Serialization internals
 
-type SupportedSettings = '[
-    Setting "max_threads_for_indexes" UInt64,
-    Setting "max_local_write_bandwidth" UInt64,
-    Setting "default_view_definer" ChString,
-    Setting "max_ast_depth" UInt64,
-    Setting "stream_like_engine_insert_queue" ChString
-  ]
 
 lookupSetting :: ChString -> Maybe SettingSerializer
 lookupSetting name = lookup name (settingsMap @SupportedSettings)

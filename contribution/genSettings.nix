@@ -10,6 +10,7 @@ import ClickHaskell.Primitive
 -- GHC
 import Data.Binary (Get)
 import Data.ByteString.Builder (Builder)
+import Data.Kind (Type)
 import Data.Proxy (Proxy (..))
 import GHC.TypeLits
 
@@ -66,6 +67,7 @@ class
           else serialize @settType rev . fromSettingType
     in (name, MkSettingSerializer{..})
 
+data Setting (a :: Symbol) (settType :: Type)
 '';
 
 in
@@ -86,7 +88,12 @@ pkgs.stdenv.mkDerivation {
     ${templ}
     EOF
 
-    gawk '
+    gawk -f - "$src/src/Core/Settings.cpp" >> $outFile <<'AWK'
+      BEGIN {
+        settings_count = 0
+        inst_count = 0
+      }
+
       match($0, /DECLARE\(\s*([A-Za-z0-9_]+)\s*,\s*([A-Za-z0-9_]+)/, m) {
         typ = m[1]; name = m[2];
         htype = "";
@@ -149,11 +156,27 @@ pkgs.stdenv.mkDerivation {
           exit 1
         }
 
-        if (htype != "") {
-          printf "instance KnownSetting \"%s\" %s\n", name, htype
-        }
+        instances[inst_count++] = \
+          "instance KnownSetting \"" name "\" " htype
+
+        settings[settings_count++] = \
+          "  Setting \"" name "\" " htype
       }
 
-    ' "$src/src/Core/Settings.cpp" | sed '$ s/,$//' >> $outFile
+      END {
+        for (i = 0; i < inst_count; ++i) {
+          print instances[i]
+        }
+
+        print ""
+        print "type SupportedSettings = '["
+        for (i = 0; i < settings_count; ++i) {
+          line = settings[i]
+          if (i < settings_count - 1) line = line ","
+          print line
+        }
+        print "  ]"
+      }
+    AWK
   '';
 }
