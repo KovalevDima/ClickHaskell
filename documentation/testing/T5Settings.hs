@@ -1,16 +1,20 @@
-```haskell
-{-# OPTIONS_GHC -fno-warn-deprecations #-}
-module Main (main) where
+{-# LANGUAGE
+  DataKinds,
+  DeriveAnyClass,
+  DeriveGeneric,
+  DerivingStrategies,
+  TypeApplications,
+  OverloadedStrings
+#-}
+
+module T5Settings where
 
 import ClickHaskell
-import GHC.Generics
+import GHC.Generics (Generic)
+import GHC.Stack (HasCallStack)
 
-
-main :: IO ()
-main = do
-  connLatest <- openConnection defaultConnectionArgs
-  connOld <- openConnection (overrideMaxRevision (54429-1) defaultConnectionArgs)
-
+t5 :: HasCallStack => Connection -> IO ()
+t5 connection = do
   let
     sampleQuery =
       fromGenerateRandom
@@ -28,10 +32,7 @@ main = do
       )
     query = addSampleSettings sampleQuery
 
-  _res <-
-    mapM
-      (\conn -> select query conn pure)
-      [connLatest, connOld]
+  _ <- select query connection pure
 
   putStrLn "t005: Ok"
 
@@ -44,4 +45,3 @@ data TestData = MkTestData
 type TestColumns =
  '[ Column "testCol" Int32
   ]
-```

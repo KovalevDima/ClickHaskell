@@ -7,7 +7,6 @@ packages:
     ./contribution/modules/protocol-docs
     ./contribution/modules/visits
     ./documentation/testing
-    ./documentation/testing/t005-settings
     ./documentation/performance/p1-million-rw
     ./documentation/performance/p2-100-million-r
     ./documentation/performance/pings

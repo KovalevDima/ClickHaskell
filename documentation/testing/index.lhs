@@ -63,6 +63,10 @@ module Tests where
   </p>
 </div>
 
+<pre><code data-lang="haskell" class=haskel"
+>import T5Settings (t5)
+</code></pre>
+
 <pre><code data-lang="bash" class="bash"
 >nix run .#testing
 </code></pre>
@@ -85,4 +89,6 @@ main = do
   t3 connOld
   t4 connection
   t4 connOld
+  t5 connection
+  t5 connOld
 </code></pre>

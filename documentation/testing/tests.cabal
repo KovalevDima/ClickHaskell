@@ -25,4 +25,5 @@ executable tests
     T2WriteReadEquality
     T3Multithreading
     T4MissmatchErrors
+    T5Settings
   default-language: Haskell2010
