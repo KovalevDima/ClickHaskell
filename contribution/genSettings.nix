@@ -1,7 +1,8 @@
 { pkgs, clickhouseRepo }:
 
 
-let templ = ''module ClickHaskell.Protocol.SettingsSupport where
+let templ = ''
+module ClickHaskell.Protocol.SettingsSupport where
 
 -- Internal
 import ClickHaskell.Primitive
