@@ -9,6 +9,7 @@ import Control.Applicative (liftA2)
 import Control.DeepSeq (NFData)
 import Data.Binary.Get
 import Data.Bits (Bits (setBit, unsafeShiftL, unsafeShiftR, (.&.), (.|.)))
+import Data.Bool (bool)
 import Data.ByteString as BS (ByteString, length)
 import Data.ByteString.Builder
 import Data.ByteString.Char8 as BS8 (pack, unpack, concatMap, singleton, replicate, length)
@@ -422,6 +423,21 @@ instance ToChType (Enum16 enums) Int16 where
 
 instance ToQueryPart (Enum16 enums) where
   toQueryPart = toQueryPart . fromChType @_ @Int16
+
+
+-- ** Bool
+
+instance IsChType Bool where
+  chTypeName = "Bool"
+  defaultValueOfTypeName = False
+
+instance Serializable Bool where
+  serialize _ = int8 . bool 0 1
+  deserialize _ = (\int -> case int of 0->False; _->True) <$> getInt8
+  {-# INLINE deserialize #-}
+
+instance ToQueryPart Bool where
+  toQueryPart = bool "false" "true"
 
 
 -- ** DateTime

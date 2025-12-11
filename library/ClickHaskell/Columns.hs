@@ -56,6 +56,7 @@ data Column (name :: Symbol) (chType :: Type) where
   UInt256Column :: [UInt256] -> Column name UInt256
   DateTimeColumn :: [DateTime tz] -> Column name (DateTime tz)
   DateTime64Column :: [DateTime64 precision tz] -> Column name (DateTime64 precision tz)
+  BoolColumn :: [Bool] -> Column name Bool
   Enum8Column :: [Enum8 enums] -> Column name (Enum8 enums)
   Enum16Column :: [Enum16 enums] -> Column name (Enum16 enums)
   DateColumn :: [Date] -> Column name Date
@@ -167,6 +168,15 @@ instance
   where
   toColumn = DateTime64Column
   fromColumn (DateTime64Column values) = values
+
+instance
+  ( KnownSymbol name
+  , IsChType Bool
+  ) =>
+  KnownColumn (Column name Bool)
+  where
+  toColumn = BoolColumn
+  fromColumn (BoolColumn values) = values
 
 instance (KnownSymbol name, KnownSymbol enums) => KnownColumn (Column name (Enum8 enums)) where
   toColumn = Enum8Column
