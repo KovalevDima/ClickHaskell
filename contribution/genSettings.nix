@@ -24,8 +24,10 @@ class
   toSettingType :: settType -> SettingType
   fromSettingType :: SettingType -> settType
 
-  settingToText :: SettingType -> ChString
-  settingToText = toChType . toQueryPart @settType . fromSettingType
+  serializeSettingText :: ProtocolRevision -> SettingType -> Builder
+  serializeSettingText rev = serialize @ChString rev . toChType . toQueryPart @settType . fromSettingType
+
+  serializeSettingBinary :: ProtocolRevision -> SettingType -> Builder
 
 data SettingType where
   SettingInt32 :: Int32 -> SettingType
@@ -37,11 +39,13 @@ instance IsSettingType ChString where
   toSettingType str = SettingString str
   fromSettingType (SettingString str) = str
   fromSettingType _ = error "Impossible"
+  serializeSettingBinary rev = serialize @ChString rev . fromSettingType
 
 instance IsSettingType UInt64 where
   toSettingType uint64 = SettingUInt64 uint64
   fromSettingType (SettingUInt64 uint64) = uint64
   fromSettingType _ = error "Impossible"
+  serializeSettingBinary rev = serialize @UVarInt rev . fromIntegral @UInt64 . fromSettingType
 
 instance IsSettingType Int32 where
   toSettingType int32 = SettingInt32 int32
@@ -76,9 +80,9 @@ class
           else toSettingType <$> deserialize @settType rev
         serializer = \rev ->
           if rev >= mkRev @DBMS_MIN_REVISION_WITH_SETTINGS_SERIALIZED_AS_STRINGS
-          then (serialize @ChString rev . settingToText @settType)
-          else serialize @settType rev . fromSettingType
-    in (name, MkSettingSerializer{..})
+          then serializeSettingText @settType rev
+          else serializeSettingBinary @settType rev
+    in (name, MkSettingSerializer {deserializer, serializer})
 
 data Setting (a :: Symbol) (settType :: Type)
 '';
