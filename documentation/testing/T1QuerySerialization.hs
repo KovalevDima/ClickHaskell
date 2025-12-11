@@ -53,6 +53,7 @@ t1 conn = do
   runTestForType @UUID conn [minBound, toEnum 0, maxBound]
   runTestForType @(DateTime "") conn [minBound, toEnum 0, maxBound]
   runTestForType @(DateTime "Europe/Amsterdam") conn [minBound, toEnum 0, maxBound]
+  runTestForType @Bool conn [False, True]
   runTestForType @(Enum8 "'hello' = 1") conn [minBound, toEnum 0, maxBound]
   runTestForType @(Enum16 "'hello' = 1") conn [minBound, toEnum 0, maxBound]
   -- runTestForType @(DateTime64 0 "") conn [minBound, toEnum 0, maxBound]

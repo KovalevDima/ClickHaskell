@@ -79,6 +79,7 @@ type TestColumns =
    , Column "dateTime64p3" (DateTime64 3 "UTC")
    , Column "dateTime64p9" (DateTime64 9 "UTC")
    , Column "dateTime64Nullable" (Nullable (DateTime64 3 "UTC"))
+   , Column "bool" Bool
    , Column "enum8" (Enum8 "'world' = -1, 'hello' = 1")
    , Column "enum16" (Enum16 "'world' = -1, 'hello' = 1")
    , Column "int128" Int128
@@ -116,6 +117,7 @@ data TestData = MkTestData
   , dateTime64p3 :: UTCTime
   , dateTime64p9 :: UTCTime
   , dateTime64Nullable :: Nullable UTCTime
+  , bool :: Bool
   , enum8 :: Enum8 "'world' = -1, 'hello' = 1"
   , enum16 :: Enum16 "'world' = -1, 'hello' = 1"
   , int128 :: Int128
@@ -157,6 +159,7 @@ testData = MkTestData
   , dateTime64p3 = posixSecondsToUTCTime 42.003
   , dateTime64p9 = posixSecondsToUTCTime 42.000000003
   , dateTime64Nullable = Just (posixSecondsToUTCTime 42)
+  , bool = False
   , enum8 = 0
   , enum16 = 0
   , int128 = toChType (-128 :: Int128)
@@ -199,6 +202,7 @@ createTableQuery =
   \    `dateTime64p9` DateTime64(9, 'UTC'), \
   \    `dateTimeNullable` Nullable(DateTime('UTC')), \
   \    `dateTime64Nullable` Nullable(DateTime64(3, 'UTC')), \
+  \    `bool` Bool, \
   \    `enum8` Enum8('hello'=1, 'world'=-1), \
   \    `enum16` Enum16('hello'=1, 'world'=-1), \
   \    `int128` Int128, \
