@@ -6,6 +6,7 @@ import ClickHaskell.Primitive
 -- GHC
 import Data.Binary (Get)
 import Data.ByteString.Builder (Builder)
+import Data.Int (Int32, Int64)
 import Data.Kind (Type)
 import Data.Proxy (Proxy (..))
 import GHC.TypeLits
@@ -23,6 +24,8 @@ class
   settingToText = toChType . toQueryPart @settType . fromSettingType
 
 data SettingType where
+  SettingInt32 :: Int32 -> SettingType
+  SettingInt64 :: Int64 -> SettingType
   SettingUInt64 :: UInt64 -> SettingType
   SettingString :: ChString -> SettingType
 
@@ -34,6 +37,16 @@ instance IsSettingType ChString where
 instance IsSettingType UInt64 where
   toSettingType uint64 = SettingUInt64 uint64
   fromSettingType (SettingUInt64 uint64) = uint64
+  fromSettingType _ = error "Impossible"
+
+instance IsSettingType Int32 where
+  toSettingType int32 = SettingInt32 int32
+  fromSettingType (SettingInt32 int32) = int32
+  fromSettingType _ = error "Impossible"
+
+instance IsSettingType Int64 where
+  toSettingType int64 = SettingInt64 int64
+  fromSettingType (SettingInt64 int64) = int64
   fromSettingType _ = error "Impossible"
 
 
@@ -139,6 +152,7 @@ instance KnownSetting "max_remote_write_network_bandwidth" UInt64
 instance KnownSetting "max_local_read_bandwidth" UInt64
 instance KnownSetting "max_local_write_bandwidth" UInt64
 instance KnownSetting "stream_like_engine_insert_queue" ChString
+instance KnownSetting "replication_wait_for_inactive_replica_timeout" Int64
 instance KnownSetting "load_balancing_first_offset" UInt64
 instance KnownSetting "min_count_to_compile_expression" UInt64
 instance KnownSetting "min_count_to_compile_aggregate_expression" UInt64
@@ -171,6 +185,8 @@ instance KnownSetting "exclude_materialize_skip_indexes_on_insert" ChString
 instance KnownSetting "ignore_data_skipping_indices" ChString
 instance KnownSetting "force_data_skipping_indices" ChString
 instance KnownSetting "network_compression_method" ChString
+instance KnownSetting "network_zstd_compression_level" Int64
+instance KnownSetting "zstd_window_log_max" Int64
 instance KnownSetting "priority" UInt64
 instance KnownSetting "log_queries_cut_to_length" UInt64
 instance KnownSetting "max_concurrent_queries_for_all_users" UInt64
@@ -180,6 +196,7 @@ instance KnownSetting "table_function_remote_max_addresses" UInt64
 instance KnownSetting "read_backoff_max_throughput" UInt64
 instance KnownSetting "read_backoff_min_events" UInt64
 instance KnownSetting "read_backoff_min_concurrency" UInt64
+instance KnownSetting "http_zlib_compression_level" Int64
 instance KnownSetting "count_distinct_implementation" ChString
 instance KnownSetting "max_http_get_redirects" UInt64
 instance KnownSetting "http_headers_progress_interval_ms" UInt64
@@ -194,6 +211,7 @@ instance KnownSetting "parts_to_delay_insert" UInt64
 instance KnownSetting "parts_to_throw_insert" UInt64
 instance KnownSetting "number_of_mutations_to_delay" UInt64
 instance KnownSetting "number_of_mutations_to_throw" UInt64
+instance KnownSetting "distributed_ddl_task_timeout" Int64
 instance KnownSetting "min_free_disk_bytes_to_perform_insert" UInt64
 instance KnownSetting "unknown_packet_in_send_data" UInt64
 instance KnownSetting "http_max_uri_size" UInt64
@@ -279,6 +297,7 @@ instance KnownSetting "backup_restore_s3_retry_initial_backoff_ms" UInt64
 instance KnownSetting "backup_restore_s3_retry_max_backoff_ms" UInt64
 instance KnownSetting "max_backup_bandwidth" UInt64
 instance KnownSetting "log_comment" ChString
+instance KnownSetting "query_metric_log_interval" Int64
 instance KnownSetting "send_logs_source_regexp" ChString
 instance KnownSetting "low_cardinality_max_dictionary_size" UInt64
 instance KnownSetting "max_fetch_partition_retries_count" UInt64
@@ -288,6 +307,7 @@ instance KnownSetting "read_in_order_two_level_merge_threshold" UInt64
 instance KnownSetting "max_hyperscan_regexp_length" UInt64
 instance KnownSetting "max_hyperscan_regexp_total_length" UInt64
 instance KnownSetting "max_partitions_per_insert_block" UInt64
+instance KnownSetting "max_partitions_to_read" Int64
 instance KnownSetting "max_parts_to_move" UInt64
 instance KnownSetting "max_table_size_to_drop" UInt64
 instance KnownSetting "max_partition_size_to_drop" UInt64
@@ -341,6 +361,7 @@ instance KnownSetting "function_sleep_max_microseconds_per_block" UInt64
 instance KnownSetting "function_visible_width_behavior" UInt64
 instance KnownSetting "local_filesystem_read_method" ChString
 instance KnownSetting "remote_filesystem_read_method" ChString
+instance KnownSetting "read_priority" Int64
 instance KnownSetting "merge_tree_min_rows_for_concurrent_read_for_remote_filesystem" UInt64
 instance KnownSetting "merge_tree_min_bytes_for_concurrent_read_for_remote_filesystem" UInt64
 instance KnownSetting "remote_read_min_bytes_for_seek" UInt64
@@ -398,6 +419,11 @@ instance KnownSetting "insert_keeper_fault_injection_seed" UInt64
 instance KnownSetting "http_max_request_param_data_size" UInt64
 instance KnownSetting "default_view_definer" ChString
 instance KnownSetting "cache_warmer_threads" UInt64
+instance KnownSetting "ignore_cold_parts_seconds" Int64
+instance KnownSetting "prefer_warmed_unmerged_parts_seconds" Int64
+instance KnownSetting "iceberg_timestamp_ms" Int64
+instance KnownSetting "iceberg_snapshot_id" Int64
+instance KnownSetting "delta_lake_snapshot_version" Int64
 instance KnownSetting "parallel_replicas_count" UInt64
 instance KnownSetting "parallel_replica_offset" UInt64
 instance KnownSetting "parallel_replicas_custom_key" ChString
@@ -416,6 +442,8 @@ instance KnownSetting "iceberg_insert_max_rows_in_data_file" UInt64
 instance KnownSetting "iceberg_insert_max_bytes_in_data_file" UInt64
 instance KnownSetting "min_outstreams_per_resize_after_split" UInt64
 instance KnownSetting "function_date_trunc_return_type_behavior" UInt64
+instance KnownSetting "os_threads_nice_value_materialized_view" Int32
+instance KnownSetting "optimize_const_name_size" Int64
 instance KnownSetting "join_to_sort_minimum_perkey_rows" UInt64
 instance KnownSetting "join_to_sort_maximum_table_rows" UInt64
 instance KnownSetting "iceberg_metadata_compression_method" ChString
@@ -505,6 +533,7 @@ settingsMap = [
   mkSettingSerializer @"max_local_read_bandwidth",
   mkSettingSerializer @"max_local_write_bandwidth",
   mkSettingSerializer @"stream_like_engine_insert_queue",
+  mkSettingSerializer @"replication_wait_for_inactive_replica_timeout",
   mkSettingSerializer @"load_balancing_first_offset",
   mkSettingSerializer @"min_count_to_compile_expression",
   mkSettingSerializer @"min_count_to_compile_aggregate_expression",
@@ -537,6 +566,8 @@ settingsMap = [
   mkSettingSerializer @"ignore_data_skipping_indices",
   mkSettingSerializer @"force_data_skipping_indices",
   mkSettingSerializer @"network_compression_method",
+  mkSettingSerializer @"network_zstd_compression_level",
+  mkSettingSerializer @"zstd_window_log_max",
   mkSettingSerializer @"priority",
   mkSettingSerializer @"log_queries_cut_to_length",
   mkSettingSerializer @"max_concurrent_queries_for_all_users",
@@ -546,6 +577,7 @@ settingsMap = [
   mkSettingSerializer @"read_backoff_max_throughput",
   mkSettingSerializer @"read_backoff_min_events",
   mkSettingSerializer @"read_backoff_min_concurrency",
+  mkSettingSerializer @"http_zlib_compression_level",
   mkSettingSerializer @"count_distinct_implementation",
   mkSettingSerializer @"max_http_get_redirects",
   mkSettingSerializer @"http_headers_progress_interval_ms",
@@ -560,6 +592,7 @@ settingsMap = [
   mkSettingSerializer @"parts_to_throw_insert",
   mkSettingSerializer @"number_of_mutations_to_delay",
   mkSettingSerializer @"number_of_mutations_to_throw",
+  mkSettingSerializer @"distributed_ddl_task_timeout",
   mkSettingSerializer @"min_free_disk_bytes_to_perform_insert",
   mkSettingSerializer @"unknown_packet_in_send_data",
   mkSettingSerializer @"http_max_uri_size",
@@ -645,6 +678,7 @@ settingsMap = [
   mkSettingSerializer @"backup_restore_s3_retry_max_backoff_ms",
   mkSettingSerializer @"max_backup_bandwidth",
   mkSettingSerializer @"log_comment",
+  mkSettingSerializer @"query_metric_log_interval",
   mkSettingSerializer @"send_logs_source_regexp",
   mkSettingSerializer @"low_cardinality_max_dictionary_size",
   mkSettingSerializer @"max_fetch_partition_retries_count",
@@ -654,6 +688,7 @@ settingsMap = [
   mkSettingSerializer @"max_hyperscan_regexp_length",
   mkSettingSerializer @"max_hyperscan_regexp_total_length",
   mkSettingSerializer @"max_partitions_per_insert_block",
+  mkSettingSerializer @"max_partitions_to_read",
   mkSettingSerializer @"max_parts_to_move",
   mkSettingSerializer @"max_table_size_to_drop",
   mkSettingSerializer @"max_partition_size_to_drop",
@@ -707,6 +742,7 @@ settingsMap = [
   mkSettingSerializer @"function_visible_width_behavior",
   mkSettingSerializer @"local_filesystem_read_method",
   mkSettingSerializer @"remote_filesystem_read_method",
+  mkSettingSerializer @"read_priority",
   mkSettingSerializer @"merge_tree_min_rows_for_concurrent_read_for_remote_filesystem",
   mkSettingSerializer @"merge_tree_min_bytes_for_concurrent_read_for_remote_filesystem",
   mkSettingSerializer @"remote_read_min_bytes_for_seek",
@@ -764,6 +800,11 @@ settingsMap = [
   mkSettingSerializer @"http_max_request_param_data_size",
   mkSettingSerializer @"default_view_definer",
   mkSettingSerializer @"cache_warmer_threads",
+  mkSettingSerializer @"ignore_cold_parts_seconds",
+  mkSettingSerializer @"prefer_warmed_unmerged_parts_seconds",
+  mkSettingSerializer @"iceberg_timestamp_ms",
+  mkSettingSerializer @"iceberg_snapshot_id",
+  mkSettingSerializer @"delta_lake_snapshot_version",
   mkSettingSerializer @"parallel_replicas_count",
   mkSettingSerializer @"parallel_replica_offset",
   mkSettingSerializer @"parallel_replicas_custom_key",
@@ -782,6 +823,8 @@ settingsMap = [
   mkSettingSerializer @"iceberg_insert_max_bytes_in_data_file",
   mkSettingSerializer @"min_outstreams_per_resize_after_split",
   mkSettingSerializer @"function_date_trunc_return_type_behavior",
+  mkSettingSerializer @"os_threads_nice_value_materialized_view",
+  mkSettingSerializer @"optimize_const_name_size",
   mkSettingSerializer @"join_to_sort_minimum_perkey_rows",
   mkSettingSerializer @"join_to_sort_maximum_table_rows",
   mkSettingSerializer @"iceberg_metadata_compression_method",

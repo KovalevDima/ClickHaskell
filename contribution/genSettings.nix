@@ -10,6 +10,7 @@ import ClickHaskell.Primitive
 -- GHC
 import Data.Binary (Get)
 import Data.ByteString.Builder (Builder)
+import Data.Int (Int32, Int64)
 import Data.Kind (Type)
 import Data.Proxy (Proxy (..))
 import GHC.TypeLits
@@ -27,6 +28,8 @@ class
   settingToText = toChType . toQueryPart @settType . fromSettingType
 
 data SettingType where
+  SettingInt32 :: Int32 -> SettingType
+  SettingInt64 :: Int64 -> SettingType
   SettingUInt64 :: UInt64 -> SettingType
   SettingString :: ChString -> SettingType
 
@@ -38,6 +41,16 @@ instance IsSettingType ChString where
 instance IsSettingType UInt64 where
   toSettingType uint64 = SettingUInt64 uint64
   fromSettingType (SettingUInt64 uint64) = uint64
+  fromSettingType _ = error "Impossible"
+
+instance IsSettingType Int32 where
+  toSettingType int32 = SettingInt32 int32
+  fromSettingType (SettingInt32 int32) = int32
+  fromSettingType _ = error "Impossible"
+
+instance IsSettingType Int64 where
+  toSettingType int64 = SettingInt64 int64
+  fromSettingType (SettingInt64 int64) = int64
   fromSettingType _ = error "Impossible"
 
 
@@ -100,6 +113,8 @@ pkgs.stdenv.mkDerivation {
 
         if (typ == "UInt64") { htype="UInt64" }
         else if (typ == "String") { htype="ChString" }
+        else if (typ == "Int64") { htype="Int64" }
+        else if (typ == "Int32") { htype="Int32" }
 
         # TODO: add support
         else if ( \
@@ -112,8 +127,6 @@ pkgs.stdenv.mkDerivation {
             typ == "LoadBalancing" || \
             typ == "NonZeroUInt64" || \
             typ == "Float" || \
-            typ == "Int64" || \
-            typ == "Int32" || \
             typ == "Bool" || \
             typ == "TotalsMode" || \
             typ == "DistributedProductMode" || \
