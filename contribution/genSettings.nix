@@ -9,6 +9,7 @@ import ClickHaskell.Primitive
 
 -- GHC
 import Data.Binary (Get)
+import Data.Bool (bool)
 import Data.ByteString.Builder (Builder)
 import Data.Kind (Type)
 import Data.Proxy (Proxy (..))
@@ -31,6 +32,7 @@ class
 data SettingType where
   SettingUInt64 :: UInt64 -> SettingType
   SettingString :: ChString -> SettingType
+  SettingBool :: Bool -> SettingType
 
 instance IsSettingType ChString where
   toSettingType str = SettingString str
@@ -43,6 +45,12 @@ instance IsSettingType UInt64 where
   fromSettingType (SettingUInt64 uint64) = uint64
   fromSettingType _ = error "Impossible"
   serializeSettingBinary rev = serialize @UVarInt rev . fromIntegral @UInt64 . fromSettingType
+
+instance IsSettingType Bool where
+  toSettingType boolean = SettingBool boolean
+  fromSettingType (SettingBool boolean) = boolean
+  fromSettingType _ = error "Impossible"
+  serializeSettingBinary rev = serialize @UVarInt rev . bool 0 1 . fromSettingType
 
 
 data SettingSerializer =
@@ -104,6 +112,7 @@ pkgs.stdenv.mkDerivation {
 
         if (typ == "UInt64") { htype="UInt64" }
         else if (typ == "String") { htype="ChString" }
+        else if (typ == "Bool") { htype="Bool" }
 
         # TODO: add support
         else if ( \
@@ -118,7 +127,6 @@ pkgs.stdenv.mkDerivation {
             typ == "Float" || \
             typ == "Int64" || \
             typ == "Int32" || \
-            typ == "Bool" || \
             typ == "TotalsMode" || \
             typ == "DistributedProductMode" || \
             typ == "UInt64Auto" || \
