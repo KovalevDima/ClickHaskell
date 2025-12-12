@@ -28,6 +28,7 @@ t5 connection = do
         addSetting @"max_local_write_bandwidth" 4096 .
         addSetting @"default_view_definer" "default" .
         addSetting @"max_ast_depth" 1000 .
+        addSetting @"use_uncompressed_cache" True .
         id
       )
     query = addSampleSettings sampleQuery
