@@ -71,7 +71,7 @@
 - ### `client_name` format was changed
   from `ClickHaskell-x.y.z` to `ClickHaskell`
 
-# 0.2.0 -- 23-03-2023
+# 0.2.0 -- 23-03-2025
 
 ClickHaskell documentation got it's own domain name: https://clickhaskell.dev/
 
