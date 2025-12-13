@@ -10,6 +10,7 @@ import Data.ByteString.Char8 as BS8 (pack)
 import Data.Kind (Type)
 import Data.List (intersperse)
 import Data.Proxy (Proxy (..))
+import Data.String (IsString (..))
 import GHC.TypeLits
 
 
@@ -29,6 +30,20 @@ instance Statement (Select cols output) where
 
 instance Statement (Insert cols input) where
   passSettings pass (MkInsert mkQuery dbSettings) = MkInsert mkQuery (pass dbSettings)
+
+instance Statement (Command) where
+  passSettings pass (MkCommand query dbSettings) = MkCommand query (pass dbSettings)
+
+
+-- ** Command
+
+data Command
+  where
+  MkCommand :: ChString -> DbSettings -> Command
+
+instance IsString Command where
+  fromString str = MkCommand (toChType str) (MkDbSettings [])
+
 
 -- ** SELECT
 

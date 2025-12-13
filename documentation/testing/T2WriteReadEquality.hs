@@ -20,7 +20,7 @@ import ClickHaskell
   ( ClickHaskell
   , select, fromTable
   , insert, intoTable
-  , command
+  , command, Command
   , Connection
   , Column
   , toChType
@@ -192,7 +192,7 @@ testData = MkTestData
   , int64Array = [64, 128]
   }
 
-createTableQuery :: ChString
+createTableQuery :: Command
 createTableQuery = 
   "CREATE TABLE IF NOT EXISTS writeReadEqualityTable \
   \( \

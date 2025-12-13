@@ -52,7 +52,7 @@ module ClickHaskell
   , ToQueryPart(toQueryPart)
   
   {- ** Ping -}, ping
-  {- ** Commands -}, command
+  {- ** Commands -}, command, Command
 
   {- ** Deriving -}
   , ClickHaskell(..)
@@ -257,13 +257,13 @@ ping conn = do
 
   __Throws exception if any data was returned__
 -}
-command :: HasCallStack => Connection -> ChString -> IO ()
-command conn query = do
+command :: HasCallStack => Connection -> Command -> IO ()
+command conn (MkCommand query settings) = do
   withConnection conn $ \connState -> do
     writeToConnection connState
       . flip serialize
       . mkQueryPacket
-      $ mkQueryArgs connState (MkDbSettings []) query
+      $ mkQueryArgs connState settings query
     writeToConnection connState (\rev -> serialize rev . Data $ mkDataPacket "" 0 0)
     handleCreate connState
   where
