@@ -3,7 +3,7 @@
 module ClickHaskell.TLS where
 
 -- Internal
-import ClickHaskell (ConnectionArgs, overrideInitConnection, overrideDefaultPort, mkBuffer)
+import ClickHaskell (ConnectionArgs, overrideInitConnection, overrideDefaultPort, BufferArgs(..))
 
 -- GHC included
 import Data.ByteString.Builder (toLazyByteString)
@@ -23,7 +23,9 @@ setSecure modifyParams = overrideDefaultPort "9443" . overrideInitConnection ini
     let defClientParams = modifyParams (defaultParamsClient hostname "")
     context <- contextNew sock defClientParams
     handshake context
-    mkBuffer
-      (\bs -> sendData context (toLazyByteString bs))
-      (recvData context)
-      (contextClose context)
+    pure $
+      let
+      writeSock = \bs -> sendData context (toLazyByteString bs)
+      readSock = recvData context
+      closeSock = contextClose context
+      in MkBufferArgs{..}

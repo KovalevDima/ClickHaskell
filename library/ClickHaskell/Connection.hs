@@ -21,7 +21,6 @@ import Network.Socket.ByteString.Lazy (sendAll)
 import System.Timeout (timeout)
 
 
-
 -- * Connection
 
 {- |
@@ -65,7 +64,7 @@ createConnectionState
   -> IO ConnectionState
 createConnectionState postInitAction creds@MkConnectionArgs{..} = do
   let port = fromMaybe defPort mPort
-  buffer <- initBuffer host =<< initSocket =<< resolveHostName host port
+  buffer <- mkBuffer =<< mkBufferArgs host =<< initSocket =<< resolveHostName host port
   postInitAction buffer creds
 
 recreateConnectionState
@@ -81,6 +80,30 @@ data Buffer = MkBuffer
   , destroyBuff :: IO ()
   , writeBuff :: BS.ByteString -> IO ()
   , writeConn :: Builder -> IO ()
+  }
+
+mkBuffer :: BufferArgs -> IO Buffer
+mkBuffer MkBufferArgs{..} = do
+  buff <- newIORef ""
+  let writeBuff bs = atomicWriteIORef buff bs
+
+  pure MkBuffer
+    { writeConn = writeSock
+    , writeBuff
+    , readBuff = do
+      currentBuffer <- readIORef buff
+      case BS.length currentBuffer of
+        0 -> readSock
+        _ -> writeBuff "" *> pure currentBuffer
+    , destroyBuff = do
+      closeSock
+      writeBuff ""
+    }
+
+data BufferArgs = MkBufferArgs
+  { writeSock :: Builder -> IO ()
+  , readSock  :: IO ByteString
+  , closeSock :: IO ()
   }
 
 
@@ -102,7 +125,7 @@ data ConnectionArgs = MkConnectionArgs
   , mOsUser :: Maybe String
   , mHostname :: Maybe String
   , resolveHostName :: HostName -> ServiceName -> IO AddrInfo
-  , initBuffer :: HostName -> Socket -> IO Buffer
+  , mkBufferArgs :: HostName -> Socket -> IO BufferArgs
   , initSocket :: AddrInfo -> IO Socket
   }
 
@@ -125,7 +148,7 @@ defaultConnectionArgs = MkConnectionArgs
   , maxRevision = mkRev @DBMS_TCP_PROTOCOL_VERSION
   , resolveHostName = defaultResolveHostName
   , initSocket = defaultInitSocket
-  , initBuffer = defaultInitBuffer
+  , mkBufferArgs = defaultMkBufferArgs
   }
 
 defaultResolveHostName :: HostName -> ServiceName -> IO AddrInfo
@@ -155,15 +178,17 @@ defaultInitSocket AddrInfo{..} = do
       )
     )
 
-defaultInitBuffer :: HostName -> Socket -> IO Buffer
-defaultInitBuffer _hostname sock = 
-  mkBuffer
-    (sendAll sock . toLazyByteString)
-    (recv sock 4096)
-    (catch @SomeException
-      (finally (shutdown sock ShutdownBoth) (close sock))
-      (const $ pure ())
-    )
+defaultMkBufferArgs :: HostName -> Socket -> IO BufferArgs
+defaultMkBufferArgs _hostname sock =
+  pure $
+    let
+    writeSock = sendAll sock . toLazyByteString
+    readSock = recv sock 4096
+    closeSock =
+      catch @SomeException
+        (finally (shutdown sock ShutdownBoth) (close sock))
+        (const $ pure ())
+    in MkBufferArgs{..}
 
 {- |
   Overrides default user __"default"__
@@ -203,36 +228,6 @@ setDatabase new MkConnectionArgs{..} = MkConnectionArgs{db=new, ..}
 -- * Overriders
 
 {- |
-  This function should be used when you want to override
-  the default connection behaviour
-
-  Designed to be passed into 'overrideNetwork'
-
-  Watch __ClickHaskell-tls__ package for example
--}
-mkBuffer
-  :: (Builder -> IO ())
-  -> IO ByteString
-  -> IO ()
-  -> IO Buffer 
-mkBuffer sendSock readSock closeSock = do
-  buff <- newIORef ""
-  let writeBuff bs = atomicWriteIORef buff bs
-
-  pure MkBuffer
-    { writeConn = sendSock
-    , writeBuff
-    , readBuff = do
-      currentBuffer <- readIORef buff
-      case BS.length currentBuffer of
-        0 -> readSock
-        _ -> writeBuff "" *> pure currentBuffer
-    , destroyBuff = do
-      closeSock
-      writeBuff ""
-    }
-
-{- |
   Overrides default client hostname value which is:
 
   1. __$HOSTNAME__ env variable value (if set)
@@ -251,9 +246,15 @@ overrideHostname new MkConnectionArgs{..} = MkConnectionArgs{mHostname=Just new,
 overrideOsUser :: String -> ConnectionArgs -> ConnectionArgs
 overrideOsUser new MkConnectionArgs{..} = MkConnectionArgs{mOsUser=Just new, ..}
 
-overrideInitConnection :: (HostName -> Socket -> IO Buffer) -> (ConnectionArgs -> ConnectionArgs)
+{- |
+  This function should be used when you want to override
+  the default connection behaviour
+
+  Watch __ClickHaskell-tls__ package for example
+-}
+overrideInitConnection :: (HostName -> Socket -> IO BufferArgs) -> (ConnectionArgs -> ConnectionArgs)
 overrideInitConnection new MkConnectionArgs {..} =
-  MkConnectionArgs{initBuffer = new, ..}
+  MkConnectionArgs{mkBufferArgs = new, ..}
 
 {- |
 Override the default port used when no port was set explicitly via 'setPort'.
