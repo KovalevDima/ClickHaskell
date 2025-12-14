@@ -30,12 +30,8 @@ Flag dev
   Manual:      True
 
 Library
-  Autogen-Modules:
-    Paths_ClickHaskell_tls
   Exposed-Modules:
     ClickHaskell.TLS
-  Other-Modules:
-    Paths_ClickHaskell_tls
   HS-Source-Dirs:
     ./
   GHC-Options:
@@ -49,9 +45,8 @@ Library
 
     -- Internal
     , ClickHaskell ^>= 1.0.0
-    
+
     -- External dependencies
-    , network < 4
     , tls < 3
 
   if flag(dev)
