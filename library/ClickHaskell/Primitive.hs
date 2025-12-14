@@ -691,7 +691,7 @@ instance Serializable UVarInt where
 -- "1.0.0"
 major, minor, patch :: UVarInt
 major = 1
-minor = 0
+minor = 1
 patch = 0
 
 clientName :: ChString
