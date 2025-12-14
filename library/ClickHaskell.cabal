@@ -31,8 +31,6 @@ Flag dev
   Manual:      True
 
 Library
-  Autogen-Modules:
-    Paths_ClickHaskell
   Exposed-Modules:
     ClickHaskell
     ClickHaskell.Protocol
@@ -45,7 +43,6 @@ Library
     ClickHaskell.Protocol.Settings
     ClickHaskell.Primitive
     ClickHaskell.Statements
-    Paths_ClickHaskell
   HS-Source-Dirs:
     ./
   GHC-Options:
