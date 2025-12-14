@@ -138,7 +138,7 @@ data ConnectionArgs = MkConnectionArgs
 
   These defaults can be modified with `setUser`, `setPassword`, `setHost`, `setPort`, `setDatabase`
 
-  For TLS support, see @ClickHaskell-tls@ package
+  For TLS support, see [ClickHaskell-tls](https://hackage.haskell.org/package/ClickHaskell-tls) package
 -}
 defaultConnectionArgs :: ConnectionArgs
 defaultConnectionArgs = MkConnectionArgs

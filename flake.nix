@@ -76,6 +76,10 @@
             inherit pkgs;
             distPackage = self'.packages.ghc9103-ClickHaskell;
           };
+          "ClickHaskell-tls-dist" = import ./contribution/hackage.nix {
+            inherit pkgs;
+            distPackage = self'.packages.ghc9103-ClickHaskell-tls;
+          };
           "settsFile" = import ./contribution/genSettings.nix {
             inherit pkgs;
             clickhouseRepo = inputs.clickhouse;
