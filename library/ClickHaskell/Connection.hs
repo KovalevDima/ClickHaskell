@@ -5,17 +5,15 @@ import ClickHaskell.Primitive
 
 -- GHC included
 import Control.Concurrent (MVar)
-import Control.Exception (throwIO, SomeException, finally, catch, bracketOnError)
+import Control.Exception (SomeException, bracketOnError, catch, finally, throwIO)
 import Data.Binary.Builder (Builder, toLazyByteString)
-import Data.ByteString as BS (ByteString, length)
+import Data.ByteString as BS (ByteString, null)
 import Data.IORef (atomicWriteIORef, newIORef, readIORef)
 import Data.Maybe (fromMaybe)
 import GHC.Exception (Exception)
-import Prelude hiding (liftA2)
 
 -- External
-import Network.Socket hiding (SocketOption(..))
-import Network.Socket (SocketOption(..))
+import Network.Socket
 import Network.Socket.ByteString (recv)
 import Network.Socket.ByteString.Lazy (sendAll)
 import System.Timeout (timeout)
@@ -31,6 +29,8 @@ data ConnectionError
   -- ^ Occurs when 'getAddrInfo' returns an empty result
   | EstablishTimeout
   -- ^ Occurs on 'socket' connection timeout
+  | ServerClosedConnection
+  -- ^ Occurs on 'readSock' empty @""@ result
   deriving (Show, Exception)
 
 {- |
@@ -92,9 +92,13 @@ mkBuffer MkBufferArgs{..} = do
     , writeBuff
     , readBuff = do
       currentBuffer <- readIORef buff
-      case BS.length currentBuffer of
-        0 -> readSock
-        _ -> writeBuff "" *> pure currentBuffer
+      if (not . BS.null) currentBuffer 
+      then writeBuff "" *> pure currentBuffer
+      else do
+        sockBytes <- readSock
+        if BS.null sockBytes
+        then throwIO ServerClosedConnection
+        else pure sockBytes
     , destroyBuff = do
       closeSock
       writeBuff ""
