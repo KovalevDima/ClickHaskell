@@ -30,12 +30,8 @@ Flag dev
   Manual:      True
 
 Library
-  Autogen-Modules:
-    Paths_ClickHaskell_tls
   Exposed-Modules:
     ClickHaskell.TLS
-  Other-Modules:
-    Paths_ClickHaskell_tls
   HS-Source-Dirs:
     ./
   GHC-Options:

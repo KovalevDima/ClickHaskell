@@ -1,9 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
 module ClickHaskell.Primitive where
 
--- Internal
-import Paths_ClickHaskell (version)
-
 -- GHC included
 import Control.Applicative (liftA2)
 import Control.DeepSeq (NFData)
@@ -23,7 +20,6 @@ import Data.Time.Clock.POSIX
 import Data.Type.Bool (Not)
 import Data.Type.Equality (type (==))
 import Data.Typeable (Proxy (..))
-import Data.Version (Version (..))
 import Data.Word (Word16, Word32, Word64, Word8)
 import GHC.Generics (C1, D1, Generic (..), K1 (K1), M1 (M1), Meta (MetaSel), Rec0, S1, type (:*:) (..))
 import GHC.TypeLits (ErrorMessage (..), KnownNat, KnownSymbol, Nat, Symbol, TypeError, natVal, symbolVal)
@@ -691,10 +687,12 @@ instance Serializable UVarInt where
 
 -- ** Versioning
 
+-- >>> show major <> "." <> show minor <> "." <> show patch
+-- "1.0.0"
 major, minor, patch :: UVarInt
-major = case versionBranch version of (x:_) -> fromIntegral x; _ -> 0
-minor = case versionBranch version of (_:x:_) -> fromIntegral x; _ -> 0
-patch = case versionBranch version of (_:_:x:_) -> fromIntegral x; _ -> 0
+major = 1
+minor = 0
+patch = 0
 
 clientName :: ChString
 clientName = "ClickHaskell"
