@@ -2,11 +2,13 @@
 
 ## Features:
 - Support and CI for GHCs: `9.12.2`
-- ~50% optimization of time and alloc (perf test 1 benchmark)
+- ~50% optimization of select/insert time and alloc (perf test №1)
 - Added function `command` for statements with no result
 - Added `Bool`, `DateTime64`, `UInt256`, `Enum8`, `Enum16` types support
 - Added `Array(T)` partial support (only for primitive types)
 - Added partial support for settings passing (watch `addSetting` fuction)
+- Added TLS support (see separate package [ClickHaskell-tls](https://hackage.haskell.org/package/ClickHaskell-tls))
+- Improved ClickHaskell typeclass resolution errors in HLS session
 
 ## Fixes:
 - Fixed unexpected behavior when the number of result columns was different from expected.

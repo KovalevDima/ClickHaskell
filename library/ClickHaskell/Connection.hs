@@ -134,10 +134,11 @@ data ConnectionArgs = MkConnectionArgs
   }
 
 {- |
-  Default connection settings which follows __clickhouse-client__ defaults
+  Default connection settings that follow __clickhouse-client__ defaults
 
-  Use `setUser`, `setPassword`, `setHost`, `setPort`, `setDatabase`
-  to modify connection defaults.
+  These defaults can be modified with `setUser`, `setPassword`, `setHost`, `setPort`, `setDatabase`
+
+  For TLS support, see @ClickHaskell-tls@ package
 -}
 defaultConnectionArgs :: ConnectionArgs
 defaultConnectionArgs = MkConnectionArgs

@@ -49,9 +49,8 @@ Library
 
     -- Internal
     , ClickHaskell ^>= 1.0.0
-    
+
     -- External dependencies
-    , network < 4
     , tls < 3
 
   if flag(dev)
