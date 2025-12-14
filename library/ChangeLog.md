@@ -1,4 +1,9 @@
-# 1.0.0 -- ?
+# 1.0.0 -- 14-12-2025
+
+## Fixes:
+- Fixed unexpected behavior when the number of result columns was different from expected.
+  A `UserError` exception `UnmatchedColumnsCount` is now raised in such cases (+ added test)
+- Query serialization for UInt128 bigger than 999999999999999934463 (+ added test)
 
 ## Features:
 - Support and CI for GHCs: `9.12.2`
@@ -6,14 +11,9 @@
 - Added function `command` for statements with no result
 - Added `Bool`, `DateTime64`, `UInt256`, `Enum8`, `Enum16` types support
 - Added `Array(T)` partial support (only for primitive types)
-- Added partial support for settings passing (watch `addSetting` fuction)
+- Added partial support for settings passing (watch `addSetting` function)
 - Added TLS support (see separate package [ClickHaskell-tls](https://hackage.haskell.org/package/ClickHaskell-tls))
 - Improved ClickHaskell typeclass resolution errors in HLS session
-
-## Fixes:
-- Fixed unexpected behavior when the number of result columns was different from expected.
-  A `UserError` exception `UnmatchedColumnsCount` is now raised in such cases (+ added test)
-- Query serialization for UInt128 bigger than 999999999999999934463 (+ added test)
 
 ## Breaking changes:
 - ### select/insert API changes
