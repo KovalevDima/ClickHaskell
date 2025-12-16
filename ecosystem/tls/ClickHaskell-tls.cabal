@@ -44,7 +44,7 @@ Library
     , bytestring < 1
 
     -- Internal
-    , ClickHaskell ^>= 1.0.0
+    , ClickHaskell >=1 && <2
 
     -- External dependencies
     , tls < 3
