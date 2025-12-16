@@ -2,7 +2,7 @@
 
 pkgs.stdenv.mkDerivation (finalAttrs: {
 
-  pname = "@monorepo/hello";
+  pname = "@clickhaskell/docs";
 
   version = "1.0.0";
 
@@ -24,7 +24,7 @@ pkgs.stdenv.mkDerivation (finalAttrs: {
   buildPhase = ''
     runHook preBuild
 
-    pnpm --filter=@monorepo/hello build
+    pnpm --filter=@clickhaskell/docs build
 
     runHook postBuild
   '';
