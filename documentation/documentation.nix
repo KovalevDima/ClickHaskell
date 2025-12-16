@@ -1,22 +1,37 @@
 {pkgs}:
 
-pkgs.buildNpmPackage {
-  name = "@monorepo/hello";
+pkgs.stdenv.mkDerivation (finalAttrs: {
+
+  pname = "@clickhaskell/docs";
 
   version = "1.0.0";
 
   src = ./..;
-
-  npmDepsHash = "sha256-rLZyrAWwu00R4zLYq0LgZFgv8wxy1Z4+C3W8wtZWH6c=";
-  # npmDepsHash = "${pkgs.lib.fakeHash}";
-
   # src = pkgs.nix-gitignore.gitignoreSourcePure [ "page.nix" ] ./.;
 
-  npmBuild = "npm run build";
+  nativeBuildInputs = with pkgs; [
+    nodejs
+    pnpm.configHook
+  ];
+
+  pnpmDeps = pkgs.pnpm.fetchDeps {
+    inherit (finalAttrs) pname version src;
+    fetcherVersion = 2;
+    hash = "sha256-aPnPA8ckcQsU2vnUbASt9M9RslQGl71pDQ+zWC67rKo=";
+    #hash = "${pkgs.lib.fakeHash}";
+  };
+
+  buildPhase = ''
+    runHook preBuild
+
+    pnpm --filter=@clickhaskell/docs build
+
+    runHook postBuild
+  '';
 
   installPhase = ''
     mkdir --parents $out
-    ls
+    ls documentation
     cp --archive ./documentation/build/client/. $out
   '';
-}
+})

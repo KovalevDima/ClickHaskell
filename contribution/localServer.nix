@@ -39,7 +39,7 @@
     };
     "ui" = {
       command = ''
-        npm run dev
+        pnpm -r dev
       '';
       depends_on."executable".condition = "process_started";
     };

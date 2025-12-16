@@ -1,12 +1,5 @@
 {
-  "name": "monorepo",
+  "name": "clickhaskell",
   "version": "1.0.0",
-  "workspaces": [
-    "./documentation/"
-  ],
-  "private": true,
-  "scripts": {
-    "dev": "npm run dev -w documentation",
-    "build": "npm run build -w documentation"
-  }
+  "private": true
 }
