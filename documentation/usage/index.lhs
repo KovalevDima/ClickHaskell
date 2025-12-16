@@ -47,7 +47,7 @@ data ExampleData = MkExampleData
 
 
 <pre><code data-lang="haskell" class="haskell"
->createTableQuery :: ChString
+>createTableQuery :: Command
 createTableQuery  =
   "CREATE TABLE IF NOT EXISTS exampleTable ( \
   \  `a1` Int32, \
