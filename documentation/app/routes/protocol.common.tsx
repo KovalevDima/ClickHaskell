@@ -1,4 +1,4 @@
-import { Card } from '~/components/ui/card';
+import { Card } from '@clickhaskell/ui/components/ui/card';
 import html from './protocol/common.html?raw';
 
 export default function Component() {

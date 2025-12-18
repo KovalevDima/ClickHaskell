@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import {useEffect, useRef } from "react";
 
 import hljs from "highlight.js";
 import haskell from "highlight.js/lib/languages/haskell";

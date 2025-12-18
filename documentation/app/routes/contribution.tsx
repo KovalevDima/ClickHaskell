@@ -1,4 +1,4 @@
-import HighlightedHTML from "@/components/Highlight";
+import HighlightedHTML from "@clickhaskell/ui/components/Highlight";
 import contribution from '../../contribution.html?raw';
 
 export default function Component() {

@@ -1,10 +1,10 @@
 import { Link, LinksFunction, Links, Meta, Outlet, Scripts } from "react-router";
 import "./index.css";
 import logo from "/assets/logo.svg";
-import { ThemeProvider } from "@/components/theme-provider"
-import { SidebarInset, SidebarProvider, SidebarTrigger } from "./components/ui/sidebar";
-import { AppSidebar } from "./components/app-sidebar";
-import { Header } from "./components/header";
+import { ThemeProvider } from "@clickhaskell/ui/components/theme-provider"
+import { SidebarInset, SidebarProvider, SidebarTrigger } from "@clickhaskell/ui/components/ui/sidebar";
+import { AppSidebar } from "@clickhaskell/ui/components/app-sidebar";
+import { Header } from "@clickhaskell/ui/components/header";
 
 export const links: LinksFunction = () => {
   return []

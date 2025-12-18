@@ -1,7 +1,7 @@
-import { Card } from '~/components/ui/card';
+import { Card } from '@clickhaskell/ui/components/ui/card';
 import usage from '../../usage/index.lhs?raw';
 
-import HighlightedHTML from "@/components/Highlight";
+import HighlightedHTML from "@clickhaskell/ui/components/Highlight";
 
 export default function Usage() {
   return (

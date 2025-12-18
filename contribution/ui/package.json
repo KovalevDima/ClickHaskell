@@ -1,6 +1,6 @@
 {
-  "name": "@clickhaskell/docs",
-  "version": "1.0.0",
+  "name": "@clickhaskell/ui",
+  "version": "0.0.0",
   "type": "module",
   "dependencies": {
     "@radix-ui/react-collapsible": "^1.1.12",
@@ -22,8 +22,7 @@
     "react-dom": "^18.3.1",
     "recharts": "^2.15.4",
     "tailwind-merge": "^3.3.1",
-    "tailwindcss": "^4.1.11",
-    "@clickhaskell/ui": "workspace:*"
+    "tailwindcss": "^4.1.11"
   },
   "devDependencies": {
     "react-router": "^7.6.3",
@@ -38,8 +37,9 @@
     "vite-tsconfig-paths": "^5.1.4",
     "@types/lodash": "4.17.21"
   },
-  "scripts": {
-    "dev": "react-router dev",
-    "build": "react-router build"
+  "exports": {
+    "./globals.css": "./src/globals.css",
+    "./lib/*": "./src/lib/*.ts",
+    "./components/*": "./src/components/*.tsx"
   }
 }
