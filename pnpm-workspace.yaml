@@ -1,2 +1,3 @@
 packages:
-  - 'documentation'
+  - documentation
+  - contribution/ui

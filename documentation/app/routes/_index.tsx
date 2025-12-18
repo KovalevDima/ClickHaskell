@@ -1,5 +1,5 @@
-import { Card, CardContent } from '@/components/ui/card'
-import VisitsChart from '~/components/Visits'
+import { Card, CardContent } from '@clickhaskell/ui/components/ui/card'
+import VisitsChart from '@clickhaskell/ui/components/Visits'
 
 export default function HomePage() {
   return (

@@ -5,17 +5,17 @@
   "tsx": true,
   "tailwind": {
     "config": "",
-    "css": "app/index.css",
+    "css": "src/globals.css",
     "baseColor": "neutral",
     "cssVariables": true,
     "prefix": ""
   },
   "aliases": {
-    "components": "~/components",
-    "utils": "~/lib/utils",
-    "ui": "~/components/ui",
-    "lib": "~/lib",
-    "hooks": "~/hooks"
+    "components": "@clickhaskell/ui/components",
+    "utils": "@clickhaskell/ui/lib/utils",
+    "ui": "@clickhaskell/ui/components/ui",
+    "lib": "@clickhaskell/ui/lib",
+    "hooks": "@clickhaskell/ui/hooks"
   },
   "iconLibrary": "lucide"
 }

@@ -2,6 +2,7 @@ dist-newstyle
 node_modules
 .react-router
 documentation/build
+dist
 
 *.aux
 *.hp

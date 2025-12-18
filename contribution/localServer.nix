@@ -19,7 +19,7 @@
   settings.processes = {
     "executable" = {
       command = ''
-        export CLICKHASKELL_STATIC_FILES_DIR=./documentation/
+        export CLICKHASKELL_STATIC_FILES_DIR=./documentation/build/client/
         export EVENTLOG_SOCKET_PATH="./data/.eventlog.sock"
         export DEV=
         cabal run server -- +RTS -l-agpfsuT --eventlog-flush-interval=1 -RTS
