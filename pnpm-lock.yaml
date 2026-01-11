@@ -183,18 +183,12 @@ importers:
       '@types/lodash':
         specifier: 4.17.21
         version: 4.17.21
-      '@types/mdx':
-        specifier: ^2.0.13
-        version: 2.0.13
       '@types/react':
         specifier: ^19.1.0
         version: 19.2.8
       '@types/react-dom':
         specifier: ^19.1.0
         version: 19.2.3(@types/react@19.2.8)
-      highlight.js:
-        specifier: ^11.11.1
-        version: 11.11.1
       react-router:
         specifier: ^7.12.0
         version: 7.12.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -1658,10 +1652,6 @@ packages:
 
   hast-util-whitespace@3.0.0:
     resolution: {integrity: sha512-88JUN06ipLwsnv+dVn+OIYOvAuvBMy/Qoi6O7mQHxdPXpjy+Cd6xRkWwux7DKO+4sYILtLBRIKgsdpS2gQc7qw==}
-
-  highlight.js@11.11.1:
-    resolution: {integrity: sha512-Xwwo44whKBVCYoliBQwaPvtd/2tYFkRQtXDWj1nackaV2JPXx3L0+Jvd8/qCJ2p+ML0/XVkJ2q+Mr+UVdpJK5w==}
-    engines: {node: '>=12.0.0'}
 
   html-void-elements@3.0.0:
     resolution: {integrity: sha512-bEqo66MRXsUGxWHV5IP0PUiAWwoEjba4VCzg0LjFJBpchPaTfyfCKTG6bc5F8ucKec3q5y6qOdGyYTSBEvhCrg==}
@@ -3865,8 +3855,6 @@ snapshots:
   hast-util-whitespace@3.0.0:
     dependencies:
       '@types/hast': 3.0.4
-
-  highlight.js@11.11.1: {}
 
   html-void-elements@3.0.0: {}
 
