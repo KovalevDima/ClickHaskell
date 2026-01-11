@@ -26,7 +26,6 @@
     "recharts": "^2.15.4",
     "tailwind-merge": "^3.3.1",
     "tailwindcss": "^4.1.11",
-    "shiki": "^3.21.0",
     "@clickhaskell/ui": "workspace:*"
   },
   "devDependencies": {

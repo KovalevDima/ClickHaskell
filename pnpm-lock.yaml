@@ -40,9 +40,6 @@ importers:
       '@tailwindcss/vite':
         specifier: ^4.1.11
         version: 4.1.18(vite@7.3.1(jiti@2.6.1)(lightningcss@1.30.2))
-      ai:
-        specifier: ^6.0.27
-        version: 6.0.27(zod@4.3.5)
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -67,9 +64,6 @@ importers:
       recharts:
         specifier: ^2.15.4
         version: 2.15.4(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      shiki:
-        specifier: ^3.21.0
-        version: 3.21.0
       tailwind-merge:
         specifier: ^3.3.1
         version: 3.4.0
@@ -89,9 +83,6 @@ importers:
       '@types/react-dom':
         specifier: ^19.1.0
         version: 19.2.3(@types/react@19.2.8)
-      highlight.js:
-        specifier: ^11.11.1
-        version: 11.11.1
       react-router:
         specifier: ^7.12.0
         version: 7.12.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -176,9 +167,6 @@ importers:
       recharts:
         specifier: ^2.15.4
         version: 2.15.4(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      shiki:
-        specifier: ^3.21.0
-        version: 3.21.0
       tailwind-merge:
         specifier: ^3.3.1
         version: 3.4.0
@@ -224,22 +212,6 @@ importers:
         version: 5.1.4(typescript@5.9.3)(vite@7.3.1(jiti@2.6.1)(lightningcss@1.30.2))
 
 packages:
-
-  '@ai-sdk/gateway@3.0.11':
-    resolution: {integrity: sha512-gLrgNXA95wdo/zAlA0miX/SJEYKSYCHg+e0Y/uQeABLScZAMjPw3jWaeANta/Db1T4xfi8cBvY3nnV8Pa27z+w==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      zod: ^3.25.76 || ^4.1.8
-
-  '@ai-sdk/provider-utils@4.0.4':
-    resolution: {integrity: sha512-VxhX0B/dWGbpNHxrKCWUAJKXIXV015J4e7qYjdIU9lLWeptk0KMLGcqkB4wFxff5Njqur8dt8wRi1MN9lZtDqg==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      zod: ^3.25.76 || ^4.1.8
-
-  '@ai-sdk/provider@3.0.2':
-    resolution: {integrity: sha512-HrEmNt/BH/hkQ7zpi2o6N3k1ZR1QTb7z85WYhYygiTxOQuaml4CMtHCWRbric5WPU+RNsYI7r1EpyVQMKO1pYw==}
-    engines: {node: '>=18'}
 
   '@babel/code-frame@7.27.1':
     resolution: {integrity: sha512-cjQ7ZlQ0Mv3b47hABuTevyTuYN4i+loJKGeV9flcCgIK37cCXRh+L1bd3iBHlynerhQ7BhCkn2BPbQUL+rGqFg==}
@@ -589,10 +561,6 @@ packages:
 
   '@mjackson/node-fetch-server@0.2.0':
     resolution: {integrity: sha512-EMlH1e30yzmTpGLQjlFmaDAjyOeZhng1/XCd7DExR8PNAnG/G1tyruZxEoUe11ClnwGhGrtsdnyyUx1frSzjng==}
-
-  '@opentelemetry/api@1.9.0':
-    resolution: {integrity: sha512-3giAOQvZiH5F9bMlMiv8+GSPMeqg0dbaeo58/0SlA9sxSqZhnUtxzX9/2FzyhS9sWQf5S0GJE0AKBrFqjpeYcg==}
-    engines: {node: '>=8.0.0'}
 
   '@radix-ui/primitive@1.1.3':
     resolution: {integrity: sha512-JTF99U/6XIjCBo0wqkU5sK10glYe27MRRsfwoiq5zzOEZLHU3A3KCMa5X/azekYRCJ0HlwI0crAXS/5dEHTzDg==}
@@ -1174,9 +1142,6 @@ packages:
   '@shikijs/vscode-textmate@10.0.2':
     resolution: {integrity: sha512-83yeghZ2xxin3Nj8z1NMd/NCuca+gsYXswywDy5bHvwlWL8tpTQmzGeUuHd9FC3E/SBEMvzJRwWEOz5gGes9Qg==}
 
-  '@standard-schema/spec@1.1.0':
-    resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
-
   '@tailwindcss/node@4.1.18':
     resolution: {integrity: sha512-DoR7U1P7iYhw16qJ49fgXUlry1t4CpXeErJHnQ44JgTSKMaZUdf17cfn5mHchfJ4KRBZRFA/Coo+MUF5+gOaCQ==}
 
@@ -1335,10 +1300,6 @@ packages:
   '@ungap/structured-clone@1.3.0':
     resolution: {integrity: sha512-WmoN8qaIAo7WTYWbAZuG8PYEhn5fkz7dZrqTBZ7dtt//lL2Gwms1IcnQ5yHqjDfX8Ft5j4YzDM23f87zBfDe9g==}
 
-  '@vercel/oidc@3.1.0':
-    resolution: {integrity: sha512-Fw28YZpRnA3cAHHDlkt7xQHiJ0fcL+NRcIqsocZQUSmbzeIKRpwttJjik5ZGanXP+vlA4SbTg+AbA3bP363l+w==}
-    engines: {node: '>= 20'}
-
   acorn-jsx@5.3.2:
     resolution: {integrity: sha512-rq9s+JNhf0IChjtDXxllJ7g41oZk5SlXtp0LHwyA5cejwn7vKmKp4pPri6YEePv2PU65sAsegbXtIinmDFDXgQ==}
     peerDependencies:
@@ -1348,12 +1309,6 @@ packages:
     resolution: {integrity: sha512-NZyJarBfL7nWwIq+FDL6Zp/yHEhePMNnnJ0y3qfieCrmNvYct8uvtiV41UvlSe6apAfk0fY1FbWx+NwfmpvtTg==}
     engines: {node: '>=0.4.0'}
     hasBin: true
-
-  ai@6.0.27:
-    resolution: {integrity: sha512-a4ToMt5+4xOzHuYdoTy2GQXuNa2/Tpuhxfs5QESHtEV/Vf2HAzSwmTwikrIs8CDKPuMWV1I9YqAvaN5xexMCiQ==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      zod: ^3.25.76 || ^4.1.8
 
   ansi-regex@5.0.1:
     resolution: {integrity: sha512-quJQXlTSUGL2LH9SUXo8VwsY4soanhgo6LNSm84E1LBcE8s3O0wpdiRzyR9z/ZZJMlMWv37qOOb9pdJlMUEKFQ==}
@@ -1623,10 +1578,6 @@ packages:
   eventemitter3@4.0.7:
     resolution: {integrity: sha512-8guHBZCwKnFhYdHr2ysuRWErTwhoN2X8XELRlrRwpmfeY2jjuUN4taQMsULKUVo1K4DvZl+0pgfyoysHxvmvEw==}
 
-  eventsource-parser@3.0.6:
-    resolution: {integrity: sha512-Vo1ab+QXPzZ4tCa8SwIHJFaSzy4R6SHf7BY79rFBDf0idraZWAkYrDjDj8uWaSm3S2TK+hJ7/t1CEmZ7jXw+pg==}
-    engines: {node: '>=18.0.0'}
-
   exit-hook@2.2.1:
     resolution: {integrity: sha512-eNTPlAD67BmP31LDINZ3U7HSF8l57TxOY2PmBJ1shpCvpnxBF93mWCE8YHBnXs8qiUZJc9WDcWIeC3a2HIAMfw==}
     engines: {node: '>=6'}
@@ -1772,9 +1723,6 @@ packages:
     resolution: {integrity: sha512-xKqzzWXDttJuOcawBt4KnKHHIf5oQ/Cxax+0PWFG+DFDgHNAdi+TXECADI+RYiFUMmx8792xsMbbgXj4CwnP4g==}
     engines: {node: '>=6'}
     hasBin: true
-
-  json-schema@0.4.0:
-    resolution: {integrity: sha512-es94M3nTIfsEPisRafak+HDLfHXnKBhV3vU5eqPcS3flIWqcxJWgXHXiey3YrpaNsanY5ei1VoYEbOzijuq9BA==}
 
   json5@2.2.3:
     resolution: {integrity: sha512-XmOWe7eyHYH14cLdVPoyg+GOH3rYX++KpzrylJwSW98t3Nk+U8XOl8FWKOgwtzdb8lXGf6zYwDUzeHMWfxasyg==}
@@ -2482,31 +2430,10 @@ packages:
   yallist@3.1.1:
     resolution: {integrity: sha512-a4UGQaWPH59mOXUYnAG2ewncQS4i4F43Tv3JoAM+s2VDAmS9NsK8GpDMLrCHPksFT7h3K6TOoUNn2pb7RoXx4g==}
 
-  zod@4.3.5:
-    resolution: {integrity: sha512-k7Nwx6vuWx1IJ9Bjuf4Zt1PEllcwe7cls3VNzm4CQ1/hgtFUK2bRNG3rvnpPUhFjmqJKAKtjV576KnUkHocg/g==}
-
   zwitch@2.0.4:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==}
 
 snapshots:
-
-  '@ai-sdk/gateway@3.0.11(zod@4.3.5)':
-    dependencies:
-      '@ai-sdk/provider': 3.0.2
-      '@ai-sdk/provider-utils': 4.0.4(zod@4.3.5)
-      '@vercel/oidc': 3.1.0
-      zod: 4.3.5
-
-  '@ai-sdk/provider-utils@4.0.4(zod@4.3.5)':
-    dependencies:
-      '@ai-sdk/provider': 3.0.2
-      '@standard-schema/spec': 1.1.0
-      eventsource-parser: 3.0.6
-      zod: 4.3.5
-
-  '@ai-sdk/provider@3.0.2':
-    dependencies:
-      json-schema: 0.4.0
 
   '@babel/code-frame@7.27.1':
     dependencies:
@@ -2872,8 +2799,6 @@ snapshots:
       - supports-color
 
   '@mjackson/node-fetch-server@0.2.0': {}
-
-  '@opentelemetry/api@1.9.0': {}
 
   '@radix-ui/primitive@1.1.3': {}
 
@@ -3425,8 +3350,6 @@ snapshots:
 
   '@shikijs/vscode-textmate@10.0.2': {}
 
-  '@standard-schema/spec@1.1.0': {}
-
   '@tailwindcss/node@4.1.18':
     dependencies:
       '@jridgewell/remapping': 2.3.5
@@ -3557,21 +3480,11 @@ snapshots:
 
   '@ungap/structured-clone@1.3.0': {}
 
-  '@vercel/oidc@3.1.0': {}
-
   acorn-jsx@5.3.2(acorn@8.15.0):
     dependencies:
       acorn: 8.15.0
 
   acorn@8.15.0: {}
-
-  ai@6.0.27(zod@4.3.5):
-    dependencies:
-      '@ai-sdk/gateway': 3.0.11(zod@4.3.5)
-      '@ai-sdk/provider': 3.0.2
-      '@ai-sdk/provider-utils': 4.0.4(zod@4.3.5)
-      '@opentelemetry/api': 1.9.0
-      zod: 4.3.5
 
   ansi-regex@5.0.1: {}
 
@@ -3836,8 +3749,6 @@ snapshots:
 
   eventemitter3@4.0.7: {}
 
-  eventsource-parser@3.0.6: {}
-
   exit-hook@2.2.1: {}
 
   exsolve@1.0.8: {}
@@ -3998,8 +3909,6 @@ snapshots:
       esprima: 4.0.1
 
   jsesc@3.0.2: {}
-
-  json-schema@0.4.0: {}
 
   json5@2.2.3: {}
 
@@ -4948,7 +4857,5 @@ snapshots:
       strip-ansi: 7.1.2
 
   yallist@3.1.1: {}
-
-  zod@4.3.5: {}
 
   zwitch@2.0.4: {}
