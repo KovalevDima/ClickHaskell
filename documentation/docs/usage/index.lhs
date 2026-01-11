@@ -1,9 +1,8 @@
 Lets write simple executable with basic usage example
-<br>
-<br>
+
 Before we start we need to define module
-<pre><code data-lang="haskell" class="haskell"
->{-# LANGUAGE
+```haskell
+{-# LANGUAGE
   DataKinds,
   DeriveAnyClass,
   DeriveGeneric,
@@ -18,15 +17,14 @@ module Main where
 
 import ClickHaskell
 import GHC.Generics (Generic)
-</code></pre>
-<br>
+```
 
-ClickHaskell provides unique API in area of DBMS clients<br>
-<br>
+ClickHaskell provides unique API in area of DBMS clients
+
 We need to define our types and derive ClickHaskell instance
 
-<pre><code data-lang="haskell" class="haskell"
->type ExampleCols =
+```haskell
+type ExampleCols =
  '[ Column "a1" Int32
   , Column "a2" ChString
   , Column "a3" (DateTime "")
@@ -38,16 +36,12 @@ data ExampleData = MkExampleData
   , a3 :: UInt32
   }
   deriving (Generic, ClickHaskell ExampleCols)
-</code></pre>
-<br>
+```
 
-<p>
-  Define queries
-</p>
+Define queries
 
-
-<pre><code data-lang="haskell" class="haskell"
->createTableQuery :: Command
+```haskell
+createTableQuery :: Command
 createTableQuery  =
   "CREATE TABLE IF NOT EXISTS exampleTable ( \
   \  `a1` Int32, \
@@ -71,13 +65,12 @@ selectQuery =
 
 insertQuery :: Insert ExampleCols ExampleData
 insertQuery = intoTable @"exampleTable" @ExampleCols @ExampleData
-</code></pre>
-<br>
+```
 
-<h3>Create table, read and then write</h3>
+## Create table, read and then write
 
-<pre><code data-lang="haskell" class="haskell"
->main :: IO ()
+```haskell
+main :: IO ()
 main = do
   connection <- openConnection defaultConnectionArgs
 
@@ -86,4 +79,4 @@ main = do
   batches <- select selectQuery connection (\batch -> pure batch)
 
   insert insertQuery connection (mconcat batches)
-</code></pre>
+```

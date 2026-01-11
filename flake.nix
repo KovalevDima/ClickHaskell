@@ -56,7 +56,7 @@
               inputsFrom = [];
               packages = with pkgs; with haskellPackages; with (self'.packages);
                 [ clickhouse nil eventlog2html graphmod nodejs
-                  self'.packages."${ghc}-html2hs" haskell.compiler."${ghc}" cabal-install
+                  haskell.compiler."${ghc}" cabal-install
                 ];
               };
             })
@@ -66,7 +66,7 @@
             default = pkgs.mkShell {
               inputsFrom = [config.haskellProjects.ghc9103.outputs.devShell];
               packages = with pkgs; with haskellPackages; with (self'.packages);
-                [clickhouse nodejs pnpm nil eventlog2html graphmod ghc9103-html2hs markdown-unlit cloc];
+                [clickhouse nodejs pnpm nil eventlog2html graphmod markdown-unlit cloc];
             };
           };
         # Build documnetation

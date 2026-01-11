@@ -7,13 +7,17 @@ import rehypeShiki from '@shikijs/rehype';
 
 export default defineConfig({
   plugins: [
-    mdx(),
+    mdx({
+      rehypePlugins: [
+        [rehypeShiki, {theme:'dark-plus'}]
+      ],
+      mdxExtensions: ['.mdx', '.lhs']
+    }),
     reactRouter(),
     tsconfigPaths(),
     tailwindcss()
   ],
   publicDir: './app/public/',
-  assetsInclude: ['./../**/*.lhs'],
   server: {
     proxy: {
       // Проксируем все WebSocket-запросы

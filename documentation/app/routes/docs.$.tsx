@@ -1,31 +1,35 @@
-import { CodeBlock } from '@clickhaskell/ui/components/ui/code-block';
-import { MDXProvider } from '@mdx-js/react';
 import { MDXContent } from 'mdx/types';
 import { JSX } from 'react';
 import { useParams } from 'react-router';
+import { cn } from "@clickhaskell/ui/lib/utils"
 
-import { type BundledLanguage, codeToHtml, type ShikiTransformer } from "shiki";
-
-const matches = import.meta.glob('../../docs/**/*.mdx', {
+const matches = import.meta.glob('../../docs/**/*.{mdx,lhs}', {
   eager: true,
 }) as Record<string, { default: () => JSX.Element;}>;
 
-const slug = (route: string) => `../../docs/${route}.mdx`;
-
+const slug = (route: string) => [
+  `../../docs/${route}.mdx`,
+  `../../docs/${route}.lhs`,
+];
 
 export default function Component() {
   const params = useParams();
   const route = params['*'];
-  if (!route) {
-    return null;
-  }
+  if (!route) return null;
 
-  const MdxComponent : MDXContent = matches[slug(route)].default;
+  const match = slug(route).map(path => matches[path]).find(Boolean);
+  if (!match) return null;
+  console.log(matches);
+
+  const MdxComponent : MDXContent = match.default;
 
   return (
     <MdxComponent components={{
       code({...props}) {
-        return <CodeBlock code = {`${props.children}`} language="bash"/>
+        return <code {...props}/>
+      },
+      pre({className, ...props}) {
+        return <pre className={cn(className, 'p-3')} {...props} />
       }
     }}/>
   );
