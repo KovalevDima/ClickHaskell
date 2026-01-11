@@ -19,7 +19,6 @@ export default function Component() {
 
   const match = slug(route).map(path => matches[path]).find(Boolean);
   if (!match) return null;
-  console.log(matches);
 
   const MdxComponent : MDXContent = match.default;
 
