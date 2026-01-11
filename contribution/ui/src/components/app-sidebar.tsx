@@ -54,7 +54,7 @@ const data = {
         {
           title: "Contribution",
           icon: GitPullRequestCreate,
-          url: "/contribution",
+          url: "/docs/contribution",
         },
         {
           title: "About QA",
