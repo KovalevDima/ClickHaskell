@@ -12,5 +12,5 @@ executable usage
       ClickHaskell
     , base >=4.7 && <5
     , bytestring
-  ghc-options: -pgmL html2hs -Wall
-  build-tool-depends: html2hs:html2hs
+  ghc-options: -pgmL markdown-unlit -Wall
+  build-tool-depends: markdown-unlit:markdown-unlit

@@ -2,12 +2,11 @@ packages:
     ./library
     ./ecosystem/tls
     ./ecosystem/eventlog2ch
-    ./contribution/html2hs
     ./contribution
     ./contribution/modules/protocol-docs
     ./contribution/modules/visits
-    ./documentation/testing
     ./documentation/performance/p1-million-rw
     ./documentation/performance/p2-100-million-r
     ./documentation/performance/pings
-    ./documentation/usage/
+    ./documentation/docs/usage/
+    ./documentation/docs/testing/

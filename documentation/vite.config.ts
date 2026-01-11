@@ -2,15 +2,22 @@ import { reactRouter } from "@react-router/dev/vite";
 import { defineConfig } from "vite";
 import tsconfigPaths from "vite-tsconfig-paths";
 import tailwindcss from "@tailwindcss/vite";
+import mdx from '@mdx-js/rollup'
+import rehypeShiki from '@shikijs/rehype';
 
 export default defineConfig({
   plugins: [
+    mdx({
+      rehypePlugins: [
+        [rehypeShiki, {theme:'dark-plus'}]
+      ],
+      mdxExtensions: ['.mdx', '.lhs']
+    }),
     reactRouter(),
     tsconfigPaths(),
     tailwindcss()
   ],
   publicDir: './app/public/',
-  assetsInclude: ['./../**/*.lhs'],
   server: {
     proxy: {
       // Проксируем все WebSocket-запросы
