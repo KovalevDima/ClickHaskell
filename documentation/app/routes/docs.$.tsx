@@ -28,7 +28,7 @@ export default function Component() {
         return <code {...props}/>
       },
       pre({className, ...props}) {
-        return <pre className={cn(className, 'p-3')} {...props} />
+        return <pre className={cn(className, 'p-3 overflow-x-auto')} {...props} />
       }
     }}/>
   );
