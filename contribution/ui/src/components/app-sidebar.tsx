@@ -40,7 +40,7 @@ const data = {
         {
           title: "All-in-one",
           icon: PackagePlus,
-          url: "/usage",
+          url: "/docs/usage/index",
         },
       ]
     },
@@ -54,12 +54,12 @@ const data = {
         {
           title: "Contribution",
           icon: GitPullRequestCreate,
-          url: "/contribution",
+          url: "/docs/contribution",
         },
         {
           title: "About QA",
           icon: BugOff,
-          url: "/testing",
+          url: "/docs/testing/index",
         },
       ]
     },
