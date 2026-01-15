@@ -546,7 +546,7 @@ instance KnownNat precision => ToChType (DateTime64 precision tz) UTCTime where
 
 type Float32 = Float
 
-instance IsChType Float64 where
+instance IsChType Float32 where
   chTypeName = "Float32"
   defaultValueOfTypeName = 0
 
@@ -563,7 +563,7 @@ instance ToQueryPart Float32 where
 
 type Float64 = Double
 
-instance IsChType Float32 where
+instance IsChType Float64 where
   chTypeName = "Float64"
   defaultValueOfTypeName = 0
 
