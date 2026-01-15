@@ -28,6 +28,7 @@ import ClickHaskell
   , UUID, DateTime, ChString, Int128, Word128
   , Nullable, DateTime64, Array
   , Enum8, Enum16
+  , Float32, Float64
   )
 
 -- GHC included
@@ -79,6 +80,8 @@ type TestColumns =
    , Column "dateTime64p3" (DateTime64 3 "UTC")
    , Column "dateTime64p9" (DateTime64 9 "UTC")
    , Column "dateTime64Nullable" (Nullable (DateTime64 3 "UTC"))
+   , Column "float32" Float32
+   , Column "float64" Float64
    , Column "bool" Bool
    , Column "enum8" (Enum8 "'world' = -1, 'hello' = 1")
    , Column "enum16" (Enum16 "'world' = -1, 'hello' = 1")
@@ -117,6 +120,8 @@ data TestData = MkTestData
   , dateTime64p3 :: UTCTime
   , dateTime64p9 :: UTCTime
   , dateTime64Nullable :: Nullable UTCTime
+  , float32 :: Float32
+  , float64 :: Float64
   , bool :: Bool
   , enum8 :: Enum8 "'world' = -1, 'hello' = 1"
   , enum16 :: Enum16 "'world' = -1, 'hello' = 1"
@@ -159,6 +164,8 @@ testData = MkTestData
   , dateTime64p3 = posixSecondsToUTCTime 42.003
   , dateTime64p9 = posixSecondsToUTCTime 42.000000003
   , dateTime64Nullable = Just (posixSecondsToUTCTime 42)
+  , float32 = 42.42
+  , float64 = 42.42
   , bool = False
   , enum8 = 0
   , enum16 = 0
@@ -202,6 +209,8 @@ createTableQuery =
   \    `dateTime64p9` DateTime64(9, 'UTC'), \
   \    `dateTimeNullable` Nullable(DateTime('UTC')), \
   \    `dateTime64Nullable` Nullable(DateTime64(3, 'UTC')), \
+  \    `float32` Float32, \
+  \    `float64` Float64, \
   \    `bool` Bool, \
   \    `enum8` Enum8('hello'=1, 'world'=-1), \
   \    `enum16` Enum16('hello'=1, 'world'=-1), \

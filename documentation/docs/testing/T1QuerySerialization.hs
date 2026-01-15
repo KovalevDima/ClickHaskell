@@ -26,17 +26,16 @@ import ClickHaskell
   , UInt8, UInt16, UInt32, UInt64
   , Int8, Int16, Int32, Int64
   , ChString, UUID, DateTime, UInt128, UInt256, Array
-  , Enum16, Enum8
+  , Enum16, Enum8, Float32
   -- , DateTime64
   )
 
 -- GHC included
-import Control.Monad (when)
+import Control.Monad (unless)
 import Data.ByteString as BS (singleton, ByteString)
 import Data.ByteString.Char8 as BS8 (pack)
 import Data.ByteString.Builder (byteString)
 import GHC.Generics (Generic)
-
 
 t1 :: Connection -> IO ()
 t1 conn = do
@@ -61,11 +60,24 @@ t1 conn = do
   -- ToDo: runTestForType @(LowCardinality ChString) connection (map (toChType . BS.singleton) [0..255])
   runTestForType @(Array ChString) conn [toChType $ map BS.singleton [0..255]]
   runTestForType @(Array Int64) conn [toChType @(Array Int64) @[Int64] [0 .. 255]]
+  runTestForTypeWith @Float32 conn cmpFloatSemantic [0, nan, negInf, posInf]
 
+cmpFloatSemantic :: (Eq f, RealFloat f) => f -> f -> Bool
+cmpFloatSemantic float1 float2
+  | isNaN float1 && isNaN float2 = True
+  | isInfinite float1 && isInfinite float2 = True
+  | otherwise = float1 == float2
+
+nan :: (Read a, Floating a) => a
+nan = read "NaN"
+
+negInf :: (Read a, Floating a) => a
+negInf = read "-Infinity"
+
+posInf :: (Read a, Floating a) => a
+posInf = read "-Infinity"
 
 runTestForType ::
-  forall chType
-  .
   ( ToQueryPart chType
   , IsChType chType
   , Eq chType
@@ -74,7 +86,19 @@ runTestForType ::
   )
   =>
   Connection -> [chType] -> IO ()
-runTestForType connection testValues = do
+runTestForType connection testValues = runTestForTypeWith connection (==) testValues
+
+runTestForTypeWith ::
+  forall chType
+  .
+  ( ToQueryPart chType
+  , IsChType chType
+  , Show chType
+  , ClickHaskell '[Column "testSample" chType] (TestSample chType)
+  )
+  =>
+  Connection -> (chType -> chType -> Bool) -> [chType] -> IO ()
+runTestForTypeWith connection iqEqual testValues = do
   let typeName = (toChType @ChString . byteString . BS8.pack) (chTypeName @chType)
   mapM_
     (\chType -> do
@@ -89,7 +113,7 @@ runTestForType connection testValues = do
             connection
             pure
 
-      (when (chType /= testSample selectChType) . error)
+      (unless (iqEqual chType (testSample selectChType)) . error)
         (  "Deserialized value of type " <> show typeName <> " unmatched:"
         <> " Expected: " <> show chType
         <> ". But got: " <> show selectChType <> "."
