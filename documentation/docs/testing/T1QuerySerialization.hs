@@ -26,7 +26,8 @@ import ClickHaskell
   , UInt8, UInt16, UInt32, UInt64
   , Int8, Int16, Int32, Int64
   , ChString, UUID, DateTime, UInt128, UInt256, Array
-  , Enum16, Enum8, Float32
+  , Enum16, Enum8
+  , Float32, Float64
   -- , DateTime64
   )
 
@@ -61,6 +62,7 @@ t1 conn = do
   runTestForType @(Array ChString) conn [toChType $ map BS.singleton [0..255]]
   runTestForType @(Array Int64) conn [toChType @(Array Int64) @[Int64] [0 .. 255]]
   runTestForTypeWith @Float32 conn cmpFloatSemantic [0, nan, negInf, posInf]
+  runTestForTypeWith @Float64 conn cmpFloatSemantic [0, nan, negInf, posInf]
 
 cmpFloatSemantic :: (Eq f, RealFloat f) => f -> f -> Bool
 cmpFloatSemantic float1 float2
