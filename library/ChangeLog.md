@@ -1,3 +1,8 @@
+# 1.1.0 -- ?
+
+## Features:
+- Added `Float32`, `Float64` types support
+
 # 1.0.0 -- 14-12-2025
 
 ## Fixes:
