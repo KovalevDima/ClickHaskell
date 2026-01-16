@@ -27,6 +27,7 @@ import Prelude hiding (liftA2)
 
 -- External
 import Data.WideWord (Int128 (..), Word256(..), Word128(..))
+import Data.Binary.Put (putFloatle, execPut, putDoublele)
 
 -- * User types
 
@@ -539,6 +540,40 @@ instance KnownNat precision => ToChType (DateTime64 precision tz) UTCTime where
 --   toQueryPart chDateTime =
 --     let time = BS8.pack . show . fromChType @_ @Word64 $ chDateTime
 --     in byteString (BS8.replicate (12 - BS8.length time) '0' <> time)
+
+
+-- ** Float32
+
+type Float32 = Float
+
+instance IsChType Float32 where
+  chTypeName = "Float32"
+  defaultValueOfTypeName = 0
+
+instance Serializable Float32 where
+  serialize _ f32 = (execPut . putFloatle) f32
+  deserialize _ = getFloatle
+  {-# INLINE deserialize #-}
+
+instance ToQueryPart Float32 where
+  toQueryPart = byteString . BS8.pack . show
+
+
+-- ** Float64
+
+type Float64 = Double
+
+instance IsChType Float64 where
+  chTypeName = "Float64"
+  defaultValueOfTypeName = 0
+
+instance Serializable Float64 where
+  serialize _ f64 = (execPut . putDoublele) f64
+  deserialize _ = getDoublele
+  {-# INLINE deserialize #-}
+
+instance ToQueryPart Float64 where
+  toQueryPart = byteString . BS8.pack . show
 
 
 -- ** Array
