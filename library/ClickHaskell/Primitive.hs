@@ -5,7 +5,7 @@ module ClickHaskell.Primitive where
 import Control.Applicative (liftA2)
 import Control.DeepSeq (NFData)
 import Data.Binary.Get
-import Data.Bits (Bits (setBit, unsafeShiftL, unsafeShiftR, (.&.), (.|.)))
+import Data.Bits (Bits (setBit, unsafeShiftL, unsafeShiftR, (.&.), (.|.)), xor)
 import Data.Bool (bool)
 import Data.ByteString as BS (ByteString, length)
 import Data.ByteString.Builder
@@ -718,6 +718,27 @@ instance Serializable UVarInt where
       if byte .&. 0x80 == 0 then pure $! o' else goUVarIntDeser (i + 1) $! o'
     goUVarIntDeser _ _ = fail "input exceeds varuint size"
   {-# INLINE deserialize #-}
+
+newtype VarInt = MkVarInt Int64
+  deriving newtype (Show, Eq, Num, Bits, Enum, Ord, Real, Integral, Bounded, NFData)
+
+instance Serializable VarInt where
+  serialize rev (MkVarInt int64) =
+    serialize rev (MkUVarInt (zigZagEncode int64))
+    where
+    zigZagEncode :: Int64 -> Word64
+    zigZagEncode i = fromIntegral ((i `unsafeShiftL` 1) `xor` (i `unsafeShiftR` 63))
+    {-# INLINE zigZagEncode #-}
+
+  {-# INLINE deserialize #-}
+  deserialize rev = do
+    MkUVarInt u <- deserialize rev
+    pure $! MkVarInt (zigZagDecode u)
+    where
+    zigZagDecode :: Word64 -> Int64
+    zigZagDecode u =
+      fromIntegral ((u `unsafeShiftR` 1) `xor` negate (u .&. 1))
+    {-# INLINE zigZagDecode #-}
 
 
 -- ** Versioning

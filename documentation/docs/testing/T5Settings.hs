@@ -27,6 +27,7 @@ query =
       . addSetting @"default_view_definer" "default"
       . addSetting @"max_ast_depth" 1000
       . addSetting @"use_uncompressed_cache" True
+      . addSetting @"delta_lake_snapshot_version" (-5)
     )
     (fromGenerateRandom @TestColumns @TestData (1, 10, 2) 1)
 

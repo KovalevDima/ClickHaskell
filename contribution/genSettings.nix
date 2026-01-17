@@ -17,6 +17,7 @@ import Data.Bits
 import Data.Bool (bool)
 import Data.ByteString as BS (null)
 import Data.ByteString.Builder (Builder)
+import Data.Int (Int64)
 import Data.Kind (Type)
 import Data.Proxy (Proxy (..))
 import GHC.TypeLits
@@ -121,6 +122,7 @@ class
 
 data SettingType where
   SettingUInt64 :: UInt64 -> SettingType
+  SettingInt64 :: Int64 -> SettingType
   SettingString :: ChString -> SettingType
   SettingBool :: Bool -> SettingType
 
@@ -130,11 +132,17 @@ instance IsSettingType ChString where
   fromSettingType _ = error "Impossible"
   serializeSettingBinary rev = serialize @ChString rev . fromSettingType
 
+instance IsSettingType Int64 where
+  toSettingType int64 = SettingInt64 int64
+  fromSettingType (SettingInt64 int64) = int64
+  fromSettingType _ = error "Impossible"
+  serializeSettingBinary rev = serialize rev . fromIntegral @Int64 @VarInt . fromSettingType
+
 instance IsSettingType UInt64 where
   toSettingType uint64 = SettingUInt64 uint64
   fromSettingType (SettingUInt64 uint64) = uint64
   fromSettingType _ = error "Impossible"
-  serializeSettingBinary rev = serialize @UVarInt rev . fromIntegral @UInt64 . fromSettingType
+  serializeSettingBinary rev = serialize rev . fromIntegral @UInt64 @UVarInt . fromSettingType
 
 instance IsSettingType Bool where
   toSettingType boolean = SettingBool boolean
@@ -186,7 +194,7 @@ pkgs.stdenv.mkDerivation {
     mkdir -p $out
     outFile=$out/Settings.hs
 
-    cat > $outFile << EOF
+    cat > $outFile << 'EOF'
     ${templ}
     EOF
 
@@ -203,6 +211,7 @@ pkgs.stdenv.mkDerivation {
         if (typ == "UInt64") { htype="UInt64" }
         else if (typ == "String") { htype="ChString" }
         else if (typ == "Bool") { htype="Bool" }
+        else if (typ == "Int64") { htype="Int64" }
 
         # TODO: add support
         else if ( \
@@ -214,8 +223,12 @@ pkgs.stdenv.mkDerivation {
             typ == "MaxThreads" || \
             typ == "LoadBalancing" || \
             typ == "NonZeroUInt64" || \
+            typ == "ArrowFlightDescriptorType" || \
+            typ == "AggregateFunctionInputFormat" || \
+            typ == "ObjectStorageGranularityLevel" || \
+            typ == "JoinOrderAlgorithm" || \
+            typ == "DeduplicateInsertSelectMode" || \
             typ == "Float" || \
-            typ == "Int64" || \
             typ == "Int32" || \
             typ == "TotalsMode" || \
             typ == "DistributedProductMode" || \
