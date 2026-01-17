@@ -8,6 +8,9 @@
       http_port = 8123;
       listen-host = "localhost";
       tcp_port_secure = 9440;
+      query_log = {
+        database = "system";
+      };
       openSSL = {
         server = {
           certificateFile = ./certs/localhost.crt;

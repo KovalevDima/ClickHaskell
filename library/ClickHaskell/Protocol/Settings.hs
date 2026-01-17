@@ -13,6 +13,7 @@ import Data.Bits
 import Data.Bool (bool)
 import Data.ByteString as BS (null)
 import Data.ByteString.Builder (Builder)
+import Data.Int (Int64)
 import Data.Kind (Type)
 import Data.Proxy (Proxy (..))
 import GHC.TypeLits
@@ -117,6 +118,7 @@ class
 
 data SettingType where
   SettingUInt64 :: UInt64 -> SettingType
+  SettingInt64 :: Int64 -> SettingType
   SettingString :: ChString -> SettingType
   SettingBool :: Bool -> SettingType
 
@@ -126,11 +128,17 @@ instance IsSettingType ChString where
   fromSettingType _ = error "Impossible"
   serializeSettingBinary rev = serialize @ChString rev . fromSettingType
 
+instance IsSettingType Int64 where
+  toSettingType int64 = SettingInt64 int64
+  fromSettingType (SettingInt64 int64) = int64
+  fromSettingType _ = error "Impossible"
+  serializeSettingBinary rev = serialize rev . fromIntegral @Int64 @VarInt . fromSettingType
+
 instance IsSettingType UInt64 where
   toSettingType uint64 = SettingUInt64 uint64
   fromSettingType (SettingUInt64 uint64) = uint64
   fromSettingType _ = error "Impossible"
-  serializeSettingBinary rev = serialize @UVarInt rev . fromIntegral @UInt64 . fromSettingType
+  serializeSettingBinary rev = serialize rev . fromIntegral @UInt64 @UVarInt . fromSettingType
 
 instance IsSettingType Bool where
   toSettingType boolean = SettingBool boolean
@@ -169,6 +177,7 @@ data Setting (a :: Symbol) (settType :: Type)
 
 instance KnownSetting "min_compress_block_size" UInt64
 instance KnownSetting "max_compress_block_size" UInt64
+instance KnownSetting "max_insert_block_size_bytes" UInt64
 instance KnownSetting "min_insert_block_size_rows" UInt64
 instance KnownSetting "min_insert_block_size_bytes" UInt64
 instance KnownSetting "min_insert_block_size_rows_for_materialized_views" UInt64
@@ -256,6 +265,7 @@ instance KnownSetting "azure_sdk_retry_max_backoff_ms" UInt64
 instance KnownSetting "azure_request_timeout_ms" UInt64
 instance KnownSetting "azure_connect_timeout_ms" UInt64
 instance KnownSetting "s3_validate_request_settings" Bool
+instance KnownSetting "compatibility_s3_presigned_url_query_in_path" Bool
 instance KnownSetting "s3_disable_checksum" Bool
 instance KnownSetting "s3_request_timeout_ms" UInt64
 instance KnownSetting "s3_connect_timeout_ms" UInt64
@@ -287,6 +297,7 @@ instance KnownSetting "move_all_conditions_to_prewhere" Bool
 instance KnownSetting "enable_multiple_prewhere_read_steps" Bool
 instance KnownSetting "move_primary_key_columns_to_end_of_prewhere" Bool
 instance KnownSetting "allow_reorder_prewhere_conditions" Bool
+instance KnownSetting "replication_wait_for_inactive_replica_timeout" Int64
 instance KnownSetting "alter_move_to_space_execute_async" Bool
 instance KnownSetting "load_balancing_first_offset" UInt64
 instance KnownSetting "allow_suspicious_low_cardinality_types" Bool
@@ -297,8 +308,7 @@ instance KnownSetting "allow_suspicious_variant_types" Bool
 instance KnownSetting "allow_suspicious_primary_key" Bool
 instance KnownSetting "allow_suspicious_types_in_group_by" Bool
 instance KnownSetting "allow_suspicious_types_in_order_by" Bool
-instance KnownSetting "allow_not_comparable_types_in_order_by" Bool
-instance KnownSetting "allow_not_comparable_types_in_comparison_functions" Bool
+instance KnownSetting "use_variant_default_implementation_for_comparisons" Bool
 instance KnownSetting "compile_expressions" Bool
 instance KnownSetting "min_count_to_compile_expression" UInt64
 instance KnownSetting "compile_aggregate_expressions" Bool
@@ -311,6 +321,7 @@ instance KnownSetting "distributed_aggregation_memory_efficient" Bool
 instance KnownSetting "aggregation_memory_efficient_merge_threads" UInt64
 instance KnownSetting "enable_memory_bound_merging_of_aggregation_results" Bool
 instance KnownSetting "enable_positional_arguments" Bool
+instance KnownSetting "enable_positional_arguments_for_projections" Bool
 instance KnownSetting "enable_extended_results_for_datetime_functions" Bool
 instance KnownSetting "allow_nonconst_timezone_arguments" Bool
 instance KnownSetting "use_legacy_to_time" Bool
@@ -328,10 +339,6 @@ instance KnownSetting "allow_nondeterministic_optimize_skip_unused_shards" Bool
 instance KnownSetting "force_optimize_skip_unused_shards" UInt64
 instance KnownSetting "optimize_skip_unused_shards_nesting" UInt64
 instance KnownSetting "force_optimize_skip_unused_shards_nesting" UInt64
-instance KnownSetting "input_format_parallel_parsing" Bool
-instance KnownSetting "output_format_parallel_formatting" Bool
-instance KnownSetting "output_format_compression_level" UInt64
-instance KnownSetting "output_format_compression_zstd_window_log" UInt64
 instance KnownSetting "allow_special_serialization_kinds_in_output_formats" Bool
 instance KnownSetting "enable_parsing_to_custom_serialization" Bool
 instance KnownSetting "merge_tree_use_v1_object_and_dynamic_serialization" Bool
@@ -347,6 +354,8 @@ instance KnownSetting "merge_tree_use_prefixes_deserialization_thread_pool" Bool
 instance KnownSetting "do_not_merge_across_partitions_select_final" Bool
 instance KnownSetting "split_parts_ranges_into_intersecting_and_non_intersecting_final" Bool
 instance KnownSetting "split_intersecting_parts_ranges_into_layers_final" Bool
+instance KnownSetting "apply_row_policy_after_final" Bool
+instance KnownSetting "apply_prewhere_after_final" Bool
 instance KnownSetting "mysql_max_rows_to_insert" UInt64
 instance KnownSetting "mysql_map_string_to_text_in_show_columns" Bool
 instance KnownSetting "mysql_map_fixed_string_to_text_in_show_columns" Bool
@@ -356,11 +365,16 @@ instance KnownSetting "min_bytes_to_use_direct_io" UInt64
 instance KnownSetting "min_bytes_to_use_mmap_io" UInt64
 instance KnownSetting "checksum_on_read" Bool
 instance KnownSetting "force_index_by_date" Bool
+instance KnownSetting "use_primary_key" Bool
 instance KnownSetting "force_primary_key" Bool
 instance KnownSetting "use_skip_indexes" Bool
 instance KnownSetting "use_skip_indexes_if_final" Bool
 instance KnownSetting "use_skip_indexes_if_final_exact_mode" Bool
 instance KnownSetting "use_skip_indexes_on_data_read" Bool
+instance KnownSetting "use_skip_indexes_for_disjunctions" Bool
+instance KnownSetting "use_skip_indexes_for_top_k" Bool
+instance KnownSetting "use_top_k_dynamic_filtering" Bool
+instance KnownSetting "query_plan_max_limit_for_top_k_optimization" UInt64
 instance KnownSetting "materialize_skip_indexes_on_insert" Bool
 instance KnownSetting "exclude_materialize_skip_indexes_on_insert" ChString
 instance KnownSetting "text_index_use_bloom_filter" Bool
@@ -370,6 +384,8 @@ instance KnownSetting "ignore_data_skipping_indices" ChString
 instance KnownSetting "force_data_skipping_indices" ChString
 instance KnownSetting "secondary_indices_enable_bulk_filtering" Bool
 instance KnownSetting "network_compression_method" ChString
+instance KnownSetting "network_zstd_compression_level" Int64
+instance KnownSetting "zstd_window_log_max" Int64
 instance KnownSetting "priority" UInt64
 instance KnownSetting "log_queries" Bool
 instance KnownSetting "log_formatted_queries" Bool
@@ -387,11 +403,13 @@ instance KnownSetting "read_backoff_max_throughput" UInt64
 instance KnownSetting "read_backoff_min_events" UInt64
 instance KnownSetting "read_backoff_min_concurrency" UInt64
 instance KnownSetting "enable_http_compression" Bool
+instance KnownSetting "http_zlib_compression_level" Int64
 instance KnownSetting "http_native_compression_disable_checksumming_on_decompress" Bool
 instance KnownSetting "count_distinct_implementation" ChString
 instance KnownSetting "add_http_cors_header" Bool
 instance KnownSetting "max_http_get_redirects" UInt64
 instance KnownSetting "use_client_time_zone" Bool
+instance KnownSetting "send_profile_events" Bool
 instance KnownSetting "send_progress_in_http_headers" Bool
 instance KnownSetting "http_headers_progress_interval_ms" UInt64
 instance KnownSetting "http_wait_end_of_query" Bool
@@ -414,6 +432,7 @@ instance KnownSetting "parts_to_delay_insert" UInt64
 instance KnownSetting "parts_to_throw_insert" UInt64
 instance KnownSetting "number_of_mutations_to_delay" UInt64
 instance KnownSetting "number_of_mutations_to_throw" UInt64
+instance KnownSetting "distributed_ddl_task_timeout" Int64
 instance KnownSetting "min_free_disk_bytes_to_perform_insert" UInt64
 instance KnownSetting "final" Bool
 instance KnownSetting "partial_result_on_first_cancel" Bool
@@ -437,8 +456,6 @@ instance KnownSetting "empty_result_for_aggregation_by_empty_set" Bool
 instance KnownSetting "empty_result_for_aggregation_by_constant_keys_on_empty_set" Bool
 instance KnownSetting "allow_distributed_ddl" Bool
 instance KnownSetting "allow_suspicious_codecs" Bool
-instance KnownSetting "enable_zstd_qat_codec" Bool
-instance KnownSetting "enable_deflate_qpl_codec" Bool
 instance KnownSetting "query_profiler_real_time_period_ns" UInt64
 instance KnownSetting "query_profiler_cpu_time_period_ns" UInt64
 instance KnownSetting "metrics_perf_events_enabled" Bool
@@ -478,9 +495,12 @@ instance KnownSetting "max_expanded_ast_elements" UInt64
 instance KnownSetting "readonly" UInt64
 instance KnownSetting "max_rows_in_set" UInt64
 instance KnownSetting "max_bytes_in_set" UInt64
+instance KnownSetting "exact_rows_before_limit" Bool
+instance KnownSetting "rows_before_aggregation" Bool
 instance KnownSetting "max_rows_in_join" UInt64
 instance KnownSetting "max_bytes_in_join" UInt64
 instance KnownSetting "join_any_take_last_row" Bool
+instance KnownSetting "cross_to_inner_join_rewrite" UInt64
 instance KnownSetting "cross_join_min_rows_to_compress" UInt64
 instance KnownSetting "cross_join_min_bytes_to_compress" UInt64
 instance KnownSetting "default_max_bytes_in_join" UInt64
@@ -490,7 +510,6 @@ instance KnownSetting "join_on_disk_max_files_to_merge" UInt64
 instance KnownSetting "max_rows_in_set_to_optimize_join" UInt64
 instance KnownSetting "compatibility_ignore_collation_in_create_table" Bool
 instance KnownSetting "temporary_files_codec" ChString
-instance KnownSetting "temporary_files_buffer_size" UInt64
 instance KnownSetting "max_rows_to_transfer" UInt64
 instance KnownSetting "max_bytes_to_transfer" UInt64
 instance KnownSetting "max_rows_in_distinct" UInt64
@@ -500,10 +519,12 @@ instance KnownSetting "memory_overcommit_ratio_denominator" UInt64
 instance KnownSetting "max_memory_usage_for_user" UInt64
 instance KnownSetting "memory_overcommit_ratio_denominator_for_user" UInt64
 instance KnownSetting "max_untracked_memory" UInt64
+instance KnownSetting "max_reverse_dictionary_lookup_cache_size_bytes" UInt64
 instance KnownSetting "memory_profiler_step" UInt64
 instance KnownSetting "memory_profiler_sample_min_allocation_size" UInt64
 instance KnownSetting "memory_profiler_sample_max_allocation_size" UInt64
 instance KnownSetting "trace_profile_events" Bool
+instance KnownSetting "trace_profile_events_list" ChString
 instance KnownSetting "memory_usage_overcommit_max_wait_microseconds" UInt64
 instance KnownSetting "max_network_bandwidth" UInt64
 instance KnownSetting "max_network_bytes" UInt64
@@ -532,6 +553,11 @@ instance KnownSetting "log_query_settings" Bool
 instance KnownSetting "log_query_threads" Bool
 instance KnownSetting "log_query_views" Bool
 instance KnownSetting "log_comment" ChString
+instance KnownSetting "query_metric_log_interval" Int64
+instance KnownSetting "regexp_dict_allow_hyperscan" Bool
+instance KnownSetting "regexp_dict_flag_case_insensitive" Bool
+instance KnownSetting "regexp_dict_flag_dotall" Bool
+instance KnownSetting "dictionary_use_async_executor" Bool
 instance KnownSetting "send_logs_source_regexp" ChString
 instance KnownSetting "enable_optimize_predicate_expression" Bool
 instance KnownSetting "enable_optimize_predicate_expression_to_final_subquery" Bool
@@ -579,6 +605,7 @@ instance KnownSetting "least_greatest_legacy_null_behavior" Bool
 instance KnownSetting "h3togeo_lon_lat_result_order" Bool
 instance KnownSetting "max_partitions_per_insert_block" UInt64
 instance KnownSetting "throw_on_max_partitions_per_insert_block" Bool
+instance KnownSetting "max_partitions_to_read" Int64
 instance KnownSetting "check_query_single_value_result" Bool
 instance KnownSetting "allow_drop_detached" Bool
 instance KnownSetting "max_parts_to_move" UInt64
@@ -625,7 +652,6 @@ instance KnownSetting "optimize_time_filter_with_preimage" Bool
 instance KnownSetting "normalize_function_names" Bool
 instance KnownSetting "enable_early_constant_folding" Bool
 instance KnownSetting "deduplicate_blocks_in_dependent_materialized_views" Bool
-instance KnownSetting "throw_if_deduplication_in_dependent_materialized_views_enabled_with_async_insert" Bool
 instance KnownSetting "materialized_views_ignore_errors" Bool
 instance KnownSetting "ignore_materialized_views_with_dropped_target_table" Bool
 instance KnownSetting "allow_materialized_view_with_bad_select" Bool
@@ -667,7 +693,6 @@ instance KnownSetting "min_table_rows_to_use_projection_index" UInt64
 instance KnownSetting "async_socket_for_remote" Bool
 instance KnownSetting "async_query_sending_for_remote" Bool
 instance KnownSetting "insert_null_as_default" Bool
-instance KnownSetting "describe_extend_object_types" Bool
 instance KnownSetting "describe_include_subcolumns" Bool
 instance KnownSetting "describe_include_virtual_columns" Bool
 instance KnownSetting "describe_compact_output" Bool
@@ -705,6 +730,7 @@ instance KnownSetting "insert_shard_id" UInt64
 instance KnownSetting "collect_hash_table_stats_during_aggregation" Bool
 instance KnownSetting "max_size_to_preallocate_for_aggregation" UInt64
 instance KnownSetting "collect_hash_table_stats_during_joins" Bool
+instance KnownSetting "use_hash_table_stats_for_join_reordering" Bool
 instance KnownSetting "max_size_to_preallocate_for_joins" UInt64
 instance KnownSetting "kafka_disable_num_consumers_limit" Bool
 instance KnownSetting "allow_experimental_kafka_offsets_storage_in_keeper" Bool
@@ -726,6 +752,7 @@ instance KnownSetting "database_replicated_allow_only_replicated_engine" Bool
 instance KnownSetting "database_replicated_allow_replicated_engine_arguments" UInt64
 instance KnownSetting "database_replicated_allow_explicit_uuid" UInt64
 instance KnownSetting "database_replicated_allow_heavy_create" Bool
+instance KnownSetting "database_shared_drop_table_delay_seconds" UInt64
 instance KnownSetting "cloud_mode" Bool
 instance KnownSetting "cloud_mode_engine" UInt64
 instance KnownSetting "cloud_mode_database_engine" UInt64
@@ -758,6 +785,7 @@ instance KnownSetting "query_plan_execute_functions_after_sorting" Bool
 instance KnownSetting "query_plan_reuse_storage_ordering_for_window_functions" Bool
 instance KnownSetting "query_plan_lift_up_union" Bool
 instance KnownSetting "query_plan_read_in_order" Bool
+instance KnownSetting "query_plan_read_in_order_through_join" Bool
 instance KnownSetting "query_plan_aggregation_in_order" Bool
 instance KnownSetting "query_plan_remove_redundant_sorting" Bool
 instance KnownSetting "query_plan_remove_redundant_distinct" Bool
@@ -768,6 +796,7 @@ instance KnownSetting "query_plan_max_limit_for_lazy_materialization" UInt64
 instance KnownSetting "enable_lazy_columns_replication" Bool
 instance KnownSetting "serialize_query_plan" Bool
 instance KnownSetting "correlated_subqueries_substitute_equivalent_expressions" Bool
+instance KnownSetting "correlated_subqueries_use_in_memory_buffer" Bool
 instance KnownSetting "optimize_qbit_distance_function_reads" Bool
 instance KnownSetting "regexp_max_matches_per_row" UInt64
 instance KnownSetting "limit" UInt64
@@ -779,6 +808,7 @@ instance KnownSetting "local_filesystem_read_method" ChString
 instance KnownSetting "remote_filesystem_read_method" ChString
 instance KnownSetting "local_filesystem_read_prefetch" Bool
 instance KnownSetting "remote_filesystem_read_prefetch" Bool
+instance KnownSetting "read_priority" Int64
 instance KnownSetting "merge_tree_min_rows_for_concurrent_read_for_remote_filesystem" UInt64
 instance KnownSetting "merge_tree_min_bytes_for_concurrent_read_for_remote_filesystem" UInt64
 instance KnownSetting "remote_read_min_bytes_for_seek" UInt64
@@ -793,6 +823,7 @@ instance KnownSetting "async_insert_use_adaptive_busy_timeout" Bool
 instance KnownSetting "remote_fs_read_max_backoff_ms" UInt64
 instance KnownSetting "remote_fs_read_backoff_max_tries" UInt64
 instance KnownSetting "cluster_function_process_archive_on_multiple_nodes" Bool
+instance KnownSetting "max_streams_for_files_processing_in_cluster_functions" UInt64
 instance KnownSetting "enable_filesystem_cache" Bool
 instance KnownSetting "filesystem_cache_name" ChString
 instance KnownSetting "enable_filesystem_cache_on_write_operations" Bool
@@ -869,11 +900,16 @@ instance KnownSetting "distributed_cache_connect_timeout_ms" UInt64
 instance KnownSetting "distributed_cache_receive_timeout_ms" UInt64
 instance KnownSetting "distributed_cache_send_timeout_ms" UInt64
 instance KnownSetting "distributed_cache_tcp_keep_alive_timeout_ms" UInt64
+instance KnownSetting "distributed_cache_use_clients_cache_for_write" Bool
+instance KnownSetting "distributed_cache_use_clients_cache_for_read" Bool
+instance KnownSetting "distributed_cache_file_cache_name" ChString
+instance KnownSetting "filesystem_cache_allow_background_download" Bool
 instance KnownSetting "filesystem_cache_enable_background_download_for_metadata_files_in_packed_storage" Bool
 instance KnownSetting "filesystem_cache_enable_background_download_during_fetch" Bool
 instance KnownSetting "parallelize_output_from_storages" Bool
 instance KnownSetting "insert_deduplication_token" ChString
 instance KnownSetting "count_distinct_optimization" Bool
+instance KnownSetting "optimize_inverse_dictionary_lookup" Bool
 instance KnownSetting "throw_if_no_data_to_insert" Bool
 instance KnownSetting "compatibility_ignore_auto_increment_in_create_table" Bool
 instance KnownSetting "multiple_joins_try_to_keep_original_names" Bool
@@ -900,7 +936,6 @@ instance KnownSetting "cast_string_to_dynamic_use_inference" Bool
 instance KnownSetting "allow_dynamic_type_in_join_keys" Bool
 instance KnownSetting "cast_string_to_variant_use_inference" Bool
 instance KnownSetting "enable_blob_storage_log" Bool
-instance KnownSetting "use_json_alias_for_old_object_type" Bool
 instance KnownSetting "allow_create_index_without_type" Bool
 instance KnownSetting "create_index_ignore_unique" Bool
 instance KnownSetting "print_pretty_type_names" Bool
@@ -909,9 +944,16 @@ instance KnownSetting "allow_named_collection_override_by_default" Bool
 instance KnownSetting "default_view_definer" ChString
 instance KnownSetting "cache_warmer_threads" UInt64
 instance KnownSetting "use_async_executor_for_materialized_views" Bool
+instance KnownSetting "ignore_cold_parts_seconds" Int64
 instance KnownSetting "short_circuit_function_evaluation_for_nulls" Bool
+instance KnownSetting "prefer_warmed_unmerged_parts_seconds" Int64
+instance KnownSetting "iceberg_timestamp_ms" Int64
+instance KnownSetting "iceberg_snapshot_id" Int64
 instance KnownSetting "show_data_lake_catalogs_in_system_tables" Bool
 instance KnownSetting "delta_lake_enable_expression_visitor_logging" Bool
+instance KnownSetting "delta_lake_snapshot_version" Int64
+instance KnownSetting "delta_lake_snapshot_start_version" Int64
+instance KnownSetting "delta_lake_snapshot_end_version" Int64
 instance KnownSetting "delta_lake_throw_on_engine_predicate_error" Bool
 instance KnownSetting "delta_lake_enable_engine_predicate" Bool
 instance KnownSetting "allow_experimental_delta_lake_writes" Bool
@@ -923,6 +965,8 @@ instance KnownSetting "keeper_map_strict_mode" Bool
 instance KnownSetting "restore_replace_external_engines_to_null" Bool
 instance KnownSetting "restore_replace_external_table_functions_to_null" Bool
 instance KnownSetting "restore_replace_external_dictionary_source_to_null" Bool
+instance KnownSetting "automatic_parallel_replicas_mode" UInt64
+instance KnownSetting "automatic_parallel_replicas_min_bytes_per_replica" UInt64
 instance KnownSetting "parallel_replicas_count" UInt64
 instance KnownSetting "parallel_replica_offset" UInt64
 instance KnownSetting "parallel_replicas_custom_key" ChString
@@ -940,6 +984,7 @@ instance KnownSetting "parallel_replicas_support_projection" Bool
 instance KnownSetting "parallel_replicas_only_with_analyzer" Bool
 instance KnownSetting "parallel_replicas_insert_select_local_pipeline" Bool
 instance KnownSetting "parallel_replicas_for_cluster_engines" Bool
+instance KnownSetting "parallel_replicas_allow_materialized_views" Bool
 instance KnownSetting "analyzer_compatibility_join_using_top_level_identifier" Bool
 instance KnownSetting "analyzer_compatibility_allow_compound_identifiers_in_unflatten_nested" Bool
 instance KnownSetting "create_if_not_exists" Bool
@@ -956,6 +1001,7 @@ instance KnownSetting "use_join_disjunctions_push_down" Bool
 instance KnownSetting "shared_merge_tree_sync_parts_on_partition_operations" Bool
 instance KnownSetting "implicit_table_at_top_level" ChString
 instance KnownSetting "allow_general_join_planning" Bool
+instance KnownSetting "cluster_table_function_buckets_batch_size" UInt64
 instance KnownSetting "merge_table_max_tables_to_look_for_schema_inference" UInt64
 instance KnownSetting "validate_enum_literals_in_operators" Bool
 instance KnownSetting "max_autoincrement_series" UInt64
@@ -965,20 +1011,27 @@ instance KnownSetting "apply_settings_from_server" Bool
 instance KnownSetting "allow_archive_path_syntax" Bool
 instance KnownSetting "iceberg_insert_max_rows_in_data_file" UInt64
 instance KnownSetting "iceberg_insert_max_bytes_in_data_file" UInt64
+instance KnownSetting "iceberg_insert_max_partitions" UInt64
 instance KnownSetting "enable_producing_buckets_out_of_order_in_aggregation" Bool
 instance KnownSetting "enable_parallel_blocks_marshalling" Bool
 instance KnownSetting "min_outstreams_per_resize_after_split" UInt64
 instance KnownSetting "enable_add_distinct_to_in_subqueries" Bool
 instance KnownSetting "function_date_trunc_return_type_behavior" UInt64
+instance KnownSetting "query_plan_remove_unused_columns" Bool
 instance KnownSetting "jemalloc_enable_profiler" Bool
 instance KnownSetting "jemalloc_collect_profile_samples_in_trace_log" Bool
+instance KnownSetting "show_processlist_include_internal" Bool
 instance KnownSetting "use_roaring_bitmap_iceberg_positional_deletes" Bool
 instance KnownSetting "inject_random_order_for_select_without_order_by" Bool
+instance KnownSetting "optimize_const_name_size" Int64
+instance KnownSetting "serialize_string_in_memory_with_zero_byte" Bool
+instance KnownSetting "s3_path_filter_limit" UInt64
+instance KnownSetting "ignore_on_cluster_for_replicated_database" Bool
+instance KnownSetting "archive_adaptive_buffer_max_size_bytes" UInt64
 instance KnownSetting "allow_experimental_materialized_postgresql_table" Bool
 instance KnownSetting "allow_experimental_funnel_functions" Bool
 instance KnownSetting "allow_experimental_nlp_functions" Bool
 instance KnownSetting "allow_experimental_hash_functions" Bool
-instance KnownSetting "allow_experimental_object_type" Bool
 instance KnownSetting "allow_experimental_time_series_table" Bool
 instance KnownSetting "allow_experimental_codecs" Bool
 instance KnownSetting "throw_on_unsupported_query_inside_transaction" Bool
@@ -987,14 +1040,14 @@ instance KnownSetting "join_to_sort_minimum_perkey_rows" UInt64
 instance KnownSetting "join_to_sort_maximum_table_rows" UInt64
 instance KnownSetting "allow_experimental_join_right_table_sorting" Bool
 instance KnownSetting "use_statistics_cache" Bool
-instance KnownSetting "allow_experimental_full_text_index" Bool
 instance KnownSetting "query_plan_direct_read_from_text_index" Bool
+instance KnownSetting "query_plan_text_index_add_hint" Bool
 instance KnownSetting "use_text_index_dictionary_cache" Bool
 instance KnownSetting "use_text_index_header_cache" Bool
+instance KnownSetting "use_text_index_postings_cache" Bool
 instance KnownSetting "allow_experimental_window_view" Bool
 instance KnownSetting "stop_refreshable_materialized_views_on_startup" Bool
 instance KnownSetting "allow_experimental_database_materialized_postgresql" Bool
-instance KnownSetting "allow_experimental_qbit_type" Bool
 instance KnownSetting "allow_experimental_query_deduplication" Bool
 instance KnownSetting "allow_experimental_database_hms_catalog" Bool
 instance KnownSetting "allow_experimental_kusto_dialect" Bool
@@ -1007,7 +1060,6 @@ instance KnownSetting "write_full_path_in_iceberg_metadata" Bool
 instance KnownSetting "iceberg_metadata_compression_method" ChString
 instance KnownSetting "make_distributed_plan" Bool
 instance KnownSetting "distributed_plan_execute_locally" Bool
-instance KnownSetting "distributed_plan_default_shuffle_join_bucket_count" UInt64
 instance KnownSetting "distributed_plan_default_reader_bucket_count" UInt64
 instance KnownSetting "distributed_plan_optimize_exchanges" Bool
 instance KnownSetting "distributed_plan_force_exchange_kind" ChString
@@ -1020,14 +1072,20 @@ instance KnownSetting "enable_join_runtime_filters" Bool
 instance KnownSetting "join_runtime_filter_exact_values_limit" UInt64
 instance KnownSetting "join_runtime_bloom_filter_bytes" UInt64
 instance KnownSetting "join_runtime_bloom_filter_hash_functions" UInt64
+instance KnownSetting "join_runtime_filter_blocks_to_skip_before_reenabling" UInt64
 instance KnownSetting "rewrite_in_to_join" Bool
 instance KnownSetting "promql_database" ChString
 instance KnownSetting "promql_table" ChString
+instance KnownSetting "allow_experimental_alias_table_engine" Bool
+instance KnownSetting "use_paimon_partition_pruning" Bool
+instance KnownSetting "allow_experimental_object_storage_queue_hive_partitioning" Bool
+instance KnownSetting "allow_experimental_database_paimon_rest_catalog" Bool
 
 settingsMap :: [(ChString, SettingSerializer)]
 settingsMap = [
   mkSettingSerializer @"min_compress_block_size",
   mkSettingSerializer @"max_compress_block_size",
+  mkSettingSerializer @"max_insert_block_size_bytes",
   mkSettingSerializer @"min_insert_block_size_rows",
   mkSettingSerializer @"min_insert_block_size_bytes",
   mkSettingSerializer @"min_insert_block_size_rows_for_materialized_views",
@@ -1115,6 +1173,7 @@ settingsMap = [
   mkSettingSerializer @"azure_request_timeout_ms",
   mkSettingSerializer @"azure_connect_timeout_ms",
   mkSettingSerializer @"s3_validate_request_settings",
+  mkSettingSerializer @"compatibility_s3_presigned_url_query_in_path",
   mkSettingSerializer @"s3_disable_checksum",
   mkSettingSerializer @"s3_request_timeout_ms",
   mkSettingSerializer @"s3_connect_timeout_ms",
@@ -1146,6 +1205,7 @@ settingsMap = [
   mkSettingSerializer @"enable_multiple_prewhere_read_steps",
   mkSettingSerializer @"move_primary_key_columns_to_end_of_prewhere",
   mkSettingSerializer @"allow_reorder_prewhere_conditions",
+  mkSettingSerializer @"replication_wait_for_inactive_replica_timeout",
   mkSettingSerializer @"alter_move_to_space_execute_async",
   mkSettingSerializer @"load_balancing_first_offset",
   mkSettingSerializer @"allow_suspicious_low_cardinality_types",
@@ -1156,8 +1216,7 @@ settingsMap = [
   mkSettingSerializer @"allow_suspicious_primary_key",
   mkSettingSerializer @"allow_suspicious_types_in_group_by",
   mkSettingSerializer @"allow_suspicious_types_in_order_by",
-  mkSettingSerializer @"allow_not_comparable_types_in_order_by",
-  mkSettingSerializer @"allow_not_comparable_types_in_comparison_functions",
+  mkSettingSerializer @"use_variant_default_implementation_for_comparisons",
   mkSettingSerializer @"compile_expressions",
   mkSettingSerializer @"min_count_to_compile_expression",
   mkSettingSerializer @"compile_aggregate_expressions",
@@ -1170,6 +1229,7 @@ settingsMap = [
   mkSettingSerializer @"aggregation_memory_efficient_merge_threads",
   mkSettingSerializer @"enable_memory_bound_merging_of_aggregation_results",
   mkSettingSerializer @"enable_positional_arguments",
+  mkSettingSerializer @"enable_positional_arguments_for_projections",
   mkSettingSerializer @"enable_extended_results_for_datetime_functions",
   mkSettingSerializer @"allow_nonconst_timezone_arguments",
   mkSettingSerializer @"use_legacy_to_time",
@@ -1187,10 +1247,6 @@ settingsMap = [
   mkSettingSerializer @"force_optimize_skip_unused_shards",
   mkSettingSerializer @"optimize_skip_unused_shards_nesting",
   mkSettingSerializer @"force_optimize_skip_unused_shards_nesting",
-  mkSettingSerializer @"input_format_parallel_parsing",
-  mkSettingSerializer @"output_format_parallel_formatting",
-  mkSettingSerializer @"output_format_compression_level",
-  mkSettingSerializer @"output_format_compression_zstd_window_log",
   mkSettingSerializer @"allow_special_serialization_kinds_in_output_formats",
   mkSettingSerializer @"enable_parsing_to_custom_serialization",
   mkSettingSerializer @"merge_tree_use_v1_object_and_dynamic_serialization",
@@ -1206,6 +1262,8 @@ settingsMap = [
   mkSettingSerializer @"do_not_merge_across_partitions_select_final",
   mkSettingSerializer @"split_parts_ranges_into_intersecting_and_non_intersecting_final",
   mkSettingSerializer @"split_intersecting_parts_ranges_into_layers_final",
+  mkSettingSerializer @"apply_row_policy_after_final",
+  mkSettingSerializer @"apply_prewhere_after_final",
   mkSettingSerializer @"mysql_max_rows_to_insert",
   mkSettingSerializer @"mysql_map_string_to_text_in_show_columns",
   mkSettingSerializer @"mysql_map_fixed_string_to_text_in_show_columns",
@@ -1215,11 +1273,16 @@ settingsMap = [
   mkSettingSerializer @"min_bytes_to_use_mmap_io",
   mkSettingSerializer @"checksum_on_read",
   mkSettingSerializer @"force_index_by_date",
+  mkSettingSerializer @"use_primary_key",
   mkSettingSerializer @"force_primary_key",
   mkSettingSerializer @"use_skip_indexes",
   mkSettingSerializer @"use_skip_indexes_if_final",
   mkSettingSerializer @"use_skip_indexes_if_final_exact_mode",
   mkSettingSerializer @"use_skip_indexes_on_data_read",
+  mkSettingSerializer @"use_skip_indexes_for_disjunctions",
+  mkSettingSerializer @"use_skip_indexes_for_top_k",
+  mkSettingSerializer @"use_top_k_dynamic_filtering",
+  mkSettingSerializer @"query_plan_max_limit_for_top_k_optimization",
   mkSettingSerializer @"materialize_skip_indexes_on_insert",
   mkSettingSerializer @"exclude_materialize_skip_indexes_on_insert",
   mkSettingSerializer @"text_index_use_bloom_filter",
@@ -1229,6 +1292,8 @@ settingsMap = [
   mkSettingSerializer @"force_data_skipping_indices",
   mkSettingSerializer @"secondary_indices_enable_bulk_filtering",
   mkSettingSerializer @"network_compression_method",
+  mkSettingSerializer @"network_zstd_compression_level",
+  mkSettingSerializer @"zstd_window_log_max",
   mkSettingSerializer @"priority",
   mkSettingSerializer @"log_queries",
   mkSettingSerializer @"log_formatted_queries",
@@ -1246,11 +1311,13 @@ settingsMap = [
   mkSettingSerializer @"read_backoff_min_events",
   mkSettingSerializer @"read_backoff_min_concurrency",
   mkSettingSerializer @"enable_http_compression",
+  mkSettingSerializer @"http_zlib_compression_level",
   mkSettingSerializer @"http_native_compression_disable_checksumming_on_decompress",
   mkSettingSerializer @"count_distinct_implementation",
   mkSettingSerializer @"add_http_cors_header",
   mkSettingSerializer @"max_http_get_redirects",
   mkSettingSerializer @"use_client_time_zone",
+  mkSettingSerializer @"send_profile_events",
   mkSettingSerializer @"send_progress_in_http_headers",
   mkSettingSerializer @"http_headers_progress_interval_ms",
   mkSettingSerializer @"http_wait_end_of_query",
@@ -1273,6 +1340,7 @@ settingsMap = [
   mkSettingSerializer @"parts_to_throw_insert",
   mkSettingSerializer @"number_of_mutations_to_delay",
   mkSettingSerializer @"number_of_mutations_to_throw",
+  mkSettingSerializer @"distributed_ddl_task_timeout",
   mkSettingSerializer @"min_free_disk_bytes_to_perform_insert",
   mkSettingSerializer @"final",
   mkSettingSerializer @"partial_result_on_first_cancel",
@@ -1296,8 +1364,6 @@ settingsMap = [
   mkSettingSerializer @"empty_result_for_aggregation_by_constant_keys_on_empty_set",
   mkSettingSerializer @"allow_distributed_ddl",
   mkSettingSerializer @"allow_suspicious_codecs",
-  mkSettingSerializer @"enable_zstd_qat_codec",
-  mkSettingSerializer @"enable_deflate_qpl_codec",
   mkSettingSerializer @"query_profiler_real_time_period_ns",
   mkSettingSerializer @"query_profiler_cpu_time_period_ns",
   mkSettingSerializer @"metrics_perf_events_enabled",
@@ -1337,9 +1403,12 @@ settingsMap = [
   mkSettingSerializer @"readonly",
   mkSettingSerializer @"max_rows_in_set",
   mkSettingSerializer @"max_bytes_in_set",
+  mkSettingSerializer @"exact_rows_before_limit",
+  mkSettingSerializer @"rows_before_aggregation",
   mkSettingSerializer @"max_rows_in_join",
   mkSettingSerializer @"max_bytes_in_join",
   mkSettingSerializer @"join_any_take_last_row",
+  mkSettingSerializer @"cross_to_inner_join_rewrite",
   mkSettingSerializer @"cross_join_min_rows_to_compress",
   mkSettingSerializer @"cross_join_min_bytes_to_compress",
   mkSettingSerializer @"default_max_bytes_in_join",
@@ -1349,7 +1418,6 @@ settingsMap = [
   mkSettingSerializer @"max_rows_in_set_to_optimize_join",
   mkSettingSerializer @"compatibility_ignore_collation_in_create_table",
   mkSettingSerializer @"temporary_files_codec",
-  mkSettingSerializer @"temporary_files_buffer_size",
   mkSettingSerializer @"max_rows_to_transfer",
   mkSettingSerializer @"max_bytes_to_transfer",
   mkSettingSerializer @"max_rows_in_distinct",
@@ -1359,10 +1427,12 @@ settingsMap = [
   mkSettingSerializer @"max_memory_usage_for_user",
   mkSettingSerializer @"memory_overcommit_ratio_denominator_for_user",
   mkSettingSerializer @"max_untracked_memory",
+  mkSettingSerializer @"max_reverse_dictionary_lookup_cache_size_bytes",
   mkSettingSerializer @"memory_profiler_step",
   mkSettingSerializer @"memory_profiler_sample_min_allocation_size",
   mkSettingSerializer @"memory_profiler_sample_max_allocation_size",
   mkSettingSerializer @"trace_profile_events",
+  mkSettingSerializer @"trace_profile_events_list",
   mkSettingSerializer @"memory_usage_overcommit_max_wait_microseconds",
   mkSettingSerializer @"max_network_bandwidth",
   mkSettingSerializer @"max_network_bytes",
@@ -1391,6 +1461,11 @@ settingsMap = [
   mkSettingSerializer @"log_query_threads",
   mkSettingSerializer @"log_query_views",
   mkSettingSerializer @"log_comment",
+  mkSettingSerializer @"query_metric_log_interval",
+  mkSettingSerializer @"regexp_dict_allow_hyperscan",
+  mkSettingSerializer @"regexp_dict_flag_case_insensitive",
+  mkSettingSerializer @"regexp_dict_flag_dotall",
+  mkSettingSerializer @"dictionary_use_async_executor",
   mkSettingSerializer @"send_logs_source_regexp",
   mkSettingSerializer @"enable_optimize_predicate_expression",
   mkSettingSerializer @"enable_optimize_predicate_expression_to_final_subquery",
@@ -1438,6 +1513,7 @@ settingsMap = [
   mkSettingSerializer @"h3togeo_lon_lat_result_order",
   mkSettingSerializer @"max_partitions_per_insert_block",
   mkSettingSerializer @"throw_on_max_partitions_per_insert_block",
+  mkSettingSerializer @"max_partitions_to_read",
   mkSettingSerializer @"check_query_single_value_result",
   mkSettingSerializer @"allow_drop_detached",
   mkSettingSerializer @"max_parts_to_move",
@@ -1484,7 +1560,6 @@ settingsMap = [
   mkSettingSerializer @"normalize_function_names",
   mkSettingSerializer @"enable_early_constant_folding",
   mkSettingSerializer @"deduplicate_blocks_in_dependent_materialized_views",
-  mkSettingSerializer @"throw_if_deduplication_in_dependent_materialized_views_enabled_with_async_insert",
   mkSettingSerializer @"materialized_views_ignore_errors",
   mkSettingSerializer @"ignore_materialized_views_with_dropped_target_table",
   mkSettingSerializer @"allow_materialized_view_with_bad_select",
@@ -1526,7 +1601,6 @@ settingsMap = [
   mkSettingSerializer @"async_socket_for_remote",
   mkSettingSerializer @"async_query_sending_for_remote",
   mkSettingSerializer @"insert_null_as_default",
-  mkSettingSerializer @"describe_extend_object_types",
   mkSettingSerializer @"describe_include_subcolumns",
   mkSettingSerializer @"describe_include_virtual_columns",
   mkSettingSerializer @"describe_compact_output",
@@ -1564,6 +1638,7 @@ settingsMap = [
   mkSettingSerializer @"collect_hash_table_stats_during_aggregation",
   mkSettingSerializer @"max_size_to_preallocate_for_aggregation",
   mkSettingSerializer @"collect_hash_table_stats_during_joins",
+  mkSettingSerializer @"use_hash_table_stats_for_join_reordering",
   mkSettingSerializer @"max_size_to_preallocate_for_joins",
   mkSettingSerializer @"kafka_disable_num_consumers_limit",
   mkSettingSerializer @"allow_experimental_kafka_offsets_storage_in_keeper",
@@ -1585,6 +1660,7 @@ settingsMap = [
   mkSettingSerializer @"database_replicated_allow_replicated_engine_arguments",
   mkSettingSerializer @"database_replicated_allow_explicit_uuid",
   mkSettingSerializer @"database_replicated_allow_heavy_create",
+  mkSettingSerializer @"database_shared_drop_table_delay_seconds",
   mkSettingSerializer @"cloud_mode",
   mkSettingSerializer @"cloud_mode_engine",
   mkSettingSerializer @"cloud_mode_database_engine",
@@ -1617,6 +1693,7 @@ settingsMap = [
   mkSettingSerializer @"query_plan_reuse_storage_ordering_for_window_functions",
   mkSettingSerializer @"query_plan_lift_up_union",
   mkSettingSerializer @"query_plan_read_in_order",
+  mkSettingSerializer @"query_plan_read_in_order_through_join",
   mkSettingSerializer @"query_plan_aggregation_in_order",
   mkSettingSerializer @"query_plan_remove_redundant_sorting",
   mkSettingSerializer @"query_plan_remove_redundant_distinct",
@@ -1627,6 +1704,7 @@ settingsMap = [
   mkSettingSerializer @"enable_lazy_columns_replication",
   mkSettingSerializer @"serialize_query_plan",
   mkSettingSerializer @"correlated_subqueries_substitute_equivalent_expressions",
+  mkSettingSerializer @"correlated_subqueries_use_in_memory_buffer",
   mkSettingSerializer @"optimize_qbit_distance_function_reads",
   mkSettingSerializer @"regexp_max_matches_per_row",
   mkSettingSerializer @"limit",
@@ -1638,6 +1716,7 @@ settingsMap = [
   mkSettingSerializer @"remote_filesystem_read_method",
   mkSettingSerializer @"local_filesystem_read_prefetch",
   mkSettingSerializer @"remote_filesystem_read_prefetch",
+  mkSettingSerializer @"read_priority",
   mkSettingSerializer @"merge_tree_min_rows_for_concurrent_read_for_remote_filesystem",
   mkSettingSerializer @"merge_tree_min_bytes_for_concurrent_read_for_remote_filesystem",
   mkSettingSerializer @"remote_read_min_bytes_for_seek",
@@ -1652,6 +1731,7 @@ settingsMap = [
   mkSettingSerializer @"remote_fs_read_max_backoff_ms",
   mkSettingSerializer @"remote_fs_read_backoff_max_tries",
   mkSettingSerializer @"cluster_function_process_archive_on_multiple_nodes",
+  mkSettingSerializer @"max_streams_for_files_processing_in_cluster_functions",
   mkSettingSerializer @"enable_filesystem_cache",
   mkSettingSerializer @"filesystem_cache_name",
   mkSettingSerializer @"enable_filesystem_cache_on_write_operations",
@@ -1728,11 +1808,16 @@ settingsMap = [
   mkSettingSerializer @"distributed_cache_receive_timeout_ms",
   mkSettingSerializer @"distributed_cache_send_timeout_ms",
   mkSettingSerializer @"distributed_cache_tcp_keep_alive_timeout_ms",
+  mkSettingSerializer @"distributed_cache_use_clients_cache_for_write",
+  mkSettingSerializer @"distributed_cache_use_clients_cache_for_read",
+  mkSettingSerializer @"distributed_cache_file_cache_name",
+  mkSettingSerializer @"filesystem_cache_allow_background_download",
   mkSettingSerializer @"filesystem_cache_enable_background_download_for_metadata_files_in_packed_storage",
   mkSettingSerializer @"filesystem_cache_enable_background_download_during_fetch",
   mkSettingSerializer @"parallelize_output_from_storages",
   mkSettingSerializer @"insert_deduplication_token",
   mkSettingSerializer @"count_distinct_optimization",
+  mkSettingSerializer @"optimize_inverse_dictionary_lookup",
   mkSettingSerializer @"throw_if_no_data_to_insert",
   mkSettingSerializer @"compatibility_ignore_auto_increment_in_create_table",
   mkSettingSerializer @"multiple_joins_try_to_keep_original_names",
@@ -1759,7 +1844,6 @@ settingsMap = [
   mkSettingSerializer @"allow_dynamic_type_in_join_keys",
   mkSettingSerializer @"cast_string_to_variant_use_inference",
   mkSettingSerializer @"enable_blob_storage_log",
-  mkSettingSerializer @"use_json_alias_for_old_object_type",
   mkSettingSerializer @"allow_create_index_without_type",
   mkSettingSerializer @"create_index_ignore_unique",
   mkSettingSerializer @"print_pretty_type_names",
@@ -1768,9 +1852,16 @@ settingsMap = [
   mkSettingSerializer @"default_view_definer",
   mkSettingSerializer @"cache_warmer_threads",
   mkSettingSerializer @"use_async_executor_for_materialized_views",
+  mkSettingSerializer @"ignore_cold_parts_seconds",
   mkSettingSerializer @"short_circuit_function_evaluation_for_nulls",
+  mkSettingSerializer @"prefer_warmed_unmerged_parts_seconds",
+  mkSettingSerializer @"iceberg_timestamp_ms",
+  mkSettingSerializer @"iceberg_snapshot_id",
   mkSettingSerializer @"show_data_lake_catalogs_in_system_tables",
   mkSettingSerializer @"delta_lake_enable_expression_visitor_logging",
+  mkSettingSerializer @"delta_lake_snapshot_version",
+  mkSettingSerializer @"delta_lake_snapshot_start_version",
+  mkSettingSerializer @"delta_lake_snapshot_end_version",
   mkSettingSerializer @"delta_lake_throw_on_engine_predicate_error",
   mkSettingSerializer @"delta_lake_enable_engine_predicate",
   mkSettingSerializer @"allow_experimental_delta_lake_writes",
@@ -1782,6 +1873,8 @@ settingsMap = [
   mkSettingSerializer @"restore_replace_external_engines_to_null",
   mkSettingSerializer @"restore_replace_external_table_functions_to_null",
   mkSettingSerializer @"restore_replace_external_dictionary_source_to_null",
+  mkSettingSerializer @"automatic_parallel_replicas_mode",
+  mkSettingSerializer @"automatic_parallel_replicas_min_bytes_per_replica",
   mkSettingSerializer @"parallel_replicas_count",
   mkSettingSerializer @"parallel_replica_offset",
   mkSettingSerializer @"parallel_replicas_custom_key",
@@ -1799,6 +1892,7 @@ settingsMap = [
   mkSettingSerializer @"parallel_replicas_only_with_analyzer",
   mkSettingSerializer @"parallel_replicas_insert_select_local_pipeline",
   mkSettingSerializer @"parallel_replicas_for_cluster_engines",
+  mkSettingSerializer @"parallel_replicas_allow_materialized_views",
   mkSettingSerializer @"analyzer_compatibility_join_using_top_level_identifier",
   mkSettingSerializer @"analyzer_compatibility_allow_compound_identifiers_in_unflatten_nested",
   mkSettingSerializer @"create_if_not_exists",
@@ -1815,6 +1909,7 @@ settingsMap = [
   mkSettingSerializer @"shared_merge_tree_sync_parts_on_partition_operations",
   mkSettingSerializer @"implicit_table_at_top_level",
   mkSettingSerializer @"allow_general_join_planning",
+  mkSettingSerializer @"cluster_table_function_buckets_batch_size",
   mkSettingSerializer @"merge_table_max_tables_to_look_for_schema_inference",
   mkSettingSerializer @"validate_enum_literals_in_operators",
   mkSettingSerializer @"max_autoincrement_series",
@@ -1824,20 +1919,27 @@ settingsMap = [
   mkSettingSerializer @"allow_archive_path_syntax",
   mkSettingSerializer @"iceberg_insert_max_rows_in_data_file",
   mkSettingSerializer @"iceberg_insert_max_bytes_in_data_file",
+  mkSettingSerializer @"iceberg_insert_max_partitions",
   mkSettingSerializer @"enable_producing_buckets_out_of_order_in_aggregation",
   mkSettingSerializer @"enable_parallel_blocks_marshalling",
   mkSettingSerializer @"min_outstreams_per_resize_after_split",
   mkSettingSerializer @"enable_add_distinct_to_in_subqueries",
   mkSettingSerializer @"function_date_trunc_return_type_behavior",
+  mkSettingSerializer @"query_plan_remove_unused_columns",
   mkSettingSerializer @"jemalloc_enable_profiler",
   mkSettingSerializer @"jemalloc_collect_profile_samples_in_trace_log",
+  mkSettingSerializer @"show_processlist_include_internal",
   mkSettingSerializer @"use_roaring_bitmap_iceberg_positional_deletes",
   mkSettingSerializer @"inject_random_order_for_select_without_order_by",
+  mkSettingSerializer @"optimize_const_name_size",
+  mkSettingSerializer @"serialize_string_in_memory_with_zero_byte",
+  mkSettingSerializer @"s3_path_filter_limit",
+  mkSettingSerializer @"ignore_on_cluster_for_replicated_database",
+  mkSettingSerializer @"archive_adaptive_buffer_max_size_bytes",
   mkSettingSerializer @"allow_experimental_materialized_postgresql_table",
   mkSettingSerializer @"allow_experimental_funnel_functions",
   mkSettingSerializer @"allow_experimental_nlp_functions",
   mkSettingSerializer @"allow_experimental_hash_functions",
-  mkSettingSerializer @"allow_experimental_object_type",
   mkSettingSerializer @"allow_experimental_time_series_table",
   mkSettingSerializer @"allow_experimental_codecs",
   mkSettingSerializer @"throw_on_unsupported_query_inside_transaction",
@@ -1846,14 +1948,14 @@ settingsMap = [
   mkSettingSerializer @"join_to_sort_maximum_table_rows",
   mkSettingSerializer @"allow_experimental_join_right_table_sorting",
   mkSettingSerializer @"use_statistics_cache",
-  mkSettingSerializer @"allow_experimental_full_text_index",
   mkSettingSerializer @"query_plan_direct_read_from_text_index",
+  mkSettingSerializer @"query_plan_text_index_add_hint",
   mkSettingSerializer @"use_text_index_dictionary_cache",
   mkSettingSerializer @"use_text_index_header_cache",
+  mkSettingSerializer @"use_text_index_postings_cache",
   mkSettingSerializer @"allow_experimental_window_view",
   mkSettingSerializer @"stop_refreshable_materialized_views_on_startup",
   mkSettingSerializer @"allow_experimental_database_materialized_postgresql",
-  mkSettingSerializer @"allow_experimental_qbit_type",
   mkSettingSerializer @"allow_experimental_query_deduplication",
   mkSettingSerializer @"allow_experimental_database_hms_catalog",
   mkSettingSerializer @"allow_experimental_kusto_dialect",
@@ -1866,7 +1968,6 @@ settingsMap = [
   mkSettingSerializer @"iceberg_metadata_compression_method",
   mkSettingSerializer @"make_distributed_plan",
   mkSettingSerializer @"distributed_plan_execute_locally",
-  mkSettingSerializer @"distributed_plan_default_shuffle_join_bucket_count",
   mkSettingSerializer @"distributed_plan_default_reader_bucket_count",
   mkSettingSerializer @"distributed_plan_optimize_exchanges",
   mkSettingSerializer @"distributed_plan_force_exchange_kind",
@@ -1879,7 +1980,12 @@ settingsMap = [
   mkSettingSerializer @"join_runtime_filter_exact_values_limit",
   mkSettingSerializer @"join_runtime_bloom_filter_bytes",
   mkSettingSerializer @"join_runtime_bloom_filter_hash_functions",
+  mkSettingSerializer @"join_runtime_filter_blocks_to_skip_before_reenabling",
   mkSettingSerializer @"rewrite_in_to_join",
   mkSettingSerializer @"promql_database",
-  mkSettingSerializer @"promql_table"
+  mkSettingSerializer @"promql_table",
+  mkSettingSerializer @"allow_experimental_alias_table_engine",
+  mkSettingSerializer @"use_paimon_partition_pruning",
+  mkSettingSerializer @"allow_experimental_object_storage_queue_hive_partitioning",
+  mkSettingSerializer @"allow_experimental_database_paimon_rest_catalog"
   ]
