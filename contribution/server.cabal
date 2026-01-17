@@ -31,4 +31,9 @@ executable server
   ghc-options:
     -threaded
     -Wall -Wunused-packages
-    -rtsopts "-with-rtsopts=-T -A8m -AL32m -N"
+    -rtsopts
+    "-with-rtsopts=-T -A8m -AL32m -N"
+
+  if impl(ghc >= 9.4)
+    ghc-options:
+      "-with-rtsopts=-T -A8m -AL32m -N --null-eventlog-writer"
