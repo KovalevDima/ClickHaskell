@@ -29,6 +29,7 @@ import Prelude hiding (liftA2)
 -- External
 import Data.WideWord (Int128 (..), Word256(..), Word128(..))
 import Data.Binary.Put (putFloatle, execPut, putDoublele)
+
 -- * User types
 
 -- ** Abstractions
