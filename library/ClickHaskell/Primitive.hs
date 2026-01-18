@@ -12,6 +12,7 @@ import Data.ByteString.Builder
 import Data.ByteString.Char8 as BS8 (pack, unpack, concatMap, singleton, replicate, length)
 import Data.ByteString.Lazy (toStrict)
 import Data.Coerce (coerce)
+import Data.Fixed (Fixed (..))
 import Data.Int (Int16, Int32, Int64, Int8)
 import Data.List (uncons)
 import Data.String (IsString (..))
@@ -22,13 +23,12 @@ import Data.Type.Equality (type (==))
 import Data.Typeable (Proxy (..))
 import Data.Word (Word16, Word32, Word64, Word8)
 import GHC.Generics (C1, D1, Generic (..), K1 (K1), M1 (M1), Meta (MetaSel), Rec0, S1, type (:*:) (..))
-import GHC.TypeLits (ErrorMessage (..), KnownNat, KnownSymbol, Nat, Symbol, TypeError, natVal, symbolVal)
+import GHC.TypeLits (ErrorMessage (..), KnownNat, KnownSymbol, Nat, Symbol, TypeError, natVal, symbolVal, type(^))
 import Prelude hiding (liftA2)
 
 -- External
 import Data.WideWord (Int128 (..), Word256(..), Word128(..))
 import Data.Binary.Put (putFloatle, execPut, putDoublele)
-
 -- * User types
 
 -- ** Abstractions
@@ -574,6 +574,82 @@ instance Serializable Float64 where
 
 instance ToQueryPart Float64 where
   toQueryPart = byteString . BS8.pack . show
+
+
+-- ** Decimal32
+
+-- |
+-- >>> 1000.1 :: (Decimal32 9 1)
+-- 1000.1
+-- >>> 1000.1 :: (Decimal32 9 5)
+-- 1000.10000
+newtype Decimal32 (p :: Nat) (s :: Nat) = MkDecimal32 (Fixed (10 ^ s))
+
+deriving newtype instance KnownNat (10^s) => Show (Decimal32 p s)
+deriving newtype instance KnownNat (10^s) => Eq (Decimal32 p s)
+deriving newtype instance KnownNat (10^s) => Ord (Decimal32 p s)
+deriving newtype instance KnownNat (10^s) => Num (Decimal32 p s)
+deriving newtype instance KnownNat (10^s) => Fractional (Decimal32 p s)
+
+instance (KnownNat p, KnownNat s, KnownNat (10 ^ s)) => IsChType (Decimal32 p s) where
+  chTypeName =
+    let p = show (natVal @p Proxy)
+        s = show (natVal @s Proxy)
+    in "Decimal(" <> p <> ", "<> s <> ")"
+  defaultValueOfTypeName = MkDecimal32 0
+
+instance KnownNat (10 ^ s) => Serializable (Decimal32 p s) where
+  serialize _ (MkDecimal32 (MkFixed int)) = int32LE $ fromIntegral int
+  deserialize _ = MkDecimal32 . MkFixed . fromIntegral <$> getInt32le
+  {-# INLINE deserialize #-}
+
+
+-- ** Decimal64
+
+-- |
+newtype Decimal64 (p :: Nat) (s :: Nat) = MkDecimal64 (Fixed (10 ^ s))
+
+deriving newtype instance KnownNat (10^s) => Show (Decimal64 p s)
+deriving newtype instance KnownNat (10^s) => Eq (Decimal64 p s)
+deriving newtype instance KnownNat (10^s) => Ord (Decimal64 p s)
+deriving newtype instance KnownNat (10^s) => Num (Decimal64 p s)
+deriving newtype instance KnownNat (10^s) => Fractional (Decimal64 p s)
+
+instance (KnownNat p, KnownNat s, KnownNat (10 ^ s)) => IsChType (Decimal64 p s) where
+  chTypeName =
+    let p = show (natVal @p Proxy)
+        s = show (natVal @s Proxy)
+    in "Decimal(" <> p <> ", "<> s <> ")"
+  defaultValueOfTypeName = MkDecimal64 0
+
+instance KnownNat (10 ^ s) => Serializable (Decimal64 p s) where
+  serialize _ (MkDecimal64 (MkFixed int)) = int64LE $ fromIntegral int
+  deserialize _ = MkDecimal64 . MkFixed . fromIntegral <$> getInt64le
+  {-# INLINE deserialize #-}
+
+
+-- ** Decimal128
+
+-- |
+newtype Decimal128 (p :: Nat) (s :: Nat) = MkDecimal128 (Fixed (10 ^ s))
+
+deriving newtype instance KnownNat (10^s) => Show (Decimal128 p s)
+deriving newtype instance KnownNat (10^s) => Eq (Decimal128 p s)
+deriving newtype instance KnownNat (10^s) => Ord (Decimal128 p s)
+deriving newtype instance KnownNat (10^s) => Num (Decimal128 p s)
+deriving newtype instance KnownNat (10^s) => Fractional (Decimal128 p s)
+
+instance (KnownNat p, KnownNat s, KnownNat (10 ^ s)) => IsChType (Decimal128 p s) where
+  chTypeName =
+    let p = show (natVal @p Proxy)
+        s = show (natVal @s Proxy)
+    in "Decimal(" <> p <> ", "<> s <> ")"
+  defaultValueOfTypeName = 0
+
+instance Serializable (Decimal128 p s) where
+  serialize rev (MkDecimal128 (MkFixed int)) = serialize @Int128 rev (fromIntegral int)
+  deserialize rev = MkDecimal128 . MkFixed . fromIntegral <$> deserialize @Int128 rev
+  {-# INLINE deserialize #-}
 
 
 -- ** Array
