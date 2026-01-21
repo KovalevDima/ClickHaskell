@@ -224,7 +224,7 @@ createTableQuery =
   \    `float32` Float32, \
   \    `float64` Float64, \
   \    `decimal32` Decimal(1, 1), \
-  \    `decimal64` Decimal(10, 1), \
+  \    `decimal64` Decimal(10, 3), \
   \    `decimal128` Decimal(19, 10), \
   \    `bool` Bool, \
   \    `enum8` Enum8('hello'=1, 'world'=-1), \
