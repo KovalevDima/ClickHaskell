@@ -579,11 +579,22 @@ instance ToQueryPart Float64 where
 
 -- ** Decimal32
 
--- |
--- >>> 1000.1 :: (Decimal32 9 1)
--- 1000.1
--- >>> 1000.1 :: (Decimal32 9 5)
--- 1000.10000
+{- |
+Read the official ClickHouse documentation for the `Decimal(p, s)` type before use.
+
+In Haskell, this type is represented as a newtype over `Fixed (10 ^ s)`,
+allowing arbitrarily large integer parts, whereas ClickHouse stores decimals
+as scaled `Int32` values, which may discard some of the integer part if `s` is large.
+
+See test №6 for an example of potential truncation due to a large scale.
+
+>>> chTypeName @(Decimal32 9 1)
+"Decimal(9, 1)"
+>>> 1000.1 :: Decimal32 10 1
+1000.1
+>>> 1000.1 :: Decimal32 10 5
+1000.10000
+-}
 newtype Decimal32 (p :: Nat) (s :: Nat) = MkDecimal32 (Fixed (10 ^ s))
 
 deriving newtype instance KnownNat (10^s) => Show (Decimal32 p s)
@@ -614,7 +625,22 @@ instance
 
 -- ** Decimal64
 
--- |
+{- |
+Read the official ClickHouse documentation for the `Decimal(p, s)` type before use.
+
+In Haskell, this type is represented as a newtype over `Fixed (10 ^ s)`,
+allowing arbitrarily large integer parts, whereas ClickHouse stores decimals
+as scaled `Int128` values, which may discard some of the integer part if `s` is large.
+
+See test №6 for an example of potential truncation due to a large scale.
+
+>>> chTypeName @(Decimal64 10 1)
+"Decimal(10, 1)"
+>>> 1000.1 :: Decimal64 10 1
+1000.1
+>>> 1000.1 :: Decimal64 10 5
+1000.10000
+-}
 newtype Decimal64 (p :: Nat) (s :: Nat) = MkDecimal64 (Fixed (10 ^ s))
 
 deriving newtype instance KnownNat (10^s) => Show (Decimal64 p s)
@@ -645,7 +671,22 @@ instance
 
 -- ** Decimal128
 
--- |
+{- |
+Read the official ClickHouse documentation for the `Decimal(p, s)` type before use.
+
+In Haskell, this type is represented as a newtype over `Fixed (10 ^ s)`,
+allowing arbitrarily large integer parts, whereas ClickHouse stores decimals
+as scaled `Int128` values, which may discard some of the integer part if `s` is large.
+
+See test №6 for an example of potential truncation due to a large scale.
+
+>>> chTypeName @(Decimal128 19 1)
+"Decimal(19, 1)"
+>>> 1000.1 :: Decimal128 19 1
+1000.1
+>>> 1000.1 :: Decimal128 19 5
+1000.10000
+-}
 newtype Decimal128 (p :: Nat) (s :: Nat) = MkDecimal128 (Fixed (10 ^ s))
 
 deriving newtype instance KnownNat (10^s) => Show (Decimal128 p s)
