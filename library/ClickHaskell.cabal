@@ -59,7 +59,7 @@ Library
 
     -- External dependencies
     , network < 4
-    , wide-word < 1
+    , wide-word >= 0.1.9 && < 1
   ghc-options:
     -Wno-unticked-promoted-constructors
     -Wno-dodgy-imports
