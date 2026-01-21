@@ -5,6 +5,7 @@
   , FlexibleContexts
   , FlexibleInstances
   , MultiParamTypeClasses
+  , NumericUnderscores
   , OverloadedStrings
   , ScopedTypeVariables
   , TypeApplications
@@ -39,6 +40,7 @@ import Data.Word          (Word16, Word32, Word64, Word8)
 import GHC.Generics       (Generic)
 import Data.Time          (UTCTime)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
+import Data.Fixed (Fixed)
 
 t2 :: Connection -> IO ()
 t2 connection = do
@@ -84,8 +86,8 @@ type TestColumns =
    , Column "float32" Float32
    , Column "float64" Float64
    , Column "decimal32" (Decimal32 1 1)
-   , Column "decimal64" (Decimal64 10 1)
-   , Column "decimal128" (Decimal128 19 1)
+   , Column "decimal64" (Decimal64 10 3)
+   , Column "decimal128" (Decimal128 19 10)
    , Column "bool" Bool
    , Column "enum8" (Enum8 "'world' = -1, 'hello' = 1")
    , Column "enum16" (Enum16 "'world' = -1, 'hello' = 1")
@@ -126,9 +128,9 @@ data TestData = MkTestData
   , dateTime64Nullable :: Nullable UTCTime
   , float32 :: Float32
   , float64 :: Float64
-  , decimal32 :: Decimal32 1 1
-  , decimal64 :: Decimal64 10 1
-  , decimal128 :: Decimal128 19 1
+  , decimal32 :: Fixed 10
+  , decimal64 :: Fixed 1_000
+  , decimal128 :: Fixed 10_000_000_000
   , bool :: Bool
   , enum8 :: Enum8 "'world' = -1, 'hello' = 1"
   , enum16 :: Enum16 "'world' = -1, 'hello' = 1"
@@ -175,7 +177,7 @@ testData = MkTestData
   , float64 = 42.42
   , decimal32 = -10000.1
   , decimal64 = -10000.1
-  , decimal128 = -10000.1
+  , decimal128 = -10000.100000000001
   , bool = False
   , enum8 = 0
   , enum16 = 0
@@ -223,7 +225,7 @@ createTableQuery =
   \    `float64` Float64, \
   \    `decimal32` Decimal(1, 1), \
   \    `decimal64` Decimal(10, 1), \
-  \    `decimal128` Decimal(19, 1), \
+  \    `decimal128` Decimal(19, 10), \
   \    `bool` Bool, \
   \    `enum8` Enum8('hello'=1, 'world'=-1), \
   \    `enum16` Enum16('hello'=1, 'world'=-1), \

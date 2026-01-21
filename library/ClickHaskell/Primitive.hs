@@ -604,6 +604,13 @@ instance KnownNat (10 ^ s) => Serializable (Decimal32 p s) where
   deserialize _ = MkDecimal32 . MkFixed . fromIntegral <$> getInt32le
   {-# INLINE deserialize #-}
 
+instance
+  ( sPowered ~ 10^s
+  ) =>
+  ToChType (Decimal32 p s) (Fixed sPowered) where
+  toChType fixed = MkDecimal32 fixed
+  fromChType (MkDecimal32 fixed) = fixed
+
 
 -- ** Decimal64
 
@@ -628,6 +635,13 @@ instance KnownNat (10 ^ s) => Serializable (Decimal64 p s) where
   deserialize _ = MkDecimal64 . MkFixed . fromIntegral <$> getInt64le
   {-# INLINE deserialize #-}
 
+instance
+  ( sPowered ~ 10^s
+  ) =>
+  ToChType (Decimal64 p s) (Fixed sPowered) where
+  toChType fixed = MkDecimal64 fixed
+  fromChType (MkDecimal64 fixed) = fixed
+
 
 -- ** Decimal128
 
@@ -651,6 +665,13 @@ instance Serializable (Decimal128 p s) where
   serialize rev (MkDecimal128 (MkFixed int)) = serialize @Int128 rev (fromIntegral int)
   deserialize rev = MkDecimal128 . MkFixed . fromIntegral <$> deserialize @Int128 rev
   {-# INLINE deserialize #-}
+
+instance
+  ( sPowered ~ 10^s
+  ) =>
+  ToChType (Decimal128 p s) (Fixed sPowered) where
+  toChType fixed = MkDecimal128 fixed
+  fromChType (MkDecimal128 fixed) = fixed
 
 
 -- ** Array
