@@ -323,9 +323,10 @@ instance {-# OVERLAPPING #-}
           0
           (map f column)
 
-instance
-  ( KnownColumn (Column name (Array chType))
-  , TypeError ('Text "Nested Array types are unsupported")
+instance {-# OVERLAPPING #-}
+  ( KnownSymbol name
+  , IsChType chType
+  , TypeError ('Text "Nested Arrays types (column \"" :<>: 'Text name :<>: 'Text "\") are unsupported")
   )
   => SerializableColumn (Column name (Array (Array chType)))
   where
