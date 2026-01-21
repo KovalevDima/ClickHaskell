@@ -27,7 +27,7 @@ import GHC.TypeLits (ErrorMessage (..), KnownNat, KnownSymbol, Nat, Symbol, Type
 import Prelude hiding (liftA2)
 
 -- External
-import Data.WideWord (Int128 (..), Word256(..), Word128(..))
+import Data.WideWord (Int128 (..), Word256(..), Word128(..), Int256 (..))
 import Data.Binary.Put (putFloatle, execPut, putDoublele)
 
 -- * User types
@@ -161,7 +161,27 @@ instance Serializable Int128 where
   {-# INLINE deserialize #-}
 
 instance ToQueryPart Int128 where
-  toQueryPart = byteString . BS8.pack . show
+  toQueryPart x = "'" <> (byteString . BS8.pack . show) x <> "'"
+
+
+-- ** Int256
+
+instance IsChType Int256 where
+  chTypeName = "Int256"
+  defaultValueOfTypeName = 0
+
+instance Serializable Int256 where
+  serialize _ = (\(Int256 a1 a2 a3 a4) -> word64LE a4 <> word64LE a3 <> word64LE a2 <> word64LE a1)
+  deserialize _ = do
+    low <- getWord64le
+    mid1 <- getWord64le
+    mid2 <- getWord64le
+    high <- getWord64le
+    pure $ Int256 high mid2 mid1 low
+  {-# INLINE deserialize #-}
+
+instance ToQueryPart Int256 where
+  toQueryPart x = "'" <> (byteString . BS8.pack . show) x <> "'"
 
 
 -- ** UInt8

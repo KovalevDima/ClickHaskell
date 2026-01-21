@@ -25,12 +25,13 @@ import ClickHaskell
   , Connection
   , Column
   , toChType
-  , UInt8, UInt16, UInt32, UInt64, UInt128
-  , UUID, DateTime, ChString, Int128, Word128
+  , UInt8, UInt16, UInt32, UInt64, UInt128, UInt256
+  , Int128, Word128
+  , UUID, DateTime, ChString
   , Nullable, DateTime64, Array
   , Enum8, Enum16
   , Float32, Float64
-  , Decimal32, Decimal64, Decimal128
+  , Decimal32, Decimal64, Decimal128, Int256
   )
 
 -- GHC included
@@ -99,10 +100,14 @@ type TestColumns =
    , Column "int32Nullable" (Nullable Int32)
    , Column "int64" Int64
    , Column "int64Nullable" (Nullable Int64)
+   , Column "int256" Int256
+   , Column "int256Nullable" (Nullable Int256)
    , Column "int8" Int8
    , Column "int8Nullable" (Nullable Int8)
    , Column "string" ChString
    , Column "stringNullable" (Nullable ChString)
+   , Column "uint256" UInt256
+   , Column "uint256Nullable" (Nullable UInt256)
    , Column "uint128" UInt128
    , Column "uint128Nullable" (Nullable UInt128)
    , Column "uint16" UInt16
@@ -134,6 +139,8 @@ data TestData = MkTestData
   , bool :: Bool
   , enum8 :: Enum8 "'world' = -1, 'hello' = 1"
   , enum16 :: Enum16 "'world' = -1, 'hello' = 1"
+  , uint256 :: UInt256
+  , uint256Nullable :: Nullable UInt256
   , int128 :: Int128
   , int128Nullable :: Nullable Int128
   , int16 :: Int16
@@ -142,6 +149,8 @@ data TestData = MkTestData
   , int32Nullable :: Nullable Int32
   , int64 :: Int64
   , int64Nullable :: Nullable Int64
+  , int256 :: Int256
+  , int256Nullable :: Nullable Int256
   , int8 :: Int8
   , int8Nullable :: Nullable Int8
   , string :: ChString
@@ -189,10 +198,14 @@ testData = MkTestData
   , int32Nullable = toChType $ Just (-32 :: Int32)
   , int64 = toChType (-64 :: Int64)
   , int64Nullable = toChType $ Just (-64 :: Int64)
+  , int256 = -64
+  , int256Nullable = Just (-64)
   , int8 = toChType (-8 :: Int8)
   , int8Nullable = toChType $ Just (-8 :: Int8)
   , string = "string"
   , stringNullable = Just "string"
+  , uint256 = 64
+  , uint256Nullable = Just (-64)
   , uint128 = toChType (128 :: Word128)
   , uint128Nullable = toChType $ Just (128 :: Word128)
   , uint16 = toChType (16 :: Word16)
@@ -229,6 +242,8 @@ createTableQuery =
   \    `bool` Bool, \
   \    `enum8` Enum8('hello'=1, 'world'=-1), \
   \    `enum16` Enum16('hello'=1, 'world'=-1), \
+  \    `int256` Int256, \
+  \    `int256Nullable` Nullable(Int256), \
   \    `int128` Int128, \
   \    `int128Nullable` Nullable(Int128), \
   \    `int16` Int16, \
@@ -241,6 +256,8 @@ createTableQuery =
   \    `int8Nullable` Nullable(Int8), \
   \    `string` String, \
   \    `stringNullable` Nullable(String), \
+  \    `uint256` UInt256, \
+  \    `uint256Nullable` Nullable(UInt256), \
   \    `uint128` UInt128, \
   \    `uint128Nullable` Nullable(UInt128), \
   \    `uint16` UInt16, \
