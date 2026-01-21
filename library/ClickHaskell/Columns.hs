@@ -58,6 +58,9 @@ data Column (name :: Symbol) (chType :: Type) where
   DateTime64Column :: [DateTime64 precision tz] -> Column name (DateTime64 precision tz)
   Float32Column :: [Float32] -> Column name Float32
   Float64Column :: [Float64] -> Column name Float64
+  Decimal32Column :: [Decimal32 p s] -> Column name (Decimal32 p s)
+  Decimal64Column :: [Decimal64 p s] -> Column name (Decimal64 p s)
+  Decimal128Column :: [Decimal128 p s] -> Column name (Decimal128 p s) 
   BoolColumn :: [Bool] -> Column name Bool
   Enum8Column :: [Enum8 enums] -> Column name (Enum8 enums)
   Enum16Column :: [Enum16 enums] -> Column name (Enum16 enums)
@@ -178,6 +181,18 @@ instance KnownSymbol name => KnownColumn (Column name Float32) where
 instance KnownSymbol name => KnownColumn (Column name Float64) where
   toColumn = Float64Column
   fromColumn (Float64Column values) = values
+
+instance (KnownSymbol name, IsChType (Decimal32 p s)) => KnownColumn (Column name (Decimal32 p s)) where
+  toColumn = Decimal32Column
+  fromColumn (Decimal32Column values) = values
+
+instance (KnownSymbol name, IsChType (Decimal64 p s)) => KnownColumn (Column name (Decimal64 p s)) where
+  toColumn = Decimal64Column
+  fromColumn (Decimal64Column values) = values
+
+instance (KnownSymbol name, IsChType (Decimal128 p s)) => KnownColumn (Column name (Decimal128 p s)) where
+  toColumn = Decimal128Column
+  fromColumn (Decimal128Column values) = values
 
 instance
   ( KnownSymbol name
