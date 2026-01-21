@@ -1,5 +1,8 @@
 # 1.1.0 -- ?
 
+## Fixes:
+- Fix Array(T) serialization bug for columns with more than 1 row (+ added test)
+
 ## Features:
 - Added `Float32`, `Float64` types support
 - Added `Int64` settings type support

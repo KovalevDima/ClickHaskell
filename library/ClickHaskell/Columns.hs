@@ -7,7 +7,7 @@ import ClickHaskell.Primitive
 import Data.Binary.Get
 import Data.ByteString.Builder
 import Data.ByteString.Char8 as BS8 (pack, isPrefixOf)
-import Data.Traversable (forM)
+import Data.Traversable (forM, mapAccumL)
 import Data.Int
 import Data.Kind
 import Data.Coerce
@@ -305,9 +305,31 @@ instance {-# OVERLAPPING #-}
   {-# INLINE deserializeColumn #-}
   deserializeColumn rev rows f = do
     offsets <- replicateGet @UInt64 rev rows
-    forM offsets (fmap (f . MkChArray) . replicateGet @chType rev . fromIntegral)
+    let lengths = zipWith (-) offsets (0 : (init offsets))
+    forM lengths (fmap (f . MkChArray) . replicateGet @chType rev . fromIntegral)
 
   {-# INLINE serializeColumn #-}
   serializeColumn rev f column
-    =  foldMap (serialize @UInt64 rev . fromIntegral . length . f) column
+    =  foldMap (serialize @UInt64 rev) offsets
     <> foldMap (foldMap (serialize @chType rev) . f) column
+    where
+    offsets =
+      snd $
+        mapAccumL
+          (\offset xs ->
+            let nextOffset = offset + fromIntegral (length xs)
+            in (nextOffset, nextOffset)
+          )
+          0
+          (map f column)
+
+instance {-# OVERLAPPING #-}
+  ( KnownSymbol name
+  , IsChType chType
+  , TypeError ('Text "Nested Arrays types (column \"" :<>: 'Text name :<>: 'Text "\") are unsupported")
+  )
+  => SerializableColumn (Column name (Array (Array chType)))
+  where
+  deserializeColumn = error "Impossible"
+  serializeColumn = error "Impossible"
+

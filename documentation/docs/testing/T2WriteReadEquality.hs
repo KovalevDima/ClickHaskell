@@ -54,9 +54,9 @@ t2 connection = do
       @TestData
     )
     connection
-    [testData]
+    [testData, testData]
 
-  [result] <-
+  [_result, result] <-
     concat <$>
       select
         (fromTable
@@ -117,6 +117,7 @@ type TestColumns =
    , Column "uuidNullable" (Nullable UUID)
    , Column "stringArray" (Array ChString)
    , Column "int64Array" (Array Int64)
+   , Column "int8Array" (Array Int8)
    ]
 
 data TestData = MkTestData
@@ -160,6 +161,7 @@ data TestData = MkTestData
   , uuidNullable :: Nullable UUID
   , stringArray :: [ChString]
   , int64Array :: [Int64]
+  , int8Array :: [Int8]
   }
   deriving (Generic, Show, Eq)
 
@@ -209,6 +211,7 @@ testData = MkTestData
   , uuidNullable = Nothing
   , stringArray = ["array1", "array2"]
   , int64Array = [64, 128]
+  , int8Array = [0, 1, 2]
   }
 
 createTableQuery :: Command
@@ -255,6 +258,7 @@ createTableQuery =
   \    `uuidNullable` Nullable(UUID), \
   \    `stringArray` Array(String), \
   \    `int64Array` Array(Int64), \
+  \    `int8Array` Array(Int8), \
   \) \
   \ENGINE = MergeTree \
   \PARTITION BY () \
