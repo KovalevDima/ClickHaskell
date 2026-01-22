@@ -4,7 +4,7 @@
 - Fix Array(T) serialization bug for columns with more than 1 row (+ added test)
 
 ## Features:
-- Added `Float32`, `Float64`, `Int256` types support
+- Added `Float32`, `Float64`, `Int256`, `Date` types support
 - Added `Int64` settings type support
 
 # 1.0.0 -- 14-12-2025
