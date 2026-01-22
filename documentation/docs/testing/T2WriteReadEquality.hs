@@ -26,22 +26,20 @@ import ClickHaskell
   , Column
   , toChType
   , UInt8, UInt16, UInt32, UInt64, UInt128, UInt256
-  , Int128, Word128
+  , Int8, Int16, Int32, Int64, Int128, Int256
   , UUID, DateTime, ChString
   , Nullable, DateTime64, Array
   , Enum8, Enum16
   , Float32, Float64
-  , Decimal32, Decimal64, Decimal128, Int256
+  , Decimal32, Decimal64, Decimal128
   )
 
 -- GHC included
 import Control.Monad      (when)
-import Data.Int           (Int16, Int32, Int64, Int8)
-import Data.Word          (Word16, Word32, Word64, Word8)
 import GHC.Generics       (Generic)
+import Data.Fixed         (Fixed)
 import Data.Time          (UTCTime)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
-import Data.Fixed (Fixed)
 
 t2 :: Connection -> IO ()
 t2 connection = do
@@ -139,8 +137,8 @@ data TestData = MkTestData
   , bool :: Bool
   , enum8 :: Enum8 "'world' = -1, 'hello' = 1"
   , enum16 :: Enum16 "'world' = -1, 'hello' = 1"
-  , uint256 :: UInt256
-  , uint256Nullable :: Nullable UInt256
+  , int256 :: Int256
+  , int256Nullable :: Nullable Int256
   , int128 :: Int128
   , int128Nullable :: Nullable Int128
   , int16 :: Int16
@@ -149,12 +147,12 @@ data TestData = MkTestData
   , int32Nullable :: Nullable Int32
   , int64 :: Int64
   , int64Nullable :: Nullable Int64
-  , int256 :: Int256
-  , int256Nullable :: Nullable Int256
   , int8 :: Int8
   , int8Nullable :: Nullable Int8
   , string :: ChString
   , stringNullable :: Nullable ChString
+  , uint256 :: UInt256
+  , uint256Nullable :: Nullable UInt256
   , uint128 :: UInt128
   , uint128Nullable :: Nullable UInt128
   , uint16 :: UInt16
@@ -206,18 +204,18 @@ testData = MkTestData
   , stringNullable = Just "string"
   , uint256 = 64
   , uint256Nullable = Just (-64)
-  , uint128 = toChType (128 :: Word128)
-  , uint128Nullable = toChType $ Just (128 :: Word128)
-  , uint16 = toChType (16 :: Word16)
-  , uint16Nullable = toChType $ Just (16 :: Word16)
-  , uint32 = toChType (32 :: Word32)
-  , uint32Nullable = toChType $ Just (32 :: Word32)
-  , uint64 = toChType (64 :: Word64)
-  , uint64Nullable = toChType $ Just (64 :: Word64)
-  , uint8 = toChType (8 :: Word8)
-  , uint8Nullable = toChType $ Just (8 :: Word8)
-  , uuid = let pos = (^) @Word64 @Word64 16 in
-      toChType (0 :: Word64, (pos 3)*4 + (pos 2)*2  )
+  , uint128 = toChType (128 :: UInt128)
+  , uint128Nullable = toChType $ Just (128 :: UInt128)
+  , uint16 = 16
+  , uint16Nullable = Just 16
+  , uint32 = 32
+  , uint32Nullable = Just 32
+  , uint64 = 64
+  , uint64Nullable = Just 64
+  , uint8 = 8
+  , uint8Nullable = Just 8
+  , uuid = let pos = (^) @UInt64 @UInt64 16 in
+      toChType (0 :: UInt64, (pos 3)*4 + (pos 2)*2  )
     -- ^ 00000000-0000-0000-0000-000000004200
   , uuidNullable = Nothing
   , stringArray = ["array1", "array2"]
