@@ -23,9 +23,9 @@ import ClickHaskell
   , Column, KnownColumn, SerializableColumn
   , IsChType(..), ToChType(..)
   , ToQueryPart(..)
-  , UInt8, UInt16, UInt32, UInt64
-  , Int8, Int16, Int32, Int64
-  , ChString, UUID, DateTime, UInt128, UInt256, Array
+  , UInt8, UInt16, UInt32, UInt64, UInt128, UInt256
+  , Int8, Int16, Int32, Int64, Int128, Int256
+  , ChString, UUID, DateTime, Array
   , Enum16, Enum8
   , Float32, Float64
   -- , DateTime64
@@ -44,6 +44,8 @@ t1 conn = do
   runTestForType @Int16 conn [minBound, toEnum 0, maxBound]
   runTestForType @Int32 conn [minBound, toEnum 0, maxBound]
   runTestForType @Int64 conn [minBound, toEnum 0, maxBound]
+  runTestForType @Int128 conn [minBound, 0, maxBound]
+  runTestForType @Int256 conn [minBound, toEnum 0, maxBound]
   runTestForType @UInt8 conn [minBound, toEnum 0, maxBound]
   runTestForType @UInt16 conn [minBound, toEnum 0, maxBound]
   runTestForType @UInt32 conn [minBound, toEnum 0, maxBound]

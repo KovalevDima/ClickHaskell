@@ -17,7 +17,7 @@ import GHC.Generics (Generic)
 import GHC.TypeLits (ErrorMessage (..), KnownSymbol, Symbol, TypeError, symbolVal)
 
 -- External
-import Data.WideWord (Int128 (..))
+import Data.WideWord (Int128 (..), Int256)
 
 -- * Column
 
@@ -54,6 +54,7 @@ data Column (name :: Symbol) (chType :: Type) where
   UInt128Column :: [UInt128] -> Column name UInt128
   Int128Column :: [Int128] -> Column name Int128
   UInt256Column :: [UInt256] -> Column name UInt256
+  Int256Column :: [Int256] -> Column name Int256
   DateTimeColumn :: [DateTime tz] -> Column name (DateTime tz)
   DateTime64Column :: [DateTime64 precision tz] -> Column name (DateTime64 precision tz)
   Float32Column :: [Float32] -> Column name Float32
@@ -151,6 +152,10 @@ instance KnownSymbol name => KnownColumn (Column name Int64) where
 instance KnownSymbol name => KnownColumn (Column name Int128) where
   toColumn = Int128Column
   fromColumn (Int128Column values) = values
+
+instance KnownSymbol name => KnownColumn (Column name Int256) where
+  toColumn = Int256Column
+  fromColumn (Int256Column values) = values
 
 instance KnownSymbol name => KnownColumn (Column name Date) where
   toColumn = DateColumn
