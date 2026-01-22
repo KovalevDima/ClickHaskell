@@ -28,7 +28,9 @@ import ClickHaskell
   , UInt8, UInt16, UInt32, UInt64, UInt128, UInt256
   , Int8, Int16, Int32, Int64, Int128, Int256
   , UUID, DateTime, ChString
-  , Nullable, DateTime64, Array
+  , Nullable, Array
+  , DateTime64
+  , Date
   , Enum8, Enum16
   , Float32, Float64
   , Decimal32, Decimal64, Decimal128
@@ -82,6 +84,7 @@ type TestColumns =
    , Column "dateTime64p3" (DateTime64 3 "UTC")
    , Column "dateTime64p9" (DateTime64 9 "UTC")
    , Column "dateTime64Nullable" (Nullable (DateTime64 3 "UTC"))
+   , Column "date" Date
    , Column "float32" Float32
    , Column "float64" Float64
    , Column "decimal32" (Decimal32 1 1)
@@ -130,6 +133,7 @@ data TestData = MkTestData
   , dateTime64p3 :: UTCTime
   , dateTime64p9 :: UTCTime
   , dateTime64Nullable :: Nullable UTCTime
+  , date :: Date
   , float32 :: Float32
   , float64 :: Float64
   , decimal32 :: Fixed 10
@@ -182,6 +186,7 @@ testData = MkTestData
   , dateTime64p3 = posixSecondsToUTCTime 42.003
   , dateTime64p9 = posixSecondsToUTCTime 42.000000003
   , dateTime64Nullable = Just (posixSecondsToUTCTime 42)
+  , date = 0
   , float32 = 42.42
   , float64 = 42.42
   , decimal32 = -10000.1
@@ -235,6 +240,7 @@ createTableQuery =
   \    `dateTime64p9` DateTime64(9, 'UTC'), \
   \    `dateTimeNullable` Nullable(DateTime('UTC')), \
   \    `dateTime64Nullable` Nullable(DateTime64(3, 'UTC')), \
+  \    `date` Date, \
   \    `float32` Float32, \
   \    `float64` Float64, \
   \    `decimal32` Decimal(1, 1), \
