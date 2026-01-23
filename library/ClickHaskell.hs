@@ -77,7 +77,6 @@ module ClickHaskell
   ) where
 
 -- Internal
-import ClickHaskell.Columns
 import ClickHaskell.Connection
 import ClickHaskell.Primitive
 import ClickHaskell.Statements

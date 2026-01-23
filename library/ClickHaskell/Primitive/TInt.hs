@@ -1,5 +1,7 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
-module ClickHaskell.Primitive.TInt where
+module ClickHaskell.Primitive.TInt
+  ( Int8, Int16, Int32, Int64, Int128, Int256
+  ) where
 
 -- Internal
 import ClickHaskell.Primitive.Serialization
