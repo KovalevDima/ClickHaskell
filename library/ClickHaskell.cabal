@@ -42,6 +42,20 @@ Library
     ClickHaskell.Protocol.Server
     ClickHaskell.Protocol.Settings
     ClickHaskell.Primitive
+    ClickHaskell.Primitive.Serialization
+    ClickHaskell.Primitive.TArray
+    ClickHaskell.Primitive.TBool
+    ClickHaskell.Primitive.TDate
+    ClickHaskell.Primitive.TDateTime
+    ClickHaskell.Primitive.TDecimal
+    ClickHaskell.Primitive.TEnum
+    ClickHaskell.Primitive.TFloat
+    ClickHaskell.Primitive.TInt
+    ClickHaskell.Primitive.TLowCardinality
+    ClickHaskell.Primitive.TNullable
+    ClickHaskell.Primitive.TString
+    ClickHaskell.Primitive.TUInt
+    ClickHaskell.Primitive.TUUID
     ClickHaskell.Statements
   HS-Source-Dirs:
     ./
