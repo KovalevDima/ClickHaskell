@@ -13,6 +13,9 @@ import Data.ByteString as BS (null)
 
 -- * Client packets
 
+clientName :: ChString
+clientName = "ClickHaskell"
+
 data ClientPacket where
   Hello                     :: HelloPacket -> ClientPacket
   Query                     :: QueryPacket -> ClientPacket
@@ -236,8 +239,8 @@ instance Serializable QueryKind where
 
 data Jwt = MkJwt ChString
 instance Serializable Jwt where
-  serialize rev (MkJwt str@(MkChString bs)) =
-    if not (BS.null bs)
+  serialize rev (MkJwt str@bs) =
+    if not (BS.null $ fromChType bs)
     then serialize @UInt8 rev 1 <> serialize rev str
     else serialize @UInt8 rev 0
   deserialize rev = do

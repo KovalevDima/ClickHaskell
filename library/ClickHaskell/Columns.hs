@@ -82,9 +82,9 @@ data ColumnHeader = MkColumnHeader
   } deriving (Generic, Serializable)
 
 fallbackTypeName :: ProtocolRevision -> ChString -> ChString
-fallbackTypeName rev (MkChString typeName) = MkChString $
+fallbackTypeName rev typeName = toChType @ChString $
   if rev < mkRev @DBMS_MIN_REVISION_WITH_TIME_ZONE_PARAMETER_IN_DATETIME_DATA_TYPE
-    && isPrefixOf "DateTime(" typeName
+    && isPrefixOf "DateTime(" (fromChType typeName)
   then "DateTime"
   else typeName
 

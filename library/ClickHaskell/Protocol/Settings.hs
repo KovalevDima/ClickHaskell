@@ -62,8 +62,8 @@ instance Serializable DbSettings where
     foldMap (serialize @DbSetting rev) setts
     <> serialize @ChString rev ""
   deserialize rev = do
-    (MkChString setting) <- lookAhead (deserialize @ChString rev)
-    if BS.null setting
+    setting <- lookAhead (deserialize @ChString rev)
+    if BS.null (fromChType setting)
       then deserialize @ChString rev *> pure (MkDbSettings [])
       else do
         sett <- deserialize @DbSetting rev
