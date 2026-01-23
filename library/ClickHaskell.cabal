@@ -35,7 +35,6 @@ Library
     ClickHaskell
     ClickHaskell.Protocol
   Other-Modules:
-    ClickHaskell.Columns
     ClickHaskell.Connection
     ClickHaskell.Protocol.Client
     ClickHaskell.Protocol.Data

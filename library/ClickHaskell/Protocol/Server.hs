@@ -8,7 +8,6 @@ import ClickHaskell.Protocol.Settings (DbSettings)
 -- GHC
 import Data.Int
 import GHC.Generics
-import ClickHaskell.Columns (Column, deserializeColumn, ColumnHeader, serializeColumn, mkHeader)
 import Control.Monad (when)
 
 -- * Server packets

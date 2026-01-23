@@ -12,6 +12,8 @@ module ClickHaskell.Primitive
   , module ClickHaskell.Primitive.TNullable
   , module ClickHaskell.Primitive.TUInt
   , module ClickHaskell.Primitive.TUUID
+
+  , ColumnHeader(..), mkHeader, fallbackTypeName
   ) where
 
 -- Internal
@@ -29,3 +31,27 @@ import ClickHaskell.Primitive.TString (ChString)
 import ClickHaskell.Primitive.TNullable (Nullable)
 import ClickHaskell.Primitive.TUInt
 import ClickHaskell.Primitive.TUUID (UUID)
+
+-- Internal
+import GHC.Generics
+import Data.ByteString (isPrefixOf)
+
+data ColumnHeader = MkColumnHeader
+  { name :: ChString
+  , type_ :: ChString
+  , is_custom :: UInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION
+  } deriving (Generic, Serializable)
+
+fallbackTypeName :: ProtocolRevision -> ChString -> ChString
+fallbackTypeName rev typeName = toChType @ChString $
+  if rev < mkRev @DBMS_MIN_REVISION_WITH_TIME_ZONE_PARAMETER_IN_DATETIME_DATA_TYPE
+    && isPrefixOf "DateTime(" (fromChType typeName)
+  then "DateTime"
+  else typeName
+
+mkHeader :: forall column . KnownColumn column => ColumnHeader
+mkHeader = let
+    name = toChType $ renderColumnName @column
+    type_ = toChType $ chTypeName @(GetColumnType column)
+    is_custom = AfterRevision 0
+    in MkColumnHeader{..}
