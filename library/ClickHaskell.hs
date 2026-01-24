@@ -67,7 +67,7 @@ module ClickHaskell
   , Int8, Int16, Int32, Int64, Int128(..), Int256(..)
   , UInt8, UInt16, UInt32, UInt64, UInt128, UInt256, Word128(..), Word256(..)
   , Float32, Float64
-  , Decimal32, Decimal64, Decimal128
+  , Decimal32, Decimal64, Decimal128, Decimal256
   , Nullable
   , LowCardinality, IsLowCardinalitySupported
   , UUID
