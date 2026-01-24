@@ -13,7 +13,7 @@ import GHC.TypeLits (KnownNat, Nat, natVal, type(^))
 import Prelude hiding (liftA2)
 
 -- External
-import Data.WideWord (Int128 (..))
+import Data.WideWord (Int128 (..), Int256)
 
 
 
@@ -153,3 +153,49 @@ instance
   ToChType (Decimal128 p s) (Fixed sPowered) where
   toChType fixed = MkDecimal128 fixed
   fromChType (MkDecimal128 fixed) = fixed
+
+
+-- ** Decimal256
+
+{- |
+Read the official ClickHouse documentation for the `Decimal(p, s)` type before use.
+
+In Haskell, this type is represented as a newtype over `Fixed (10 ^ s)`,
+allowing arbitrarily large integer parts, whereas ClickHouse stores decimals
+as scaled `Int128` values, which may discard some of the integer part if `s` is large.
+
+See test №6 for an example of potential truncation due to a large scale.
+
+>>> chTypeName @(Decimal256 19 1)
+"Decimal(19, 1)"
+>>> 1000.1 :: Decimal256 19 1
+1000.1
+>>> 1000.1 :: Decimal256 19 5
+1000.10000
+-}
+newtype Decimal256 (p :: Nat) (s :: Nat) = MkDecimal256 (Fixed (10 ^ s))
+
+deriving newtype instance KnownNat (10^s) => Show (Decimal256 p s)
+deriving newtype instance KnownNat (10^s) => Eq (Decimal256 p s)
+deriving newtype instance KnownNat (10^s) => Ord (Decimal256 p s)
+deriving newtype instance KnownNat (10^s) => Num (Decimal256 p s)
+deriving newtype instance KnownNat (10^s) => Fractional (Decimal256 p s)
+
+instance (KnownNat p, KnownNat s, KnownNat (10 ^ s)) => IsChType (Decimal256 p s) where
+  chTypeName =
+    let p = show (natVal @p Proxy)
+        s = show (natVal @s Proxy)
+    in "Decimal(" <> p <> ", "<> s <> ")"
+  defaultValueOfTypeName = 0
+
+instance Serializable (Decimal256 p s) where
+  serialize rev (MkDecimal256 (MkFixed int)) = serialize @Int256 rev (fromIntegral int)
+  deserialize rev = MkDecimal256 . MkFixed . fromIntegral <$> deserialize @Int256 rev
+  {-# INLINE deserialize #-}
+
+instance
+  ( sPowered ~ 10^s
+  ) =>
+  ToChType (Decimal256 p s) (Fixed sPowered) where
+  toChType fixed = MkDecimal256 fixed
+  fromChType (MkDecimal256 fixed) = fixed

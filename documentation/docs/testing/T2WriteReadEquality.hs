@@ -33,7 +33,7 @@ import ClickHaskell
   , Date
   , Enum8, Enum16
   , Float32, Float64
-  , Decimal32, Decimal64, Decimal128
+  , Decimal32, Decimal64, Decimal128, Decimal256
   )
 
 -- GHC included
@@ -90,6 +90,7 @@ type TestColumns =
    , Column "decimal32" (Decimal32 1 1)
    , Column "decimal64" (Decimal64 10 3)
    , Column "decimal128" (Decimal128 19 10)
+   , Column "decimal256" (Decimal256 39 13)
    , Column "bool" Bool
    , Column "enum8" (Enum8 "'world' = -1, 'hello' = 1")
    , Column "enum16" (Enum16 "'world' = -1, 'hello' = 1")
@@ -139,6 +140,7 @@ data TestData = MkTestData
   , decimal32 :: Fixed 10
   , decimal64 :: Fixed 1_000
   , decimal128 :: Fixed 10_000_000_000
+  , decimal256 :: Fixed 10_000_000_000_000
   , bool :: Bool
   , enum8 :: Enum8 "'world' = -1, 'hello' = 1"
   , enum16 :: Enum16 "'world' = -1, 'hello' = 1"
@@ -192,6 +194,7 @@ testData = MkTestData
   , decimal32 = -10000.1
   , decimal64 = -10000.1
   , decimal128 = -10000.100000000001
+  , decimal256 = -10000.1000000000000000000000001
   , bool = False
   , enum8 = 0
   , enum16 = 0
@@ -246,6 +249,7 @@ createTableQuery =
   \    `decimal32` Decimal(1, 1), \
   \    `decimal64` Decimal(10, 3), \
   \    `decimal128` Decimal(19, 10), \
+  \    `decimal256` Decimal(39, 13), \
   \    `bool` Bool, \
   \    `enum8` Enum8('hello'=1, 'world'=-1), \
   \    `enum16` Enum16('hello'=1, 'world'=-1), \
