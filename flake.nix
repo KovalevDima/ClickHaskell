@@ -53,8 +53,8 @@
         haskellProjects =
           let
             mkProject = ghc: {"${ghc}" = import ./contribution/project.nix {inherit pkgs ghc inputs;};};
-            static = { "static" =
-              import ./contribution/project.nix {
+            static = {
+              "static" = import ./contribution/project.nix {
                 inherit pkgs inputs;
                 ghc = "ghc9103";
                 isStatic = true;
