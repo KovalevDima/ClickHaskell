@@ -1,0 +1,52 @@
+# HelloPacket
+
+| Field                | type    | since |
+|----------------------|---------|-------|
+| client_name          | String  | -     |
+| client_version_major | UVarInt | -     |
+| client_version_minor | UVarInt | -     |
+| tcp_protocol_version | UVarInt | -     |
+| default_database     | String  | -     |
+| user                 | String  | -     |
+| pass                 | String  | -     |
+
+# QueryPacket
+
+| Field              | type            | since |
+|--------------------|-----------------|-------|
+| query_id           | String          | -     |
+| client_info        | ClientInfo      | 54032 |
+| settings           | DbSettings      | -     |
+| external_roles     | UVarInt         | 54472 |
+| interserver_secret | String          | 54441 |
+| query_stage        | QueryStage      | -     |
+| compression        | UVarInt         | -     |
+| query              | String          | -     |
+| parameters         | QueryParameters | 54459 |
+
+# ClientInfo
+
+| Field                        | type      | since |
+|------------------------------|-----------|-------|
+| query_kind                   | QueryKind | -     |
+| initial_user                 | String    | -     |
+| initial_query_id             | String    | -     |
+| initial_adress               | String    | -     |
+| initial_time                 | Int64     | 54449 |
+| interface_type               | UInt8     | -     |
+| os_user                      | String    | -     |
+| hostname                     | String    | -     |
+| client_name                  | String    | -     |
+| client_version_major         | UVarInt   | -     |
+| client_version_minor         | UVarInt   | -     |
+| client_revision              | UVarInt   | -     |
+| quota_key                    | String    | 54060 |
+| distrubuted_depth            | UVarInt   | 54448 |
+| client_version_patch         | UVarInt   | 54401 |
+| open_telemetry               | UInt8     | 54442 |
+| collaborate_with_initiator   | UVarInt   | 54453 |
+| count_participating_replicas | UVarInt   | 54453 |
+| number_of_current_replica    | UVarInt   | 54453 |
+| script_query_number          | UVarInt   | 54475 |
+| script_line_number           | UVarInt   | 54475 |
+| jwt                          | Jwt       | 54476 |

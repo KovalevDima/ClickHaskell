@@ -29,6 +29,13 @@ export default function Component() {
       },
       pre({className, ...props}) {
         return <pre className={cn(className, 'p-3 overflow-x-auto')} {...props} />
+      },
+      table({className, ...props}) {
+        return (
+          <div className="overflow-x-auto">
+            <table className={cn(className, '')} {...props} />
+          </div>
+        )
       }
     }}/>
   );
