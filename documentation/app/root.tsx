@@ -136,17 +136,17 @@ export const nav = {
         {
           title: "Client",
           icon: GitPullRequestCreate,
-          url: "/protocol/client",
+          url: "/docs/protocol/client",
         },
         {
           title: "Server",
           icon: BugOff,
-          url: "/protocol/server",
+          url: "/docs/protocol/server",
         },
         {
           title: "Common",
           icon: BugOff,
-          url: "/protocol/common",
+          url: "/docs/protocol/common",
         },
       ]
     },

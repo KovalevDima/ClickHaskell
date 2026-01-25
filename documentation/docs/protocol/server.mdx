@@ -1,0 +1,67 @@
+# ExceptionPacket
+
+| Field       | type   | since |
+|-------------|--------|-------|
+| code        | Int32  | -     |
+| name        | String | -     |
+| message     | String | -     |
+| stack_trace | String | -     |
+| nested      | UInt8  | -     |
+
+# HelloResponse
+
+| Field                                   | type                      | since |
+|-----------------------------------------|---------------------------|-------|
+| server_name                             | String                    | -     |
+| server_version_major                    | UVarInt                   | -     |
+| server_version_minor                    | UVarInt                   | -     |
+| server_revision                         | UVarInt                   | -     |
+| server_parallel_replicas_proto          | UVarInt                   | 54471 |
+| server_timezone                         | String                    | 54058 |
+| server_display_name                     | String                    | 54372 |
+| server_version_patch                    | UVarInt                   | 54401 |
+| proto_send_chunked_srv                  | String                    | 54470 |
+| proto_recv_chunked_srv                  | String                    | 54470 |
+| password_complexity_rules               | [PasswordComplexityRules] | 54461 |
+| read_nonce                              | UInt64                    | 54462 |
+| settings                                | DbSettings                | 54474 |
+| server_query_plan_serialization_version | UVarInt                   | 54477 |
+
+# PasswordComplexityRules
+
+| Field             | type   | since |
+|-------------------|--------|-------|
+| original_pattern  | String | -     |
+| exception_message | String | -     |
+
+# ProfileInfo
+
+| Field                        | type    | since |
+|------------------------------|---------|-------|
+| rows                         | UVarInt | -     |
+| blocks                       | UVarInt | -     |
+| bytes                        | UVarInt | -     |
+| applied_limit                | UInt8   | -     |
+| rows_before_limit            | UVarInt | -     |
+| calculated_rows_before_limit | UInt8   | -     |
+| applied_aggregation          | UInt8   | 54469 |
+| rows_before_aggregation      | UVarInt | 54469 |
+
+# ProgressPacket
+
+| Field       | type    | since |
+|-------------|---------|-------|
+| rows        | UVarInt | -     |
+| bytes       | UVarInt | -     |
+| total_rows  | UVarInt | -     |
+| total_bytes | UVarInt | 54463 |
+| wrote_rows  | UVarInt | 54463 |
+| wrote_bytes | UVarInt | 54420 |
+| elapsed_ns  | UVarInt | 54420 |
+
+# TableColumns
+
+| Field         | type   | since |
+|---------------|--------|-------|
+| table_name    | String | -     |
+| table_columns | String | -     |

@@ -4,10 +4,12 @@ import tsconfigPaths from "vite-tsconfig-paths";
 import tailwindcss from "@tailwindcss/vite";
 import mdx from '@mdx-js/rollup'
 import rehypeShiki from '@shikijs/rehype';
+import remarkGfm from 'remark-gfm'
 
 export default defineConfig({
   plugins: [
     mdx({
+      remarkPlugins: [remarkGfm],
       rehypePlugins: [
         [rehypeShiki, {theme:'dark-plus'}]
       ],

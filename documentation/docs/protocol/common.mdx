@@ -1,0 +1,18 @@
+# DataPacket
+
+| Field         | type      | since |
+|---------------|-----------|-------|
+| table_name    | String    | -     |
+| block_info    | BlockInfo | -     |
+| columns_count | UVarInt   | -     |
+| rows_count    | UVarInt   | -     |
+
+# BlockInfo
+
+| Field        | type    | since |
+|--------------|---------|-------|
+| field_num1   | UVarInt | -     |
+| is_overflows | UInt8   | -     |
+| field_num2   | UVarInt | -     |
+| bucket_num   | Int32   | -     |
+| eof          | UVarInt | -     |
