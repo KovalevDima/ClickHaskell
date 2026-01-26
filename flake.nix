@@ -51,9 +51,16 @@
             app = ["prof-1bil-stream" "prof-simple" "tests" "prof-pings"];
           });
         haskellProjects =
-          mapMergeAttrsList
-            (ghc: {"${ghc}" = import ./contribution/project.nix {inherit pkgs ghc inputs;};})
-            supportedGHCs;
+          let
+            mkProject = ghc: {"${ghc}" = import ./contribution/project.nix {inherit pkgs ghc inputs;};};
+            static = {
+              "static" = import ./contribution/project.nix {
+                inherit pkgs inputs;
+                ghc = "ghc9103";
+                isStatic = true;
+              };
+            };
+          in mapMergeAttrsList mkProject supportedGHCs // static;
         devShells =
           mapMergeAttrsList
             (ghc: {"dev-${ghc}" = pkgs.mkShell {
