@@ -6,7 +6,7 @@ build-type:         Simple
 license:            BSD-3-Clause
 
 executable t001-query-serializaton
-  main-is: t001-query-serializaton.lhs
+  main-is: index.lhs
   hs-source-dirs: .
   ghc-options:
     -O2 -threaded -rtsopts

@@ -6,7 +6,7 @@ build-type:         Simple
 license:            BSD-3-Clause
 
 executable t005-settings
-  main-is: t005-settings.lhs
+  main-is: index.lhs
   hs-source-dirs: .
   ghc-options:
     -O2 -threaded -rtsopts

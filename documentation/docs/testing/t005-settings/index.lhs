@@ -18,9 +18,14 @@ main = do
   connection <- openConnection defaultConnectionArgs
   connOld <- openConnection (overrideMaxRevision 1 defaultConnectionArgs)
 
-  _ <- select query connection pure
-  _ <- select query connOld pure
-  putStrLn "t005: Ok"
+  runSettings connection
+  runSettings connOld
+
+
+runSettings :: Connection -> IO ()
+runSettings conn = do
+  const () <$> select query conn pure
+
 
 query :: Select TestColumns TestData
 query =

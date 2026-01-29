@@ -1,3 +1,5 @@
+# Errors test
+
 <div>
   <p>
     1. Runs queries with types and names missmatch and handles error
@@ -33,16 +35,15 @@ main = do
   connection <- openConnection defaultConnectionArgs
   connOld <- openConnection (overrideMaxRevision 1 defaultConnectionArgs)
 
+  runErrorsTest connection
+  runErrorsTest connOld
+
+
+runErrorsTest :: Connection -> IO ()
+runErrorsTest connection = do
   validateUnmatchedColumn connection
-  validateUnmatchedColumn connOld
-
   validateUnmatchedType connection
-  validateUnmatchedType connOld
-
   validateUnmatchedColumnsCount connection
-  validateUnmatchedColumnsCount connOld
-
-  putStrLn "MissmatchErrors: Ok"
 
 
 validateUnmatchedColumn :: Connection -> IO ()

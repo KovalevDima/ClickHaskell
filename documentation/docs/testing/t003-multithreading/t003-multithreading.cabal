@@ -6,7 +6,7 @@ build-type:         Simple
 license:            BSD-3-Clause
 
 executable t003-multithreading
-  main-is: t003-multithreading.lhs
+  main-is: index.lhs
   hs-source-dirs: .
   ghc-options:
     -O2 -threaded -rtsopts

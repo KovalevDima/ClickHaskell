@@ -1,3 +1,5 @@
+# Thread safety test
+
 Runs 10000 concurrent queries via single connection
 
 ```haskell
@@ -27,7 +29,6 @@ main = do
   runMultithreading connection
   runMultithreading connOld
 
-  print "Multithreading: Ok"
 
 runMultithreading :: Connection -> IO ()
 runMultithreading connection = do
@@ -53,5 +54,4 @@ data ExampleData = MkExampleData
 type ExampleColumns =
  '[ Column "a1" Int64
   ]
-
 ```

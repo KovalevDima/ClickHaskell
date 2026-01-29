@@ -91,61 +91,75 @@ const headerLinks = [
 
 ]
 
-export const nav = {
+const nav = {
   navHeader: {
     logo: logo
   },
   navMain: [
     {
       title: "Build",
-      url: "/usage",
       icon: PackagePlus,
       isActive: true,
       items: [
         {
           title: "All-in-one",
-          icon: PackagePlus,
           url: "/docs/usage/index",
         },
       ]
     },
     {
-      title: "Learn",
-      url: "/contribution",
-      icon: Microscope,
+      title: "Contribution",
+      icon: GitPullRequestCreate,
       isActive: true,
       items: [
         {
-          title: "Contribution",
-          icon: GitPullRequestCreate,
-          url: "/docs/contribution",
+          title: "Enviroment",
+          url: "/docs/contibution/index"
+        }
+      ],
+    },
+    {
+      title: "About QA",
+      icon: BugOff,
+      isActive: true,
+      items: [
+        {
+          title: "Query serialization",
+          url: "/docs/testing/t001-query-serializaton/index",
         },
         {
-          title: "About QA",
-          icon: BugOff,
-          url: "/docs/testing/index",
+          title: "Serialization",
+          url: "/docs/testing/t002-rw-equality/index",
+        },
+        {
+          title: "Multithreading",
+          url: "/docs/testing/t003-multithreading/index",
+        },
+        {
+          title: "Expections",
+          url: "/docs/testing/t004-errors/index",
+        },
+        {
+          title: "Settings",
+          url: "/docs/testing/t005-settings/index",
         },
       ]
     },
     {
       title: "Protocol",
-      url: "/protocol",
       icon: Binary,
       isActive: true,
       items: [
         {
           title: "Client",
-          icon: GitPullRequestCreate,
           url: "/docs/protocol/client",
         },
         {
           title: "Server",
-          icon: BugOff,
           url: "/docs/protocol/server",
         },
         {
           title: "Common",
-          icon: BugOff,
           url: "/docs/protocol/common",
         },
       ]

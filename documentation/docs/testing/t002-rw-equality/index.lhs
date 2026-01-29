@@ -1,3 +1,5 @@
+# Read write equality tests
+
 1. Runs *insertInto* of a sample into the all supported types table
 2. Runs *selectFrom* from the same table
 3. Checks if result equals sample value
@@ -33,13 +35,13 @@ main :: IO ()
 main = do
   connection <- openConnection defaultConnectionArgs
   connOld <- openConnection (overrideMaxRevision 1 defaultConnectionArgs)
-  
-  t2 connection
-  t2 connOld
-  putStrLn "T2WriteReadEquality: Ok"
 
-t2 :: Connection -> IO ()
-t2 connection = do
+  runReadWriteEquality connection
+  runReadWriteEquality connOld
+
+
+runReadWriteEquality :: Connection -> IO ()
+runReadWriteEquality connection = do
   command connection "DROP TABLE IF EXISTS writeReadEqualityTable;"
   command connection createTableQuery
 
