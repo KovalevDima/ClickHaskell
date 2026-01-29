@@ -5,8 +5,12 @@ packages:
     ./contribution
     ./contribution/modules/protocol-docs
     ./contribution/modules/visits
-    ./documentation/performance/p1-million-rw
-    ./documentation/performance/p2-100-million-r
-    ./documentation/performance/pings
+    ./documentation/docs/performance/p1-million-rw
+    ./documentation/docs/performance/p2-100-million-r
+    ./documentation/docs/performance/pings
     ./documentation/docs/usage/
-    ./documentation/docs/testing/
+    ./documentation/docs/testing/t001-query-serializaton
+    ./documentation/docs/testing/t002-rw-equality
+    ./documentation/docs/testing/t003-multithreading
+    ./documentation/docs/testing/t004-errors
+    ./documentation/docs/testing/t005-settings

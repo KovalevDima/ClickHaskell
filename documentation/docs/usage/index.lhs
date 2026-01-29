@@ -7,15 +7,14 @@ Before we start we need to define module
   DeriveAnyClass,
   DeriveGeneric,
   OverloadedStrings,
-  FlexibleInstances,
-  MultiParamTypeClasses,
-  TypeApplications,
-  StandaloneDeriving
+  TypeApplications
 #-}
 
 module Main where
 
 import ClickHaskell
+import Data.ByteString (ByteString)
+import Data.Time (UTCTime)
 import GHC.Generics (Generic)
 ```
 
@@ -31,9 +30,8 @@ type ExampleCols =
   ]
 
 data ExampleData = MkExampleData
-  { a1 :: Int32
-  , a2 :: ChString
-  , a3 :: UInt32
+  { a2 :: ByteString
+  , a3 :: UTCTime
   }
   deriving (Generic, ClickHaskell ExampleCols)
 ```
@@ -43,26 +41,19 @@ Define queries
 ```haskell
 createTableQuery :: Command
 createTableQuery  =
-  "CREATE TABLE IF NOT EXISTS exampleTable ( \
+  "CREATE TABLE IF NOT EXISTS exampleTable \
+  \ ( \
   \  `a1` Int32, \
   \  `a2` String, \
   \  `a3` DateTime, \
-  \) \
+  \ ) \
   \ENGINE = MergeTree \
   \PARTITION BY () \
   \ORDER BY ();"
 
 selectQuery :: Select ExampleCols ExampleData
-selectQuery =
-  unsafeMkSelect @ExampleCols @ExampleData
-    (\_cols ->
-        "SELECT \
-        \  defaultValueOfTypeName('Int32') as a1,   \
-        \  defaultValueOfTypeName('String') as a2,  \
-        \  defaultValueOfTypeName('DateTime') as a3 \
-        \ "
-    )
-
+selectQuery = fromGenerateRandom @ExampleCols @ExampleData (1, 10, 2) 1
+  
 insertQuery :: Insert ExampleCols ExampleData
 insertQuery = intoTable @"exampleTable" @ExampleCols @ExampleData
 ```

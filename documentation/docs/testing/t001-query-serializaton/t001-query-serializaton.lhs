@@ -1,3 +1,13 @@
+- Builds queries like
+  ```sql
+  SELECT CAST(5, 'UInt8') as testSample;
+  ```
+  via <b>ToQueryPart</b> type class for every supported type
+- Executes *select*
+- Parses the result
+- Checks if result equals initial value
+
+```haskell
 {-# LANGUAGE
     AllowAmbiguousTypes
   , DataKinds
@@ -12,24 +22,10 @@
   , ScopedTypeVariables
 #-}
 
-module T1QuerySerialization
-  ( t1
-  ) where
+module Main (main) where
 
 -- Internal
 import ClickHaskell
-  ( Connection(..)
-  , ClickHaskell, select, unsafeMkSelect
-  , Column, KnownColumn, SerializableColumn
-  , IsChType(..), ToChType(..)
-  , ToQueryPart(..)
-  , UInt8, UInt16, UInt32, UInt64, UInt128, UInt256
-  , Int8, Int16, Int32, Int64, Int128, Int256
-  , ChString, UUID, DateTime, Array
-  , Enum16, Enum8
-  , Float32, Float64
-  -- , DateTime64
-  )
 
 -- GHC included
 import Control.Monad (unless)
@@ -37,6 +33,16 @@ import Data.ByteString as BS (singleton, ByteString)
 import Data.ByteString.Char8 as BS8 (pack)
 import Data.ByteString.Builder (byteString)
 import GHC.Generics (Generic)
+
+
+main :: IO ()
+main = do
+  connection <- openConnection defaultConnectionArgs
+  connOld <- openConnection (overrideMaxRevision 1 defaultConnectionArgs)
+  
+  t1 connection
+  t1 connOld
+  putStrLn "T1QuerySerialization: Ok"
 
 t1 :: Connection -> IO ()
 t1 conn = do
@@ -138,3 +144,5 @@ instance
   )
   =>
   ClickHaskell '[Column "testSample" chType] (TestSample chType)
+
+```

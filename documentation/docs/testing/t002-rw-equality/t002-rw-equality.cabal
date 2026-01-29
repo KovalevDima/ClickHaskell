@@ -1,0 +1,21 @@
+Cabal-version:      3.0
+
+name:               t002-rw-equality
+version:            0.0.0.1
+build-type:         Simple
+license:            BSD-3-Clause
+
+executable t002-rw-equality
+  main-is: t002-rw-equality.lhs
+  hs-source-dirs: .
+  ghc-options:
+    -O2 -threaded -rtsopts
+    -pgmL markdown-unlit -Wall
+  build-tool-depends: markdown-unlit:markdown-unlit
+  build-depends:
+      ClickHaskell
+    , async
+    , base >=4.7 && <5
+    , bytestring
+    , time
+  default-language: Haskell2010

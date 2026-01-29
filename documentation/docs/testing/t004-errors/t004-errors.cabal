@@ -1,29 +1,21 @@
 Cabal-version:      3.0
 
-name:               tests
+name:               t004-errors
 version:            0.0.0.1
 build-type:         Simple
 license:            BSD-3-Clause
 
-executable tests
-  main-is: index.lhs
+executable t004-errors
+  main-is: t004-errors.lhs
   hs-source-dirs: .
   ghc-options:
     -O2 -threaded -rtsopts
-    -main-is Tests
     -pgmL markdown-unlit -Wall
   build-tool-depends: markdown-unlit:markdown-unlit
   build-depends:
       ClickHaskell
     , async
-    , data-default-class
     , base >=4.7 && <5
     , bytestring
     , time
-  other-modules:
-    T1QuerySerialization
-    T2WriteReadEquality
-    T3Multithreading
-    T4MissmatchErrors
-    T5Settings
   default-language: Haskell2010

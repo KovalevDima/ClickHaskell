@@ -16,17 +16,17 @@ import ClickHaskell
 -- GHC included
 import Data.ByteString (ByteString)
 import Data.Word (Word32)
-import Debug.Trace (traceMarkerIO)
 import GHC.Generics (Generic)
 
+totalRows :: UInt64
+totalRows = 1_000_000
 
 main :: IO ()
 main = do
-  traceMarkerIO "Initialization"  
   readingConnection <- openConnection defaultConnectionArgs
   writingConnection <- openConnection defaultConnectionArgs
 
-  let totalRows = 1_000_000
+  let 
   command readingConnection
     "CREATE TABLE IF NOT EXISTS profiler \
     \(\
@@ -41,20 +41,16 @@ main = do
     \ENGINE = MergeTree \
     \PARTITION BY () \
     \ORDER BY ();"
-
-  _ <-
-    select
-      (fromGenerateRandom
-        @ExampleColumns
-        @ExampleData
-        (1, 10, 2)
-        totalRows
-      )
-      readingConnection
-      (insert (intoTable @"profiler" @ExampleColumns) writingConnection)
+  
+  _ <- select selectQ readingConnection (insert insertQ writingConnection)
 
   print $ "Writing done. " <> show totalRows <> " rows was written"
 
+selectQ :: Select ExampleColumns ExampleData
+selectQ = fromGenerateRandom (1, 10, 2) totalRows
+
+insertQ :: Insert ExampleColumns ExampleData
+insertQ = intoTable @"profiler"
 
 data ExampleData = MkExampleData
   { a1 :: Int64

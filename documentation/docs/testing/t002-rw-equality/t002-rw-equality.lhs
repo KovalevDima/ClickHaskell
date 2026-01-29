@@ -1,40 +1,25 @@
+1. Runs *insertInto* of a sample into the all supported types table
+2. Runs *selectFrom* from the same table
+3. Checks if result equals sample value
+
+```haskell
 {-# LANGUAGE
     DataKinds
-  , AllowAmbiguousTypes
+  , DeriveAnyClass
   , DeriveGeneric
-  , FlexibleContexts
+  , DerivingStrategies
+  , TypeApplications
+  , NumericUnderscores
+  , TypeSynonymInstances
   , FlexibleInstances
   , MultiParamTypeClasses
-  , NumericUnderscores
   , OverloadedStrings
-  , ScopedTypeVariables
-  , TypeApplications
-  , TypeFamilies
 #-}
 
-module T2WriteReadEquality
-  ( t2
-  ) where
+module Main (main) where
 
 -- Internal
 import ClickHaskell
-  ( ClickHaskell
-  , select, fromTable
-  , insert, intoTable
-  , command, Command
-  , Connection
-  , Column
-  , toChType
-  , UInt8, UInt16, UInt32, UInt64, UInt128, UInt256
-  , Int8, Int16, Int32, Int64, Int128, Int256
-  , UUID, DateTime, ChString
-  , Nullable, Array
-  , DateTime64
-  , Date
-  , Enum8, Enum16
-  , Float32, Float64
-  , Decimal32, Decimal64, Decimal128, Decimal256
-  )
 
 -- GHC included
 import Control.Monad      (when)
@@ -42,6 +27,16 @@ import GHC.Generics       (Generic)
 import Data.Fixed         (Fixed)
 import Data.Time          (UTCTime)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
+
+
+main :: IO ()
+main = do
+  connection <- openConnection defaultConnectionArgs
+  connOld <- openConnection (overrideMaxRevision 1 defaultConnectionArgs)
+  
+  t2 connection
+  t2 connOld
+  putStrLn "T2WriteReadEquality: Ok"
 
 t2 :: Connection -> IO ()
 t2 connection = do
@@ -288,3 +283,4 @@ createTableQuery =
   \ENGINE = MergeTree \
   \PARTITION BY () \
   \ORDER BY ();"
+```
