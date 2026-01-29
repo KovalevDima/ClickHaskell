@@ -22,13 +22,12 @@ import { ModeToggle } from "./ui/mode-toggle"
 import { Link } from "react-router"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible"
 
-type SideBarItems = {
+export type SideBarItems = {
   navHeader: {
     logo : string
   },
   navMain : {
     title: string
-    url: string
     icon?: LucideIcon
     isActive?: boolean
     items?: {

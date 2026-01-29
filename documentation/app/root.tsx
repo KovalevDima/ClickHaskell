@@ -5,7 +5,7 @@ import hackage from "/assets/hackage.svg";
 import git from "/assets/git.svg";
 import { ThemeProvider } from "@clickhaskell/ui/components/theme-provider"
 import { SidebarInset, SidebarProvider } from "@clickhaskell/ui/components/ui/sidebar";
-import { AppSidebar } from "@clickhaskell/ui/components/app-sidebar";
+import { AppSidebar, SideBarItems } from "@clickhaskell/ui/components/app-sidebar";
 import { Header } from "@clickhaskell/ui/components/header";
 import {
   BugOff,
@@ -15,12 +15,15 @@ import {
   Binary,
 } from "lucide-react"
 import GitHubStars from "@clickhaskell/ui/components/GitHubStars";
+import { useLocation } from "react-router";
 
 export const links: LinksFunction = () => {
   return []
 }
 
 export function Layout({ children }: { children: React.ReactNode }) {
+  const { pathname } = useLocation();
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -47,7 +50,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <div className="w-full [--header-height:calc(--spacing(14))]">
               <SidebarProvider className="flex flex-col" defaultOpen={true}>
                 <div className="flex flex-1">
-                  <AppSidebar items={nav} />
+                  <AppSidebar items={nav(pathname)} />
                   <SidebarInset>
                     <Header items={headerLinks} />
                     <div className="flex flex-1 flex-col gap-4 p-4">
@@ -91,7 +94,7 @@ const headerLinks = [
 
 ]
 
-const nav = {
+const nav = (pathname : string): SideBarItems => ({
   navHeader: {
     logo: logo
   },
@@ -121,7 +124,7 @@ const nav = {
     {
       title: "About QA",
       icon: BugOff,
-      isActive: true,
+      isActive: pathname.startsWith("/docs/testing"),
       items: [
         {
           title: "Query serialization",
@@ -165,4 +168,4 @@ const nav = {
       ]
     },
   ]
-};
+});
