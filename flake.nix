@@ -44,7 +44,7 @@
           });
         mkTestRunners =
           (ghc: {
-              "test-${ghc}" = import ./contribution/testing.nix {
+              "test-${ghc}-tests" = import ./contribution/testing.nix {
                 inherit pkgs inputs;
                 apps = [
                   self'.apps."${ghc}-t001-query-serializaton"
