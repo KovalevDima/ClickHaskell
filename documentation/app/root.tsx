@@ -5,7 +5,7 @@ import hackage from "/assets/hackage.svg";
 import git from "/assets/git.svg";
 import { ThemeProvider } from "@clickhaskell/ui/components/theme-provider"
 import { SidebarInset, SidebarProvider } from "@clickhaskell/ui/components/ui/sidebar";
-import { AppSidebar } from "@clickhaskell/ui/components/app-sidebar";
+import { AppSidebar, SideBarItems } from "@clickhaskell/ui/components/app-sidebar";
 import { Header } from "@clickhaskell/ui/components/header";
 import {
   BugOff,
@@ -15,12 +15,15 @@ import {
   Binary,
 } from "lucide-react"
 import GitHubStars from "@clickhaskell/ui/components/GitHubStars";
+import { useLocation } from "react-router";
 
 export const links: LinksFunction = () => {
   return []
 }
 
 export function Layout({ children }: { children: React.ReactNode }) {
+  const { pathname } = useLocation();
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -47,7 +50,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <div className="w-full [--header-height:calc(--spacing(14))]">
               <SidebarProvider className="flex flex-col" defaultOpen={true}>
                 <div className="flex flex-1">
-                  <AppSidebar items={nav} />
+                  <AppSidebar items={nav(pathname)} />
                   <SidebarInset>
                     <Header items={headerLinks} />
                     <div className="flex flex-1 flex-col gap-4 p-4">
@@ -91,64 +94,78 @@ const headerLinks = [
 
 ]
 
-export const nav = {
+const nav = (pathname : string): SideBarItems => ({
   navHeader: {
     logo: logo
   },
   navMain: [
     {
       title: "Build",
-      url: "/usage",
       icon: PackagePlus,
       isActive: true,
       items: [
         {
           title: "All-in-one",
-          icon: PackagePlus,
           url: "/docs/usage/index",
         },
       ]
     },
     {
-      title: "Learn",
-      url: "/contribution",
-      icon: Microscope,
+      title: "Contribution",
+      icon: GitPullRequestCreate,
       isActive: true,
       items: [
         {
-          title: "Contribution",
-          icon: GitPullRequestCreate,
-          url: "/docs/contribution",
+          title: "Enviroment",
+          url: "/docs/contibution/index"
+        }
+      ],
+    },
+    {
+      title: "About QA",
+      icon: BugOff,
+      isActive: pathname.startsWith("/docs/testing"),
+      items: [
+        {
+          title: "Query serialization",
+          url: "/docs/testing/t001-query-serializaton/index",
         },
         {
-          title: "About QA",
-          icon: BugOff,
-          url: "/docs/testing/index",
+          title: "Serialization",
+          url: "/docs/testing/t002-rw-equality/index",
+        },
+        {
+          title: "Multithreading",
+          url: "/docs/testing/t003-multithreading/index",
+        },
+        {
+          title: "Expections",
+          url: "/docs/testing/t004-errors/index",
+        },
+        {
+          title: "Settings",
+          url: "/docs/testing/t005-settings/index",
         },
       ]
     },
     {
       title: "Protocol",
-      url: "/protocol",
       icon: Binary,
       isActive: true,
       items: [
         {
           title: "Client",
-          icon: GitPullRequestCreate,
           url: "/docs/protocol/client",
         },
         {
           title: "Server",
-          icon: BugOff,
           url: "/docs/protocol/server",
         },
         {
           title: "Common",
-          icon: BugOff,
           url: "/docs/protocol/common",
         },
       ]
     },
   ]
-};
+});

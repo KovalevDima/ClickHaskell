@@ -32,11 +32,10 @@ in
     vector = {check = mkIf isStatic false;};
   };
   defaults =  {
-    devShell.tools = hp: with hp; {
+    devShell.tools = hp: {
       ghcide = null;
-      inherit
-        cabal-install
-        haskell-language-server;
+      cabal-install = pkgs.cabal-install;
+      haskell-language-server = pkgs.haskell-language-server;
     };
   };
   packages = {

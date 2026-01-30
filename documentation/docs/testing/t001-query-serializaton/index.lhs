@@ -1,3 +1,15 @@
+# Query serialization test
+
+- Builds queries like
+  ```sql
+  SELECT CAST(5, 'UInt8') as testSample;
+  ```
+  via <b>ToQueryPart</b> type class for every supported type
+- Executes *select*
+- Parses the result
+- Checks if result equals initial value
+
+```haskell
 {-# LANGUAGE
     AllowAmbiguousTypes
   , DataKinds
@@ -12,34 +24,31 @@
   , ScopedTypeVariables
 #-}
 
-module T1QuerySerialization
-  ( t1
-  ) where
+module Main (main) where
 
 -- Internal
 import ClickHaskell
-  ( Connection(..)
-  , ClickHaskell, select, unsafeMkSelect
-  , Column, KnownColumn, SerializableColumn
-  , IsChType(..), ToChType(..)
-  , ToQueryPart(..)
-  , UInt8, UInt16, UInt32, UInt64, UInt128, UInt256
-  , Int8, Int16, Int32, Int64, Int128, Int256
-  , ChString, UUID, DateTime, Array
-  , Enum16, Enum8
-  , Float32, Float64
-  -- , DateTime64
-  )
 
 -- GHC included
-import Control.Monad (unless)
+import Control.Monad (unless, forM_)
 import Data.ByteString as BS (singleton, ByteString)
 import Data.ByteString.Char8 as BS8 (pack)
 import Data.ByteString.Builder (byteString)
 import GHC.Generics (Generic)
 
-t1 :: Connection -> IO ()
-t1 conn = do
+
+main :: IO ()
+main = do
+  connection <- openConnection defaultConnectionArgs
+  connOld <- openConnection (overrideMaxRevision 1 defaultConnectionArgs)
+
+  runQuerySerialization connection
+  runQuerySerialization connOld
+  putStrLn "Ok"
+
+
+runQuerySerialization :: Connection -> IO ()
+runQuerySerialization conn = do
   runTestForType @Int8 conn [minBound, toEnum 0, maxBound]
   runTestForType @Int16 conn [minBound, toEnum 0, maxBound]
   runTestForType @Int32 conn [minBound, toEnum 0, maxBound]
@@ -58,9 +67,9 @@ t1 conn = do
   runTestForType @Bool conn [False, True]
   runTestForType @(Enum8 "'hello' = 1") conn [minBound, toEnum 0, maxBound]
   runTestForType @(Enum16 "'hello' = 1") conn [minBound, toEnum 0, maxBound]
-  -- runTestForType @(DateTime64 0 "") conn [minBound, toEnum 0, maxBound]
+  -- unsupported: runTestForType @(DateTime64 0 "") conn [minBound, toEnum 0, maxBound]
   runTestForType @ChString conn (map (toChType . BS.singleton) [1..255])
-  -- ToDo: runTestForType @(LowCardinality ChString) connection (map (toChType . BS.singleton) [0..255])
+  -- unsupported: runTestForType @(LowCardinality ChString) connection (map (toChType . BS.singleton) [0..255])
   runTestForType @(Array ChString) conn [toChType $ map BS.singleton [0..255]]
   runTestForType @(Array Int64) conn [toChType @(Array Int64) @[Int64] [0 .. 255]]
   runTestForTypeWith @Float32 conn cmpFloatSemantic [0, nan, negInf, posInf]
@@ -104,7 +113,8 @@ runTestForTypeWith ::
   Connection -> (chType -> chType -> Bool) -> [chType] -> IO ()
 runTestForTypeWith connection iqEqual testValues = do
   let typeName = (toChType @ChString . byteString . BS8.pack) (chTypeName @chType)
-  mapM_
+  forM_
+    testValues
     (\chType -> do
       [selectChType] <-
         concat <$>
@@ -123,7 +133,6 @@ runTestForTypeWith connection iqEqual testValues = do
         <> ". But got: " <> show selectChType <> "."
         )
     )
-    testValues
 
   print (fromChType @ChString @ByteString typeName <> ": Ok")
 
@@ -138,3 +147,5 @@ instance
   )
   =>
   ClickHaskell '[Column "testSample" chType] (TestSample chType)
+
+```

@@ -1,3 +1,8 @@
+# Thread safety test
+
+Runs 10000 concurrent queries via single connection
+
+```haskell
 {-# LANGUAGE
     DataKinds
   , DeriveAnyClass
@@ -6,19 +11,28 @@
   , TypeApplications
 #-}
 
-module T3Multithreading where
+module Main (main) where
 
 -- Internal
 import ClickHaskell
 
 -- GHC included
-import Control.Concurrent.Async (replicateConcurrently_)
 import GHC.Generics (Generic)
-import GHC.Stack (HasCallStack)
+import Control.Concurrent.Async (replicateConcurrently_)
 
 
-t3 :: HasCallStack => Connection -> IO ()
-t3 connection = do
+main :: IO ()
+main = do
+  connection <- openConnection defaultConnectionArgs
+  connOld <- openConnection (overrideMaxRevision 1 defaultConnectionArgs)
+
+  runMultithreading connection
+  runMultithreading connOld
+  putStrLn "Ok"
+
+
+runMultithreading :: Connection -> IO ()
+runMultithreading connection = do
   replicateConcurrently_ 10000 (
     select
       (fromGenerateRandom
@@ -30,7 +44,6 @@ t3 connection = do
       connection
       pure
     )
-  print "Multithreading: Ok"
 
 data ExampleData = MkExampleData
   { a1 :: Int64
@@ -42,3 +55,4 @@ data ExampleData = MkExampleData
 type ExampleColumns =
  '[ Column "a1" Int64
   ]
+```

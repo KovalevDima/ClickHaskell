@@ -12,5 +12,6 @@ executable usage
       ClickHaskell
     , base >=4.7 && <5
     , bytestring
+    , time
   ghc-options: -pgmL markdown-unlit -Wall
   build-tool-depends: markdown-unlit:markdown-unlit

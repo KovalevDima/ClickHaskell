@@ -1,3 +1,15 @@
+# Errors test
+
+<div>
+  <p>
+    1. Runs queries with types and names missmatch and handles error
+  </p>
+  <p>
+    You can manually run database and tests:
+  </p>
+</div>
+
+```haskell
 {-# LANGUAGE
     DataKinds
   , DeriveAnyClass
@@ -8,7 +20,7 @@
   , OverloadedStrings
 #-}
 
-module T4MissmatchErrors where
+module Main (main) where
 
 -- Internal
 import ClickHaskell
@@ -16,11 +28,27 @@ import ClickHaskell
 -- GHC included
 import Control.Exception (try)
 import GHC.Generics (Generic)
-import GHC.Stack (HasCallStack)
 
 
-t4 :: HasCallStack => Connection -> IO ()
-t4 connection = do
+main :: IO ()
+main = do
+  connection <- openConnection defaultConnectionArgs
+  connOld <- openConnection (overrideMaxRevision 1 defaultConnectionArgs)
+
+  runErrorsTest connection
+  runErrorsTest connOld
+  putStrLn "Ok"
+
+
+runErrorsTest :: Connection -> IO ()
+runErrorsTest connection = do
+  validateUnmatchedColumn connection
+  validateUnmatchedType connection
+  validateUnmatchedColumnsCount connection
+
+
+validateUnmatchedColumn :: Connection -> IO ()
+validateUnmatchedColumn connection = do
   res1 <-
     try (
       select
@@ -37,6 +65,9 @@ t4 connection = do
     Right _ -> error "Expected an error, but got success"
     Left  e -> error ("MissmatchErrors: " <> show e)
 
+
+validateUnmatchedType :: Connection -> IO ()
+validateUnmatchedType connection = do
   res2 <-
     try (
       select
@@ -53,6 +84,9 @@ t4 connection = do
     Right _ -> error "Expected an error, but got success"
     Left  e -> error ("MissmatchErrors: " <> show e)
 
+
+validateUnmatchedColumnsCount :: Connection -> IO ()
+validateUnmatchedColumnsCount connection = do
   res3 <-
     try (
       select
@@ -69,8 +103,6 @@ t4 connection = do
     Right _ -> error "Expected an error, but got success"
     Left  e -> error ("MissmatchErrors: " <> show e)
 
-  putStrLn "MissmatchErrors: Ok"
-
 
 data ExpectedName = MkExpectedName
   { expectedName :: Int64
@@ -82,3 +114,4 @@ data ExpectedName = MkExpectedName
 type TestExpectedColumns =
  '[ Column "expectedName" Int64
   ]
+```

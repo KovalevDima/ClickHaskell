@@ -27,60 +27,77 @@
       let
         mapMergeAttrsList = f: x: lib.mergeAttrsList (map f x);
         supportedGHCs = ["ghc948" "ghc967" "ghc984" "ghc9103" "ghc9122"];
-      in
-      {
-        process-compose = {
-          default = import ./contribution/localServer.nix {
-            inherit inputs pkgs;
-            app = self'.apps.ghc9103-server;
-            agent = self'.apps.ghc9103-eventlog-agent;
-            docDirPath = self'.packages."documentation";
-          };
-        }
-        //
-        mapMergeAttrsList
+
+        # process-compose runners
+        mkProfRunners =
           ({ghc, app}: {
-              "test-${ghc}-${app}" = import ./contribution/testing.nix {
+              "test-${ghc}-${app}" = import ./contribution/prof.nix {
                 inherit pkgs inputs;
                 app = self'.apps."${ghc}-${app}";
               };
             }
-          )
+          );
+        profilingRunners = mapMergeAttrsList mkProfRunners
           (lib.cartesianProduct {
             ghc = supportedGHCs; 
-            app = ["prof-1bil-stream" "prof-simple" "tests" "prof-pings"];
+            app = ["prof-1bil-stream" "prof-simple" "prof-pings"];
           });
-        haskellProjects =
-          let
-            mkProject = ghc: {"${ghc}" = import ./contribution/project.nix {inherit pkgs ghc inputs;};};
-            static = {
-              "static" = import ./contribution/project.nix {
+        mkTestRunners =
+          (ghc: {
+              "test-${ghc}-tests" = import ./contribution/testing.nix {
                 inherit pkgs inputs;
-                ghc = "ghc9103";
-                isStatic = true;
-              };
-            };
-          in mapMergeAttrsList mkProject supportedGHCs // static;
-        devShells =
-          mapMergeAttrsList
-            (ghc: {"dev-${ghc}" = pkgs.mkShell {
-              inputsFrom = [];
-              packages = with pkgs; with haskellPackages; with (self'.packages);
-                [ clickhouse nil eventlog2html graphmod nodejs
-                  haskell.compiler."${ghc}" cabal-install
+                apps = [
+                  self'.apps."${ghc}-t001-query-serializaton"
+                  self'.apps."${ghc}-t002-rw-equality"
+                  self'.apps."${ghc}-t003-multithreading"
+                  self'.apps."${ghc}-t004-errors"
+                  self'.apps."${ghc}-t005-settings"
                 ];
               };
-            })
-            supportedGHCs
-          //
-          {
-            default = pkgs.mkShell {
-              inputsFrom = [config.haskellProjects.ghc9103.outputs.devShell];
-              packages = with pkgs; with haskellPackages; with (self'.packages);
-                [clickhouse nodejs pnpm nil eventlog2html graphmod markdown-unlit cloc];
+            }
+          );
+        testRunners = mapMergeAttrsList mkTestRunners supportedGHCs;
+        devEnv = {
+          default =
+            import ./contribution/localServer.nix {
+              inherit inputs pkgs;
+              app = self'.apps.ghc9103-server;
+              agent = self'.apps.ghc9103-eventlog-agent;
+              docDirPath = self'.packages."documentation";
             };
           };
-        # Build documnetation
+
+        # Development shells
+        mkHaskellShell =
+          (ghc: {"dev-${ghc}" = pkgs.mkShell {
+            inputsFrom =
+              if ghc == "ghc9103"
+              then [config.haskellProjects.${ghc}.outputs.devShell]
+              else [];
+            packages = with pkgs; with haskellPackages;
+              [ clickhouse nodejs pnpm nil eventlog2html graphmod markdown-unlit cloc
+              ] ++ (if ghc == "ghc9103" then [] else [haskell.compiler."${ghc}"]) ;
+            };
+          });
+        extraShells = mapMergeAttrsList mkHaskellShell supportedGHCs;
+        defaultShell = {default = extraShells.dev-ghc9103;};
+
+        # GHC env
+        mkProject = ghc: {"${ghc}" = import ./contribution/project.nix {inherit pkgs ghc inputs;};};
+        projects = mapMergeAttrsList mkProject supportedGHCs;
+        staticBinariesProject = {
+          "static" =
+            import ./contribution/project.nix {
+              inherit pkgs inputs;
+              ghc = "ghc9103";
+              isStatic = true;
+            };
+          };
+      in
+      {
+        process-compose = devEnv // profilingRunners // testRunners;
+        haskellProjects = projects // staticBinariesProject;
+        devShells = defaultShell // extraShells;
         packages = {
           "documentation" = import ./documentation/documentation.nix {inherit pkgs;};
           "ClickHaskell-dist" = import ./contribution/hackage.nix {

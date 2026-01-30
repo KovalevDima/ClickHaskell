@@ -1,3 +1,4 @@
+```haskell
 {-# LANGUAGE
   DataKinds,
   DeriveAnyClass,
@@ -7,16 +8,25 @@
   OverloadedStrings
 #-}
 
-module T5Settings where
+module Main (main) where
 
 import ClickHaskell
 import GHC.Generics (Generic)
-import GHC.Stack (HasCallStack)
 
-t5 :: HasCallStack => Connection -> IO ()
-t5 connection = do
-  _ <- select query connection pure
-  putStrLn "t005: Ok"
+main :: IO ()
+main = do
+  connection <- openConnection defaultConnectionArgs
+  connOld <- openConnection (overrideMaxRevision 1 defaultConnectionArgs)
+
+  runSettings connection
+  runSettings connOld
+  putStrLn "Ok"
+
+
+runSettings :: Connection -> IO ()
+runSettings conn = do
+  const () <$> select query conn pure
+
 
 query :: Select TestColumns TestData
 query =
@@ -40,3 +50,4 @@ data TestData = MkTestData
 type TestColumns =
  '[ Column "testCol" Int32
   ]
+```
