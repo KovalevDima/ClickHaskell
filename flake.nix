@@ -70,10 +70,13 @@
         # Development shells
         mkHaskellShell =
           (ghc: {"dev-${ghc}" = pkgs.mkShell {
-            inputsFrom = [config.haskellProjects.${ghc}.outputs.devShell];
+            inputsFrom =
+              if ghc == "ghc9103"
+              then [config.haskellProjects.${ghc}.outputs.devShell]
+              else [];
             packages = with pkgs; with haskellPackages;
               [ clickhouse nodejs pnpm nil eventlog2html graphmod markdown-unlit cloc
-              ];
+              ] ++ (if ghc == "ghc9103" then [] else [haskell.compiler."${ghc}"]) ;
             };
           });
         extraShells = mapMergeAttrsList mkHaskellShell supportedGHCs;

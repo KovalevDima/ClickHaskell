@@ -26,6 +26,9 @@ jobs:
       - name: Run performance test
         run: PC_DISABLE_TUI=1 nix run .#test-${{ matrix.ghc }}-prof-simple
 
+      - name: Test devShell
+        run: nix develop .#dev-${{ matrix.ghc }} -c echo "Ok."
+
   delivery-builds-check:
     runs-on: ubuntu-latest
     needs: tests
