@@ -42,6 +42,21 @@
             ghc = supportedGHCs; 
             app = ["prof-1bil-stream" "prof-simple" "prof-pings"];
           });
+        mkTestRunners =
+          (ghc: {
+              "test-${ghc}" = import ./contribution/testing.nix {
+                inherit pkgs inputs;
+                apps = [
+                  self'.apps."${ghc}-t001-query-serializaton"
+                  self'.apps."${ghc}-t002-rw-equality"
+                  self'.apps."${ghc}-t003-multithreading"
+                  self'.apps."${ghc}-t004-errors"
+                  self'.apps."${ghc}-t005-settings"
+                ];
+              };
+            }
+          );
+        testRunners = mapMergeAttrsList mkTestRunners supportedGHCs;
         devEnv = {
           default =
             import ./contribution/localServer.nix {
@@ -77,7 +92,7 @@
           };
       in
       {
-        process-compose = devEnv // profilingRunners;
+        process-compose = devEnv // profilingRunners // testRunners;
         haskellProjects = projects // staticBinariesProject;
         devShells = defaultShell // extraShells;
         packages = {

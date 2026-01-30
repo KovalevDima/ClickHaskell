@@ -44,6 +44,7 @@ main = do
 
   runQuerySerialization connection
   runQuerySerialization connOld
+  putStrLn "Ok"
 
 
 runQuerySerialization :: Connection -> IO ()

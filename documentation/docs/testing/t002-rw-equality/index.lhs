@@ -38,6 +38,7 @@ main = do
 
   runReadWriteEquality connection
   runReadWriteEquality connOld
+  putStrLn "Ok"
 
 
 runReadWriteEquality :: Connection -> IO ()
@@ -64,14 +65,10 @@ runReadWriteEquality connection = do
         connection
         pure
 
-  let testLabel = "WriteReadEquality: "
-
   (when (result /= testData) . error)
-    (  testLabel <> "Unequal result.\n"
+    (  "Unequal result.\n"
     <> "Writed data: " <> show testData <> "\n"
     <> "Readed data: " <> show result)
-
-  print $ testLabel <> "Ok"
 
 
 type TestColumns =

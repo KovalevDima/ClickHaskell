@@ -20,6 +20,7 @@ main = do
 
   runSettings connection
   runSettings connOld
+  putStrLn "Ok"
 
 
 runSettings :: Connection -> IO ()

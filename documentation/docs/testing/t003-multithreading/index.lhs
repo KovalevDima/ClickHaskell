@@ -28,6 +28,7 @@ main = do
 
   runMultithreading connection
   runMultithreading connOld
+  putStrLn "Ok"
 
 
 runMultithreading :: Connection -> IO ()

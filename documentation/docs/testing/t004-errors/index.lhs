@@ -37,6 +37,7 @@ main = do
 
   runErrorsTest connection
   runErrorsTest connOld
+  putStrLn "Ok"
 
 
 runErrorsTest :: Connection -> IO ()
