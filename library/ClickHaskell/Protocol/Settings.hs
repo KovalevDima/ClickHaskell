@@ -146,7 +146,7 @@ instance IsSettingType Double where
   toSettingType float = SettingDouble float
   fromSettingType (SettingDouble float) = float
   fromSettingType _ = error "Impossible"
-  serializeSettingBinary rev = serialize @ChString rev . toChType . toQueryPart . fromSettingType @Float
+  serializeSettingBinary rev = serialize @ChString rev . toChType . toQueryPart . fromSettingType @Double
 
 instance IsSettingType UInt64 where
   toSettingType uint64 = SettingUInt64 uint64
