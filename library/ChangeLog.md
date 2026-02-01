@@ -5,7 +5,7 @@
 
 ## Features:
 - Added `Float(32/64)`, `Decimal(32,64,128,256)`, `Int256`, `Date` types support
-- Added `Int64` settings type support
+- Added `Int64`, `Float/Double` settings type support
 
 # 1.0.0 -- 14-12-2025
 
