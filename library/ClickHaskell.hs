@@ -81,7 +81,7 @@ import ClickHaskell.Connection
 import ClickHaskell.Primitive
 import ClickHaskell.Statements
 import ClickHaskell.Protocol
-import ClickHaskell.Protocol.Data (ColumnHeader(..), mkHeader, UserError (..), validateColumnHeader, Column, SerializableColumn (..), KnownColumn (..))
+import ClickHaskell.Protocol.Data (UserError (..), Column, SerializableColumn (..), KnownColumn (..))
 
 -- GHC included
 import Control.Concurrent (newMVar, putMVar, takeMVar)
@@ -375,8 +375,7 @@ instance
   GClickHaskell columns (D1 c (C1 c2 f))
   where
   {-# INLINE gDeserializeColumns #-}
-  gDeserializeColumns doCheck rev size f =
-    gDeserializeColumns @columns doCheck rev size (f . M1 . M1)
+  gDeserializeColumns doCheck rev size f = gDeserializeColumns @columns doCheck rev size (f . M1 . M1)
 
   {-# INLINE gSerializeRecords #-}
   gSerializeRecords rev xs f = gSerializeRecords @columns rev xs (unM1 . unM1 . f)
@@ -473,13 +472,11 @@ instance
   {-# INLINE gDeserializeColumns #-}
   gDeserializeColumns doCheck rev size f = do
     let errHandler = when doCheck . (throw . UnmatchedResult)
-    validateColumnHeader @(Column name chType) errHandler rev =<< deserialize @ColumnHeader rev
-    deserializeColumn @(Column name chType) rev size (f . M1 . K1 . fromChType)
+    deserializeColumn @(Column name chType) errHandler rev size (f . M1 . K1 . fromChType)
 
   {-# INLINE gSerializeRecords #-}
-  gSerializeRecords rev values f
-    =  serialize rev (mkHeader @(Column name chType))
-    <> serializeColumn @(Column name chType) rev (toChType . unK1 . unM1 . f) values
+  gSerializeRecords rev values f =
+    serializeColumn @(Column name chType) rev (toChType . unK1 . unM1 . f) values
 
   gExpectedColumns = (renderColumnName @(Column name chType), renderColumnType @(Column name chType)) : []
   gColumnsCount = 1

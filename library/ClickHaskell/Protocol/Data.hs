@@ -149,9 +149,26 @@ data UserError
 -- * Columns serialization
 -------------------------------------------------------------------------------
 
-class SerializableColumn column where
-  deserializeColumn :: ProtocolRevision -> UVarInt -> (GetColumnType column -> a) -> Get [a]
-  serializeColumn :: ProtocolRevision -> (a -> GetColumnType column) -> [a] -> Builder
+type ErrHandler = UserError -> Get ()
+
+ignoreErr :: ErrHandler
+ignoreErr _ = pure ()
+
+class SerializableColumn col where
+  {-# INLINE deserializeColumn #-}
+  deserializeColumn :: KnownColumn col => ErrHandler -> ProtocolRevision -> UVarInt -> (GetColumnType col -> res) -> Get [res]
+  deserializeColumn errHandler rev size f = do
+    validateColumnHeader @col errHandler rev =<< deserialize @ColumnHeader rev
+    deserializeColumnI @col rev size f
+  
+  {-# INLINE serializeColumn #-}
+  serializeColumn :: KnownColumn col => ProtocolRevision -> (a -> GetColumnType col) -> [a] -> Builder
+  serializeColumn rev f values =
+    serialize rev (mkHeader @col) <>
+    serializeColumnI @col rev (f) values
+
+  deserializeColumnI :: ProtocolRevision -> UVarInt -> (GetColumnType col -> a) -> Get [a]
+  serializeColumnI :: ProtocolRevision -> (a -> GetColumnType col) -> [a] -> Builder
 
 instance (IsChType chType, KnownSymbol name) => KnownColumn (Column name chType)
 
@@ -160,11 +177,11 @@ instance
   , IsChType chType
   ) =>
   SerializableColumn (Column name chType) where
-  {-# INLINE deserializeColumn #-}
-  deserializeColumn rev rows f = map f <$> replicateGet rev rows
+  {-# INLINE deserializeColumnI #-}
+  deserializeColumnI rev rows f = map f <$> replicateGet rev rows
 
-  {-# INLINE serializeColumn #-}
-  serializeColumn rev f column = foldMap (serialize @chType rev . f) column
+  {-# INLINE serializeColumnI #-}
+  serializeColumnI rev f column = foldMap (serialize @chType rev . f) column
 
 
 instance {-# OVERLAPPING #-}
@@ -173,16 +190,16 @@ instance {-# OVERLAPPING #-}
   , IsChType chType
   ) =>
   SerializableColumn (Column name (Nullable chType)) where
-  {-# INLINE deserializeColumn #-}
-  deserializeColumn rev rows f = do
+  {-# INLINE deserializeColumnI #-}
+  deserializeColumnI rev rows f = do
     nulls <- replicateGet @UInt8 rev rows
     forM nulls (\nulFlag -> case nulFlag of
         0 -> f . Just <$> deserialize @chType rev
         _ -> (f Nothing <$ deserialize @chType rev)
       )
 
-  {-# INLINE serializeColumn #-}
-  serializeColumn rev f column
+  {-# INLINE serializeColumnI #-}
+  serializeColumnI rev f column
     =  foldMap (serialize @UInt8 rev . maybe 1 (const 0) . f) column
     <> foldMap (serialize @chType rev . maybe defaultValueOfTypeName id . f) column
 
@@ -193,30 +210,30 @@ instance {-# OVERLAPPING #-}
   , TypeError ('Text "LowCardinality deserialization still unsupported")
   ) =>
   SerializableColumn (Column name (LowCardinality chType)) where
-  {-# INLINE deserializeColumn #-}
-  deserializeColumn rev rows f = do
+  {-# INLINE deserializeColumnI #-}
+  deserializeColumnI rev rows f = do
     _serializationType <- (.&. 0xf) <$> deserialize @UInt64 rev
     _index_size <- deserialize @Int64 rev
     -- error $ "Trace | " <> show _serializationType <> " : " <> show _index_size
     map f . coerce
       <$> replicateGet @chType rev rows
 
-  {-# INLINE serializeColumn #-}
-  serializeColumn _rev column = undefined column
+  {-# INLINE serializeColumnI #-}
+  serializeColumnI _rev column = undefined column
 
 instance {-# OVERLAPPING #-}
   ( KnownColumn (Column name (Array chType))
   , Serializable chType
   )
   => SerializableColumn (Column name (Array chType)) where
-  {-# INLINE deserializeColumn #-}
-  deserializeColumn rev rows f = do
+  {-# INLINE deserializeColumnI #-}
+  deserializeColumnI rev rows f = do
     offsets <- replicateGet @UInt64 rev rows
     let lengths = zipWith (-) offsets (0 : (init offsets))
     forM lengths (fmap (f . MkChArray) . replicateGet @chType rev . fromIntegral)
 
-  {-# INLINE serializeColumn #-}
-  serializeColumn rev f column
+  {-# INLINE serializeColumnI #-}
+  serializeColumnI rev f column
     =  foldMap (serialize @UInt64 rev) offsets
     <> foldMap (foldMap (serialize @chType rev) . f) column
     where
@@ -237,5 +254,5 @@ instance {-# OVERLAPPING #-}
   )
   => SerializableColumn (Column name (Array (Array chType)))
   where
-  deserializeColumn = error "Impossible"
-  serializeColumn = error "Impossible"
+  deserializeColumnI = error "Impossible"
+  serializeColumnI = error "Impossible"
