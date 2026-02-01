@@ -14,6 +14,7 @@ import Prelude hiding (liftA2)
 
 -- External
 import Data.WideWord (Int128 (..), Int256)
+import qualified Data.ByteString.Char8 as BS8
 
 
 
@@ -30,9 +31,9 @@ See test №6 for an example of potential truncation due to a large scale.
 
 >>> chTypeName @(Decimal32 9 1)
 "Decimal(9, 1)"
->>> 1000.1 :: Decimal32 10 1
+>>> 1000.1 :: Decimal32 1 1
 1000.1
->>> 1000.1 :: Decimal32 10 5
+>>> 1000.1 :: Decimal32 9 5
 1000.10000
 -}
 newtype Decimal32 (p :: Nat) (s :: Nat) = MkDecimal32 (Fixed (10 ^ s))
@@ -61,6 +62,9 @@ instance
   ToChType (Decimal32 p s) (Fixed sPowered) where
   toChType fixed = MkDecimal32 fixed
   fromChType (MkDecimal32 fixed) = fixed
+
+instance KnownNat (10^s) => ToQueryPart (Decimal32 p s) where
+  toQueryPart dec = byteString (BS8.pack $ show dec)
 
 
 -- ** Decimal64
@@ -108,6 +112,9 @@ instance
   toChType fixed = MkDecimal64 fixed
   fromChType (MkDecimal64 fixed) = fixed
 
+instance KnownNat (10^s) => ToQueryPart (Decimal64 p s) where
+  toQueryPart dec = byteString (BS8.pack $ show dec)
+
 
 -- ** Decimal128
 
@@ -154,6 +161,9 @@ instance
   toChType fixed = MkDecimal128 fixed
   fromChType (MkDecimal128 fixed) = fixed
 
+instance KnownNat (10^s) => ToQueryPart (Decimal128 p s) where
+  toQueryPart dec = "'" <> byteString (BS8.pack $ show dec) <> "'"
+
 
 -- ** Decimal256
 
@@ -199,3 +209,6 @@ instance
   ToChType (Decimal256 p s) (Fixed sPowered) where
   toChType fixed = MkDecimal256 fixed
   fromChType (MkDecimal256 fixed) = fixed
+
+instance KnownNat (10^s) => ToQueryPart (Decimal256 p s) where
+  toQueryPart dec = "'" <> byteString (BS8.pack $ show dec) <> "'"

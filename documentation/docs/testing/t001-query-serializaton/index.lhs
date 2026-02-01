@@ -74,6 +74,10 @@ runQuerySerialization conn = do
   runTestForType @(Array Int64) conn [toChType @(Array Int64) @[Int64] [0 .. 255]]
   runTestForTypeWith @Float32 conn cmpFloatSemantic [0, nan, negInf, posInf]
   runTestForTypeWith @Float64 conn cmpFloatSemantic [0, nan, negInf, posInf]
+  runTestForType @(Decimal32 9 1) conn  [100000000.000001, 0]
+  runTestForType @(Decimal64 18 1) conn  [100000000000000000.000001, 0]
+  runTestForType @(Decimal128 38 1) conn  [100000000000000000000000000000.000001, 0]
+  runTestForType @(Decimal256 76 1) conn  [100000000000000000000000000000000000000000.000001, 0]
 
 cmpFloatSemantic :: (Eq f, RealFloat f) => f -> f -> Bool
 cmpFloatSemantic float1 float2
