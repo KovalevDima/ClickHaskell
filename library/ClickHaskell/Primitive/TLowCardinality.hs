@@ -4,20 +4,14 @@ module ClickHaskell.Primitive.TLowCardinality where
 import ClickHaskell.Primitive.Serialization
 import ClickHaskell.Primitive.TString
 import ClickHaskell.Primitive.TNullable
-import ClickHaskell.Primitive.TInt
-import ClickHaskell.Primitive.TUInt
 
 -- GHC included
 import Control.DeepSeq (NFData)
-import Data.Bits ((.&.))
-import Data.Coerce (coerce)
 import Data.String (IsString (..))
 import GHC.TypeLits (ErrorMessage (..), TypeError)
 
 
-
-
--- ** LowCardinality
+-- * LowCardinality
 
 -- | ClickHouse LowCardinality(T) column type
 newtype LowCardinality chType = MkLowCardinality chType
@@ -59,21 +53,3 @@ instance
 instance ToQueryPart chType => ToQueryPart (LowCardinality chType)
   where
   toQueryPart (MkLowCardinality chType) = toQueryPart chType
-
-instance {-# OVERLAPPING #-}
-  ( KnownColumn (Column name (LowCardinality chType))
-  , Serializable chType
-  , IsLowCardinalitySupported chType
-  , TypeError ('Text "LowCardinality deserialization still unsupported")
-  ) =>
-  SerializableColumn (Column name (LowCardinality chType)) where
-  {-# INLINE deserializeColumn #-}
-  deserializeColumn rev rows f = do
-    _serializationType <- (.&. 0xf) <$> deserialize @UInt64 rev
-    _index_size <- deserialize @Int64 rev
-    -- error $ "Trace | " <> show _serializationType <> " : " <> show _index_size
-    map f . coerce
-      <$> replicateGet @chType rev rows
-
-  {-# INLINE serializeColumn #-}
-  serializeColumn _rev column = undefined column

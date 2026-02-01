@@ -6,17 +6,19 @@ import Control.DeepSeq (NFData)
 import Data.Binary.Get
 import Data.Bits (Bits (setBit, unsafeShiftL, unsafeShiftR, (.&.), (.|.)), xor)
 import Data.ByteString.Builder
-import Data.ByteString.Char8 as BS8 (pack)
 import Data.Int (Int64)
-import Data.Kind (Type)
 import Data.Type.Bool (Not)
 import Data.Type.Equality (type (==))
 import Data.Typeable (Proxy (..))
 import Data.Word (Word64)
 import GHC.Generics (C1, D1, Generic (..), K1 (K1), M1 (M1), Meta (MetaSel), Rec0, S1, type (:*:) (..))
-import GHC.TypeLits (KnownNat, KnownSymbol, Nat, Symbol, natVal, symbolVal)
+import GHC.TypeLits (KnownNat, Nat, natVal)
 import Prelude hiding (liftA2)
 
+
+-------------------------------------------------------------------------------
+-- * Core serialization class
+-------------------------------------------------------------------------------
 
 class Serializable chType
   where
@@ -74,8 +76,8 @@ instance {-# OVERLAPPABLE #-} (IsChType chType, chType ~ inputType) => ToChType 
   toChType = id
   fromChType = id
 
--- * Generics
 
+-- ** Generics
 
 class GSerial f where
   gSerialize :: ProtocolRevision -> f p -> Builder
@@ -122,67 +124,11 @@ instance {-# OVERLAPPING #-}
   {-# INLINE gDeserialize #-}
 
 
--- * Column
-
-data Columns (columns :: [Type]) where
-  Empty :: Columns '[]
-  AddColumn
-    :: KnownColumn (Column name chType)
-    => Column name chType
-    -> Columns columns
-    -> Columns (Column name chType ': columns)
 
 
-{- |
-Column declaration
-
-For example:
-
-@
-type MyColumn = Column "myColumn" ChString
-@
--}
-data Column (name :: Symbol) (chType :: Type) 
-
-type family GetColumnName column :: Symbol where GetColumnName (Column name columnType) = name
-type family GetColumnType column :: Type   where GetColumnType (Column name columnType) = columnType
-
-
-class
-  ( IsChType (GetColumnType column)
-  , KnownSymbol (GetColumnName column)
-  ) =>
-  KnownColumn column where
-  renderColumnName :: Builder
-  renderColumnName = (stringUtf8 . symbolVal @(GetColumnName column)) Proxy
-
-  renderColumnType :: Builder
-  renderColumnType = byteString . BS8.pack $ chTypeName @(GetColumnType column)
-
-
-
-
-class SerializableColumn column where
-  deserializeColumn :: ProtocolRevision -> UVarInt -> (GetColumnType column -> a) -> Get [a]
-  serializeColumn :: ProtocolRevision -> (a -> GetColumnType column) -> [a] -> Builder
-
-instance (IsChType chType, KnownSymbol name) => KnownColumn (Column name chType)
-
-instance
-  ( Serializable chType
-  , IsChType chType
-  ) =>
-  SerializableColumn (Column name chType) where
-  {-# INLINE deserializeColumn #-}
-  deserializeColumn rev rows f = map f <$> replicateGet rev rows
-
-  {-# INLINE serializeColumn #-}
-  serializeColumn rev f column = foldMap (serialize @chType rev . f) column
-
-
-
-
-
+-------------------------------------------------------------------------------
+-- * Protocol parts
+-------------------------------------------------------------------------------
 
 -- ** UVarInt
 
@@ -243,8 +189,6 @@ newtype ProtocolRevision = MkProtocolRevision UVarInt
 mkRev :: forall nat . KnownNat nat => ProtocolRevision
 mkRev = (fromIntegral . natVal) (Proxy @nat)
 
-
--- * Protocol parts
 
 -- ** Versioning
 

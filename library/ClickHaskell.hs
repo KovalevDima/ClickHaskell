@@ -81,6 +81,7 @@ import ClickHaskell.Connection
 import ClickHaskell.Primitive
 import ClickHaskell.Statements
 import ClickHaskell.Protocol
+import ClickHaskell.Protocol.Data (UserError (..), Column, SerializableColumn (..), KnownColumn (..))
 
 -- GHC included
 import Control.Concurrent (newMVar, putMVar, takeMVar)
@@ -134,18 +135,6 @@ instance Show ClientError where
   show (UnmatchedResult err) = "UserError " <> show err <> "\n" <> prettyCallStack callStack
   show (DatabaseException err) = "DatabaseException " <> show err <> "\n" <> prettyCallStack callStack
   show (InternalError err) = "InternalError " <> show err <> "\n" <> prettyCallStack callStack
-
-{- |
-  Errors intended to be handled by developers
--}
-data UserError
-  = UnmatchedType String
-  -- ^ Column type mismatch in data packet
-  | UnmatchedColumn String
-  -- ^ Column name mismatch in data packet
-  | UnmatchedColumnsCount String
-  -- ^ Occurs when actual columns count less or more than expected
-  deriving (Show, Exception)
 
 
 -- ** Low level
@@ -361,7 +350,6 @@ auth buffer creds@MkConnectionArgs{db, user, pass, mOsUser, mHostname, maxRevisi
 
 class GClickHaskell (columns :: [Type]) f
   where
-
   {-
     Generic deriving can be a bit tricky
 
@@ -387,8 +375,7 @@ instance
   GClickHaskell columns (D1 c (C1 c2 f))
   where
   {-# INLINE gDeserializeColumns #-}
-  gDeserializeColumns doCheck rev size f =
-    gDeserializeColumns @columns doCheck rev size (f . M1 . M1)
+  gDeserializeColumns doCheck rev size f = gDeserializeColumns @columns doCheck rev size (f . M1 . M1)
 
   {-# INLINE gSerializeRecords #-}
   gSerializeRecords rev xs f = gSerializeRecords @columns rev xs (unM1 . unM1 . f)
@@ -484,30 +471,15 @@ instance
   where
   {-# INLINE gDeserializeColumns #-}
   gDeserializeColumns doCheck rev size f = do
-    validateColumnHeader @(Column name chType) doCheck rev =<< deserialize @ColumnHeader rev
-    deserializeColumn @(Column name chType) rev size (f . M1 . K1 . fromChType)
+    let errHandler = when doCheck . (throw . UnmatchedResult)
+    deserializeColumn @(Column name chType) errHandler rev size (f . M1 . K1 . fromChType)
 
   {-# INLINE gSerializeRecords #-}
-  gSerializeRecords rev values f
-    =  serialize rev (mkHeader @(Column name chType))
-    <> serializeColumn @(Column name chType) rev (toChType . unK1 . unM1 . f) values
+  gSerializeRecords rev values f =
+    serializeColumn @(Column name chType) rev (toChType . unK1 . unM1 . f) values
 
   gExpectedColumns = (renderColumnName @(Column name chType), renderColumnType @(Column name chType)) : []
   gColumnsCount = 1
-
-validateColumnHeader :: forall column . KnownColumn column => Bool -> ProtocolRevision -> ColumnHeader -> Get ()
-validateColumnHeader doCheck rev MkColumnHeader{..} = do
-  let expectedColumnName = toChType (renderColumnName @column)
-      resultColumnName = name
-  when (doCheck && resultColumnName /= expectedColumnName) $
-    throw . UnmatchedResult . UnmatchedColumn
-      $ "Got column \"" <> show resultColumnName <> "\" but expected \"" <> show expectedColumnName <> "\""
-
-  let expectedType = fallbackTypeName rev $ toChType (renderColumnType @column)
-      resultType = fallbackTypeName rev type_
-  when (doCheck && resultType /= expectedType) $
-    throw . UnmatchedResult . UnmatchedType
-      $ "Column " <> show resultColumnName <> " has type " <> show resultType <> ". But expected type is " <> show expectedType
 
 type family
   TakeColumn name columns :: Maybe Type

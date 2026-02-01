@@ -8,7 +8,7 @@ import Control.Concurrent (MVar)
 import Control.Exception (SomeException, bracketOnError, catch, finally, throwIO)
 import Data.Binary.Builder (Builder, toLazyByteString)
 import Data.ByteString as BS (ByteString, null)
-import Data.IORef (atomicWriteIORef, newIORef, readIORef)
+import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.Maybe (fromMaybe)
 import GHC.Exception (Exception)
 
@@ -84,8 +84,8 @@ data Buffer = MkBuffer
 
 mkBuffer :: BufferArgs -> IO Buffer
 mkBuffer MkBufferArgs{..} = do
-  buff <- newIORef ""
-  let writeBuff bs = atomicWriteIORef buff bs
+  buff <- newIORef mempty
+  let writeBuff bs = writeIORef buff bs
 
   pure MkBuffer
     { writeConn = writeSock
@@ -93,7 +93,7 @@ mkBuffer MkBufferArgs{..} = do
     , readBuff = do
       currentBuffer <- readIORef buff
       if (not . BS.null) currentBuffer 
-      then writeBuff "" *> pure currentBuffer
+      then writeBuff mempty *> pure currentBuffer
       else do
         sockBytes <- readSock
         if BS.null sockBytes
@@ -101,7 +101,7 @@ mkBuffer MkBufferArgs{..} = do
         else pure sockBytes
     , destroyBuff = do
       closeSock
-      writeBuff ""
+      writeBuff mempty
     }
 
 data BufferArgs = MkBufferArgs
