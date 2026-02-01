@@ -185,8 +185,8 @@ select (MkSelect mkQuery setts) conn f = do
         when (columns_count /= expected) $
           (throw . UnmatchedResult . UnmatchedColumnsCount)
             ("Expected " <> show expected <> " columns but got " <> show columns_count)
-        res <- deserializeColumns @columns True connState rows_count f
-        loopSelect connState (res : acc)
+        !result <- deserializeColumns @columns True connState rows_count f
+        loopSelect connState (result : acc)
       ProfileEvents _     -> loopSelect connState acc
       Progress    _       -> loopSelect connState acc
       ProfileInfo _       -> loopSelect connState acc
