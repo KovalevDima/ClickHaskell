@@ -185,8 +185,8 @@ select (MkSelect mkQuery setts) conn f = do
         when (columns_count /= expected) $
           (throw . UnmatchedResult . UnmatchedColumnsCount)
             ("Expected " <> show expected <> " columns but got " <> show columns_count)
-        !result <- f =<< readBuffer buffer (deserializeColumns @columns True revision rows_count)
-        loopSelect connState (result : acc)
+        res <- deserializeColumns @columns True connState rows_count f
+        loopSelect connState (res : acc)
       ProfileEvents _     -> loopSelect connState acc
       Progress    _       -> loopSelect connState acc
       ProfileInfo _       -> loopSelect connState acc
@@ -221,7 +221,7 @@ insert (MkInsert mkQuery dbSettings) conn columnsData = do
     case firstPacket of
       TableColumns      _ -> loopInsert connState 
       DataResponse MkDataPacket{} -> do
-        _emptyDataPacket <- readBuffer buffer (deserializeColumns @columns @record False revision 0)
+        _emptyDataPacket <- deserializeColumns @columns @record False connState 0 pure
         let rows = fromIntegral (Prelude.length columnsData)
             cols = columnsCount @columns @record
         writeToConnection connState (\rev -> serialize rev . Data $ mkDataPacket "" cols rows)
@@ -281,9 +281,9 @@ command conn (MkCommand query settings) = do
 
 class GenericClickHaskell record columns =>  ClickHaskell columns record
   where
-  default deserializeColumns :: Bool -> ProtocolRevision -> UVarInt -> Get [record]
-  deserializeColumns :: Bool -> ProtocolRevision -> UVarInt -> Get [record]
-  deserializeColumns doCheck rev size = gDeserializeColumns @columns doCheck rev size to
+  default deserializeColumns :: Bool -> ConnectionState -> UVarInt -> ([record] -> IO res) -> IO res
+  deserializeColumns :: Bool -> ConnectionState -> UVarInt -> ([record] -> IO res) -> IO res
+  deserializeColumns doCheck connState size = gDeserializeColumns @columns doCheck connState size to
 
   default serializeColumns :: [record] -> ProtocolRevision -> Builder
   serializeColumns :: [record] -> ProtocolRevision -> Builder
@@ -361,7 +361,6 @@ auth buffer creds@MkConnectionArgs{db, user, pass, mOsUser, mHostname, maxRevisi
 
 class GClickHaskell (columns :: [Type]) f
   where
-
   {-
     Generic deriving can be a bit tricky
 
@@ -369,7 +368,7 @@ class GClickHaskell (columns :: [Type]) f
     1) Columns serialization logic generator
     2) Columns-to-rows(list of records) transposer
   -}
-  gDeserializeColumns :: Bool -> ProtocolRevision -> UVarInt -> (f p -> res) -> Get [res]
+  gDeserializeColumns :: Bool -> ConnectionState -> UVarInt -> (f p -> res) -> ([res] -> IO a) -> IO a
   gSerializeRecords :: ProtocolRevision -> [res] -> (res -> f p) -> Builder
   {-
     and affected columns extractor
@@ -387,8 +386,8 @@ instance
   GClickHaskell columns (D1 c (C1 c2 f))
   where
   {-# INLINE gDeserializeColumns #-}
-  gDeserializeColumns doCheck rev size f =
-    gDeserializeColumns @columns doCheck rev size (f . M1 . M1)
+  gDeserializeColumns doCheck connState size toG =
+    gDeserializeColumns @columns doCheck connState size (toG . M1 . M1)
 
   {-# INLINE gSerializeRecords #-}
   gSerializeRecords rev xs f = gSerializeRecords @columns rev xs (unM1 . unM1 . f)
@@ -417,9 +416,9 @@ instance
   GClickHaskell columns ((left :*: right1) :*: right2)
   where
   {-# INLINE gDeserializeColumns #-}
-  gDeserializeColumns doCheck rev size f =
-    gDeserializeColumns @columns @(left :*: (right1 :*: right2)) doCheck rev size
-      (\(l :*: (r1:*:r2)) -> f ((l :*: r1):*:r2))
+  gDeserializeColumns doCheck connState size toG =
+    gDeserializeColumns @columns @(left :*: (right1 :*: right2)) doCheck connState size
+      (\(l :*: (r1:*:r2)) -> toG ((l :*: r1):*:r2))
 
   {-# INLINE gSerializeRecords #-}
   gSerializeRecords rev xs f =
@@ -442,10 +441,10 @@ instance
   GClickHaskell columns ((S1 (MetaSel (Just name) a b f)) (Rec0 inputType) :*: right)
   where
   {-# INLINE gDeserializeColumns #-}
-  gDeserializeColumns doCheck rev size f = do
-    lefts  <- gDeserializeColumns @columns @(S1 (MetaSel (Just name) a b f) (Rec0 inputType)) doCheck rev size id
-    rights <- gDeserializeColumns @columns @right doCheck rev size id
-    deserializeProduct (\l r -> f $ l :*: r) lefts rights
+  gDeserializeColumns doCheck connState size toG f = do
+    lefts  <- gDeserializeColumns @columns @(S1 (MetaSel (Just name) a b f) (Rec0 inputType)) doCheck connState size id pure
+    rights <- gDeserializeColumns @columns @right doCheck connState size id pure
+    f $ deserializeProduct (\l r -> toG $ l :*: r) lefts rights
 
   {-# INLINE gSerializeRecords #-}
   gSerializeRecords rev xs f
@@ -455,11 +454,11 @@ instance
   gExpectedColumns = gExpectedColumns @columns @(S1 (MetaSel (Just name) a b f) (Rec0 inputType)) ++ gExpectedColumns @columns @right
   gColumnsCount = gColumnsCount @columns @(S1 (MetaSel (Just name) a b f) (Rec0 inputType)) + gColumnsCount @columns @right
 
-deserializeProduct ::  (l -> r -> a) -> [l] -> [r] -> Get [a]
+deserializeProduct :: (l -> r -> a) -> [l] -> [r] -> [a]
 deserializeProduct f lefts rights = goDeserialize [] lefts rights
   where
   goDeserialize !acc (l:ls) (r:rs) = goDeserialize ((:acc) $! f l r) ls rs
-  goDeserialize !acc [] [] = pure acc
+  goDeserialize !acc [] [] = acc
   goDeserialize _ _ _ = fail "Mismatched lengths in gDeserializeColumns"
 
 {-
@@ -483,9 +482,11 @@ instance
   ) => GClickHaskell columns ((S1 (MetaSel (Just name) a b f)) (Rec0 inputType))
   where
   {-# INLINE gDeserializeColumns #-}
-  gDeserializeColumns doCheck rev size f = do
-    validateColumnHeader @(Column name chType) doCheck rev =<< deserialize @ColumnHeader rev
-    deserializeColumn @(Column name chType) rev size (f . M1 . K1 . fromChType)
+  gDeserializeColumns doCheck MkConnectionState{buffer, revision} size toG f = do
+    g <- readBuffer buffer $ do
+      validateColumnHeader @(Column name chType) doCheck revision =<< deserialize @ColumnHeader revision
+      deserializeColumn @(Column name chType) revision size (toG . M1 . K1 . fromChType)
+    f g
 
   {-# INLINE gSerializeRecords #-}
   gSerializeRecords rev values f
