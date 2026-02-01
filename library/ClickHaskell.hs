@@ -81,6 +81,7 @@ import ClickHaskell.Connection
 import ClickHaskell.Primitive
 import ClickHaskell.Statements
 import ClickHaskell.Protocol
+import ClickHaskell.Protocol.Data (ColumnHeader(..), mkHeader, UserError (..), validateColumnHeader, Column, SerializableColumn (..), KnownColumn (..))
 
 -- GHC included
 import Control.Concurrent (newMVar, putMVar, takeMVar)
@@ -134,18 +135,6 @@ instance Show ClientError where
   show (UnmatchedResult err) = "UserError " <> show err <> "\n" <> prettyCallStack callStack
   show (DatabaseException err) = "DatabaseException " <> show err <> "\n" <> prettyCallStack callStack
   show (InternalError err) = "InternalError " <> show err <> "\n" <> prettyCallStack callStack
-
-{- |
-  Errors intended to be handled by developers
--}
-data UserError
-  = UnmatchedType String
-  -- ^ Column type mismatch in data packet
-  | UnmatchedColumn String
-  -- ^ Column name mismatch in data packet
-  | UnmatchedColumnsCount String
-  -- ^ Occurs when actual columns count less or more than expected
-  deriving (Show, Exception)
 
 
 -- ** Low level
@@ -484,7 +473,8 @@ instance
   where
   {-# INLINE gDeserializeColumns #-}
   gDeserializeColumns doCheck rev size f = do
-    validateColumnHeader @(Column name chType) doCheck rev =<< deserialize @ColumnHeader rev
+    let errHandler = when doCheck . (throw . UnmatchedResult)
+    validateColumnHeader @(Column name chType) errHandler rev =<< deserialize @ColumnHeader rev
     deserializeColumn @(Column name chType) rev size (f . M1 . K1 . fromChType)
 
   {-# INLINE gSerializeRecords #-}
@@ -494,20 +484,6 @@ instance
 
   gExpectedColumns = (renderColumnName @(Column name chType), renderColumnType @(Column name chType)) : []
   gColumnsCount = 1
-
-validateColumnHeader :: forall column . KnownColumn column => Bool -> ProtocolRevision -> ColumnHeader -> Get ()
-validateColumnHeader doCheck rev MkColumnHeader{..} = do
-  let expectedColumnName = toChType (renderColumnName @column)
-      resultColumnName = name
-  when (doCheck && resultColumnName /= expectedColumnName) $
-    throw . UnmatchedResult . UnmatchedColumn
-      $ "Got column \"" <> show resultColumnName <> "\" but expected \"" <> show expectedColumnName <> "\""
-
-  let expectedType = fallbackTypeName rev $ toChType (renderColumnType @column)
-      resultType = fallbackTypeName rev type_
-  when (doCheck && resultType /= expectedType) $
-    throw . UnmatchedResult . UnmatchedType
-      $ "Column " <> show resultColumnName <> " has type " <> show resultType <> ". But expected type is " <> show expectedType
 
 type family
   TakeColumn name columns :: Maybe Type

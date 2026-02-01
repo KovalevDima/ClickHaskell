@@ -4,10 +4,25 @@ module ClickHaskell.Protocol.Data where
 import ClickHaskell.Primitive
 
 -- GHC
+import Control.Exception (Exception)
+import Control.Monad (forM, when)
+import Data.Binary (Get)
+import Data.Bits ((.&.))
+import Data.ByteString (isPrefixOf)
+import Data.ByteString.Builder (Builder, byteString, stringUtf8)
+import Data.ByteString.Char8 as BS8 (pack)
+import Data.Coerce (coerce)
+import Data.Data (Proxy (..))
 import Data.Int
+import Data.Kind (Type)
+import Data.List (mapAccumL)
 import GHC.Generics
+import GHC.TypeError
+import GHC.TypeLits
 
--- * Common Data packet
+-------------------------------------------------------------------------------
+-- * Data packet
+-------------------------------------------------------------------------------
 
 data DataPacket = MkDataPacket
   { table_name    :: ChString
@@ -36,3 +51,190 @@ data BlockInfo = MkBlockInfo
   , eof          :: UVarInt
   }
   deriving (Generic, Serializable)
+
+
+
+
+-------------------------------------------------------------------------------
+-- * Column
+-------------------------------------------------------------------------------
+
+
+data Columns (columns :: [Type]) where
+  Empty :: Columns '[]
+  AddColumn
+    :: KnownColumn (Column name chType)
+    => Column name chType
+    -> Columns columns
+    -> Columns (Column name chType ': columns)
+
+
+{- |
+Column declaration
+
+For example:
+
+@
+type MyColumn = Column "myColumn" ChString
+@
+-}
+data Column (name :: Symbol) (chType :: Type) 
+
+type family GetColumnName column :: Symbol where GetColumnName (Column name columnType) = name
+type family GetColumnType column :: Type   where GetColumnType (Column name columnType) = columnType
+
+
+class
+  ( IsChType (GetColumnType column)
+  , KnownSymbol (GetColumnName column)
+  ) =>
+  KnownColumn column where
+  renderColumnName :: Builder
+  renderColumnName = (stringUtf8 . symbolVal @(GetColumnName column)) Proxy
+
+  renderColumnType :: Builder
+  renderColumnType = byteString . BS8.pack $ chTypeName @(GetColumnType column)
+
+data ColumnHeader = MkColumnHeader
+  { name :: ChString
+  , type_ :: ChString
+  , is_custom :: UInt8 `SinceRevision` DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION
+  } deriving (Generic, Serializable)
+
+mkHeader :: forall column . KnownColumn column => ColumnHeader
+mkHeader = let
+    name = toChType $ renderColumnName @column
+    type_ = toChType $ chTypeName @(GetColumnType column)
+    is_custom = AfterRevision 0
+    in MkColumnHeader{..}
+
+type ErrorHandler = UserError -> Get ()
+
+validateColumnHeader :: forall column . KnownColumn column => ErrorHandler -> ProtocolRevision -> ColumnHeader -> Get ()
+validateColumnHeader errHandler rev MkColumnHeader{..} = do
+  let expectedColumnName = toChType (renderColumnName @column)
+      resultColumnName = name
+  when (resultColumnName /= expectedColumnName) $
+    errHandler . UnmatchedColumn
+      $ "Got column \"" <> show resultColumnName <> "\" but expected \"" <> show expectedColumnName <> "\""
+
+  let expectedType = fallbackTypeName rev $ toChType (renderColumnType @column)
+      resultType = fallbackTypeName rev type_
+  when (resultType /= expectedType) $
+    errHandler . UnmatchedType
+      $ "Column " <> show resultColumnName <> " has type " <> show resultType <> ". But expected type is " <> show expectedType
+
+fallbackTypeName :: ProtocolRevision -> ChString -> ChString
+fallbackTypeName rev typeName = toChType @ChString $
+  if rev < mkRev @DBMS_MIN_REVISION_WITH_TIME_ZONE_PARAMETER_IN_DATETIME_DATA_TYPE
+    && isPrefixOf "DateTime(" (fromChType typeName)
+  then "DateTime"
+  else typeName
+
+{- |
+  Errors intended to be handled by developers
+-}
+data UserError
+  = UnmatchedType String
+  -- ^ Column type mismatch in data packet
+  | UnmatchedColumn String
+  -- ^ Column name mismatch in data packet
+  | UnmatchedColumnsCount String
+  -- ^ Occurs when actual columns count less or more than expected
+  deriving (Show, Exception)
+
+
+-------------------------------------------------------------------------------
+-- Column serialization
+-------------------------------------------------------------------------------
+
+class SerializableColumn column where
+  deserializeColumn :: ProtocolRevision -> UVarInt -> (GetColumnType column -> a) -> Get [a]
+  serializeColumn :: ProtocolRevision -> (a -> GetColumnType column) -> [a] -> Builder
+
+instance (IsChType chType, KnownSymbol name) => KnownColumn (Column name chType)
+
+instance
+  ( Serializable chType
+  , IsChType chType
+  ) =>
+  SerializableColumn (Column name chType) where
+  {-# INLINE deserializeColumn #-}
+  deserializeColumn rev rows f = map f <$> replicateGet rev rows
+
+  {-# INLINE serializeColumn #-}
+  serializeColumn rev f column = foldMap (serialize @chType rev . f) column
+
+
+instance {-# OVERLAPPING #-}
+  ( KnownColumn (Column name (Nullable chType))
+  , Serializable chType
+  , IsChType chType
+  ) =>
+  SerializableColumn (Column name (Nullable chType)) where
+  {-# INLINE deserializeColumn #-}
+  deserializeColumn rev rows f = do
+    nulls <- replicateGet @UInt8 rev rows
+    forM nulls (\nulFlag -> case nulFlag of
+        0 -> f . Just <$> deserialize @chType rev
+        _ -> (f Nothing <$ deserialize @chType rev)
+      )
+
+  {-# INLINE serializeColumn #-}
+  serializeColumn rev f column
+    =  foldMap (serialize @UInt8 rev . maybe 1 (const 0) . f) column
+    <> foldMap (serialize @chType rev . maybe defaultValueOfTypeName id . f) column
+
+instance {-# OVERLAPPING #-}
+  ( KnownColumn (Column name (LowCardinality chType))
+  , Serializable chType
+  , IsLowCardinalitySupported chType
+  , TypeError ('Text "LowCardinality deserialization still unsupported")
+  ) =>
+  SerializableColumn (Column name (LowCardinality chType)) where
+  {-# INLINE deserializeColumn #-}
+  deserializeColumn rev rows f = do
+    _serializationType <- (.&. 0xf) <$> deserialize @UInt64 rev
+    _index_size <- deserialize @Int64 rev
+    -- error $ "Trace | " <> show _serializationType <> " : " <> show _index_size
+    map f . coerce
+      <$> replicateGet @chType rev rows
+
+  {-# INLINE serializeColumn #-}
+  serializeColumn _rev column = undefined column
+
+instance {-# OVERLAPPING #-}
+  ( KnownColumn (Column name (Array chType))
+  , Serializable chType
+  )
+  => SerializableColumn (Column name (Array chType)) where
+  {-# INLINE deserializeColumn #-}
+  deserializeColumn rev rows f = do
+    offsets <- replicateGet @UInt64 rev rows
+    let lengths = zipWith (-) offsets (0 : (init offsets))
+    forM lengths (fmap (f . MkChArray) . replicateGet @chType rev . fromIntegral)
+
+  {-# INLINE serializeColumn #-}
+  serializeColumn rev f column
+    =  foldMap (serialize @UInt64 rev) offsets
+    <> foldMap (foldMap (serialize @chType rev) . f) column
+    where
+    offsets =
+      snd $
+        mapAccumL
+          (\offset xs ->
+            let nextOffset = offset + fromIntegral (length xs)
+            in (nextOffset, nextOffset)
+          )
+          0
+          (map f column)
+
+instance {-# OVERLAPPING #-}
+  ( KnownSymbol name
+  , IsChType chType
+  , TypeError ('Text "Nested Arrays types (column \"" :<>: 'Text name :<>: 'Text "\") are unsupported")
+  )
+  => SerializableColumn (Column name (Array (Array chType)))
+  where
+  deserializeColumn = error "Impossible"
+  serializeColumn = error "Impossible"

@@ -2,7 +2,7 @@ module ClickHaskell.Protocol.Server where
 
 -- Internal
 import ClickHaskell.Primitive
-import ClickHaskell.Protocol.Data (DataPacket(..))
+import ClickHaskell.Protocol.Data (DataPacket(..), ColumnHeader, mkHeader, Column, SerializableColumn (..))
 import ClickHaskell.Protocol.Settings (DbSettings)
 
 -- GHC
