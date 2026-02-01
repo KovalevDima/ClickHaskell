@@ -350,7 +350,6 @@ auth buffer creds@MkConnectionArgs{db, user, pass, mOsUser, mHostname, maxRevisi
 
 class GClickHaskell (columns :: [Type]) f
   where
-
   {-
     Generic deriving can be a bit tricky
 
