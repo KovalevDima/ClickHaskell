@@ -38,6 +38,8 @@ query =
       . addSetting @"max_ast_depth" 1000
       . addSetting @"use_uncompressed_cache" True
       . addSetting @"delta_lake_snapshot_version" (-5)
+      . addSetting @"backup_restore_keeper_fault_injection_probability" 0.2
+      . addSetting @"max_bytes_ratio_before_external_sort" 0.6
     )
     (fromGenerateRandom @TestColumns @TestData (1, 10, 2) 1)
 
