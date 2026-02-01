@@ -66,8 +66,8 @@ instance Serializable DbSettings where
     foldMap (serialize @DbSetting rev) setts
     <> serialize @ChString rev ""
   deserialize rev = do
-    (MkChString setting) <- lookAhead (deserialize @ChString rev)
-    if BS.null setting
+    setting <- lookAhead (deserialize @ChString rev)
+    if BS.null (fromChType setting)
       then deserialize @ChString rev *> pure (MkDbSettings [])
       else do
         sett <- deserialize @DbSetting rev
@@ -123,6 +123,8 @@ class
 data SettingType where
   SettingUInt64 :: UInt64 -> SettingType
   SettingInt64 :: Int64 -> SettingType
+  SettingFloat :: Float -> SettingType
+  SettingDouble :: Double -> SettingType
   SettingString :: ChString -> SettingType
   SettingBool :: Bool -> SettingType
 
@@ -137,6 +139,18 @@ instance IsSettingType Int64 where
   fromSettingType (SettingInt64 int64) = int64
   fromSettingType _ = error "Impossible"
   serializeSettingBinary rev = serialize rev . fromIntegral @Int64 @VarInt . fromSettingType
+
+instance IsSettingType Float where
+  toSettingType float = SettingFloat float
+  fromSettingType (SettingFloat float) = float
+  fromSettingType _ = error "Impossible"
+  serializeSettingBinary = serializeSettingText @Float
+
+instance IsSettingType Double where
+  toSettingType float = SettingDouble float
+  fromSettingType (SettingDouble float) = float
+  fromSettingType _ = error "Impossible"
+  serializeSettingBinary = serializeSettingText @Double
 
 instance IsSettingType UInt64 where
   toSettingType uint64 = SettingUInt64 uint64
@@ -212,6 +226,8 @@ pkgs.stdenv.mkDerivation {
         else if (typ == "String") { htype="ChString" }
         else if (typ == "Bool") { htype="Bool" }
         else if (typ == "Int64") { htype="Int64" }
+        else if (typ == "Float") { htype="Float" }
+        else if (typ == "Double") { htype="Double" }
 
         # TODO: add support
         else if ( \
@@ -228,7 +244,6 @@ pkgs.stdenv.mkDerivation {
             typ == "ObjectStorageGranularityLevel" || \
             typ == "JoinOrderAlgorithm" || \
             typ == "DeduplicateInsertSelectMode" || \
-            typ == "Float" || \
             typ == "Int32" || \
             typ == "TotalsMode" || \
             typ == "DistributedProductMode" || \
@@ -239,7 +254,6 @@ pkgs.stdenv.mkDerivation {
             typ == "BoolAuto" || \
             typ == "OverflowMode" || \
             typ == "OverflowModeGroupBy" || \
-            typ == "Double" || \
             typ == "JoinAlgorithm" || \
             typ == "LogsLevel" || \
             typ == "GeoToH3ArgumentOrder" || \
