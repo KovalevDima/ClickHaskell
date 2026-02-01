@@ -56,9 +56,8 @@ data BlockInfo = MkBlockInfo
 
 
 -------------------------------------------------------------------------------
--- * Column
+-- * Columns
 -------------------------------------------------------------------------------
-
 
 data Columns (columns :: [Type]) where
   Empty :: Columns '[]
@@ -144,8 +143,10 @@ data UserError
   deriving (Show, Exception)
 
 
+
+
 -------------------------------------------------------------------------------
--- Column serialization
+-- * Columns serialization
 -------------------------------------------------------------------------------
 
 class SerializableColumn column where
