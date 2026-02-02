@@ -92,7 +92,7 @@ negInf :: (Read a, Floating a) => a
 negInf = read "-Infinity"
 
 posInf :: (Read a, Floating a) => a
-posInf = read "-Infinity"
+posInf = read "Infinity"
 
 runTestForType ::
   ( ToQueryPart chType
