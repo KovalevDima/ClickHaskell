@@ -13,7 +13,6 @@ import Data.Type.Bool
 import Data.Type.Ord
 import Data.Typeable (Proxy (..))
 import GHC.TypeLits (ErrorMessage (..), KnownNat, Nat, TypeError, natVal, type (^))
-import Prelude hiding (liftA2)
 
 -- External
 import Data.WideWord (Int128 (..), Int256)
@@ -233,22 +232,23 @@ instance KnownNat (10^s) => ToQueryPart (Decimal256 p s) where
 type family ValidRanges (size :: Nat) (pMin :: Nat) (pMax :: Nat) (p :: Nat) (s :: Nat) :: Constraint
   where
   ValidRanges size pMin pMax p s =
-    If (p >=? 0 && p >=? s)
+    If (p >=? 0 && s <=? p)
       (
         If
-          (p >=? pMin && pMax >=? p)
+          (pMin <=? p && p <=? pMax)
           (() :: Constraint)
           (TypeError
             (    'Text "Precision (p=" :<>: ShowType p :<>: 'Text ") should satisfy "
-            :<>: ShowType pMin :<>: 'Text " >= p >= " :<>: ShowType pMax
+            :<>: ShowType pMin :<>: 'Text " <= p <= " :<>: ShowType pMax
             :<>: 'Text " for " :<>: DecimalType size
             )
           )
       )
       (TypeError
-        (    'Text "Scale (s=" :<>: ShowType s :<>: 'Text ") and"
-        :<>: 'Text " precision (p=" :<>: ShowType p :<>: 'Text ")"
-        :<>: 'Text " should satisfy" :<>: 'Text " 0 >= s >= p for " :<>: DecimalType size
+        (    'Text "Scale (s=" :<>: ShowType s :<>: 'Text ") and "
+        :<>: 'Text "precision (p=" :<>: ShowType p :<>: 'Text ") "
+        :<>: 'Text "should satisfy 0 <= s <= p for "
+        :<>: DecimalType size
         )
       )
 
