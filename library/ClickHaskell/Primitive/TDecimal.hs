@@ -8,14 +8,15 @@ import ClickHaskell.Primitive.TInt ()
 import Data.Binary.Get
 import Data.ByteString.Builder
 import Data.Fixed (Fixed (..))
+import Data.Kind (Constraint)
+import Data.Type.Bool
+import Data.Type.Ord
 import Data.Typeable (Proxy (..))
-import GHC.TypeLits (KnownNat, Nat, natVal, type(^))
-import Prelude hiding (liftA2)
+import GHC.TypeLits (ErrorMessage (..), KnownNat, Nat, TypeError, natVal, type (^))
 
 -- External
 import Data.WideWord (Int128 (..), Int256)
-import qualified Data.ByteString.Char8 as BS8
-
+import Data.ByteString.Char8 as BS8 (pack)
 
 
 -- ** Decimal32
@@ -44,7 +45,10 @@ deriving newtype instance KnownNat (10^s) => Ord (Decimal32 p s)
 deriving newtype instance KnownNat (10^s) => Num (Decimal32 p s)
 deriving newtype instance KnownNat (10^s) => Fractional (Decimal32 p s)
 
-instance (KnownNat p, KnownNat s, KnownNat (10 ^ s)) => IsChType (Decimal32 p s) where
+instance
+  (ValidRanges 32 1 9 p s, KnownNat p, KnownNat s, KnownNat (10 ^ s))
+  =>
+  IsChType (Decimal32 p s) where
   chTypeName =
     let p = show (natVal @p Proxy)
         s = show (natVal @s Proxy)
@@ -93,7 +97,10 @@ deriving newtype instance KnownNat (10^s) => Ord (Decimal64 p s)
 deriving newtype instance KnownNat (10^s) => Num (Decimal64 p s)
 deriving newtype instance KnownNat (10^s) => Fractional (Decimal64 p s)
 
-instance (KnownNat p, KnownNat s, KnownNat (10 ^ s)) => IsChType (Decimal64 p s) where
+instance
+  (ValidRanges 64 10 18 p s, KnownNat p, KnownNat s, KnownNat (10 ^ s))
+  =>
+  IsChType (Decimal64 p s) where
   chTypeName =
     let p = show (natVal @p Proxy)
         s = show (natVal @s Proxy)
@@ -142,7 +149,10 @@ deriving newtype instance KnownNat (10^s) => Ord (Decimal128 p s)
 deriving newtype instance KnownNat (10^s) => Num (Decimal128 p s)
 deriving newtype instance KnownNat (10^s) => Fractional (Decimal128 p s)
 
-instance (KnownNat p, KnownNat s, KnownNat (10 ^ s)) => IsChType (Decimal128 p s) where
+instance
+  (ValidRanges 128 19 38 p s, KnownNat p, KnownNat s, KnownNat (10 ^ s))
+  =>
+  IsChType (Decimal128 p s) where
   chTypeName =
     let p = show (natVal @p Proxy)
         s = show (natVal @s Proxy)
@@ -191,7 +201,10 @@ deriving newtype instance KnownNat (10^s) => Ord (Decimal256 p s)
 deriving newtype instance KnownNat (10^s) => Num (Decimal256 p s)
 deriving newtype instance KnownNat (10^s) => Fractional (Decimal256 p s)
 
-instance (KnownNat p, KnownNat s, KnownNat (10 ^ s)) => IsChType (Decimal256 p s) where
+instance
+  (ValidRanges 256 39 76 p s, KnownNat p, KnownNat s, KnownNat (10 ^ s))
+  =>
+  IsChType (Decimal256 p s) where
   chTypeName =
     let p = show (natVal @p Proxy)
         s = show (natVal @s Proxy)
@@ -212,3 +225,31 @@ instance
 
 instance KnownNat (10^s) => ToQueryPart (Decimal256 p s) where
   toQueryPart dec = "'" <> byteString (BS8.pack $ show dec) <> "'"
+
+
+-- Range validations
+
+type family ValidRanges (size :: Nat) (pMin :: Nat) (pMax :: Nat) (p :: Nat) (s :: Nat) :: Constraint
+  where
+  ValidRanges size pMin pMax p s =
+    If (p >=? 0 && s <=? p)
+      (
+        If
+          (pMin <=? p && p <=? pMax)
+          (() :: Constraint)
+          (TypeError
+            (    'Text "Precision (p=" :<>: ShowType p :<>: 'Text ") should satisfy "
+            :<>: ShowType pMin :<>: 'Text " <= p <= " :<>: ShowType pMax
+            :<>: 'Text " for " :<>: DecimalType size
+            )
+          )
+      )
+      (TypeError
+        (    'Text "Scale (s=" :<>: ShowType s :<>: 'Text ") and "
+        :<>: 'Text "precision (p=" :<>: ShowType p :<>: 'Text ") "
+        :<>: 'Text "should satisfy 0 <= s <= p for "
+        :<>: DecimalType size
+        )
+      )
+
+type DecimalType (size :: Nat) = 'Text "Decimal" :<>: ShowType size :<>: 'Text " type"
