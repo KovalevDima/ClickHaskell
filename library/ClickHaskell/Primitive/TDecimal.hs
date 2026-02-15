@@ -2,7 +2,7 @@ module ClickHaskell.Primitive.TDecimal where
 
 -- Internal
 import ClickHaskell.Primitive.Serialization
-import ClickHaskell.Primitive.TInt ()
+import ClickHaskell.Primitive.TInt (Int64, Int32)
 
 -- GHC included
 import Data.Binary.Get
@@ -32,18 +32,17 @@ See test №6 for an example of potential truncation due to a large scale.
 
 >>> chTypeName @(Decimal32 9 1)
 "Decimal(9, 1)"
->>> 1000.1 :: Decimal32 1 1
+>>> toChType @(Decimal32 1 1) @(Fixed (10^1)) 1000.1
 1000.1
->>> 1000.1 :: Decimal32 9 5
+>>> toChType @(Decimal32 9 5) @(Fixed (10^5)) 1000.1
 1000.10000
 -}
-newtype Decimal32 (p :: Nat) (s :: Nat) = MkDecimal32 (Fixed (10 ^ s))
+newtype Decimal32 (p :: Nat) (s :: Nat) = MkDecimal32 Int32
 
-deriving newtype instance KnownNat (10^s) => Show (Decimal32 p s)
+instance KnownNat (10^s) => Show (Decimal32 p s) where
+  show (MkDecimal32 int32) = show $ MkFixed @_ @(10^s)(fromIntegral int32)
 deriving newtype instance KnownNat (10^s) => Eq (Decimal32 p s)
 deriving newtype instance KnownNat (10^s) => Ord (Decimal32 p s)
-deriving newtype instance KnownNat (10^s) => Num (Decimal32 p s)
-deriving newtype instance KnownNat (10^s) => Fractional (Decimal32 p s)
 
 instance
   (ValidRanges 32 1 9 p s, KnownNat p, KnownNat s, KnownNat (10 ^ s))
@@ -56,16 +55,17 @@ instance
   defaultValueOfTypeName = MkDecimal32 0
 
 instance KnownNat (10 ^ s) => Serializable (Decimal32 p s) where
-  serialize _ (MkDecimal32 (MkFixed int)) = int32LE $ fromIntegral int
-  deserialize _ = MkDecimal32 . MkFixed . fromIntegral <$> getInt32le
+  serialize _ (MkDecimal32 int) = int32LE int
+  deserialize _ = MkDecimal32 <$> getInt32le
   {-# INLINE deserialize #-}
 
 instance
   ( sPowered ~ 10^s
+  , IsChType (Decimal32 p s)
   ) =>
   ToChType (Decimal32 p s) (Fixed sPowered) where
-  toChType fixed = MkDecimal32 fixed
-  fromChType (MkDecimal32 fixed) = fixed
+  toChType (MkFixed fixedRep) = MkDecimal32 (fromIntegral fixedRep)
+  fromChType (MkDecimal32 int32) = MkFixed (fromIntegral int32)
 
 instance KnownNat (10^s) => ToQueryPart (Decimal32 p s) where
   toQueryPart dec = byteString (BS8.pack $ show dec)
@@ -84,18 +84,17 @@ See test №6 for an example of potential truncation due to a large scale.
 
 >>> chTypeName @(Decimal64 10 1)
 "Decimal(10, 1)"
->>> 1000.1 :: Decimal64 10 1
+>>> toChType @(Decimal64 10 1) @(Fixed (10^1)) 1000.1
 1000.1
->>> 1000.1 :: Decimal64 10 5
+>>> toChType @(Decimal64 10 5) @(Fixed (10^5)) 1000.1
 1000.10000
 -}
-newtype Decimal64 (p :: Nat) (s :: Nat) = MkDecimal64 (Fixed (10 ^ s))
+newtype Decimal64 (p :: Nat) (s :: Nat) = MkDecimal64 Int64
 
-deriving newtype instance KnownNat (10^s) => Show (Decimal64 p s)
+instance KnownNat (10^s) => Show (Decimal64 p s) where
+  show (MkDecimal64 int64) = show $ MkFixed @_ @(10^s)(fromIntegral int64)
 deriving newtype instance KnownNat (10^s) => Eq (Decimal64 p s)
 deriving newtype instance KnownNat (10^s) => Ord (Decimal64 p s)
-deriving newtype instance KnownNat (10^s) => Num (Decimal64 p s)
-deriving newtype instance KnownNat (10^s) => Fractional (Decimal64 p s)
 
 instance
   (ValidRanges 64 10 18 p s, KnownNat p, KnownNat s, KnownNat (10 ^ s))
@@ -108,16 +107,17 @@ instance
   defaultValueOfTypeName = MkDecimal64 0
 
 instance KnownNat (10 ^ s) => Serializable (Decimal64 p s) where
-  serialize _ (MkDecimal64 (MkFixed int)) = int64LE $ fromIntegral int
-  deserialize _ = MkDecimal64 . MkFixed . fromIntegral <$> getInt64le
+  serialize _ (MkDecimal64 int) = int64LE int
+  deserialize _ = MkDecimal64 <$> getInt64le
   {-# INLINE deserialize #-}
 
 instance
   ( sPowered ~ 10^s
+  , IsChType (Decimal64 p s)
   ) =>
   ToChType (Decimal64 p s) (Fixed sPowered) where
-  toChType fixed = MkDecimal64 fixed
-  fromChType (MkDecimal64 fixed) = fixed
+  toChType (MkFixed fixedRep) = MkDecimal64 (fromIntegral fixedRep)
+  fromChType (MkDecimal64 int64) = MkFixed (fromIntegral int64)
 
 instance KnownNat (10^s) => ToQueryPart (Decimal64 p s) where
   toQueryPart dec = byteString (BS8.pack $ show dec)
@@ -136,18 +136,17 @@ See test №6 for an example of potential truncation due to a large scale.
 
 >>> chTypeName @(Decimal128 19 1)
 "Decimal(19, 1)"
->>> 1000.1 :: Decimal128 19 1
+>>> toChType @(Decimal128 19 1) @(Fixed (10^1)) 1000.1
 1000.1
->>> 1000.1 :: Decimal128 19 5
+>>> toChType @(Decimal128 19 5) @(Fixed (10^5)) 1000.1
 1000.10000
 -}
-newtype Decimal128 (p :: Nat) (s :: Nat) = MkDecimal128 (Fixed (10 ^ s))
+newtype Decimal128 (p :: Nat) (s :: Nat) = MkDecimal128 Int128
 
-deriving newtype instance KnownNat (10^s) => Show (Decimal128 p s)
+instance KnownNat (10^s) => Show (Decimal128 p s) where
+  show (MkDecimal128 int128) = show $ MkFixed @_ @(10^s)(fromIntegral int128)
 deriving newtype instance KnownNat (10^s) => Eq (Decimal128 p s)
 deriving newtype instance KnownNat (10^s) => Ord (Decimal128 p s)
-deriving newtype instance KnownNat (10^s) => Num (Decimal128 p s)
-deriving newtype instance KnownNat (10^s) => Fractional (Decimal128 p s)
 
 instance
   (ValidRanges 128 19 38 p s, KnownNat p, KnownNat s, KnownNat (10 ^ s))
@@ -157,19 +156,20 @@ instance
     let p = show (natVal @p Proxy)
         s = show (natVal @s Proxy)
     in "Decimal(" <> p <> ", "<> s <> ")"
-  defaultValueOfTypeName = 0
+  defaultValueOfTypeName = MkDecimal128 0
 
 instance Serializable (Decimal128 p s) where
-  serialize rev (MkDecimal128 (MkFixed int)) = serialize @Int128 rev (fromIntegral int)
-  deserialize rev = MkDecimal128 . MkFixed . fromIntegral <$> deserialize @Int128 rev
+  serialize rev (MkDecimal128 int) = serialize @Int128 rev int
+  deserialize rev = MkDecimal128 <$> deserialize @Int128 rev
   {-# INLINE deserialize #-}
 
 instance
   ( sPowered ~ 10^s
+  , IsChType (Decimal128 p s)
   ) =>
   ToChType (Decimal128 p s) (Fixed sPowered) where
-  toChType fixed = MkDecimal128 fixed
-  fromChType (MkDecimal128 fixed) = fixed
+  toChType (MkFixed fixedRep) = MkDecimal128 (fromIntegral fixedRep)
+  fromChType (MkDecimal128 int128) = MkFixed (fromIntegral int128)
 
 instance KnownNat (10^s) => ToQueryPart (Decimal128 p s) where
   toQueryPart dec = "'" <> byteString (BS8.pack $ show dec) <> "'"
@@ -186,20 +186,19 @@ as scaled `Int128` values, which may discard some of the integer part if `s` is 
 
 See test №6 for an example of potential truncation due to a large scale.
 
->>> chTypeName @(Decimal256 19 1)
-"Decimal(19, 1)"
->>> 1000.1 :: Decimal256 19 1
+>>> chTypeName @(Decimal256 39 1)
+"Decimal(39, 1)"
+>>> toChType @(Decimal256 39 1) @(Fixed (10^1)) 1000.1
 1000.1
->>> 1000.1 :: Decimal256 19 5
+>>> toChType @(Decimal256 39 5) @(Fixed (10^5)) 1000.1
 1000.10000
 -}
-newtype Decimal256 (p :: Nat) (s :: Nat) = MkDecimal256 (Fixed (10 ^ s))
+newtype Decimal256 (p :: Nat) (s :: Nat) = MkDecimal256 Int256
 
-deriving newtype instance KnownNat (10^s) => Show (Decimal256 p s)
+instance KnownNat (10^s) => Show (Decimal256 p s) where
+  show (MkDecimal256 int256) = show $ MkFixed @_ @(10^s)(fromIntegral int256)
 deriving newtype instance KnownNat (10^s) => Eq (Decimal256 p s)
 deriving newtype instance KnownNat (10^s) => Ord (Decimal256 p s)
-deriving newtype instance KnownNat (10^s) => Num (Decimal256 p s)
-deriving newtype instance KnownNat (10^s) => Fractional (Decimal256 p s)
 
 instance
   (ValidRanges 256 39 76 p s, KnownNat p, KnownNat s, KnownNat (10 ^ s))
@@ -209,19 +208,20 @@ instance
     let p = show (natVal @p Proxy)
         s = show (natVal @s Proxy)
     in "Decimal(" <> p <> ", "<> s <> ")"
-  defaultValueOfTypeName = 0
+  defaultValueOfTypeName = MkDecimal256 0
 
 instance Serializable (Decimal256 p s) where
-  serialize rev (MkDecimal256 (MkFixed int)) = serialize @Int256 rev (fromIntegral int)
-  deserialize rev = MkDecimal256 . MkFixed . fromIntegral <$> deserialize @Int256 rev
+  serialize rev (MkDecimal256 int) = serialize @Int256 rev int
+  deserialize rev = MkDecimal256 <$> deserialize @Int256 rev
   {-# INLINE deserialize #-}
 
 instance
   ( sPowered ~ 10^s
+  , IsChType (Decimal256 p s)
   ) =>
   ToChType (Decimal256 p s) (Fixed sPowered) where
-  toChType fixed = MkDecimal256 fixed
-  fromChType (MkDecimal256 fixed) = fixed
+  toChType (MkFixed fixedRep) = MkDecimal256 (fromIntegral fixedRep)
+  fromChType (MkDecimal256 int256) = MkFixed (fromIntegral int256)
 
 instance KnownNat (10^s) => ToQueryPart (Decimal256 p s) where
   toQueryPart dec = "'" <> byteString (BS8.pack $ show dec) <> "'"
