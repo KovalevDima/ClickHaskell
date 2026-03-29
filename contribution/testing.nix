@@ -1,28 +1,36 @@
 {apps, inputs, pkgs}:
 
 let
-  prevs = [null] ++ (pkgs.lib.drop 1 apps);
-  pairs = pkgs.lib.zipLists prevs apps;
-  cntApps = builtins.length apps + 1;
-  indexes = pkgs.lib.range 1 cntApps;
-  iPairs = pkgs.lib.zipListsWith (i: {fst,snd}: {num=i; fst=fst; snd=snd;}) indexes pairs;
+  programName = app: builtins.unsafeDiscardStringContext (builtins.baseNameOf app.program);
   appProcesses =
     builtins.listToAttrs (
-      pkgs.lib.forEach
-        iPairs
-        (spec:
+      pkgs.lib.forEach apps
+        (app:
           {
-            name = "t${toString spec.num}";
+            name = programName app;
             value = {
-              command = "${spec.snd.program}";
-              availability.exit_on_end = spec.num == cntApps - 1;
-              depends_on =
-                if spec.num == 1
-                then { "database".condition = "process_healthy"; }
-                else { "t${toString (spec.num - 1)}".condition = "process_completed"; };
+              command = "${app.program}";
+              depends_on = {
+                "database".condition = "process_healthy";
+              };
+              availability.restart = "exit_on_failure";
             };
           })
       );
+  shutdown = {
+    "shutdown" = {
+      command = "echo Success";
+      depends_on = builtins.listToAttrs (
+        pkgs.lib.forEach apps (app:
+          {
+            name = "${programName app}";
+            value = {condition = "process_completed_successfully";};
+          }
+        )
+      );
+      availability.exit_on_end = true;
+    };
+  };
 in
 {
   imports = [inputs.services-flake.processComposeModules.default];
@@ -32,6 +40,7 @@ in
       http_port = 8123;
       listen-host = "localhost";
       tcp_port_secure = 9440;
+      logger.console = 0;
       openSSL = {
         server = {
           certificateFile = ./certs/localhost.crt;
@@ -41,5 +50,8 @@ in
     };
     initialDatabases = [ {name="default";} ];
   }; 
-  settings.processes = appProcesses;
+  settings = {
+    processes = appProcesses // shutdown;
+    ordered_shutdown = true;
+  };
 }

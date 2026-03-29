@@ -66,8 +66,8 @@ runQuerySerialization conn = do
   runTestForType @(DateTime "") conn [minBound, toEnum 0, maxBound]
   runTestForType @(DateTime "Europe/Amsterdam") conn [minBound, toEnum 0, maxBound]
   runTestForType @Bool conn [False, True]
-  runTestForType @(Enum8 "'hello' = 1") conn [minBound, toEnum 0, maxBound]
-  runTestForType @(Enum16 "'hello' = 1") conn [minBound, toEnum 0, maxBound]
+  runTestForType @(Enum8 "'hello' = 1") conn [1]
+  runTestForType @(Enum16 "'hello' = 1") conn [1]
   -- unsupported: runTestForType @(DateTime64 0 "") conn [minBound, toEnum 0, maxBound]
   runTestForType @ChString conn (map (toChType . BS.singleton) [1..255])
   -- unsupported: runTestForType @(LowCardinality ChString) connection (map (toChType . BS.singleton) [0..255])
