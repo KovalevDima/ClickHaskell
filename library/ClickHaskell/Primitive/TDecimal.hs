@@ -28,8 +28,6 @@ In Haskell, this type is represented as a newtype over `Fixed (10 ^ s)`,
 allowing arbitrarily large integer parts, whereas ClickHouse stores decimals
 as scaled `Int32` values, which may discard some of the integer part if `s` is large.
 
-See test №6 for an example of potential truncation due to a large scale.
-
 >>> chTypeName @(Decimal32 9 1)
 "Decimal(9, 1)"
 >>> toChType @(Decimal32 1 1) @(Fixed (10^1)) 1000.1
@@ -79,8 +77,6 @@ Read the official ClickHouse documentation for the `Decimal(p, s)` type before u
 In Haskell, this type is represented as a newtype over `Fixed (10 ^ s)`,
 allowing arbitrarily large integer parts, whereas ClickHouse stores decimals
 as scaled `Int128` values, which may discard some of the integer part if `s` is large.
-
-See test №6 for an example of potential truncation due to a large scale.
 
 >>> chTypeName @(Decimal64 10 1)
 "Decimal(10, 1)"
@@ -132,8 +128,6 @@ In Haskell, this type is represented as a newtype over `Fixed (10 ^ s)`,
 allowing arbitrarily large integer parts, whereas ClickHouse stores decimals
 as scaled `Int128` values, which may discard some of the integer part if `s` is large.
 
-See test №6 for an example of potential truncation due to a large scale.
-
 >>> chTypeName @(Decimal128 19 1)
 "Decimal(19, 1)"
 >>> toChType @(Decimal128 19 1) @(Fixed (10^1)) 1000.1
@@ -183,8 +177,6 @@ Read the official ClickHouse documentation for the `Decimal(p, s)` type before u
 In Haskell, this type is represented as a newtype over `Fixed (10 ^ s)`,
 allowing arbitrarily large integer parts, whereas ClickHouse stores decimals
 as scaled `Int128` values, which may discard some of the integer part if `s` is large.
-
-See test №6 for an example of potential truncation due to a large scale.
 
 >>> chTypeName @(Decimal256 39 1)
 "Decimal(39, 1)"
