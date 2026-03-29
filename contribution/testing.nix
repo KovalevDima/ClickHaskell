@@ -24,7 +24,7 @@ let
         pkgs.lib.forEach apps (app:
           {
             name = "${programName app}";
-            value = {condition = "process_completed";};
+            value = {condition = "process_completed_successfully";};
           }
         )
       );
