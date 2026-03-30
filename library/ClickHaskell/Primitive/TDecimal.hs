@@ -37,7 +37,6 @@ instance KnownNat (10^s) => Show (Decimal32 p s) where
   show (MkDecimal32 int32) = show $ MkFixed @_ @(10^s)(fromIntegral int32)
 deriving newtype instance KnownNat (10^s) => Eq (Decimal32 p s)
 deriving newtype instance KnownNat (10^s) => Ord (Decimal32 p s)
-deriving newtype instance KnownNat (10^s) => Num (Decimal32 p s)
 
 instance
   (ValidRanges 32 1 9 p s, KnownNat p, KnownNat s, KnownNat (10 ^ s))
