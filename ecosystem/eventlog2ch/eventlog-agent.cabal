@@ -1,0 +1,34 @@
+Cabal-version:      3.0
+name:               eventlog-agent
+version:            0.0.0.1
+build-type:         Simple
+license:            BSD-3-Clause
+
+executable eventlog-agent
+  main-is: eventlog-agent.hs
+  build-depends:
+      base >=4.7 && <5
+    , async
+    , bytestring
+    , time
+    , text
+    , network
+    , stm
+    , ghc-events
+    , ClickHaskell
+  ghc-options:
+    -Wall
+    -Wunused-packages
+  other-modules:
+    EventLogAgent.ClickHouse
+    EventLogAgent.EventlogNetworking
+  default-language: Haskell2010
+  default-extensions:
+    BlockArguments
+    DataKinds
+    DeriveAnyClass
+    DeriveGeneric
+    TypeApplications
+    NamedFieldPuns
+    NumericUnderscores
+    RecordWildCards
