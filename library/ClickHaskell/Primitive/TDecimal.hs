@@ -22,20 +22,14 @@ import Data.ByteString.Char8 as BS8 (pack)
 -- ** Decimal32
 
 {- |
-Read the official ClickHouse documentation for the `Decimal(p, s)` type before use.
-
-In Haskell, this type is represented as a newtype over `Fixed (10 ^ s)`,
-allowing arbitrarily large integer parts, whereas ClickHouse stores decimals
-as scaled `Int32` values, which may discard some of the integer part if `s` is large.
-
-See test №6 for an example of potential truncation due to a large scale.
-
 >>> chTypeName @(Decimal32 9 1)
 "Decimal(9, 1)"
->>> toChType @(Decimal32 1 1) @(Fixed (10^1)) 1000.1
-1000.1
->>> toChType @(Decimal32 9 5) @(Fixed (10^5)) 1000.1
-1000.10000
+>>> toChType @(Decimal32 1 1) @(Fixed (10^1)) 100000.1
+100000.1
+>>> toChType @(Decimal32 9 5) @(Fixed (10^5)) 10000.1
+10000.10000
+>>> toChType @(Decimal32 9 5) @(Fixed (10^5)) 100000.1
+14100.75408
 -}
 newtype Decimal32 (p :: Nat) (s :: Nat) = MkDecimal32 Int32
 
@@ -74,14 +68,6 @@ instance KnownNat (10^s) => ToQueryPart (Decimal32 p s) where
 -- ** Decimal64
 
 {- |
-Read the official ClickHouse documentation for the `Decimal(p, s)` type before use.
-
-In Haskell, this type is represented as a newtype over `Fixed (10 ^ s)`,
-allowing arbitrarily large integer parts, whereas ClickHouse stores decimals
-as scaled `Int128` values, which may discard some of the integer part if `s` is large.
-
-See test №6 for an example of potential truncation due to a large scale.
-
 >>> chTypeName @(Decimal64 10 1)
 "Decimal(10, 1)"
 >>> toChType @(Decimal64 10 1) @(Fixed (10^1)) 1000.1
@@ -126,14 +112,6 @@ instance KnownNat (10^s) => ToQueryPart (Decimal64 p s) where
 -- ** Decimal128
 
 {- |
-Read the official ClickHouse documentation for the `Decimal(p, s)` type before use.
-
-In Haskell, this type is represented as a newtype over `Fixed (10 ^ s)`,
-allowing arbitrarily large integer parts, whereas ClickHouse stores decimals
-as scaled `Int128` values, which may discard some of the integer part if `s` is large.
-
-See test №6 for an example of potential truncation due to a large scale.
-
 >>> chTypeName @(Decimal128 19 1)
 "Decimal(19, 1)"
 >>> toChType @(Decimal128 19 1) @(Fixed (10^1)) 1000.1
@@ -178,14 +156,6 @@ instance KnownNat (10^s) => ToQueryPart (Decimal128 p s) where
 -- ** Decimal256
 
 {- |
-Read the official ClickHouse documentation for the `Decimal(p, s)` type before use.
-
-In Haskell, this type is represented as a newtype over `Fixed (10 ^ s)`,
-allowing arbitrarily large integer parts, whereas ClickHouse stores decimals
-as scaled `Int128` values, which may discard some of the integer part if `s` is large.
-
-See test №6 for an example of potential truncation due to a large scale.
-
 >>> chTypeName @(Decimal256 39 1)
 "Decimal(39, 1)"
 >>> toChType @(Decimal256 39 1) @(Fixed (10^1)) 1000.1
