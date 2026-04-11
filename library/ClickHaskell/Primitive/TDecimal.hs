@@ -26,9 +26,12 @@ import Data.ByteString.Char8 as BS8 (pack)
 "Decimal(9, 1)"
 >>> toChType @(Decimal32 1 1) @(Fixed (10^1)) 100000.1
 100000.1
->>> toChType @(Decimal32 9 5) @(Fixed (10^5)) 10000.1
+>>> toChType @(Decimal32 9 5) @(Fixed (10^5)) (10^4 + 0.1)
 10000.10000
->>> toChType @(Decimal32 9 5) @(Fixed (10^5)) 100000.1
+
+Note: there are no overflow checks
+
+>>> toChType @(Decimal32 9 5) @(Fixed (10^5)) (10^5 + 0.1)
 14100.75408
 -}
 newtype Decimal32 (p :: Nat) (s :: Nat) = MkDecimal32 Int32
@@ -70,10 +73,13 @@ instance KnownNat (10^s) => ToQueryPart (Decimal32 p s) where
 {- |
 >>> chTypeName @(Decimal64 10 1)
 "Decimal(10, 1)"
->>> toChType @(Decimal64 10 1) @(Fixed (10^1)) 1000.1
-1000.1
->>> toChType @(Decimal64 10 5) @(Fixed (10^5)) 1000.1
-1000.10000
+>>> toChType @(Decimal64 10 5) @(Fixed (10^5)) (10^13 + 0.1)
+10000000000000.10000
+
+Note: there are no overflow checks
+
+>>> toChType @(Decimal64 10 5) @(Fixed (10^5)) (10^14 + 0.1)
+-84467440737095.41616
 -}
 newtype Decimal64 (p :: Nat) (s :: Nat) = MkDecimal64 Int64
 
@@ -114,10 +120,13 @@ instance KnownNat (10^s) => ToQueryPart (Decimal64 p s) where
 {- |
 >>> chTypeName @(Decimal128 19 1)
 "Decimal(19, 1)"
->>> toChType @(Decimal128 19 1) @(Fixed (10^1)) 1000.1
-1000.1
->>> toChType @(Decimal128 19 5) @(Fixed (10^5)) 1000.1
-1000.10000
+>>> toChType @(Decimal128 19 5) @(Fixed (10^5)) (10^33 + 0.1)
+1000000000000000000000000000000000.10000
+
+Note: there are no overflow checks
+
+>>> toChType @(Decimal128 19 5) @(Fixed (10^5)) (10^34 + 0.1)
+-208471007628153903901238222953046.24368
 -}
 newtype Decimal128 (p :: Nat) (s :: Nat) = MkDecimal128 Int128
 
@@ -158,10 +167,13 @@ instance KnownNat (10^s) => ToQueryPart (Decimal128 p s) where
 {- |
 >>> chTypeName @(Decimal256 39 1)
 "Decimal(39, 1)"
->>> toChType @(Decimal256 39 1) @(Fixed (10^1)) 1000.1
-1000.1
->>> toChType @(Decimal256 39 5) @(Fixed (10^5)) 1000.1
-1000.10000
+>>> toChType @(Decimal256 39 1) @(Fixed (10^1)) (10^71 + 0.1)
+100000000000000000000000000000000000000000000000000000000000000000000000.1
+
+Note: there are no overflow checks
+
+>>> toChType @(Decimal256 39 5) @(Fixed (10^5)) (10^72 + 0.1)
+-157920892373161954235709850086879078532699846656405640394575840079131296.29936
 -}
 newtype Decimal256 (p :: Nat) (s :: Nat) = MkDecimal256 Int256
 
