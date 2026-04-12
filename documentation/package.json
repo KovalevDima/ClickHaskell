@@ -33,7 +33,7 @@
     "@types/mdx": "^2.0.13",
     "vite-tsconfig-paths": "^5.1.4",
     "@shikijs/rehype": "^3.21.0",
-    "@types/lodash": "4.17.21"
+    "@types/lodash": "4.17.24"
   },
   "scripts": {
     "dev": "react-router dev",
