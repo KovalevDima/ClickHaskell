@@ -26,7 +26,7 @@
       perSystem = {self', pkgs, config, lib, ...}:
       let
         mapMergeAttrsList = f: x: lib.mergeAttrsList (map f x);
-        supportedGHCs = ["ghc948" "ghc967" "ghc984" "ghc9103" "ghc9124"];
+        supportedGHCs = ["ghc948" "ghc967" "ghc984" "ghc9103" "ghc912"];
 
         # process-compose runners
         mkProfRunners =
