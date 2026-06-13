@@ -3,11 +3,11 @@
     "clickhouse": {
       "flake": false,
       "locked": {
-        "lastModified": 1780093162,
-        "narHash": "sha256-tq7PM5XVuxX4hcBFt7kSZm/UKmEw7vPs0A/Llw/Gmlk=",
+        "lastModified": 1781274261,
+        "narHash": "sha256-p4Nrob1sbunzCgyLNzly676mV8P8CnW6hrc3ASYAJik=",
         "owner": "ClickHouse",
         "repo": "ClickHouse",
-        "rev": "9afcd1bfee6ce38b1f0dde5964ef80e7a4c38c2a",
+        "rev": "3aa9b4901ab0de1bf35ba595a49d2daffd6c151e",
         "type": "github"
       },
       "original": {
@@ -51,11 +51,11 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1779877693,
-        "narHash": "sha256-NOF9NAREhxr50bbBfVcVOq+ArCMSoe8dP79Pk2uyARk=",
+        "lastModified": 1781229721,
+        "narHash": "sha256-ORvqDbb/LYxiJljGIejapjkc/kJbVote2N1WSb9W45I=",
         "owner": "nixos",
         "repo": "nixpkgs",
-        "rev": "4100e830e085863741bc69b156ec4ccd53ab5be0",
+        "rev": "173d0ad7a974f8543a9ab01d2271b2e290341b33",
         "type": "github"
       },
       "original": {
@@ -108,11 +108,11 @@
     },
     "services-flake": {
       "locked": {
-        "lastModified": 1779042632,
-        "narHash": "sha256-WgQZ1AsDMCTL+0x0yZEd1g3yMQbgEwAq0VUg73YU50M=",
+        "lastModified": 1780343091,
+        "narHash": "sha256-WPuSxRtCk9Qe0jWMbGMRZjFBhyFDxcrOiBIXS9feZrQ=",
         "owner": "juspay",
         "repo": "services-flake",
-        "rev": "b0012dbf955efc3f6e2decd61610da5cea17dce6",
+        "rev": "0855711d53039af2ffb725a6b00d3ad0f88880e3",
         "type": "github"
       },
       "original": {
