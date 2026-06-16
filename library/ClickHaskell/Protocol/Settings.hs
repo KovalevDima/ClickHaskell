@@ -173,19 +173,20 @@ class
   )
   =>
   KnownSetting name settType | name -> settType
-  where
-  mkSettingSerializer :: (ChString, SettingSerializer)
-  mkSettingSerializer =
-    let name = toChType (symbolVal @name Proxy)
-        deserializer = \rev ->
-          if rev >= mkRev @DBMS_MIN_REVISION_WITH_SETTINGS_SERIALIZED_AS_STRINGS
-          then fail "Deserialization of Settings serializaed as strings is unsuported"
-          else toSettingType <$> deserialize @settType rev
-        serializer = \rev ->
-          if rev >= mkRev @DBMS_MIN_REVISION_WITH_SETTINGS_SERIALIZED_AS_STRINGS
-          then serializeSettingText @settType rev
-          else serializeSettingBinary @settType rev
-    in (name, MkSettingSerializer {deserializer, serializer})
+
+{-# NOINLINE mkSettingSerializer #-}
+mkSettingSerializer :: forall name settType . KnownSetting name settType => (ChString, SettingSerializer)
+mkSettingSerializer =
+  let name = toChType (symbolVal @name Proxy)
+      deserializer = \rev ->
+        if rev >= mkRev @DBMS_MIN_REVISION_WITH_SETTINGS_SERIALIZED_AS_STRINGS
+        then fail "Deserialization of Settings serializaed as strings is unsuported"
+        else toSettingType <$> deserialize @settType rev
+      serializer = \rev ->
+        if rev >= mkRev @DBMS_MIN_REVISION_WITH_SETTINGS_SERIALIZED_AS_STRINGS
+        then serializeSettingText @settType rev
+        else serializeSettingBinary @settType rev
+  in (name, MkSettingSerializer {deserializer, serializer})
 
 data Setting (a :: Symbol) (settType :: Type)
 
