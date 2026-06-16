@@ -3,7 +3,7 @@ module ClickHaskell.Protocol.Client where
 -- Internal
 import ClickHaskell.Primitive
 import ClickHaskell.Protocol.Data (DataPacket)
-import ClickHaskell.Protocol.Settings (DbSettings(..))
+import ClickHaskell.Protocol.Settings (DbSettings(..), IsSettingType)
 
 -- GHC
 import Data.Int
@@ -166,11 +166,21 @@ mkQueryPacket MkQueryPacketArgs{initial_user, os_user, hostname, query, settings
       , query_stage        = Complete
       , compression        = 0
       , query
-      , parameters         = AfterRevision MkQueryParameters
+      , parameters         = AfterRevision (MkQueryParameters (MkDbSettings []))
       , external_roles     = AfterRevision 0
       }
 
-data QueryParameters = MkQueryParameters
+
+-- In the ClickHouse protocol, query parameters are represented the same way as settings
+data QueryParameters = MkQueryParameters DbSettings
+
+class IsParameterType parameterType
+
+instance IsSettingType parameterType => IsParameterType paramaterType
+
+parameterQ :: IsParameterType param => String -> param -> QueryParameters -> QueryParameters
+parameterQ _paramName _param params = params
+
 instance Serializable QueryParameters where
   serialize rev _ =
     serialize @ChString rev ""
