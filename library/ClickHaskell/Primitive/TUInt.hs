@@ -29,7 +29,7 @@ instance Serializable UInt8 where
   {-# INLINE deserialize #-}
 
 instance ToQueryPart UInt8 where
-  toQueryPart = byteString . BS8.pack . show
+  toQueryPart x = "'" <> (byteString . BS8.pack . show) x <> "'"
 
 
 -- * UInt16
@@ -48,7 +48,7 @@ instance Serializable UInt16 where
   {-# INLINE deserialize #-}
 
 instance ToQueryPart UInt16 where
-  toQueryPart = byteString . BS8.pack . show
+  toQueryPart x = "'" <> (byteString . BS8.pack . show) x <> "'"
 
 
 -- * UInt32
@@ -66,7 +66,7 @@ instance Serializable UInt32 where
   {-# INLINE deserialize #-}
 
 instance ToQueryPart UInt32 where
-  toQueryPart = byteString . BS8.pack . show
+  toQueryPart x = "'" <> (byteString . BS8.pack . show) x <> "'"
 
 
 -- * UInt64
@@ -84,7 +84,7 @@ instance Serializable UInt64 where
   {-# INLINE deserialize #-}
 
 instance ToQueryPart UInt64 where
-  toQueryPart = byteString . BS8.pack . show
+  toQueryPart x = "'" <> (byteString . BS8.pack . show) x <> "'"
 
 
 -- * UInt128

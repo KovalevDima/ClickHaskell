@@ -3,7 +3,7 @@ module ClickHaskell.Protocol.Client where
 -- Internal
 import ClickHaskell.Primitive
 import ClickHaskell.Protocol.Data (DataPacket)
-import ClickHaskell.Protocol.Settings (DbSettings(..), IsSettingType)
+import ClickHaskell.Protocol.Settings (DbSettings(..), IsSettingType (..), DbSetting (..), appendSetting, emptySettings, SettingStringType, fCUSTOM)
 
 -- GHC
 import Data.Int
@@ -119,7 +119,7 @@ data QueryPacket = MkQueryPacket
   , query_stage        :: QueryStage
   , compression        :: UVarInt
   , query              :: ChString
-  , parameters         :: QueryParameters `SinceRevision` DBMS_MIN_PROTOCOL_VERSION_WITH_PARAMETERS
+  , params             :: QueryParameters `SinceRevision` DBMS_MIN_PROTOCOL_VERSION_WITH_PARAMETERS
   }
   deriving (Generic, Serializable)
 
@@ -129,11 +129,12 @@ data QueryPacketArgs = MkQueryPacketArgs
   , os_user      :: ChString
   , query        :: ChString
   , settings     :: DbSettings
+  , parameters   :: QueryParameters
   , revision     :: ProtocolRevision
   }
 
 mkQueryPacket :: QueryPacketArgs -> ClientPacket
-mkQueryPacket MkQueryPacketArgs{initial_user, os_user, hostname, query, settings, revision} =
+mkQueryPacket MkQueryPacketArgs{initial_user, os_user, hostname, query, settings, revision, parameters} =
   Query
     MkQueryPacket
       { query_id = ""
@@ -166,26 +167,31 @@ mkQueryPacket MkQueryPacketArgs{initial_user, os_user, hostname, query, settings
       , query_stage        = Complete
       , compression        = 0
       , query
-      , parameters         = AfterRevision (MkQueryParameters (MkDbSettings []))
+      , params             = AfterRevision parameters
       , external_roles     = AfterRevision 0
       }
 
 
 -- In the ClickHouse protocol, query parameters are represented the same way as settings
-data QueryParameters = MkQueryParameters DbSettings
+newtype QueryParameters = MkQueryParameters DbSettings
+  deriving newtype (Serializable)
 
-class IsParameterType parameterType
+emptyParameters :: QueryParameters
+emptyParameters = MkQueryParameters emptySettings
 
-instance IsSettingType parameterType => IsParameterType paramaterType
+class IsParameterType parameterType where
+  toParam :: parameterType -> SettingStringType
 
-parameterQ :: IsParameterType param => String -> param -> QueryParameters -> QueryParameters
-parameterQ _paramName _param params = params
+instance IsSettingType parameterType => IsParameterType parameterType
+  where
+  toParam = toSettingString @parameterType . toSettingType
 
-instance Serializable QueryParameters where
-  serialize rev _ =
-    serialize @ChString rev ""
-  deserialize _rev =
-    fail "QueryParameters reading unimplemented"
+addParameter :: IsParameterType param => String -> param -> QueryParameters -> QueryParameters
+addParameter paramName param (MkQueryParameters settings) =
+  let setting = toChType paramName
+      flags = AfterRevision fCUSTOM
+      value = AfterRevision (toParam param)
+  in MkQueryParameters (appendSetting MkDbSetting{..} settings)
 
 data QueryStage
   = FetchColumns | WithMergeableState | Complete
