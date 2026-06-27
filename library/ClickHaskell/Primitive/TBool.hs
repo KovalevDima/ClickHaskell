@@ -22,4 +22,4 @@ instance Serializable Bool where
   {-# INLINE deserialize #-}
 
 instance ToQueryPart Bool where
-  toQueryPart = bool "'false'" "'true'"
+  toQueryPart = bool "false" "true"

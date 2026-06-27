@@ -41,7 +41,7 @@ instance Serializable Int16 where
   {-# INLINE deserialize #-}
 
 instance ToQueryPart Int16 where
-  toQueryPart x = "'" <> (byteString . BS8.pack . show) x <> "'"
+  toQueryPart = byteString . BS8.pack . show
 
 
 -- * Int32
@@ -56,7 +56,7 @@ instance Serializable Int32 where
   {-# INLINE deserialize #-}
 
 instance ToQueryPart Int32 where
-  toQueryPart x = "'" <> (byteString . BS8.pack . show) x <> "'"
+  toQueryPart = byteString . BS8.pack . show
 
 
 
@@ -74,7 +74,7 @@ instance Serializable Int64 where
   {-# INLINE deserialize #-}
 
 instance ToQueryPart Int64 where
-  toQueryPart x = "'" <> (byteString . BS8.pack . show) x <> "'"
+  toQueryPart = byteString . BS8.pack . show
 
 
 
