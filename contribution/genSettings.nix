@@ -134,7 +134,7 @@ class
   fromSettingType :: SettingBinaryType -> settType
 
   toSettingString ::  SettingBinaryType -> SettingStringType
-  toSettingString = MkSettingStringType . toChType . toQueryPart @settType . fromSettingType
+  toSettingString = MkSettingStringType . toChType . toQueryPartQuoted @settType . fromSettingType
 
   serializeSettingBinary :: ProtocolRevision -> SettingBinaryType -> Builder
 
