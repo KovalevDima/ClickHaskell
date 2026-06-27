@@ -3,7 +3,7 @@ module ClickHaskell.Protocol.Client where
 -- Internal
 import ClickHaskell.Primitive
 import ClickHaskell.Protocol.Data (DataPacket)
-import ClickHaskell.Protocol.Settings (DbSettings(..), IsSettingType (..), DbSetting (..), appendSetting, emptySettings, SettingStringType, fCUSTOM, Flags, isCustom, quoteSetting)
+import ClickHaskell.Protocol.Settings (DbSettings(..), IsSettingType (..), DbSetting (..), appendSetting, emptySettings, SettingStringType, fCUSTOM, Flags, isCustom, toSettingStringQuoted)
 
 -- GHC
 import Data.Int
@@ -186,7 +186,7 @@ instance IsSettingType parameterType => IsParameterType parameterType
   where
   toParam flags param =
     if isCustom flags
-    then (quoteSetting . toSettingString @parameterType . toSettingType) param
+    then (toSettingStringQuoted @parameterType . toSettingType) param
     else (toSettingString @parameterType . toSettingType) param
 
 addParameter :: IsParameterType param => String -> param -> QueryParameters -> QueryParameters

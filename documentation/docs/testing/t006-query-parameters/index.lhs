@@ -25,9 +25,12 @@ import Data.ByteString.Builder (byteString)
 main :: IO ()
 main = do
   connection <- openConnection defaultConnectionArgs
+  runTestForType @ChString connection "hello"
   runTestForType @Bool connection True
   runTestForType @UInt64 connection 1000
   runTestForType @Int64 connection 1000
+  runTestForType @Float connection 10000000.0001
+  runTestForType @Double connection 10000000.0001
 
   putStrLn "Ok"
 

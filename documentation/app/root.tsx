@@ -146,6 +146,10 @@ const nav = (pathname : string): SideBarItems => ({
           title: "Settings",
           url: "/docs/testing/t005-settings/index",
         },
+        {
+          title: "Parameters",
+          url: "/docs/testing/t006-query-parameters/index",
+        },
       ]
     },
     {

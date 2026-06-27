@@ -56,3 +56,5 @@ instance ToQueryPart ChString where
         '\\' -> "\\\\"
         _ -> BS8.singleton sym
       )
+
+  toQueryPartQuoted = toQueryPart
