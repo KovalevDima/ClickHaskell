@@ -26,7 +26,7 @@ instance Serializable Int8 where
   {-# INLINE deserialize #-}
 
 instance ToQueryPart Int8 where
-  toQueryPart x = "'" <> (byteString . BS8.pack . show) x <> "'"
+  toQueryPart = byteString . BS8.pack . show
 
 
 -- * Int16
