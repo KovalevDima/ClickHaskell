@@ -130,7 +130,7 @@ class
   fromSettingType :: SettingBinaryType -> settType
 
   toSettingString ::  SettingBinaryType -> SettingStringType
-  toSettingString = MkSettingStringType . toChType . toQueryPartQuoted @settType . fromSettingType
+  toSettingString = MkSettingStringType . toChType . toQueryPart @settType . fromSettingType
 
   serializeSettingBinary :: ProtocolRevision -> SettingBinaryType -> Builder
 
@@ -142,6 +142,10 @@ type SettingType =
 
 newtype SettingStringType = MkSettingStringType ChString
   deriving newtype (Serializable)
+
+quoteSetting :: SettingStringType -> SettingStringType
+quoteSetting (MkSettingStringType s) =
+  (MkSettingStringType . toChType) ("'" <> fromChType @ChString @Builder s <> "'")
 
 data SettingBinaryType where
   SettingUInt64 :: UInt64 -> SettingBinaryType
