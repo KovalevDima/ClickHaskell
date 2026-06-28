@@ -179,10 +179,10 @@ newtype QueryParameters = MkQueryParameters DbSettings
 emptyParameters :: QueryParameters
 emptyParameters = MkQueryParameters emptySettings
 
-class IsParameterType parameterType where
-  toParam :: Flags -> parameterType -> SettingStringType
+class IsParameterType paramType where
+  toParam :: Flags -> paramType -> SettingStringType
 
-instance ToQueryPart parameterType => IsParameterType parameterType
+instance ToQueryPart paramType => IsParameterType paramType
   where
   toParam flags param =
     if isCustom flags

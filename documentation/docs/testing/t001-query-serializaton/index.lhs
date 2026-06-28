@@ -127,7 +127,7 @@ runTestForTypeWith connection iqEqual testValues = do
             (unsafeMkSelect
               @'[Column "testSample" chType]
               @(TestSample chType)
-              (\_cols -> "SELECT CAST(" <> toQueryPart chType <> ", " <> toQueryPart typeName <> ") as testSample;")
+              (\_cols -> "SELECT CAST(" <> toQueryPartQuoted chType <> ", " <> toQueryPart typeName <> ") as testSample;")
             )
             connection
             pure

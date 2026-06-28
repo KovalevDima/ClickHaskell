@@ -47,14 +47,14 @@ instance ToChType ChString String where
   fromChType (MkChString bs)= BS8.unpack bs
 
 instance ToQueryPart ChString where
-  toQueryPart (MkChString string) =  "'" <> escapeQuery string <> "'"
-    where
-    escapeQuery :: BS.ByteString -> Builder
-    escapeQuery = byteString . BS8.concatMap (\sym ->
-      case sym of
-        '\'' -> "\\\'"
-        '\\' -> "\\\\"
-        _ -> BS8.singleton sym
-      )
-
+  toQueryPart (MkChString string) =  "'" <> escapeString string <> "'"
   toQueryPartQuoted = toQueryPart
+
+escapeString :: BS.ByteString -> Builder
+escapeString = byteString . BS8.concatMap espace
+  where
+  espace sym =
+    case sym of
+      '\'' -> "\\\'"
+      '\\' -> "\\\\"
+      _ -> BS8.singleton sym

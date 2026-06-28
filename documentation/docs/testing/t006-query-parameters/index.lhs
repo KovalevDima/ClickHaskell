@@ -21,12 +21,13 @@ import Control.Monad (when)
 import GHC.Generics (Generic)
 import qualified Data.ByteString.Char8 as BS8
 import Data.ByteString.Builder (byteString)
+import GHC.Stack (HasCallStack)
 
 main :: IO ()
 main = do
   connection <- openConnection defaultConnectionArgs
   runTestForType @ChString connection "hello"
-  -- runTestForType @(Array ChString) connection (toChType @_ @[ChString] [""])
+  runTestForType @(Array ChString) connection (toChType @_ @[ChString] [""])
   runTestForType @Bool connection True
   runTestForType @UInt8 connection 255
   runTestForType @(Array UInt8) connection (toChType @_ @[UInt8] [0,255])
@@ -36,6 +37,10 @@ main = do
   runTestForType @(Array UInt32) connection (toChType @_ @[UInt32] [0,255])
   runTestForType @UInt64 connection 1000
   runTestForType @(Array UInt64) connection (toChType @_ @[UInt64] [0,255])
+  runTestForType @UInt128 connection 1000
+  runTestForType @(Array UInt128) connection (toChType @_ @[UInt128] [0,255])
+  runTestForType @UInt256 connection 1000
+  runTestForType @(Array UInt256) connection (toChType @_ @[UInt256] [0,255])
   runTestForType @Int8 connection (-127)
   runTestForType @(Array Int8) connection (toChType @_ @[Int8] [0, -128])
   runTestForType @Int16 connection (-1000)
@@ -60,6 +65,7 @@ runTestForType ::
   , Show chType
   , Eq chType
   , IsChType chType
+  , HasCallStack
   )
   =>
   Connection -> chType -> IO ()

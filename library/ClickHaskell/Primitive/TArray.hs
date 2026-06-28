@@ -2,9 +2,12 @@ module ClickHaskell.Primitive.TArray where
 
 -- Internal
 import ClickHaskell.Primitive.Serialization
+import ClickHaskell.Primitive.TString (escapeString)
 
 -- GHC included
 import Control.DeepSeq (NFData)
+import Data.ByteString (toStrict)
+import Data.ByteString.Builder (toLazyByteString)
 import Data.Coerce (coerce)
 import Data.List (uncons)
 
@@ -14,6 +17,7 @@ import Data.List (uncons)
 -- | ClickHouse Array column type
 newtype Array a = MkChArray [a]
   deriving newtype (Show, Eq, NFData, Foldable)
+
 instance IsChType chType => IsChType (Array chType)
   where
   chTypeName = "Array(" <> chTypeName @chType <> ")"
@@ -28,5 +32,9 @@ instance (IsChType chType, ToQueryPart chType) => ToQueryPart (Array chType)
   where
   toQueryPart
     = (\x -> "[" <> x <> "]")
+    . (maybe "" (uncurry (foldl (\a b -> a <> "," <> b))) . uncons
+    . map (toQueryPart @chType)) . coerce @(Array chType) @[chType]
+  toQueryPartQuoted
+    = (\x -> "'[" <> escapeString (toStrict $ toLazyByteString x) <> "]'")
     . (maybe "" (uncurry (foldl (\a b -> a <> "," <> b))) . uncons
     . map (toQueryPart @chType)) . coerce @(Array chType) @[chType]

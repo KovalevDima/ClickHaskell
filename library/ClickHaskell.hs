@@ -53,7 +53,7 @@ module ClickHaskell
   , insert
   , intoTable
   {- *** Modifiers -}
-  , ToQueryPart(toQueryPart)
+  , ToQueryPart(toQueryPart, toQueryPartQuoted)
   
   {- ** Ping -}, ping
   {- ** Commands -}, command, Command
