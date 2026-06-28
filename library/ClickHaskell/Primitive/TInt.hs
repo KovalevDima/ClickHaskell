@@ -96,9 +96,7 @@ instance Serializable Int128 where
   {-# INLINE deserialize #-}
 
 instance ToQueryPart Int128 where
-  toQueryPart x = (byteString . BS8.pack . show) x
-  toQueryPartQuoted x = "'" <> (byteString . BS8.pack . show) x <> "'"
-
+  toQueryPart = byteString . BS8.pack . show
 
 
 
@@ -122,6 +120,4 @@ instance Serializable Int256 where
   {-# INLINE deserialize #-}
 
 instance ToQueryPart Int256 where
-  toQueryPart x = "'" <> (byteString . BS8.pack . show) x <> "'"
-  toQueryPartQuoted x = "'" <> (byteString . BS8.pack . show) x <> "'"
-
+  toQueryPart = byteString . BS8.pack . show
