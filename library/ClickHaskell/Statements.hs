@@ -176,4 +176,4 @@ parameter
 parameter val = AddParameter (MkParamater val)
 
 renderParameter :: forall name chType . KnownParameter (Parameter name chType) => Parameter name chType -> Builder
-renderParameter (MkParamater chType) = (byteString . BS8.pack . symbolVal @name) Proxy <> "=" <> toQueryPart chType
+renderParameter (MkParamater chType) = (byteString . BS8.pack . symbolVal @name) Proxy <> "=" <> toQueryPartQuoted chType

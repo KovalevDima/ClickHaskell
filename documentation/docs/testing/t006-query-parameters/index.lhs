@@ -27,7 +27,7 @@ main :: IO ()
 main = do
   connection <- openConnection defaultConnectionArgs
   runTestForType @ChString connection "hello"
-  runTestForType @(Array ChString) connection (toChType @_ @[ChString] [""])
+  runTestForType @(Array ChString) connection (toChType @_ @[ChString] ["Hello", ", ", "World", "!"])
   runTestForType @Bool connection True
   runTestForType @UInt8 connection 255
   runTestForType @(Array UInt8) connection (toChType @_ @[UInt8] [0,255])
@@ -53,6 +53,8 @@ main = do
   runTestForType @(Array Float) connection (toChType @_ @[Float] [0, -10000000.0001])
   runTestForType @Double connection 10000000.0001
   runTestForType @(Array Double) connection (toChType @_ @[Double] [0, -10000000.0001])
+  runTestForType @UUID connection (toChType @_ @UInt128 0)
+  runTestForType @(Array UUID) connection (toChType @_ @[UInt128] [0])
 
   putStrLn "Ok"
 

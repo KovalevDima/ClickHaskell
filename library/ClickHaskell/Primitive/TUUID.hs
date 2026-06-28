@@ -30,6 +30,10 @@ instance Serializable UUID where
     pure $ MkUUID (Word128 high low)
   {-# INLINE deserialize #-}
 
+instance ToChType UUID Word128 where
+  toChType = MkUUID
+  fromChType (MkUUID w128) = w128
+
 instance ToChType UUID (Word64, Word64) where
   toChType = MkUUID . uncurry (flip Word128)
   fromChType (MkUUID (Word128 w64hi w64lo)) = (w64hi, w64lo)
@@ -40,3 +44,4 @@ instance ToQueryPart UUID where
     where
     p :: Int -> Word64 -> Builder
     p shiftN word = word16HexFixed $ fromIntegral (word `unsafeShiftR` (shiftN*16))
+  toQueryPartQuoted = toQueryPart

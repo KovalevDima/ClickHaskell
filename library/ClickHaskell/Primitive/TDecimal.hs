@@ -159,7 +159,7 @@ instance
   fromChType (MkDecimal128 int128) = MkFixed (fromIntegral int128)
 
 instance KnownNat (10^s) => ToQueryPart (Decimal128 p s) where
-  toQueryPart dec = "'" <> byteString (BS8.pack $ show dec) <> "'"
+  toQueryPart dec = byteString (BS8.pack $ show dec)
 
 
 -- ** Decimal256
@@ -206,7 +206,7 @@ instance
   fromChType (MkDecimal256 int256) = MkFixed (fromIntegral int256)
 
 instance KnownNat (10^s) => ToQueryPart (Decimal256 p s) where
-  toQueryPart dec = "'" <> byteString (BS8.pack $ show dec) <> "'"
+  toQueryPart dec = byteString (BS8.pack $ show dec)
 
 
 -- Range validations
