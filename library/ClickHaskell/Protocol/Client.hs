@@ -3,7 +3,7 @@ module ClickHaskell.Protocol.Client where
 -- Internal
 import ClickHaskell.Primitive
 import ClickHaskell.Protocol.Data (DataPacket)
-import ClickHaskell.Protocol.Settings (DbSettings(..), IsSettingType (..), DbSetting (..), appendSetting, emptySettings, SettingStringType, fCUSTOM, Flags, isCustom, toSettingStringQuoted)
+import ClickHaskell.Protocol.Settings (DbSettings(..), DbSetting (..), appendSetting, emptySettings, SettingStringType (..), fCUSTOM, Flags, isCustom)
 
 -- GHC
 import Data.Int
@@ -182,12 +182,12 @@ emptyParameters = MkQueryParameters emptySettings
 class IsParameterType parameterType where
   toParam :: Flags -> parameterType -> SettingStringType
 
-instance IsSettingType parameterType => IsParameterType parameterType
+instance ToQueryPart parameterType => IsParameterType parameterType
   where
   toParam flags param =
     if isCustom flags
-    then (toSettingStringQuoted @parameterType . toSettingType) param
-    else (toSettingString @parameterType . toSettingType) param
+    then (MkSettingStringType . toChType . toQueryPartQuoted) param
+    else (MkSettingStringType . toChType . toQueryPart) param
 
 addParameter :: IsParameterType param => String -> param -> QueryParameters -> QueryParameters
 addParameter paramName param (MkQueryParameters settings) =
