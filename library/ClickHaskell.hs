@@ -33,6 +33,11 @@ module ClickHaskell
   , passSettings
   , addSetting
 
+  {- ** Parameters -}
+  , passParameters
+  , addParameter
+  , IsParameterType
+
   {- ** SELECT -}
   {- *** Runner -}, select
   {- *** Statements -}
@@ -48,7 +53,7 @@ module ClickHaskell
   , insert
   , intoTable
   {- *** Modifiers -}
-  , ToQueryPart(toQueryPart)
+  , ToQueryPart(toQueryPart, toQueryPartQuoted)
   
   {- ** Ping -}, ping
   {- ** Commands -}, command, Command
@@ -82,6 +87,7 @@ import ClickHaskell.Primitive
 import ClickHaskell.Statements
 import ClickHaskell.Protocol
 import ClickHaskell.Protocol.Data (UserError (..), Column, SerializableColumn (..), KnownColumn (..))
+import ClickHaskell.Protocol.Client (addParameter, IsParameterType)
 
 -- GHC included
 import Control.Concurrent (newMVar, putMVar, takeMVar)
@@ -154,12 +160,12 @@ select ::
   ClickHaskell columns output
   =>
   Select columns output -> Connection -> ([output] -> IO result) -> IO [result]
-select (MkSelect mkQuery setts) conn f = do
+select (MkSelect mkQuery setts parameters) conn f = do
   withConnection conn $ \connState -> do
     writeToConnection connState
       . flip serialize  
       . mkQueryPacket
-      . mkQueryArgs connState setts
+      . mkQueryArgs connState setts parameters
       . mkQuery
       $ expectedColumns @columns @output
     writeToConnection connState (\rev -> serialize rev . Data $ mkDataPacket "" 0 0)
@@ -194,12 +200,12 @@ insert ::
   ClickHaskell columns record
   =>
   Insert columns record -> Connection -> [record] -> IO ()
-insert (MkInsert mkQuery dbSettings) conn columnsData = do
+insert (MkInsert mkQuery dbSettings parameters) conn columnsData = do
   withConnection conn $ \connState -> do
     writeToConnection connState
       . flip serialize  
       . mkQueryPacket
-      . mkQueryArgs connState dbSettings
+      . mkQueryArgs connState dbSettings parameters
       . mkQuery
       $ expectedColumns @columns @record
     writeToConnection connState (\rev -> serialize rev . Data $ mkDataPacket "" 0 0)
@@ -248,12 +254,12 @@ ping conn = do
   __Throws exception if any data was returned__
 -}
 command :: HasCallStack => Connection -> Command -> IO ()
-command conn (MkCommand query settings) = do
+command conn (MkCommand query settings parameters) = do
   withConnection conn $ \connState -> do
     writeToConnection connState
       . flip serialize
       . mkQueryPacket
-      $ mkQueryArgs connState settings query
+      $ mkQueryArgs connState settings parameters query
     writeToConnection connState (\rev -> serialize rev . Data $ mkDataPacket "" 0 0)
     handleCreate connState
   where
@@ -296,8 +302,8 @@ type GenericClickHaskell record hasColumns =
 
 -- * Internal
 
-mkQueryArgs :: ConnectionState -> DbSettings -> ChString -> QueryPacketArgs
-mkQueryArgs MkConnectionState {..} settings query = MkQueryPacketArgs {..}
+mkQueryArgs :: ConnectionState -> DbSettings -> QueryParameters -> ChString -> QueryPacketArgs
+mkQueryArgs MkConnectionState {..} settings parameters query = MkQueryPacketArgs {..}
 
 -- ** Connection
 

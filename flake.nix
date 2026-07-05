@@ -52,6 +52,7 @@
                   self'.apps."${ghc}-t003-multithreading"
                   self'.apps."${ghc}-t004-errors"
                   self'.apps."${ghc}-t005-settings"
+                  self'.apps."${ghc}-t006-query-parameters"
                 ];
               };
             }

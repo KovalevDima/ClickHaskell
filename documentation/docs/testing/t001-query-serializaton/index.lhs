@@ -75,9 +75,9 @@ runQuerySerialization conn = do
   runTestForType @(Array Int64) conn [toChType @(Array Int64) @[Int64] [0 .. 255]]
   runTestForTypeWith @Float32 conn cmpFloatSemantic [0, nan, negInf, posInf]
   runTestForTypeWith @Float64 conn cmpFloatSemantic [0, nan, negInf, posInf]
-  runTestForType @(Decimal32 9 1) conn $ map (toChType @_ @(Fixed 10)) [100000000.000001, 0]
-  runTestForType @(Decimal64 18 1) conn $ map (toChType @_ @(Fixed 10)) [100000000000000000.000001, 0]
-  runTestForType @(Decimal128 38 1) conn $ map (toChType @_ @(Fixed 10)) [100000000000000000000000000000.000001, 0]
+  runTestForType @(Decimal32 9 1) conn $ map (toChType @_ @(Fixed 10)) [1000.000001, 0]
+  runTestForType @(Decimal64 18 1) conn $ map (toChType @_ @(Fixed 10)) [1000000000000.000001, 0]
+  runTestForType @(Decimal128 38 1) conn $ map (toChType @_ @(Fixed 10)) [10000000000000000000.000001, 0]
   runTestForType @(Decimal256 76 1) conn $ map (toChType @_ @(Fixed 10)) [100000000000000000000000000000000000000000.000001, 0]
 
 cmpFloatSemantic :: (Eq f, RealFloat f) => f -> f -> Bool
@@ -127,7 +127,7 @@ runTestForTypeWith connection iqEqual testValues = do
             (unsafeMkSelect
               @'[Column "testSample" chType]
               @(TestSample chType)
-              (\_cols -> "SELECT CAST(" <> toQueryPart chType <> ", " <> toQueryPart typeName <> ") as testSample;")
+              (\_cols -> "SELECT CAST(" <> toQueryPartQuoted chType <> ", " <> toQueryPart typeName <> ") as testSample;")
             )
             connection
             pure

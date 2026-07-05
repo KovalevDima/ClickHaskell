@@ -23,17 +23,23 @@ import GHC.TypeLits
 
 data DbSettings = MkDbSettings [DbSetting]
 
+emptySettings :: DbSettings
+emptySettings = MkDbSettings []
+
+appendSetting :: DbSetting -> DbSettings -> DbSettings
+appendSetting dbSetting (MkDbSettings xs) = MkDbSettings (dbSetting : xs)
+
 addSetting
   :: forall name settType
   . KnownSetting name settType
   => settType
   -> DbSettings
   -> DbSettings
-addSetting val (MkDbSettings xs) =
+addSetting val settings =
   let setting = toChType (symbolVal @name Proxy)
       flags = AfterRevision fIMPORTANT
-      value = toSettingType val
-  in MkDbSettings (MkDbSetting{..} : xs)
+      value = BeforeRevision (toSettingType val)
+  in appendSetting MkDbSetting{..} settings
 
 data DbSetting = MkDbSetting
   { setting    :: ChString 
@@ -45,17 +51,30 @@ instance Serializable DbSetting where
   deserialize rev = do
     setting <- deserialize @ChString rev
     flags <- deserialize @(Flags `SinceRevision` DBMS_MIN_REVISION_WITH_SETTINGS_SERIALIZED_AS_STRINGS) rev
-    case lookup setting settingsMap of
-      Nothing -> fail ("Unsupported setting " <> show setting)
-      Just MkSettingSerializer{deserializer} -> do
-        value <- deserializer rev
-        pure $ MkDbSetting{..} 
+    value <-
+      if rev < mkRev @DBMS_MIN_REVISION_WITH_SETTINGS_SERIALIZED_AS_STRINGS
+      then BeforeRevision <$> (deserializeBinary setting)
+      else AfterRevision <$> (deserializeString)
+    pure $ MkDbSetting{..}
+    where
+    deserializeBinary setting = do
+      case lookup setting settingsMap of
+        Nothing -> fail ("Unsupported setting " <> show setting)
+        Just MkSettingSerializer{deserializer} -> deserializer rev
+    deserializeString = deserialize @SettingStringType rev
+          
   serialize rev MkDbSetting{setting, flags, value} =
     serialize rev setting
     <> serialize rev flags
-    <> case lookup setting settingsMap of
-      Nothing -> error "Impossible happened. Unknown setting was added to query packet"
-      Just MkSettingSerializer{serializer} -> serializer rev value
+    <> serializedValue
+    where
+    serializedValue :: Builder
+    serializedValue = case value of
+      (BeforeRevision sett) ->
+        case lookup setting settingsMap of
+          Nothing -> error "Impossible happened. Unknown setting was added to query packet"
+          Just MkSettingSerializer{serializer} -> serializer rev sett
+      (AfterRevision sett) -> serialize rev sett
 
 instance Serializable DbSettings where
   serialize rev (MkDbSettings setts) =
@@ -67,8 +86,7 @@ instance Serializable DbSettings where
       then deserialize @ChString rev *> pure (MkDbSettings [])
       else do
         sett <- deserialize @DbSetting rev
-        (\(MkDbSettings setts) -> MkDbSettings (sett : setts))
-          <$> deserialize @DbSettings rev
+        appendSetting sett <$> deserialize @DbSettings rev
 
 -- ** Flags
 
@@ -108,21 +126,34 @@ class
   =>
   IsSettingType settType
   where
-  toSettingType :: settType -> SettingType
-  fromSettingType :: SettingType -> settType
+  toSettingType :: settType -> SettingBinaryType
+  fromSettingType :: SettingBinaryType -> settType
 
-  serializeSettingText :: ProtocolRevision -> SettingType -> Builder
-  serializeSettingText rev = serialize @ChString rev . toChType . toQueryPart @settType . fromSettingType
+  toSettingString :: SettingBinaryType -> SettingStringType
+  toSettingString = MkSettingStringType . toChType . toQueryPart @settType . fromSettingType
 
-  serializeSettingBinary :: ProtocolRevision -> SettingType -> Builder
+  toSettingStringQuoted :: SettingBinaryType -> SettingStringType
+  toSettingStringQuoted = MkSettingStringType . toChType . toQueryPartQuoted @settType . fromSettingType
 
-data SettingType where
-  SettingUInt64 :: UInt64 -> SettingType
-  SettingInt64 :: Int64 -> SettingType
-  SettingFloat :: Float -> SettingType
-  SettingDouble :: Double -> SettingType
-  SettingString :: ChString -> SettingType
-  SettingBool :: Bool -> SettingType
+  serializeSettingBinary :: ProtocolRevision -> SettingBinaryType -> Builder
+
+type SettingType =
+  Revisioned
+    DBMS_MIN_REVISION_WITH_SETTINGS_SERIALIZED_AS_STRINGS
+    SettingBinaryType
+    SettingStringType
+
+newtype SettingStringType = MkSettingStringType ChString
+  deriving newtype (Serializable)
+
+
+data SettingBinaryType where
+  SettingUInt64 :: UInt64 -> SettingBinaryType
+  SettingInt64 :: Int64 -> SettingBinaryType
+  SettingFloat :: Float -> SettingBinaryType
+  SettingDouble :: Double -> SettingBinaryType
+  SettingString :: ChString -> SettingBinaryType
+  SettingBool :: Bool -> SettingBinaryType
 
 instance IsSettingType ChString where
   toSettingType str = SettingString str
@@ -134,25 +165,25 @@ instance IsSettingType Int64 where
   toSettingType int64 = SettingInt64 int64
   fromSettingType (SettingInt64 int64) = int64
   fromSettingType _ = error "Impossible"
-  serializeSettingBinary rev = serialize rev . fromIntegral @Int64 @VarInt . fromSettingType
+  serializeSettingBinary rev = serialize @VarInt rev . fromIntegral . fromSettingType @Int64
 
 instance IsSettingType Float where
   toSettingType float = SettingFloat float
   fromSettingType (SettingFloat float) = float
   fromSettingType _ = error "Impossible"
-  serializeSettingBinary = serializeSettingText @Float
+  serializeSettingBinary rev = serialize @SettingStringType rev . toSettingString @Float
 
 instance IsSettingType Double where
   toSettingType float = SettingDouble float
   fromSettingType (SettingDouble float) = float
   fromSettingType _ = error "Impossible"
-  serializeSettingBinary = serializeSettingText @Double
+  serializeSettingBinary rev = serialize @SettingStringType rev . toSettingString @Double
 
 instance IsSettingType UInt64 where
   toSettingType uint64 = SettingUInt64 uint64
   fromSettingType (SettingUInt64 uint64) = uint64
   fromSettingType _ = error "Impossible"
-  serializeSettingBinary rev = serialize rev . fromIntegral @UInt64 @UVarInt . fromSettingType
+  serializeSettingBinary rev = serialize @UVarInt rev . fromIntegral . fromSettingType @UInt64
 
 instance IsSettingType Bool where
   toSettingType boolean = SettingBool boolean
@@ -163,8 +194,8 @@ instance IsSettingType Bool where
 
 data SettingSerializer =
   MkSettingSerializer
-    { deserializer :: ProtocolRevision -> Get SettingType
-    , serializer   :: ProtocolRevision -> SettingType -> Builder
+    { deserializer :: ProtocolRevision -> Get SettingBinaryType
+    , serializer   :: ProtocolRevision -> SettingBinaryType -> Builder
     }
 
 class
@@ -184,7 +215,7 @@ mkSettingSerializer =
         else toSettingType <$> deserialize @settType rev
       serializer = \rev ->
         if rev >= mkRev @DBMS_MIN_REVISION_WITH_SETTINGS_SERIALIZED_AS_STRINGS
-        then serializeSettingText @settType rev
+        then serialize rev . toSettingString @settType
         else serializeSettingBinary @settType rev
   in (name, MkSettingSerializer {deserializer, serializer})
 

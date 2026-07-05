@@ -14,3 +14,4 @@ packages:
     ./documentation/docs/testing/t003-multithreading
     ./documentation/docs/testing/t004-errors
     ./documentation/docs/testing/t005-settings
+    ./documentation/docs/testing/t006-query-parameters

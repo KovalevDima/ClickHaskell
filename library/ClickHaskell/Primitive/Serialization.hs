@@ -56,6 +56,9 @@ instance Serializable () where
 class ToQueryPart chType where
   toQueryPart :: chType -> Builder
 
+  toQueryPartQuoted :: chType -> Builder
+  toQueryPartQuoted =  (\part -> "'" <> part <> "'" ) . toQueryPart
+
 class IsChType chType
   where
   -- | Shows database original type name

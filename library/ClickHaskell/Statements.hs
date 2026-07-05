@@ -2,7 +2,8 @@ module ClickHaskell.Statements where
 
 -- Internal
 import ClickHaskell.Primitive
-import ClickHaskell.Protocol.Settings (DbSettings (..))
+import ClickHaskell.Protocol.Settings (DbSettings (..), emptySettings)
+import ClickHaskell.Protocol.Client (QueryParameters (..), emptyParameters)
 
 -- GHC included
 import Data.ByteString.Builder (Builder, byteString)
@@ -24,25 +25,29 @@ class Statement statement where
     Wrapper for settings passing
   -}
   passSettings :: (DbSettings -> DbSettings) -> statement -> statement
+  passParameters :: (QueryParameters -> QueryParameters) -> statement -> statement
 
 instance Statement (Select cols output) where
-  passSettings pass (MkSelect mkQuery dbSettings) = MkSelect mkQuery (pass dbSettings)
+  passSettings pass (MkSelect mkQuery dbSettings parameters) = MkSelect mkQuery (pass dbSettings) parameters
+  passParameters pass (MkSelect mkQuery dbSettings parameters) = MkSelect mkQuery dbSettings (pass parameters)
 
 instance Statement (Insert cols input) where
-  passSettings pass (MkInsert mkQuery dbSettings) = MkInsert mkQuery (pass dbSettings)
+  passSettings pass (MkInsert mkQuery dbSettings parameters) = MkInsert mkQuery (pass dbSettings) parameters
+  passParameters pass (MkInsert mkQuery dbSettings parameters) = MkInsert mkQuery dbSettings (pass parameters)
 
 instance Statement (Command) where
-  passSettings pass (MkCommand query dbSettings) = MkCommand query (pass dbSettings)
+  passSettings pass (MkCommand mkQuery dbSettings parameters) = MkCommand mkQuery (pass dbSettings) parameters
+  passParameters pass (MkCommand mkQuery dbSettings parameters) = MkCommand mkQuery dbSettings (pass parameters)
 
 
 -- ** Command
 
 data Command
   where
-  MkCommand :: ChString -> DbSettings -> Command
+  MkCommand :: ChString -> DbSettings -> QueryParameters -> Command
 
 instance IsString Command where
-  fromString str = MkCommand (toChType str) (MkDbSettings [])
+  fromString str = MkCommand (toChType str) emptySettings emptyParameters
 
 
 -- ** SELECT
@@ -52,10 +57,10 @@ instance IsString Command where
 -}
 data Select (columns :: [Type]) output
   where
-  MkSelect :: ([(Builder, Builder)] -> ChString) -> DbSettings -> Select columns output
+  MkSelect :: ([(Builder, Builder)] -> ChString) -> DbSettings -> QueryParameters -> Select columns output
 
 unsafeMkSelect :: ([(Builder, Builder)] -> Builder) -> Select columns output
-unsafeMkSelect s = MkSelect (toChType . s) (MkDbSettings [])
+unsafeMkSelect s = MkSelect (toChType . s) emptySettings emptyParameters
 
 {-|
   Type-safe wrapper for statements like
@@ -114,10 +119,10 @@ fromGenerateRandom (randomSeed, maxStrLen, maxArrayLen) limit = query
 -}
 data Insert (columns :: [Type]) output
   where
-  MkInsert :: ([(Builder, Builder)] -> ChString) -> DbSettings -> Insert columns output
+  MkInsert :: ([(Builder, Builder)] -> ChString) -> DbSettings -> QueryParameters -> Insert columns output
 
 unsafeMkInsert :: ([(Builder, Builder)] -> Builder) -> Insert columns output
-unsafeMkInsert s = MkInsert (toChType . s) (MkDbSettings [])
+unsafeMkInsert s = MkInsert (toChType . s) emptySettings emptyParameters
 
 intoTable ::
   forall name columns output
@@ -171,4 +176,4 @@ parameter
 parameter val = AddParameter (MkParamater val)
 
 renderParameter :: forall name chType . KnownParameter (Parameter name chType) => Parameter name chType -> Builder
-renderParameter (MkParamater chType) = (byteString . BS8.pack . symbolVal @name) Proxy <> "=" <> toQueryPart chType
+renderParameter (MkParamater chType) = (byteString . BS8.pack . symbolVal @name) Proxy <> "=" <> toQueryPartQuoted chType

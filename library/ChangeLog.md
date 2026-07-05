@@ -1,11 +1,21 @@
 # 1.1.0 -- ?
 
 ## Fixes:
-- Fix Array(T) serialization bug for columns with more than 1 row (+ added test)
+- Fixed `Array(T)` serialization for columns containing more than one row (tests extended)
 
 ## Features:
-- Added `Float(32/64)`, `Decimal(32,64,128,256)`, `Int256`, `Date` types support
-- Added `Int64`, `Float/Double` settings type support
+- Added support for `Float(32/64)`, `Decimal(32,64,128,256)`, `Int256`, `Date` column types
+- Added support for `Int64`, `Float/Double` settings
+- Added support for query parameters
+
+## Breaking changes:
+- Reworked the query serialization type class to support query parameters.
+
+  `toQueryPart` no longer quotes 128-bit and 256-bit integer values. Previously this was introduced as part of a fix for serializing values larger than `999999999999999934463`.
+
+  Added a separate `toQueryPartQuoted` method for serializing quoted values.
+
+  Internal wrappers have been updated to use `toQueryPartQuoted` where appropriate, so existing code should continue to work unless you implemented custom wrappers around `toQueryPart`.
 
 # 1.0.0 -- 14-12-2025
 
