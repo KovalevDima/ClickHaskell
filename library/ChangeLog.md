@@ -1,7 +1,7 @@
-# 1.1.0 -- ?
+# 1.1.0 -- 11-07-2026
 
 ## Fixes:
-- Fixed `Array(T)` serialization for columns containing more than one row (tests extended)
+- Fixed `Array(T)` serialization for blocks containing more than one row (tests extended)
 
 ## Features:
 - Added support for `Float(32/64)`, `Decimal(32,64,128,256)`, `Int256`, `Date` column types
