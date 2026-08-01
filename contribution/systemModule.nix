@@ -83,6 +83,7 @@ in
     systemd.services = {
       ClickHaskell = {
         wantedBy = [ "multi-user.target" ];
+        after = [ "clickhouse.service" ];
         environment = {
           CLICKHASKELL_PAGE_SOCKET_PATH = "ClickHaskell.sock";
           CLICKHASKELL_STATIC_FILES_DIR = pageDir;
