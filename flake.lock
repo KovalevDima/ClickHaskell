@@ -51,11 +51,11 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1781229721,
-        "narHash": "sha256-ORvqDbb/LYxiJljGIejapjkc/kJbVote2N1WSb9W45I=",
+        "lastModified": 1787814960,
+        "narHash": "sha256-PYZq1qzCJXC2zGI0mH07vrZBsw6DRBAOX0jN1pPtqOQ=",
         "owner": "nixos",
         "repo": "nixpkgs",
-        "rev": "173d0ad7a974f8543a9ab01d2271b2e290341b33",
+        "rev": "c27cdad491a991b11ed731760aa2ef8db0cb0410",
         "type": "github"
       },
       "original": {
@@ -102,8 +102,7 @@
         "haskell-flake": "haskell-flake",
         "nixpkgs": "nixpkgs",
         "process-compose-flake": "process-compose-flake",
-        "services-flake": "services-flake",
-        "wide-word": "wide-word"
+        "services-flake": "services-flake"
       }
     },
     "services-flake": {
@@ -118,22 +117,6 @@
       "original": {
         "owner": "juspay",
         "repo": "services-flake",
-        "type": "github"
-      }
-    },
-    "wide-word": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1772405902,
-        "narHash": "sha256-QDn6zsqrswMcee+xbBCH+O+Mzor3lv+r49RfRH5JmSc=",
-        "owner": "erikd",
-        "repo": "wide-word",
-        "rev": "b1995381728a744ccf7878d8f59d5da2b1a62e86",
-        "type": "github"
-      },
-      "original": {
-        "owner": "erikd",
-        "repo": "wide-word",
         "type": "github"
       }
     }
