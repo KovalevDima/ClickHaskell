@@ -40,6 +40,5 @@ in
   };
   packages = {
     # package.source = inputs.package;
-    wide-word.source = inputs.wide-word;
   };
 }

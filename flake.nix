@@ -10,10 +10,6 @@
       url = "github:ClickHouse/ClickHouse";
       flake = false;
     };
-    wide-word = {
-      url = "github:erikd/wide-word?commit=cd4b82c1921826d9f63ef80dae6c9003ba587b73";
-      flake = false;
-    };
   };
 
   outputs = {self, flake-parts, nixpkgs, ...} @ inputs:
