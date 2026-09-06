@@ -23,7 +23,11 @@
     "tailwindcss": ">=4.2.2"
   },
   "devDependencies": {
+<<<<<<< Updated upstream
     "@react-router/dev": ">=7.18.2",
+=======
+    "@react-router/dev": ">=7.14.0",
+>>>>>>> Stashed changes
     "@types/lodash": ">=4.17.24",
     "@types/react": ">=19.1.0",
     "@types/react-dom": ">=19.1.0",
