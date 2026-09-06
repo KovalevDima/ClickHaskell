@@ -66,13 +66,8 @@ importers:
         version: 4.2.2
     devDependencies:
       '@react-router/dev':
-<<<<<<< Updated upstream
         specifier: '>=7.18.2'
         version: 8.3.1(react-router@7.18.3(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(typescript@5.9.3)(vite@8.2.2(esbuild@0.27.7)(jiti@2.6.1))
-=======
-        specifier: '>=7.14.0'
-        version: 7.14.0(jiti@2.6.1)(lightningcss@1.33.0)(react-router@7.18.3(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(typescript@5.9.3)(vite@8.2.2(esbuild@0.27.7)(jiti@2.6.1))
->>>>>>> Stashed changes
       '@types/lodash':
         specifier: '>=4.17.24'
         version: 4.17.24
@@ -125,19 +120,11 @@ importers:
         specifier: '>=1.2.8'
         version: 1.2.8(@types/react-dom@19.2.3(@types/react@19.2.8))(@types/react@19.2.8)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@react-router/fs-routes':
-<<<<<<< Updated upstream
         specifier: '>=7.18.2'
         version: 8.3.1(@react-router/dev@8.3.1(react-router@7.18.3(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(typescript@5.9.3)(vite@8.2.2(esbuild@0.27.7)(jiti@2.6.1)))(typescript@5.9.3)
       '@react-router/node':
         specifier: '>=7.18.2'
         version: 8.3.1(react-router@7.18.3(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(typescript@5.9.3)
-=======
-        specifier: '>=7.14.0'
-        version: 7.14.0(@react-router/dev@7.14.0(jiti@2.6.1)(lightningcss@1.33.0)(react-router@7.18.3(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(typescript@5.9.3)(vite@8.2.2(esbuild@0.27.7)(jiti@2.6.1)))(typescript@5.9.3)
-      '@react-router/node':
-        specifier: '>=7.14.0'
-        version: 7.14.0(react-router@7.18.3(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(typescript@5.9.3)
->>>>>>> Stashed changes
       '@tailwindcss/vite':
         specifier: '>=4.2.2'
         version: 4.2.2(vite@8.2.2(esbuild@0.27.7)(jiti@2.6.1))
@@ -158,13 +145,8 @@ importers:
         version: 19.2.3(react@19.2.3)
     devDependencies:
       '@react-router/dev':
-<<<<<<< Updated upstream
         specifier: '>=7.18.2'
         version: 8.3.1(react-router@7.18.3(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(typescript@5.9.3)(vite@8.2.2(esbuild@0.27.7)(jiti@2.6.1))
-=======
-        specifier: '>=7.14.0'
-        version: 7.14.0(jiti@2.6.1)(lightningcss@1.33.0)(react-router@7.18.3(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(typescript@5.9.3)(vite@8.2.2(esbuild@0.27.7)(jiti@2.6.1))
->>>>>>> Stashed changes
       '@shikijs/rehype':
         specifier: '>=3.21.0'
         version: 3.21.0
@@ -184,11 +166,7 @@ importers:
         specifier: '>=4.0.4'
         version: 4.0.4
       react-router:
-<<<<<<< Updated upstream
         specifier: '>=7.18.2'
-=======
-        specifier: '>=7.14.0'
->>>>>>> Stashed changes
         version: 7.18.3(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       remark-gfm:
         specifier: '>=4.0.1'
@@ -335,13 +313,10 @@ packages:
     resolution: {integrity: sha512-LwdZHpScM4Qz8Xw2iKSzS+cfglZzJGvofQICy7W7v4caru4EaAmyUuO6BGrbyQ2mYV11W0U8j5mBhd14dd3B0A==}
     engines: {node: '>=6.9.0'}
 
-<<<<<<< Updated upstream
   '@babel/types@7.29.8':
     resolution: {integrity: sha512-Vj1jF3cPfxg7OAfoI7QnVKLoILlm2JF9pnVHrX8qx7AHMiYWT+NDAA7jChlNgRS4WTLc/fD1lXLmPixluj+3Gg==}
     engines: {node: '>=6.9.0'}
 
-=======
->>>>>>> Stashed changes
   '@esbuild/aix-ppc64@0.27.7':
     resolution: {integrity: sha512-EKX3Qwmhz1eMdEJokhALr0YiD0lhQNwDqkPYyPhiSwKrh7/4KRjQc04sZ8db+5DVVnZ1LmbNDI1uAMPEUBnQPg==}
     engines: {node: '>=18'}
@@ -537,12 +512,6 @@ packages:
     peerDependencies:
       rollup: '>=2'
 
-<<<<<<< Updated upstream
-=======
-  '@mjackson/node-fetch-server@0.2.0':
-    resolution: {integrity: sha512-EMlH1e30yzmTpGLQjlFmaDAjyOeZhng1/XCd7DExR8PNAnG/G1tyruZxEoUe11ClnwGhGrtsdnyyUx1frSzjng==}
-
->>>>>>> Stashed changes
   '@oxc-project/types@0.148.0':
     resolution: {integrity: sha512-Nm4s/jB+4FpFsPhWGEC4h7rzksesmtnMXomo6rCMcg/b8zLQuOziRgkCS1fxDCXOlJB/6Q8oABOZ/OP6RIPj9A==}
 
@@ -2135,17 +2104,10 @@ packages:
   picomatch@4.0.7:
     resolution: {integrity: sha512-qcJu88Q2IWqJsDD529JKMdwGm/dvInW4HvQnRwiH9JtihJvzGOscDtHE3x1pBKeUOTysQ8kVmLnJ2kJu7yhcGA==}
     engines: {node: '>=12'}
-<<<<<<< Updated upstream
 
   pkg-types@2.3.2:
     resolution: {integrity: sha512-v0sVXzj7oPGysr543YYZLYbcJNJsKikSsp/fFzoxQ12ewY3ZZr7oCPC8y7OlmxfYB3QPvriXmuPD8KZggE1vqg==}
 
-=======
-
-  pkg-types@2.3.0:
-    resolution: {integrity: sha512-SIqCzDRg0s9npO5XQ3tNZioRY1uK06lA41ynBC1YmFTmnY6FjUjVt6s4LoADmwoig1qqD0oK8h1p/8mlMx8Oig==}
-
->>>>>>> Stashed changes
   postcss@8.5.28:
     resolution: {integrity: sha512-RRuzqDtt5Y9h3quz5hWhK+TPnsmVs6WwSU6LkJMeY4HstUEDuYTG8UJSdawMRzmzAtV+KEoG8N3Qg2qLy5vM/A==}
     engines: {node: ^10 || ^12 || >=14}
@@ -2436,65 +2398,12 @@ packages:
   victory-vendor@37.3.6:
     resolution: {integrity: sha512-SbPDPdDBYp+5MJHhBCAyI7wKM3d5ivekigc2Dk2s7pgbZ9wIgIBYGVw4zGHBml/qTFbexrofXW6Gu4noGxrOwQ==}
 
-<<<<<<< Updated upstream
-  vite@8.2.2:
-    resolution: {integrity: sha512-cFKLV/PRgAUlIRm5WjMjJ86jrftzpqcgH+Us+DS8mI3CDNiH30Whrz8uHL3+MOLPAgqbMBAqWdAHAphOAM+z/Q==}
-=======
-  vite-node@3.2.4:
-    resolution: {integrity: sha512-EbKSKh+bh1E1IFxeO0pg1n4dvoOTt0UDiXMd/qn++r98+jPO1xtJilvXldeuQ8giIB5IkpjCgMleHMNEsGH6pg==}
-    engines: {node: ^18.0.0 || ^20.0.0 || >=22.0.0}
-    hasBin: true
-
-  vite@7.3.2:
-    resolution: {integrity: sha512-Bby3NOsna2jsjfLVOHKes8sGwgl4TT0E6vvpYgnAYDIF/tie7MRaFthmKuHx1NSXjiTueXH3do80FMQgvEktRg==}
->>>>>>> Stashed changes
-    engines: {node: ^20.19.0 || >=22.12.0}
-    hasBin: true
-    peerDependencies:
-      '@types/node': ^20.19.0 || >=22.12.0
-<<<<<<< Updated upstream
-=======
-      jiti: '>=1.21.0'
-      less: ^4.0.0
-      lightningcss: ^1.21.0
-      sass: ^1.70.0
-      sass-embedded: ^1.70.0
-      stylus: '>=0.54.8'
-      sugarss: ^5.0.0
-      terser: ^5.16.0
-      tsx: ^4.8.1
-      yaml: ^2.4.2
-    peerDependenciesMeta:
-      '@types/node':
-        optional: true
-      jiti:
-        optional: true
-      less:
-        optional: true
-      lightningcss:
-        optional: true
-      sass:
-        optional: true
-      sass-embedded:
-        optional: true
-      stylus:
-        optional: true
-      sugarss:
-        optional: true
-      terser:
-        optional: true
-      tsx:
-        optional: true
-      yaml:
-        optional: true
-
   vite@8.2.2:
     resolution: {integrity: sha512-cFKLV/PRgAUlIRm5WjMjJ86jrftzpqcgH+Us+DS8mI3CDNiH30Whrz8uHL3+MOLPAgqbMBAqWdAHAphOAM+z/Q==}
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
     peerDependencies:
       '@types/node': ^20.19.0 || >=22.12.0
->>>>>>> Stashed changes
       '@vitejs/devtools': ^0.4.0 || ^0.5.0
       esbuild: ^0.27.0 || ^0.28.0
       jiti: '>=1.21.0'
@@ -2735,14 +2644,11 @@ snapshots:
       '@babel/helper-string-parser': 7.27.1
       '@babel/helper-validator-identifier': 7.28.5
 
-<<<<<<< Updated upstream
   '@babel/types@7.29.8':
     dependencies:
       '@babel/helper-string-parser': 7.29.7
       '@babel/helper-validator-identifier': 7.29.7
 
-=======
->>>>>>> Stashed changes
   '@esbuild/aix-ppc64@0.27.7':
     optional: true
 
@@ -2897,11 +2803,6 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-<<<<<<< Updated upstream
-=======
-  '@mjackson/node-fetch-server@0.2.0': {}
-
->>>>>>> Stashed changes
   '@oxc-project/types@0.148.0': {}
 
   '@radix-ui/primitive@1.1.3': {}
@@ -3264,7 +3165,6 @@ snapshots:
 
   '@radix-ui/rect@1.1.1': {}
 
-<<<<<<< Updated upstream
   '@react-router/dev@8.3.1(react-router@7.18.3(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(typescript@5.9.3)(vite@8.2.2(esbuild@0.27.7)(jiti@2.6.1))':
     dependencies:
       '@babel/core': 7.29.7
@@ -3274,20 +3174,6 @@ snapshots:
       '@babel/types': 7.29.8
       '@react-router/node': 8.3.1(react-router@7.18.3(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(typescript@5.9.3)
       '@remix-run/node-fetch-server': 0.14.1
-=======
-  '@react-router/dev@7.14.0(jiti@2.6.1)(lightningcss@1.33.0)(react-router@7.18.3(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(typescript@5.9.3)(vite@8.2.2(esbuild@0.27.7)(jiti@2.6.1))':
-    dependencies:
-      '@babel/core': 7.29.0
-      '@babel/generator': 7.29.1
-      '@babel/parser': 7.29.2
-      '@babel/plugin-syntax-jsx': 7.28.6(@babel/core@7.29.0)
-      '@babel/preset-typescript': 7.28.5(@babel/core@7.29.0)
-      '@babel/traverse': 7.29.0
-      '@babel/types': 7.29.0
-      '@react-router/node': 7.14.0(react-router@7.18.3(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(typescript@5.9.3)
-      '@remix-run/node-fetch-server': 0.13.0
-      arg: 5.0.2
->>>>>>> Stashed changes
       babel-dead-code-elimination: 1.0.12
       chokidar: 5.0.0
       dedent: 1.7.2
@@ -3299,7 +3185,6 @@ snapshots:
       p-map: 7.0.4
       pathe: 2.0.3
       picocolors: 1.1.1
-<<<<<<< Updated upstream
       pkg-types: 2.3.2
       react-refresh: 0.18.0
       react-router: 7.18.3(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -3307,24 +3192,12 @@ snapshots:
       tinyglobby: 0.2.17
       valibot: 1.4.2(typescript@5.9.3)
       vite: 8.2.2(esbuild@0.27.7)(jiti@2.6.1)
-=======
-      pkg-types: 2.3.0
-      prettier: 3.8.2
-      react-refresh: 0.14.2
-      react-router: 7.18.3(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      semver: 7.7.4
-      tinyglobby: 0.2.17
-      valibot: 1.3.1(typescript@5.9.3)
-      vite: 8.2.2(esbuild@0.27.7)(jiti@2.6.1)
-      vite-node: 3.2.4(jiti@2.6.1)(lightningcss@1.33.0)
->>>>>>> Stashed changes
     optionalDependencies:
       typescript: 5.9.3
     transitivePeerDependencies:
       - babel-plugin-macros
       - supports-color
 
-<<<<<<< Updated upstream
   '@react-router/fs-routes@8.3.1(@react-router/dev@8.3.1(react-router@7.18.3(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(typescript@5.9.3)(vite@8.2.2(esbuild@0.27.7)(jiti@2.6.1)))(typescript@5.9.3)':
     dependencies:
       '@react-router/dev': 8.3.1(react-router@7.18.3(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(typescript@5.9.3)(vite@8.2.2(esbuild@0.27.7)(jiti@2.6.1))
@@ -3335,18 +3208,6 @@ snapshots:
   '@react-router/node@8.3.1(react-router@7.18.3(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(typescript@5.9.3)':
     dependencies:
       '@remix-run/node-fetch-server': 0.14.1
-=======
-  '@react-router/fs-routes@7.14.0(@react-router/dev@7.14.0(jiti@2.6.1)(lightningcss@1.33.0)(react-router@7.18.3(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(typescript@5.9.3)(vite@8.2.2(esbuild@0.27.7)(jiti@2.6.1)))(typescript@5.9.3)':
-    dependencies:
-      '@react-router/dev': 7.14.0(jiti@2.6.1)(lightningcss@1.33.0)(react-router@7.18.3(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(typescript@5.9.3)(vite@8.2.2(esbuild@0.27.7)(jiti@2.6.1))
-      minimatch: 9.0.9
-    optionalDependencies:
-      typescript: 5.9.3
-
-  '@react-router/node@7.14.0(react-router@7.18.3(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(typescript@5.9.3)':
-    dependencies:
-      '@mjackson/node-fetch-server': 0.2.0
->>>>>>> Stashed changes
       react-router: 7.18.3(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
     optionalDependencies:
       typescript: 5.9.3
@@ -3416,7 +3277,7 @@ snapshots:
     dependencies:
       '@types/estree': 1.0.8
       estree-walker: 2.0.2
-      picomatch: 4.0.7
+      picomatch: 4.0.4
     optionalDependencies:
       rollup: 4.60.1
 
@@ -4609,11 +4470,7 @@ snapshots:
 
   picomatch@4.0.7: {}
 
-<<<<<<< Updated upstream
   pkg-types@2.3.2:
-=======
-  pkg-types@2.3.0:
->>>>>>> Stashed changes
     dependencies:
       confbox: 0.3.1
       exsolve: 1.1.1
@@ -5006,47 +4863,8 @@ snapshots:
       d3-time: 3.1.0
       d3-timer: 3.0.1
 
-<<<<<<< Updated upstream
   vite@8.2.2(esbuild@0.27.7)(jiti@2.6.1):
     dependencies:
-=======
-  vite-node@3.2.4(jiti@2.6.1)(lightningcss@1.33.0):
-    dependencies:
-      cac: 6.7.14
-      debug: 4.4.3
-      es-module-lexer: 1.7.0
-      pathe: 2.0.3
-      vite: 7.3.2(jiti@2.6.1)(lightningcss@1.33.0)
-    transitivePeerDependencies:
-      - '@types/node'
-      - jiti
-      - less
-      - lightningcss
-      - sass
-      - sass-embedded
-      - stylus
-      - sugarss
-      - supports-color
-      - terser
-      - tsx
-      - yaml
-
-  vite@7.3.2(jiti@2.6.1)(lightningcss@1.33.0):
-    dependencies:
-      esbuild: 0.27.7
-      fdir: 6.5.0(picomatch@4.0.7)
-      picomatch: 4.0.7
-      postcss: 8.5.28
-      rollup: 4.60.1
-      tinyglobby: 0.2.17
-    optionalDependencies:
-      fsevents: 2.3.3
-      jiti: 2.6.1
-      lightningcss: 1.33.0
-
-  vite@8.2.2(esbuild@0.27.7)(jiti@2.6.1):
-    dependencies:
->>>>>>> Stashed changes
       lightningcss: 1.33.0
       picomatch: 4.0.7
       postcss: 8.5.28
