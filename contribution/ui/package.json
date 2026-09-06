@@ -23,7 +23,7 @@
     "tailwindcss": ">=4.2.2"
   },
   "devDependencies": {
-    "@react-router/dev": ">=7.14.0",
+    "@react-router/dev": ">=7.18.2",
     "@types/lodash": ">=4.17.24",
     "@types/react": ">=19.1.0",
     "@types/react-dom": ">=19.1.0",
