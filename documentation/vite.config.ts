@@ -1,6 +1,5 @@
 import { reactRouter } from "@react-router/dev/vite";
 import { defineConfig } from "vite";
-import tsconfigPaths from "vite-tsconfig-paths";
 import tailwindcss from "@tailwindcss/vite";
 import mdx from '@mdx-js/rollup'
 import rehypeShiki from '@shikijs/rehype';
@@ -16,9 +15,11 @@ export default defineConfig({
       mdxExtensions: ['.mdx', '.lhs']
     }),
     reactRouter(),
-    tsconfigPaths(),
     tailwindcss()
   ],
+  resolve: {
+    tsconfigPaths: true,
+  },
   publicDir: './app/public/',
   server: {
     proxy: {
