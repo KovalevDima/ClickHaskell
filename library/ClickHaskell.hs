@@ -223,6 +223,7 @@ insert (MkInsert mkQuery dbSettings parameters) conn columnsData = do
         writeToConnection connState (serializeColumns @columns columnsData)
         writeToConnection connState (\rev -> serialize rev . Data $ mkDataPacket "" 0 0)
         loopInsert connState
+      ProfileEvents _     -> loopInsert connState
       EndOfStream         -> pure ()
       Exception exception -> throwIO (DatabaseException exception)
       otherPacket         -> throwIO (InternalError $ UnexpectedPacketType $ serverPacketToNum otherPacket)
