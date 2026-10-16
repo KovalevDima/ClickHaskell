@@ -27,6 +27,9 @@ module ClickHaskell.Protocol
   , mkHelloPacket
   , mkAddendum
   , serverPacketToNum
+
+  {- * Serialization abstraction -}
+  , Serializable(..)
   ) where
 
 import ClickHaskell.Primitive
