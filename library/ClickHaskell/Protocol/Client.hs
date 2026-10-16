@@ -246,15 +246,15 @@ data QueryKind = NoQuery | InitialQuery | SecondaryQuery
 instance Serializable QueryKind where
   serialize rev kind = serialize @UInt8 rev $
     case kind of
-      NoQuery -> 1
-      InitialQuery -> 2
-      SecondaryQuery -> 3
+      NoQuery -> 0
+      InitialQuery -> 1
+      SecondaryQuery -> 2
   deserialize rev = do
     kindCode <- deserialize @UInt8 rev
     case kindCode of
-      1 -> pure NoQuery
-      2 -> pure InitialQuery
-      3 -> pure SecondaryQuery
+      0 -> pure NoQuery
+      1 -> pure InitialQuery
+      2 -> pure SecondaryQuery
       num -> fail ("Unknown QueryKind " <> show num)
 
 data Jwt = MkJwt ChString
