@@ -13,7 +13,7 @@ module ClickHaskell
   {- * Connection -}
     ConnectionArgs, defaultConnectionArgs
   , setHost, setPort, setUser, setDatabase, setPassword
-  , Connection(..), openConnection
+  , Connection(..), openConnection, closeConnection
   {- ** Hacking  -}
   , overrideInitConnection, BufferArgs(..)
   , overrideHostname
@@ -91,7 +91,7 @@ import ClickHaskell.Protocol.Client (addParameter, IsParameterType)
 
 -- GHC included
 import Control.Concurrent (newMVar, putMVar, takeMVar)
-import Control.Exception (Exception, mask, onException, throw, throwIO)
+import Control.Exception (Exception, finally, mask, onException, throw, throwIO)
 import Control.Monad (when)
 import Data.Binary.Get
 import Data.ByteString.Builder
@@ -110,15 +110,15 @@ import Data.WideWord (Int128 (..), Word128 (..), Int256(..), Word256(..))
 -- * Connection
 
 openConnection :: HasCallStack => ConnectionArgs -> IO Connection
-openConnection creds@MkConnectionArgs{mHostname, mOsUser} = do
+openConnection creds@MkConnectionArgs{mHostname, mOsUser} = mask $ \restore -> do
   hostname <- maybe (lookupEnv "HOSTNAME") (pure . Just) mHostname
   osUser   <- maybe (lookupEnv "USER")     (pure . Just) mOsUser
-  connectionState <-
+  connectionState <- restore $
     createConnectionState auth
       . (maybe id overrideHostname hostname)
       . (maybe id overrideOsUser osUser)
       $ creds
-  MkConnection <$> newMVar connectionState
+  MkConnection <$> newMVar (Just connectionState)
 
 -- * Statements and commands
 
@@ -317,18 +317,29 @@ readBuffer MkBuffer{readBuff, writeBuff} parser = runBufferReader (runGetIncreme
     (Fail _leftover _consumed msg) -> throwIO  (InternalError $ DeserializationError msg)
 
 
+-- Failed operations invalidate the handle; its owner chooses when to reopen.
+-- Never perform network reconnection while unwinding an exception.
 withConnection :: HasCallStack => Connection -> (ConnectionState -> IO a) -> IO a
-withConnection (MkConnection connStateMVar) f =
+withConnection (MkConnection cell) f =
   mask $ \restore -> do
-    connState <- takeMVar connStateMVar
-    b <- onException
-      (restore (f connState))
-      (do
-        newConnState <- recreateConnectionState auth connState
-        putMVar connStateMVar newConnState
-      )
-    putMVar connStateMVar connState
-    return b
+    cached <- takeMVar cell
+    case cached of
+      Nothing -> putMVar cell Nothing >> throwIO ConnectionClosed
+      Just state -> do
+        result <- restore (f state) `onException`
+          (destroyBuff (buffer state) `finally` putMVar cell Nothing)
+        putMVar cell (Just state)
+        pure result
+
+-- | Close the physical connection. Repeated calls do nothing.
+-- Waits for any current operation; stop concurrent IO before disposing a pool.
+-- After close, or after a failed operation, further operations throw
+-- 'ConnectionClosed'. Open a fresh connection to retry: cleanup never reconnects.
+closeConnection :: Connection -> IO ()
+closeConnection (MkConnection cell) =
+  mask $ \_ -> do
+    cached <- takeMVar cell
+    maybe (pure ()) (destroyBuff . buffer) cached `finally` putMVar cell Nothing
 
 auth :: Buffer -> ConnectionArgs -> IO ConnectionState
 auth buffer creds@MkConnectionArgs{db, user, pass, mOsUser, mHostname, maxRevision} = do
