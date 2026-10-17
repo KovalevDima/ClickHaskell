@@ -214,6 +214,9 @@ insert (MkInsert mkQuery dbSettings parameters) conn columnsData = do
   loopInsert connState@MkConnectionState{..} = do
     firstPacket <- readBuffer buffer (deserialize revision)
     case firstPacket of
+      Progress _          -> loopInsert connState
+      ProfileInfo _       -> loopInsert connState
+      ProfileEvents _     -> loopInsert connState
       TableColumns      _ -> loopInsert connState 
       DataResponse MkDataPacket{} -> do
         _emptyDataPacket <- readBuffer buffer (deserializeColumns @columns @record False revision 0)
@@ -265,9 +268,12 @@ command conn (MkCommand query settings parameters) = do
     handleCreate connState
   where
   handleCreate :: ConnectionState -> IO ()
-  handleCreate MkConnectionState{..} =
+  handleCreate connState@MkConnectionState{..} =
     readBuffer buffer (deserialize revision)
     >>= \packet -> case packet of
+      Progress _          -> handleCreate connState
+      ProfileInfo _       -> handleCreate connState
+      ProfileEvents _     -> handleCreate connState
       EndOfStream         -> pure ()
       Exception exception -> throwIO (DatabaseException exception)
       otherPacket         -> throwIO (InternalError $ UnexpectedPacketType $ serverPacketToNum otherPacket)
