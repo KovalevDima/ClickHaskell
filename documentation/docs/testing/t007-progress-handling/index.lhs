@@ -1,4 +1,3 @@
-
 ```haskell
 {-# LANGUAGE
     AllowAmbiguousTypes
