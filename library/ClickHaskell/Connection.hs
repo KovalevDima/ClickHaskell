@@ -5,7 +5,7 @@ import ClickHaskell.Primitive
 
 -- GHC included
 import Control.Concurrent (MVar)
-import Control.Exception (SomeException, bracketOnError, catch, finally, throwIO)
+import Control.Exception (SomeException, bracketOnError, catch, finally, mask, onException, throwIO)
 import Data.Binary.Builder (Builder, toLazyByteString)
 import Data.ByteString as BS (ByteString, null)
 import Data.IORef (newIORef, readIORef, writeIORef)
@@ -25,7 +25,9 @@ import System.Timeout (timeout)
   Errors occured on connection operations
 -}
 data ConnectionError
-  = NoAdressResolved
+  = ConnectionClosed
+  -- ^ The connection was explicitly closed or invalidated by a failed operation.
+  | NoAdressResolved
   -- ^ Occurs when 'getAddrInfo' returns an empty result
   | EstablishTimeout
   -- ^ Occurs on 'socket' connection timeout
@@ -47,7 +49,7 @@ writeToConnection :: ConnectionState -> (ProtocolRevision -> Builder) -> IO ()
 writeToConnection MkConnectionState{revision, buffer} serializer =
   (writeConn buffer) (serializer revision)
 
-data Connection where MkConnection :: (MVar ConnectionState) -> Connection
+data Connection where MkConnection :: (MVar (Maybe ConnectionState)) -> Connection
 
 data ConnectionState = MkConnectionState
   { buffer       :: Buffer
@@ -64,8 +66,12 @@ createConnectionState
   -> IO ConnectionState
 createConnectionState postInitAction creds@MkConnectionArgs{..} = do
   let port = fromMaybe defPort mPort
-  buffer <- mkBuffer =<< mkBufferArgs host =<< initSocket =<< resolveHostName host port
-  postInitAction buffer creds
+  address <- resolveHostName host port
+  mask $ \restore -> do
+    sock <- initSocket address
+    args <- restore (mkBufferArgs host sock) `onException` close sock
+    buffer <- mkBuffer args `onException` closeSock args
+    restore (postInitAction buffer creds) `onException` destroyBuff buffer
 
 recreateConnectionState
   :: (Buffer -> ConnectionArgs -> IO ConnectionState)
