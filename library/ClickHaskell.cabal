@@ -30,7 +30,10 @@ Flag dev
   Default:     False
   Manual:      True
 
-common clickhaskell-settings
+Library
+  Exposed-Modules:
+    ClickHaskell
+    ClickHaskell.Protocol
   Other-Modules:
     ClickHaskell.Connection
     ClickHaskell.Protocol.Client
@@ -117,20 +120,3 @@ common clickhaskell-settings
     ScopedTypeVariables
     StandaloneDeriving
     UndecidableInstances
-
-
-Library
-  import: clickhaskell-settings
-  Exposed-Modules:
-    ClickHaskell
-    ClickHaskell.Protocol
-
-Test-Suite status-packet-regressions
-  import: clickhaskell-settings
-  type: exitcode-stdio-1.0
-  main-is: Main.hs
-  hs-source-dirs: test/status-packet
-  other-modules:
-    ClickHaskell
-    ClickHaskell.Protocol
-  ghc-options: -threaded
