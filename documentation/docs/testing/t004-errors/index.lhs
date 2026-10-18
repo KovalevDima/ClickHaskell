@@ -26,25 +26,23 @@ module Main (main) where
 import ClickHaskell
 
 -- GHC included
-import Control.Exception (try)
+import Control.Exception (bracket, try)
 import GHC.Generics (Generic)
 
 
 main :: IO ()
 main = do
-  connection <- openConnection defaultConnectionArgs
-  connOld <- openConnection (overrideMaxRevision 1 defaultConnectionArgs)
-
-  runErrorsTest connection
-  runErrorsTest connOld
+  runErrorsTest defaultConnectionArgs
+  runErrorsTest (overrideMaxRevision 1 defaultConnectionArgs)
   putStrLn "Ok"
 
 
-runErrorsTest :: Connection -> IO ()
-runErrorsTest connection = do
-  validateUnmatchedColumn connection
-  validateUnmatchedType connection
-  validateUnmatchedColumnsCount connection
+runErrorsTest :: ConnectionArgs -> IO ()
+runErrorsTest args = do
+  -- A failed operation invalidates its handle; retry with a fresh connection.
+  bracket (openConnection args) closeConnection validateUnmatchedColumn
+  bracket (openConnection args) closeConnection validateUnmatchedType
+  bracket (openConnection args) closeConnection validateUnmatchedColumnsCount
 
 
 validateUnmatchedColumn :: Connection -> IO ()
