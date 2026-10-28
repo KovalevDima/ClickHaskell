@@ -9,6 +9,7 @@ module ClickHouseProxy.TcpServer (
 
 import ClickHaskell (ToChType (..))
 import ClickHaskell.Protocol (ClientPacket (..), ExceptionPacket (..), HelloPacket (..), Serializable (..), ServerPacket (..))
+import ClickHaskell.Internal
 import Control.Concurrent (forkFinally)
 import Control.Exception as E (SomeException, bracket, bracketOnError, catch, finally)
 import Control.Monad (forever, void)
@@ -81,37 +82,6 @@ runTCPServer mhost port server = do
 
 
 -- Buffer
-
-mkBuffer :: Socket -> IO Buffer
-mkBuffer sock = do
-  buff <- newIORef mempty
-  let
-    writeBuff = writeIORef buff
-    writeConn = sendAll sock . toStrict . toLazyByteString
-    readBuff = do
-      currentBuffer <- readIORef buff
-      if (not . BS.null) currentBuffer
-      then writeBuff mempty *> pure currentBuffer
-      else do
-        sockBytes <- recv sock 4096
-        if BS.null sockBytes
-        then error "Connection closed"
-        else pure sockBytes
-    destroyBuff = do
-      catch @SomeException
-        (finally (shutdown sock ShutdownBoth) (close sock))
-        (const $ pure ())
-      writeBuff mempty
-  pure MkBuffer{writeConn, writeBuff, readBuff, destroyBuff}
-  where
-  
-
-data Buffer = MkBuffer
-  { readBuff :: IO ByteString
-  , destroyBuff :: IO ()
-  , writeBuff :: ByteString -> IO ()
-  , writeConn :: Builder -> IO ()
-  }
 
 readBuffer :: Buffer -> Get a -> IO a
 readBuffer MkBuffer{readBuff, writeBuff} parser = runBufferReader (runGetIncremental parser)
