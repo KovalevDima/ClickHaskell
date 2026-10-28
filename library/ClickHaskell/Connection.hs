@@ -33,16 +33,6 @@ data ConnectionError
   -- ^ Occurs on 'readSock' empty @""@ result
   deriving (Show, Exception)
 
-{- |
-  These exceptions might indicate internal bugs.
-
-  If you encounter one, please report it.
--}
-data InternalError
-  = UnexpectedPacketType UVarInt
-  | DeserializationError String
-  deriving (Show, Exception)
-
 writeToConnection :: ConnectionState -> (ProtocolRevision -> Builder) -> IO ()
 writeToConnection MkConnectionState{revision, buffer} serializer =
   (writeConn buffer) (serializer revision)

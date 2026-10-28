@@ -34,6 +34,7 @@ Library
   Exposed-Modules:
     ClickHaskell
     ClickHaskell.Protocol
+    ClickHaskell.Internal
   Other-Modules:
     ClickHaskell.Connection
     ClickHaskell.Protocol.Client
