@@ -7,7 +7,7 @@ module ClickHouseProxy.TcpServer (
   runTcpServer
 ) where
 
-import ClickHaskell (ToChType (..), defaultMkBufferArgs)
+import ClickHaskell (ToChType (..))
 import ClickHaskell.Internal
 import ClickHaskell.Protocol (ClientPacket (..), ExceptionPacket (..), HelloPacket (..), Serializable (..), ServerPacket (..))
 import Control.Concurrent (forkFinally)

@@ -1,6 +1,8 @@
 module ClickHaskell.Internal (
   Buffer(..),
   mkBuffer,
+  defaultMkBufferArgs,
 ) where
-import ClickHaskell.Connection
 
+-- Internal
+import ClickHaskell.Connection
