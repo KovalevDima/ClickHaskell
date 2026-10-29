@@ -20,6 +20,7 @@ module ClickHaskell
   , overrideOsUser
   , overrideDefaultPort
   , overrideMaxRevision
+  , defaultMkBufferArgs
 
   {- * Statements and commands -}
 

@@ -7,29 +7,26 @@ module ClickHouseProxy.TcpServer (
   runTcpServer
 ) where
 
-import ClickHaskell (ToChType (..))
-import ClickHaskell.Protocol (ClientPacket (..), ExceptionPacket (..), HelloPacket (..), Serializable (..), ServerPacket (..))
+import ClickHaskell (ToChType (..), defaultMkBufferArgs)
 import ClickHaskell.Internal
+import ClickHaskell.Protocol (ClientPacket (..), ExceptionPacket (..), HelloPacket (..), Serializable (..), ServerPacket (..))
 import Control.Concurrent (forkFinally)
-import Control.Exception as E (SomeException, bracket, bracketOnError, catch, finally)
+import Control.Exception as E (bracket, bracketOnError)
 import Control.Monad (forever, void)
 import Data.Binary (Get)
 import Data.Binary.Get (Decoder (..), runGetIncremental)
-import Data.ByteString as BS (ByteString, null, toStrict)
-import Data.ByteString.Builder
+import Data.ByteString as BS (ByteString)
 import Data.ByteString.Char8 as BS (putStrLn)
 import Data.ByteString.Char8 as BS8 (pack)
-import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.List.NonEmpty as NE (head)
 import Network.Socket
-import Network.Socket.ByteString (recv, sendAll)
 
 
 runTcpServer :: IO ()
 runTcpServer =
   runTCPServer Nothing "9000" \sock -> do
     BS.putStrLn "Opening connection"
-    buffer <- mkBuffer sock
+    buffer <- mkBuffer =<< defaultMkBufferArgs "" sock
     talk buffer
   where
   talk buffer = do
@@ -80,8 +77,6 @@ runTCPServer mhost port server = do
       $ \(conn, _peer) -> void $
           forkFinally (server conn) (const $ gracefulClose conn 5000)
 
-
--- Buffer
 
 readBuffer :: Buffer -> Get a -> IO a
 readBuffer MkBuffer{readBuff, writeBuff} parser = runBufferReader (runGetIncremental parser)
