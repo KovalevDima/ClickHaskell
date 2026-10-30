@@ -2,6 +2,7 @@ packages:
     ./library
     ./ecosystem/tls
     ./ecosystem/eventlog2ch
+    ./ecosystem/PoC-clickhouse-proxy
     ./contribution
     ./contribution/modules/protocol-docs
     ./contribution/modules/visits

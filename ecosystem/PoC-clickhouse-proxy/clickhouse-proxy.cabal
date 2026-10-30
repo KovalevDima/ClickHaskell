@@ -1,0 +1,43 @@
+cabal-version: 3.0
+
+name:         clickhouse-proxy
+version:      0.1
+author:       Dmitry Kovalev
+maintainer:   Dmitry Kovalev
+category:     ClickHouse
+synopsis:     ClickHouse proxy
+description:  ClickHouse TCP protocol proxy
+homepage:     https://github.com/KovalevDima/clickhouse-proxy
+bug-reports:  https://github.com/KovalevDima/clickhouse-proxy
+license:      BSD-3-Clause
+license-file: LICENSE
+copyright:    2026 Dmitry Kovalev
+build-type:   Simple
+
+extra-doc-files:
+  README.md
+
+source-repository head
+  type: git
+  location: https://github.com/KovalevDima/clickhouse-proxy
+
+executable clickhouse-proxy
+  main-is: clickhouse-proxy.hs
+  hs-source-dirs: .
+  ghc-options:
+    -Wall
+    -Wunused-packages
+  build-depends:
+    -- Internal dependencies
+    ClickHaskell,
+    -- GHC included libraries
+    base >= 4.7 && <5,
+    bytestring,
+    binary,
+    -- External dependencies
+    network < 4,
+  other-modules:
+    ClickHouseProxy.TcpServer
+  default-language: Haskell2010
+  default-extensions:
+    BlockArguments
